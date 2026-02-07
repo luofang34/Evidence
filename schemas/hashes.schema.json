@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://navigate.dev/schema/evidence/hashes.schema.json",
+  "title": "HashManifest",
+  "description": "SHA256 hash manifest for inputs or outputs (used by inputs_hashes.json and outputs_hashes.json)",
+  "type": "object",
+  "additionalProperties": {
+    "type": "string",
+    "pattern": "^[a-f0-9]{64}$",
+    "description": "SHA256 hash (64 hex characters)"
+  },
+  "propertyNames": {
+    "type": "string",
+    "minLength": 1,
+    "description": "Relative file path (forward slashes, no leading ./)"
+  }
+}

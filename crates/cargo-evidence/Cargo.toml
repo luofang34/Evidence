@@ -1,0 +1,18 @@
+[package]
+name = "cargo-evidence"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Cargo subcommand for build evidence and reproducibility verification"
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "cargo-evidence"
+path = "src/main.rs"
+
+[dependencies]
+evidence.workspace = true
+anyhow.workspace = true
+clap.workspace = true

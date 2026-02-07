@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://navigate.dev/schema/evidence/index.schema.json",
+  "title": "EvidenceIndex",
+  "description": "Master manifest for a Navigate certification evidence bundle",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "boundary_schema_version",
+    "trace_schema_version",
+    "profile",
+    "timestamp_rfc3339",
+    "git_sha",
+    "git_branch",
+    "git_dirty",
+    "engine_crate_version",
+    "engine_git_sha",
+    "inputs_hashes_file",
+    "outputs_hashes_file",
+    "commands_file",
+    "env_fingerprint_file",
+    "trace_roots",
+    "trace_outputs",
+    "bundle_complete"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the index.json schema"
+    },
+    "boundary_schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of cert/boundary.toml schema used"
+    },
+    "trace_schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of trace TOML schema (hlr/llr/tests)"
+    },
+    "profile": {
+      "type": "string",
+      "enum": ["dev", "cert"],
+      "description": "Build profile used for evidence generation"
+    },
+    "timestamp_rfc3339": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Bundle generation timestamp in RFC3339 format (UTC)"
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$",
+      "description": "Full 40-character git commit SHA"
+    },
+    "git_branch": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Git branch name at generation time"
+    },
+    "git_dirty": {
+      "type": "boolean",
+      "description": "True if working tree had uncommitted changes"
+    },
+    "engine_crate_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "xtask crate version"
+    },
+    "engine_git_sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$",
+      "description": "Git SHA of the evidence engine"
+    },
+    "inputs_hashes_file": {
+      "type": "string",
+      "const": "inputs_hashes.json",
+      "description": "Relative path to inputs hash manifest"
+    },
+    "outputs_hashes_file": {
+      "type": "string",
+      "const": "outputs_hashes.json",
+      "description": "Relative path to outputs hash manifest"
+    },
+    "commands_file": {
+      "type": "string",
+      "const": "commands.json",
+      "description": "Relative path to command execution log"
+    },
+    "env_fingerprint_file": {
+      "type": "string",
+      "const": "env.json",
+      "description": "Relative path to environment fingerprint"
+    },
+    "trace_roots": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Source directories scanned for trace TOML files"
+    },
+    "trace_outputs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Relative paths to generated traceability matrices"
+    },
+    "bundle_complete": {
+      "type": "boolean",
+      "description": "True if bundle generation completed successfully"
+    }
+  },
+  "additionalProperties": false
+}

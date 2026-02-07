@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://navigate.dev/schema/evidence/commands.schema.json",
+  "title": "CommandRecords",
+  "description": "Execution log of commands run during evidence generation",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["argv", "cwd", "exit_code"],
+    "properties": {
+      "argv": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 1,
+        "description": "Command line arguments (program + args)"
+      },
+      "cwd": {
+        "type": "string",
+        "description": "Working directory when command was executed"
+      },
+      "exit_code": {
+        "type": "integer",
+        "description": "Process exit code (0 = success)"
+      },
+      "stdout_path": {
+        "type": ["string", "null"],
+        "description": "Relative path to captured stdout (if any)"
+      },
+      "stderr_path": {
+        "type": ["string", "null"],
+        "description": "Relative path to captured stderr (if any)"
+      }
+    },
+    "additionalProperties": false
+  }
+}
