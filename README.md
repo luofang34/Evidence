@@ -244,7 +244,7 @@ Previously tracked items now resolved:
 - ~~No extra-file detection~~ → `verify.rs` walks bundle and flags unexpected files
 - ~~Incomplete SCI/SECI~~ → `Cargo.lock` hash, `RUSTFLAGS`, `rust-toolchain.toml` captured
 
-See `docs/compliance-review.md` for the full audit.
+
 
 ---
 
