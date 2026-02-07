@@ -5,6 +5,7 @@
 
 use anyhow::{bail, Context, Result};
 use log;
+use serde::Serialize;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
@@ -16,13 +17,54 @@ use crate::hash::sha256_file;
 // Verification Result
 // ============================================================================
 
+/// Structured verification error codes for programmatic handling.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "code", content = "detail")]
+pub enum VerifyError {
+    /// A file exists in the bundle but is not listed in SHA256SUMS
+    UnexpectedFile(String),
+    /// HMAC signature verification failed
+    HmacFailure,
+    /// A hash in SHA256SUMS does not match the actual file hash
+    HashMismatch {
+        file: String,
+        expected: String,
+        actual: String,
+    },
+    /// A file listed in SHA256SUMS is missing from the bundle
+    MissingHashedFile(String),
+    /// content_hash in index.json doesn't match SHA256SUMS hash
+    ContentHashMismatch {
+        index_hash: String,
+        actual_hash: String,
+    },
+}
+
+impl std::fmt::Display for VerifyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VerifyError::UnexpectedFile(file) => write!(f, "unexpected file: {}", file),
+            VerifyError::HmacFailure => write!(f, "HMAC signature verification failed"),
+            VerifyError::HashMismatch { file, expected, actual } => {
+                write!(f, "hash mismatch for {}: expected {}, got {}", file, expected, actual)
+            }
+            VerifyError::MissingHashedFile(file) => {
+                write!(f, "file in SHA256SUMS not found: {}", file)
+            }
+            VerifyError::ContentHashMismatch { index_hash, actual_hash } => {
+                write!(f, "content_hash mismatch: index={}, actual={}", index_hash, actual_hash)
+            }
+        }
+    }
+}
+
 /// Result of a verification operation.
 #[derive(Debug, Clone)]
 pub enum VerifyResult {
     /// Verification passed
     Pass,
-    /// Verification failed with a reason
-    Fail(String),
+    /// Verification failed with structured error(s)
+    Fail(Vec<VerifyError>),
     /// Verification skipped with a reason
     Skipped(String),
 }
@@ -36,6 +78,19 @@ impl VerifyResult {
     /// Check if verification failed.
     pub fn is_fail(&self) -> bool {
         matches!(self, VerifyResult::Fail(_))
+    }
+
+    /// Human-readable summary of any failure reasons.
+    pub fn summary(&self) -> String {
+        match self {
+            VerifyResult::Pass => "PASS".to_string(),
+            VerifyResult::Fail(errors) => errors
+                .iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("; "),
+            VerifyResult::Skipped(reason) => format!("SKIPPED: {}", reason),
+        }
     }
 }
 
@@ -205,11 +260,11 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
 
     if !unexpected_files.is_empty() {
         unexpected_files.sort();
-        let list = unexpected_files.join(", ");
-        return Ok(VerifyResult::Fail(format!(
-            "Unexpected files not in SHA256SUMS: {}",
-            list
-        )));
+        let errors: Vec<VerifyError> = unexpected_files
+            .into_iter()
+            .map(VerifyError::UnexpectedFile)
+            .collect();
+        return Ok(VerifyResult::Fail(errors));
     }
 
     // 8. HMAC signature verification (if key provided or BUNDLE.sig exists with key)
@@ -220,9 +275,7 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
         }
         let valid = crate::bundle::verify_bundle_signature(bundle, key)?;
         if !valid {
-            return Ok(VerifyResult::Fail(
-                "BUNDLE.sig HMAC verification failed".to_string(),
-            ));
+            return Ok(VerifyResult::Fail(vec![VerifyError::HmacFailure]));
         }
         log::info!("verify: HMAC signature OK");
     } else if sig_path.exists() {
@@ -304,8 +357,8 @@ mod tests {
         assert!(VerifyResult::Pass.is_pass());
         assert!(!VerifyResult::Pass.is_fail());
 
-        assert!(VerifyResult::Fail("reason".to_string()).is_fail());
-        assert!(!VerifyResult::Fail("reason".to_string()).is_pass());
+        assert!(VerifyResult::Fail(vec![VerifyError::HmacFailure]).is_fail());
+        assert!(!VerifyResult::Fail(vec![VerifyError::HmacFailure]).is_pass());
 
         assert!(!VerifyResult::Skipped("reason".to_string()).is_pass());
         assert!(!VerifyResult::Skipped("reason".to_string()).is_fail());

@@ -55,4 +55,4 @@ pub use trace::{
     LlrFile, Schema, TestEntry, TestsFile, TraceFiles, TraceMeta,
 };
 pub use traits::{CommandOutput, CommandRunner, EnvironmentDetector, FileSystem, GitProvider};
-pub use verify::{verify_bundle, verify_bundle_with_key, VerifyResult};
+pub use verify::{verify_bundle, verify_bundle_with_key, VerifyError, VerifyResult};

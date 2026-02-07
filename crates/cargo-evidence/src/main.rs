@@ -620,7 +620,8 @@ fn cmd_verify(
             }
             Ok(EXIT_SUCCESS)
         }
-        Ok(VerifyResult::Fail(reason)) => {
+        Ok(VerifyResult::Fail(errors)) => {
+            let reason = errors.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("; ");
             checks.push(VerifyCheck {
                 name: "bundle_integrity".to_string(),
                 status: "fail".to_string(),
