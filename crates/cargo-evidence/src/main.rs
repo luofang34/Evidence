@@ -11,8 +11,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use evidence::{
-    backfill_uuids, env::in_nix_shell, sign_bundle, verify_bundle_with_key, EnvFingerprint,
-    EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, Profile, VerifyResult,
+    backfill_uuids, env::in_nix_shell, git::git_ls_files, sign_bundle,
+    trace::{read_all_trace_files, validate_trace_links},
+    verify_bundle_with_key, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex,
+    Profile, VerifyResult,
 };
 
 // ============================================================================
@@ -163,6 +165,10 @@ enum Commands {
 
     /// Trace management utilities
     Trace {
+        /// Validate trace links between HLR, LLR, and Tests
+        #[arg(long)]
+        validate: bool,
+
         /// Assign UUIDs to entries that are missing them
         #[arg(long)]
         backfill_uuids: bool,
@@ -353,7 +359,9 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         Vec::new()
     };
 
-    // Build config
+    // Build config (clone fields we need later)
+    let source_prefixes = in_scope_crates.clone();
+    let trace_root_list = trace_roots.clone();
     let config = EvidenceBuildConfig {
         output_root: output_root.clone(),
         profile: profile.to_string(),
@@ -365,7 +373,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     };
 
     // Create builder
-    let builder = match EvidenceBuilder::new(config) {
+    let mut builder = match EvidenceBuilder::new(config) {
         Ok(b) => b,
         Err(e) => {
             if json_output {
@@ -395,14 +403,86 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     let env_path = builder.bundle_dir().join("env.json");
     fs::write(&env_path, serde_json::to_vec_pretty(&env_fp)?)?;
 
-    // Write inputs (empty for now, would be populated by xtask)
+    // Hash source files from in-scope crates
+    if !source_prefixes.is_empty() {
+        let prefixes: Vec<&str> = source_prefixes.iter().map(|s| s.as_str()).collect();
+        match git_ls_files(&prefixes) {
+            Ok(files) => {
+                for f in &files {
+                    if let Err(e) = builder.hash_input(f) {
+                        if strict {
+                            return Err(e.context(format!("hashing source file: {}", f)));
+                        }
+                        eprintln!("warning: could not hash {}: {}", f, e);
+                    }
+                }
+                if !quiet && !json_output {
+                    println!("evidence: hashed {} source file(s)", files.len());
+                }
+            }
+            Err(e) => {
+                if strict {
+                    return Err(e.context("listing in-scope source files"));
+                }
+                eprintln!("warning: could not list source files: {}", e);
+            }
+        }
+    }
+
+    // Write inputs
     builder.write_inputs()?;
 
-    // Write outputs (empty for now)
+    // Write outputs (populated by command captures)
     builder.write_outputs()?;
 
-    // Write commands (empty for now)
+    // Write commands (populated by run_capture calls)
     builder.write_commands()?;
+
+    // Validate trace links before finalize
+    for root in &trace_root_list {
+        let root_path = Path::new(root);
+        if !root_path.exists() {
+            if !quiet && !json_output {
+                eprintln!("warning: trace root '{}' does not exist, skipping validation", root);
+            }
+            continue;
+        }
+        match read_all_trace_files(root) {
+            Ok((hlr, llr, tests, _derived)) => {
+                if let Err(e) = validate_trace_links(
+                    &hlr.requirements,
+                    &llr.requirements,
+                    &tests.tests,
+                ) {
+                    if strict {
+                        let err_msg = format!("Trace validation failed in '{}': {}", root, e);
+                        if json_output {
+                            let output = GenerateOutput {
+                                success: false,
+                                bundle_path: None,
+                                profile: profile.to_string(),
+                                git_sha: None,
+                                error: Some(err_msg.clone()),
+                            };
+                            println!("{}", serde_json::to_string_pretty(&output)?);
+                        } else {
+                            eprintln!("error: {}", err_msg);
+                        }
+                        return Ok(EXIT_ERROR);
+                    }
+                    eprintln!("warning: trace validation failed in '{}': {}", root, e);
+                } else if !quiet && !json_output {
+                    println!("evidence: trace links valid in '{}'", root);
+                }
+            }
+            Err(e) => {
+                if strict {
+                    return Err(e.context(format!("reading trace files from '{}'", root)));
+                }
+                eprintln!("warning: could not read trace files from '{}': {}", root, e);
+            }
+        }
+    }
 
     // Finalize bundle
     let bundle_path = builder.finalize("0.0.1", "0.0.3", vec![])?;
@@ -1154,9 +1234,9 @@ fn validate_hashes_schema(value: &serde_json::Value) -> Result<()> {
 // Trace Command
 // ============================================================================
 
-fn cmd_trace(do_backfill: bool, trace_roots_arg: Option<String>) -> Result<i32> {
-    if !do_backfill {
-        eprintln!("error: specify an action, e.g. --backfill-uuids");
+fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<String>) -> Result<i32> {
+    if !do_backfill && !do_validate {
+        eprintln!("error: specify an action, e.g. --validate or --backfill-uuids");
         return Ok(EXIT_ERROR);
     }
 
@@ -1164,24 +1244,49 @@ fn cmd_trace(do_backfill: bool, trace_roots_arg: Option<String>) -> Result<i32> 
         .map(|s| s.split(',').map(|t| t.trim().to_string()).collect())
         .unwrap_or_else(|| vec!["cert/trace".to_string()]);
 
-    let mut total = 0;
-    for root in &roots {
-        let root_path = Path::new(root);
-        if !root_path.exists() {
-            eprintln!("warning: trace root '{}' does not exist, skipping", root);
-            continue;
+    // Validate trace links
+    if do_validate {
+        let mut all_valid = true;
+        for root in &roots {
+            let root_path = Path::new(root);
+            if !root_path.exists() {
+                eprintln!("warning: trace root '{}' does not exist, skipping", root);
+                continue;
+            }
+            let (hlr, llr, tests, _derived) = read_all_trace_files(root)?;
+            match validate_trace_links(&hlr.requirements, &llr.requirements, &tests.tests) {
+                Ok(()) => println!("trace: validation passed for '{}'", root),
+                Err(e) => {
+                    eprintln!("trace: validation FAILED for '{}': {}", root, e);
+                    all_valid = false;
+                }
+            }
         }
-        let n = backfill_uuids(root)?;
-        if n > 0 {
-            println!("trace: assigned {} UUID(s) in {}", n, root);
+        if !all_valid {
+            return Ok(EXIT_ERROR);
         }
-        total += n;
     }
 
-    if total == 0 {
-        println!("trace: all entries already have UUIDs");
-    } else {
-        println!("trace: assigned {} UUID(s) total", total);
+    // Backfill UUIDs
+    if do_backfill {
+        let mut total = 0;
+        for root in &roots {
+            let root_path = Path::new(root);
+            if !root_path.exists() {
+                eprintln!("warning: trace root '{}' does not exist, skipping", root);
+                continue;
+            }
+            let n = backfill_uuids(root)?;
+            if n > 0 {
+                println!("trace: assigned {} UUID(s) in {}", n, root);
+            }
+            total += n;
+        }
+        if total == 0 {
+            println!("trace: all entries already have UUIDs");
+        } else {
+            println!("trace: assigned {} UUID(s) total", total);
+        }
     }
 
     Ok(EXIT_SUCCESS)
@@ -1236,9 +1341,10 @@ fn run() -> i32 {
             SchemaCommands::Validate { file } => cmd_schema_validate(file),
         },
         Some(Commands::Trace {
+            validate,
             backfill_uuids,
             trace_roots,
-        }) => cmd_trace(backfill_uuids, trace_roots.or(args.trace_roots.clone())),
+        }) => cmd_trace(validate, backfill_uuids, trace_roots.or(args.trace_roots.clone())),
         None => {
             // Default to generate command with global args
             cmd_generate(GenerateArgs {
