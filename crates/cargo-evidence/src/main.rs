@@ -345,16 +345,19 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         return Ok(EXIT_ERROR);
     };
 
-    // Parse trace roots
+    // Resolve boundary config path
+    let boundary_path = boundary
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("cert/boundary.toml"));
+
+    // Parse trace roots (CLI flag > boundary.toml > hardcoded default)
     let trace_roots: Vec<String> = trace_roots_arg
         .map(|s| s.split(',').map(|t| t.trim().to_string()).collect())
-        .unwrap_or_else(|| vec!["cert/trace".to_string()]);
+        .unwrap_or_else(|| load_trace_roots(&boundary_path));
 
     // Load boundary config if provided
-    let in_scope_crates = if let Some(boundary_path) = boundary {
+    let in_scope_crates = if boundary_path.exists() {
         load_in_scope_crates(&boundary_path)?
-    } else if Path::new("cert/boundary.toml").exists() {
-        load_in_scope_crates(Path::new("cert/boundary.toml"))?
     } else {
         Vec::new()
     };
@@ -529,6 +532,32 @@ fn load_in_scope_crates(path: &Path) -> Result<Vec<String>> {
         }
     }
     Ok(Vec::new())
+}
+
+/// Load trace_roots from boundary.toml, falling back to ["cert/trace"].
+fn load_trace_roots(path: &Path) -> Vec<String> {
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return vec!["cert/trace".to_string()],
+    };
+    let config: toml::Value = match toml::from_str(&content) {
+        Ok(c) => c,
+        Err(_) => return vec!["cert/trace".to_string()],
+    };
+    if let Some(scope) = config.get("scope") {
+        if let Some(roots) = scope.get("trace_roots") {
+            if let Some(arr) = roots.as_array() {
+                let v: Vec<String> = arr
+                    .iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect();
+                if !v.is_empty() {
+                    return v;
+                }
+            }
+        }
+    }
+    vec!["cert/trace".to_string()]
 }
 
 // ============================================================================
@@ -892,6 +921,9 @@ in_scope = [
     # "my-crate",
 ]
 
+# Trace root directories (relative to workspace root)
+trace_roots = ["cert/trace"]
+
 # Workspace crates explicitly forbidden as dependencies
 explicit_forbidden = []
 
@@ -1243,7 +1275,7 @@ fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<Strin
 
     let roots: Vec<String> = trace_roots_arg
         .map(|s| s.split(',').map(|t| t.trim().to_string()).collect())
-        .unwrap_or_else(|| vec!["cert/trace".to_string()]);
+        .unwrap_or_else(|| load_trace_roots(Path::new("cert/boundary.toml")));
 
     // Validate trace links
     if do_validate {
