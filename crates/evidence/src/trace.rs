@@ -235,22 +235,29 @@ pub struct DerivedEntry {
 // ============================================================================
 
 /// Parse a TOML file into the given type.
-pub fn read_toml<T: for<'de> Deserialize<'de>>(path: &str) -> Result<T> {
-    let txt = fs::read_to_string(path).with_context(|| format!("Reading {}", path))?;
-    let v = toml::from_str(&txt).with_context(|| format!("Parsing {}", path))?;
+pub fn read_toml<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
+    let txt = fs::read_to_string(path).with_context(|| format!("Reading {:?}", path))?;
+    let v = toml::from_str(&txt).with_context(|| format!("Parsing {:?}", path))?;
     Ok(v)
+}
+
+/// Parsed trace files from a single trace root.
+#[derive(Debug)]
+pub struct TraceFiles {
+    pub hlr: HlrFile,
+    pub llr: LlrFile,
+    pub tests: TestsFile,
+    pub derived: Option<DerivedFile>,
 }
 
 /// Read all trace files from a root directory.
 ///
-/// Returns (HlrFile, LlrFile, TestsFile, Option<DerivedFile>). Missing files
-/// are returned with empty requirement lists (derived returns None if absent).
-pub fn read_all_trace_files(
-    root: &str,
-) -> Result<(HlrFile, LlrFile, TestsFile, Option<DerivedFile>)> {
+/// Missing files are returned with empty requirement lists
+/// (derived returns None if absent).
+pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
     fn read_or_default<T: for<'de> Deserialize<'de>>(path: &Path, default: T) -> Result<T> {
         if path.exists() {
-            read_toml(&path.to_string_lossy())
+            read_toml(path)
         } else {
             Ok(default)
         }
@@ -299,12 +306,12 @@ pub fn read_all_trace_files(
 
     let derived_path = root_path.join("derived.toml");
     let derived = if derived_path.exists() {
-        Some(read_toml::<DerivedFile>(&derived_path.to_string_lossy())?)
+        Some(read_toml::<DerivedFile>(&derived_path)?)
     } else {
         None
     };
 
-    Ok((hlr, llr, tests, derived))
+    Ok(TraceFiles { hlr, llr, tests, derived })
 }
 
 // ============================================================================
@@ -372,7 +379,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
     // HLR
     let hlr_path = root_path.join("hlr.toml");
     if hlr_path.exists() {
-        let mut hlr: HlrFile = read_toml(&hlr_path.to_string_lossy())?;
+        let mut hlr: HlrFile = read_toml(&hlr_path)?;
         let n = assign_missing_uuids_hlr(&mut hlr.requirements);
         if n > 0 {
             let content = toml::to_string_pretty(&hlr)
@@ -386,7 +393,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
     // LLR
     let llr_path = root_path.join("llr.toml");
     if llr_path.exists() {
-        let mut llr: LlrFile = read_toml(&llr_path.to_string_lossy())?;
+        let mut llr: LlrFile = read_toml(&llr_path)?;
         let n = assign_missing_uuids_llr(&mut llr.requirements);
         if n > 0 {
             let content = toml::to_string_pretty(&llr)
@@ -400,7 +407,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
     // Tests
     let tests_path = root_path.join("tests.toml");
     if tests_path.exists() {
-        let mut tests: TestsFile = read_toml(&tests_path.to_string_lossy())?;
+        let mut tests: TestsFile = read_toml(&tests_path)?;
         let n = assign_missing_uuids_test(&mut tests.tests);
         if n > 0 {
             let content = toml::to_string_pretty(&tests)
@@ -414,7 +421,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
     // Derived
     let derived_path = root_path.join("derived.toml");
     if derived_path.exists() {
-        let mut derived: DerivedFile = read_toml(&derived_path.to_string_lossy())?;
+        let mut derived: DerivedFile = read_toml(&derived_path)?;
         let n = assign_missing_uuids_derived(&mut derived.requirements);
         if n > 0 {
             let content = toml::to_string_pretty(&derived)

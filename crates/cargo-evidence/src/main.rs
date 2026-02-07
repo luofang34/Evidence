@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use evidence::{
     backfill_uuids, env::in_nix_shell, git::git_ls_files, sign_bundle,
-    trace::{read_all_trace_files, validate_trace_links},
+    trace::{read_all_trace_files, validate_trace_links, TraceFiles},
     verify_bundle_with_key, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex,
     Profile, VerifyResult,
 };
@@ -448,7 +448,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
             continue;
         }
         match read_all_trace_files(root) {
-            Ok((hlr, llr, tests, _derived)) => {
+            Ok(TraceFiles { hlr, llr, tests, .. }) => {
                 if let Err(e) = validate_trace_links(
                     &hlr.requirements,
                     &llr.requirements,
@@ -1253,7 +1253,7 @@ fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<Strin
                 eprintln!("warning: trace root '{}' does not exist, skipping", root);
                 continue;
             }
-            let (hlr, llr, tests, _derived) = read_all_trace_files(root)?;
+            let TraceFiles { hlr, llr, tests, .. } = read_all_trace_files(root)?;
             match validate_trace_links(&hlr.requirements, &llr.requirements, &tests.tests) {
                 Ok(()) => println!("trace: validation passed for '{}'", root),
                 Err(e) => {
