@@ -5,6 +5,7 @@
 
 use anyhow::{bail, Context, Result};
 use hmac::{Hmac, Mac};
+use log;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::collections::BTreeMap;
@@ -342,7 +343,7 @@ impl EvidenceBuilder {
         self.commands.push(record);
     }
 
-    /// Run a command and capture its output.
+    /// Run a command, capture its output, and write stdout/stderr to the bundle.
     pub fn run_capture(
         &mut self,
         mut cmd: Command,
@@ -358,15 +359,15 @@ impl EvidenceBuilder {
             v
         };
 
-        println!("evidence: running {}...", display_name);
+        log::info!("evidence: running {}...", display_name);
         let output = cmd
             .output()
             .with_context(|| format!("Running {}", display_name))?;
         let exit_code = output.status.code().unwrap_or(-1);
 
         if !output.status.success() {
-            eprintln!("{} failed with exit code {}", display_name, exit_code);
-            eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+            log::error!("{} failed with exit code {}", display_name, exit_code);
+            log::error!("stderr: {}", String::from_utf8_lossy(&output.stderr));
         }
 
         let (stdout_path, stderr_path) = if rel_dir.is_empty() {
@@ -380,6 +381,24 @@ impl EvidenceBuilder {
                 Some(format!("{}/{}_stderr.txt", rel_dir, output_name_base)),
             )
         };
+
+        // Write stdout/stderr to disk so the evidence bundle is self-contained.
+        if let Some(ref sp) = stdout_path {
+            let abs = self.bundle_dir.join(sp);
+            if let Some(parent) = abs.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(&abs, &output.stdout)
+                .with_context(|| format!("Writing stdout to {:?}", abs))?;
+        }
+        if let Some(ref ep) = stderr_path {
+            let abs = self.bundle_dir.join(ep);
+            if let Some(parent) = abs.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(&abs, &output.stderr)
+                .with_context(|| format!("Writing stderr to {:?}", abs))?;
+        }
 
         let rec = CommandRecord {
             argv,
@@ -451,7 +470,7 @@ impl EvidenceBuilder {
             git_branch: self.git_snapshot.branch.clone(),
             git_dirty: self.git_snapshot.dirty,
             engine_crate_version: env!("CARGO_PKG_VERSION").to_string(),
-            engine_git_sha: self.git_snapshot.sha.clone(),
+            engine_git_sha: "n/a (use engine_crate_version)".to_string(),
             inputs_hashes_file: "inputs_hashes.json".to_string(),
             outputs_hashes_file: "outputs_hashes.json".to_string(),
             commands_file: "commands.json".to_string(),

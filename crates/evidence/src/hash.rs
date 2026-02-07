@@ -5,6 +5,7 @@
 //! deterministic ordering in hash collections.
 
 use anyhow::{Context, Result};
+use log;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
@@ -71,7 +72,7 @@ pub fn collect_input_hashes(files: &[String], strict: bool) -> Result<BTreeMap<S
                     file
                 )));
             }
-            eprintln!("Warning: could not hash {}: {}", file, e);
+            log::warn!("could not hash {}: {}", file, e);
         }
     }
     Ok(hashes)

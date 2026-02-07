@@ -21,7 +21,8 @@
     "env_fingerprint_file",
     "trace_roots",
     "trace_outputs",
-    "bundle_complete"
+    "bundle_complete",
+    "content_hash"
   ],
   "properties": {
     "schema_version": {
@@ -106,6 +107,24 @@
     "bundle_complete": {
       "type": "boolean",
       "description": "True if bundle generation completed successfully"
+    },
+    "content_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of the SHA256SUMS file (deterministic content hash)"
+    },
+    "test_summary": {
+      "type": "object",
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "ignored": { "type": "integer", "minimum": 0 },
+        "filtered_out": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["total", "passed", "failed", "ignored", "filtered_out"],
+      "additionalProperties": false,
+      "description": "Parsed summary of cargo test output, if tests were executed"
     }
   },
   "additionalProperties": false

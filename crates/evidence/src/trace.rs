@@ -6,6 +6,7 @@
 //! Test case linking.
 
 use anyhow::{bail, Context, Result};
+use log;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -507,7 +508,7 @@ pub fn validate_trace_links(
 
     if !errors.is_empty() {
         for e in &errors {
-            eprintln!("  VALIDATION ERROR: {}", e);
+            log::error!("  VALIDATION ERROR: {}", e);
         }
         bail!(
             "Validation failed with {} errors (fix before linking check)",
@@ -637,12 +638,12 @@ pub fn validate_trace_links(
     let orphan_tests: Vec<&TestEntry> = tests.iter().filter(|t| t.traces_to.is_empty()).collect();
     if !orphan_tests.is_empty() {
         for t in &orphan_tests {
-            eprintln!(
+            log::warn!(
                 "  WARNING: Orphan test '{}' is not linked to any LLR",
                 t.id
             );
         }
-        eprintln!(
+        log::warn!(
             "  WARNING: {} orphan test(s) found (tests with no LLR link)",
             orphan_tests.len()
         );
@@ -650,7 +651,7 @@ pub fn validate_trace_links(
 
     if !errors.is_empty() {
         for e in &errors {
-            eprintln!("  LINK ERROR: {}", e);
+            log::error!("  LINK ERROR: {}", e);
         }
         bail!("Trace link validation failed with {} errors", errors.len());
     }

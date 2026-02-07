@@ -4,6 +4,7 @@
 //! state including commit hashes, branch info, and dirty status.
 
 use anyhow::{bail, Result};
+use log;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
@@ -70,7 +71,16 @@ impl GitSnapshot {
         Ok(Self {
             sha: sha.unwrap_or_else(|_| "unknown".to_string()),
             branch: branch.unwrap_or_else(|_| "unknown".to_string()),
-            dirty: dirty.unwrap_or(false),
+            dirty: match dirty {
+                Ok(d) => d,
+                Err(_) => {
+                    log::warn!(
+                        "Could not determine git dirty status; defaulting to clean. \
+                         Evidence may be generated from an unknown working directory state."
+                    );
+                    false
+                }
+            },
         })
     }
 }

@@ -4,9 +4,13 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Cargo subcommand for build evidence and reproducibility verification"
+description = "Cargo subcommand for certification evidence generation, verification, and traceability"
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "../../README.md"
 
 [[bin]]
 name = "cargo-evidence"
@@ -16,3 +20,6 @@ path = "src/main.rs"
 evidence.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true

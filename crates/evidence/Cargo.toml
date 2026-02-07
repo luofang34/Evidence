@@ -4,16 +4,26 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Build evidence and reproducibility verification library"
+description = "Certification evidence generation, verification, and traceability library for safety-critical Rust projects"
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "../../README.md"
 
 [dependencies]
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+hmac.workspace = true
 hex.workspace = true
+log.workspace = true
 toml.workspace = true
 walkdir.workspace = true
 chrono.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
