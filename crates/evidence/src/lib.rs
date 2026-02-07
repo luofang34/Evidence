@@ -36,6 +36,7 @@ pub mod hash;
 pub mod policy;
 pub mod trace;
 pub mod traits;
+pub mod util;
 pub mod verify;
 
 // Re-export key types for convenience
