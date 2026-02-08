@@ -5,7 +5,6 @@
 //! deterministic ordering in hash collections.
 
 use anyhow::{Context, Result};
-use log;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
@@ -61,29 +60,6 @@ pub fn hash_file_relative_into(
         .replace('\\', "/");
     map.insert(rel_str, hash);
     Ok(())
-}
-
-/// Collect hashes for a list of files into a BTreeMap.
-///
-/// When `strict` is false, files that cannot be read are skipped with a
-/// warning. When `strict` is true (cert/record profiles), any file that
-/// cannot be read causes a hard error in strict mode.
-///
-/// Uses BTreeMap for deterministic ordering.
-pub fn collect_input_hashes(files: &[String], strict: bool) -> Result<BTreeMap<String, String>> {
-    let mut hashes = BTreeMap::new();
-    for file in files {
-        if let Err(e) = hash_file_into(&mut hashes, file) {
-            if strict {
-                return Err(e.context(format!(
-                    "strict mode: cannot hash input file '{}' (cert/record profile requires all inputs readable)",
-                    file
-                )));
-            }
-            log::warn!("could not hash {}: {}", file, e);
-        }
-    }
-    Ok(hashes)
 }
 
 /// Write SHA256SUMS file for all files in a directory.
@@ -150,24 +126,6 @@ mod tests {
             hash,
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
-    }
-
-    #[test]
-    fn test_collect_input_hashes_empty() {
-        let hashes = collect_input_hashes(&[], false).unwrap();
-        assert!(hashes.is_empty());
-    }
-
-    #[test]
-    fn test_collect_input_hashes_strict_missing_file() {
-        let result = collect_input_hashes(&["/nonexistent/file.txt".to_string()], true);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_collect_input_hashes_lenient_missing_file() {
-        let hashes = collect_input_hashes(&["/nonexistent/file.txt".to_string()], false).unwrap();
-        assert!(hashes.is_empty());
     }
 
     #[test]

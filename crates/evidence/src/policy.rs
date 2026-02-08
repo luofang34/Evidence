@@ -173,31 +173,6 @@ pub struct ProfileConfig {
     pub evidence: ProfileEvidence,
 }
 
-// ============================================================================
-// Verification Policy
-// ============================================================================
-
-/// A verification policy controlling what to check.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VerifyPolicy {
-    /// Whether to verify source hashes
-    pub verify_sources: bool,
-    /// Whether to verify output hashes
-    pub verify_outputs: bool,
-    /// Whether to verify environment
-    pub verify_environment: bool,
-}
-
-impl Default for VerifyPolicy {
-    fn default() -> Self {
-        Self {
-            verify_sources: true,
-            verify_outputs: true,
-            verify_environment: false,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,13 +190,5 @@ mod tests {
         assert_eq!("cert".parse::<Profile>().unwrap(), Profile::Cert);
         assert_eq!("CERT".parse::<Profile>().unwrap(), Profile::Cert);
         assert!("unknown".parse::<Profile>().is_err());
-    }
-
-    #[test]
-    fn test_verify_policy_default() {
-        let policy = VerifyPolicy::default();
-        assert!(policy.verify_sources);
-        assert!(policy.verify_outputs);
-        assert!(!policy.verify_environment);
     }
 }

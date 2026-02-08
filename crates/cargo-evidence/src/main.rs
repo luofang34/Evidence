@@ -338,7 +338,6 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         profile,
         in_scope_crates,
         trace_roots,
-        skip_tests: false,
         require_clean_git: matches!(profile, Profile::Cert | Profile::Record),
         fail_on_dirty: matches!(profile, Profile::Cert | Profile::Record),
     };
@@ -640,11 +639,24 @@ fn cmd_verify(
         }
         Ok(VerifyResult::Fail(errors)) => {
             let reason = errors.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("; ");
-            checks.push(VerifyCheck {
-                name: "bundle_integrity".to_string(),
-                status: "fail".to_string(),
-                message: Some(reason.clone()),
-            });
+            // Map each VerifyError to its own VerifyCheck for granular JSON output
+            for err in &errors {
+                let name = match err {
+                    evidence::VerifyError::UnexpectedFile(_) => "unexpected_file",
+                    evidence::VerifyError::HmacFailure => "hmac_signature",
+                    evidence::VerifyError::HashMismatch { .. } => "hash_mismatch",
+                    evidence::VerifyError::MissingHashedFile(_) => "missing_file",
+                    evidence::VerifyError::ContentHashMismatch { .. } => "content_hash",
+                    evidence::VerifyError::UnsafePath(_) => "unsafe_path",
+                    evidence::VerifyError::FormatError { .. } => "format_error",
+                    evidence::VerifyError::CrossFileInconsistency { .. } => "cross_file_mismatch",
+                };
+                checks.push(VerifyCheck {
+                    name: name.to_string(),
+                    status: "fail".to_string(),
+                    message: Some(err.to_string()),
+                });
+            }
 
             if json_output {
                 let output = VerifyOutput {

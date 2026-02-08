@@ -265,7 +265,6 @@ let config = EvidenceBuildConfig {
     profile: "dev".to_string(),
     in_scope_crates: vec!["my-crate".to_string()],
     trace_roots: vec!["cert/trace".to_string()],
-    skip_tests: false,
     require_clean_git: false,
     fail_on_dirty: false,
 };

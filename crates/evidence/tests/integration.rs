@@ -380,7 +380,7 @@ fn test_overwrite_protection() {
         profile: Profile::Dev,
         in_scope_crates: vec![],
         trace_roots: vec![],
-        skip_tests: false,
+
         require_clean_git: false,
         fail_on_dirty: false,
     };
@@ -846,7 +846,7 @@ fn test_toctou_detection() {
         profile: Profile::Dev,
         in_scope_crates: vec![],
         trace_roots: vec![],
-        skip_tests: false,
+
         require_clean_git: false,
         fail_on_dirty: false,
     };

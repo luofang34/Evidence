@@ -265,6 +265,24 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
                         });
                     }
                 }
+                if let Some(env_branch) = env_value.get("git_branch").and_then(|v| v.as_str()) {
+                    if env_branch != index.git_branch {
+                        verify_errors.push(VerifyError::CrossFileInconsistency {
+                            field: "git_branch".to_string(),
+                            index_value: index.git_branch.clone(),
+                            env_value: env_branch.to_string(),
+                        });
+                    }
+                }
+                if let Some(env_dirty) = env_value.get("git_dirty").and_then(|v| v.as_bool()) {
+                    if env_dirty != index.git_dirty {
+                        verify_errors.push(VerifyError::CrossFileInconsistency {
+                            field: "git_dirty".to_string(),
+                            index_value: index.git_dirty.to_string(),
+                            env_value: env_dirty.to_string(),
+                        });
+                    }
+                }
             }
         }
     }
@@ -415,68 +433,6 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
     Ok(VerifyResult::Pass)
 }
 
-/// Verify only the SHA256SUMS file integrity.
-///
-/// This is a lighter-weight check that only verifies file hashes
-/// without parsing the full index.
-pub fn verify_sha256sums(bundle: &Path) -> Result<()> {
-    let sha256sums_path = bundle.join("SHA256SUMS");
-    if !sha256sums_path.exists() {
-        bail!("SHA256SUMS file not found in bundle");
-    }
-
-    let content = fs::read_to_string(&sha256sums_path)?;
-    let mut errors = Vec::new();
-
-    for line in content.lines() {
-        if line.is_empty() {
-            continue;
-        }
-        let parts: Vec<&str> = line.splitn(2, "  ").collect();
-        if parts.len() != 2 {
-            errors.push(format!("Malformed line: {}", line));
-            continue;
-        }
-
-        let expected = parts[0];
-        let filename = parts[1];
-
-        if !is_safe_bundle_path(filename) {
-            errors.push(format!("Unsafe path: {}", filename));
-            continue;
-        }
-
-        let file_path = bundle.join(filename);
-
-        if !file_path.exists() {
-            errors.push(format!("Missing: {}", filename));
-            continue;
-        }
-
-        let actual = sha256_file(&file_path)?;
-        if actual != expected {
-            errors.push(format!("Mismatch: {}", filename));
-        }
-    }
-
-    if !errors.is_empty() {
-        for e in &errors {
-            log::error!("  {}", e);
-        }
-        bail!("SHA256 verification failed");
-    }
-
-    Ok(())
-}
-
-/// Check if a bundle is complete (has all required files).
-pub fn is_bundle_complete(bundle: &Path) -> bool {
-    if !bundle.is_dir() {
-        return false;
-    }
-    REQUIRED_FILES.iter().all(|f| bundle.join(f).exists())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -491,11 +447,6 @@ mod tests {
 
         assert!(!VerifyResult::Skipped("reason".to_string()).is_pass());
         assert!(!VerifyResult::Skipped("reason".to_string()).is_fail());
-    }
-
-    #[test]
-    fn test_is_bundle_complete_nonexistent() {
-        assert!(!is_bundle_complete(Path::new("/nonexistent/bundle")));
     }
 
     #[test]

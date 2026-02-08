@@ -47,12 +47,12 @@ pub use bundle::{
 pub use env::EnvFingerprint;
 pub use git::{GitSnapshot, RealGitProvider};
 pub use hash::{sha256, sha256_file};
-pub use policy::{BoundaryConfig, Profile, ProfileConfig, TracePolicy, VerifyPolicy};
+pub use policy::{BoundaryConfig, Profile, ProfileConfig, TracePolicy};
 pub use trace::{
     assign_missing_uuids_derived, assign_missing_uuids_hlr, assign_missing_uuids_llr,
     assign_missing_uuids_test, backfill_uuids, generate_traceability_matrix, read_all_trace_files,
     read_toml, validate_trace_links, validate_trace_links_with_policy, DerivedEntry, DerivedFile,
     HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile, TraceFiles, TraceMeta,
 };
-pub use traits::{CommandOutput, CommandRunner, EnvironmentDetector, FileSystem, GitProvider};
+pub use traits::{EnvironmentDetector, GitProvider};
 pub use verify::{verify_bundle, verify_bundle_with_key, VerifyError, VerifyResult};

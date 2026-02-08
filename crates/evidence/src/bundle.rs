@@ -238,8 +238,6 @@ pub struct EvidenceBuildConfig {
     pub in_scope_crates: Vec<String>,
     /// Trace roots to scan
     pub trace_roots: Vec<String>,
-    /// Whether to skip running tests
-    pub skip_tests: bool,
     /// Whether to require clean git
     pub require_clean_git: bool,
     /// Whether to fail on dirty git
