@@ -215,14 +215,15 @@ fn check_shallow_clone() -> Result<()> {
     Ok(())
 }
 
-/// Check if git is dirty
+/// Check if git is dirty.
+/// Safe default: true on failure (unknown state = assume dirty).
 fn is_git_dirty() -> bool {
     use std::process::Command;
     Command::new("git")
         .args(["status", "--porcelain"])
         .output()
         .map(|o| !o.stdout.is_empty())
-        .unwrap_or(false)
+        .unwrap_or(true)
 }
 
 // ============================================================================
@@ -1439,38 +1440,35 @@ fn cmd_schema_validate(file: PathBuf) -> Result<i32> {
     // Determine which schema to use based on file name
     let file_name = file.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-    let (schema_name, schema_content) = if file_name == "index.json" {
-        ("index", SCHEMA_INDEX)
+    let schema_name = if file_name == "index.json" {
+        "index"
     } else if file_name == "env.json" {
-        ("env", SCHEMA_ENV)
+        "env"
     } else if file_name == "commands.json" {
-        ("commands", SCHEMA_COMMANDS)
+        "commands"
     } else if file_name.contains("hashes") {
-        ("hashes", SCHEMA_HASHES)
+        "hashes"
     } else {
         // Try to auto-detect based on content
         if value.get("schema_version").is_some() && value.get("bundle_complete").is_some() {
-            ("index", SCHEMA_INDEX)
+            "index"
         } else if value.get("rustc").is_some() && value.get("cargo").is_some() {
-            ("env", SCHEMA_ENV)
+            "env"
         } else if value.is_array() {
-            ("commands", SCHEMA_COMMANDS)
+            "commands"
         } else if value.is_object()
             && value
                 .as_object()
                 .map(|o| o.values().all(|v| v.is_string()))
                 .unwrap_or(false)
         {
-            ("hashes", SCHEMA_HASHES)
+            "hashes"
         } else {
             eprintln!("error: could not determine schema type for {:?}", file);
             eprintln!("hint: rename file to index.json, env.json, commands.json, or *_hashes.json");
             return Ok(EXIT_ERROR);
         }
     };
-
-    // Parse the schema
-    let _schema: serde_json::Value = serde_json::from_str(schema_content)?;
 
     // Basic validation: check required fields for each schema type
     let validation_result = match schema_name {

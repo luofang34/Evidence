@@ -5,8 +5,6 @@
 
 use anyhow::Result;
 
-use crate::env::EnvFingerprint;
-
 /// Trait for git repository operations.
 pub trait GitProvider {
     /// Get the current commit SHA.
@@ -20,10 +18,4 @@ pub trait GitProvider {
 
     /// Get the list of dirty files (modified, untracked, etc.).
     fn dirty_files(&self) -> Result<Vec<String>>;
-}
-
-/// Trait for detecting build environment.
-pub trait EnvironmentDetector {
-    /// Detect and capture the current build environment.
-    fn detect(&self) -> Result<EnvFingerprint>;
 }

@@ -30,7 +30,6 @@ pub struct TraceMeta {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HlrFile {
     pub schema: Schema,
-    #[allow(dead_code)]
     pub meta: TraceMeta,
     pub requirements: Vec<HlrEntry>,
 }
@@ -156,12 +155,10 @@ pub struct TestEntry {
     pub uid: Option<String>,
     /// Namespace prefix
     #[serde(default)]
-    #[allow(dead_code)]
     pub ns: Option<String>,
     /// Human-readable ID
     pub id: String,
     /// Test title
-    #[allow(dead_code)]
     pub title: String,
     /// Owner (schema v0.0.3+)
     #[serde(default)]

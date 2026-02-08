@@ -245,7 +245,6 @@ pub struct EvidenceBuildConfig {
     /// Whether to fail on dirty git
     pub fail_on_dirty: bool,
     /// Resolved per-crate DAL map (crate_name -> Dal).
-    #[allow(dead_code)]
     pub dal_map: BTreeMap<String, Dal>,
 }
 

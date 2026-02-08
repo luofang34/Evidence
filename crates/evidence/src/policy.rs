@@ -266,59 +266,6 @@ fn default_true() -> bool {
     true
 }
 
-// ============================================================================
-// Profile-Specific Configuration
-// ============================================================================
-
-/// Profile metadata.
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ProfileMeta {
-    pub name: String,
-    pub description: String,
-}
-
-/// Profile check settings.
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ProfileChecks {
-    /// Require clean git tree
-    pub require_clean_git: bool,
-    /// Require coverage collection
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub require_coverage: bool,
-    /// Allow --all-features in lint/test
-    #[serde(default)]
-    pub allow_all_features: bool,
-    /// Require offline build
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub offline_required: bool,
-}
-
-/// Profile evidence settings.
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ProfileEvidence {
-    /// Include timestamps in evidence (breaks determinism)
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub include_timestamps: bool,
-    /// Strict hash validation mode
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub strict_hash_validation: bool,
-    /// Fail if git tree is dirty
-    #[serde(default)]
-    pub fail_on_dirty: bool,
-}
-
-/// Complete profile configuration (loaded from profiles/*.toml).
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ProfileConfig {
-    pub profile: ProfileMeta,
-    pub checks: ProfileChecks,
-    pub evidence: ProfileEvidence,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
