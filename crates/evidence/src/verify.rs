@@ -3,16 +3,16 @@
 //! This module provides functionality for verifying evidence bundles
 //! including hash verification, completeness checks, and schema validation.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use log;
 use serde::Serialize;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use chrono;
 use crate::bundle::EvidenceIndex;
 use crate::hash::sha256_file;
+use chrono;
 
 // ============================================================================
 // Verification Result
@@ -61,24 +61,52 @@ impl std::fmt::Display for VerifyError {
         match self {
             VerifyError::UnexpectedFile(file) => write!(f, "unexpected file: {}", file),
             VerifyError::HmacFailure => write!(f, "HMAC signature verification failed"),
-            VerifyError::HashMismatch { file, expected, actual } => {
-                write!(f, "hash mismatch for {}: expected {}, got {}", file, expected, actual)
+            VerifyError::HashMismatch {
+                file,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "hash mismatch for {}: expected {}, got {}",
+                    file, expected, actual
+                )
             }
             VerifyError::MissingHashedFile(file) => {
                 write!(f, "file in SHA256SUMS not found: {}", file)
             }
-            VerifyError::ContentHashMismatch { index_hash, actual_hash } => {
-                write!(f, "content_hash mismatch: index={}, actual={}", index_hash, actual_hash)
+            VerifyError::ContentHashMismatch {
+                index_hash,
+                actual_hash,
+            } => {
+                write!(
+                    f,
+                    "content_hash mismatch: index={}, actual={}",
+                    index_hash, actual_hash
+                )
             }
             VerifyError::UnsafePath(path) => {
                 write!(f, "unsafe path in bundle: {}", path)
             }
-            VerifyError::FormatError { field, expected, actual } => {
-                write!(f, "invalid format for {}: expected {}, got {}", field, expected, actual)
-            }
-            VerifyError::CrossFileInconsistency { field, index_value, env_value } => {
+            VerifyError::FormatError {
+                field,
+                expected,
+                actual,
+            } => {
                 write!(
-                    f, "env.json vs index.json mismatch for {}: index={}, env={}",
+                    f,
+                    "invalid format for {}: expected {}, got {}",
+                    field, expected, actual
+                )
+            }
+            VerifyError::CrossFileInconsistency {
+                field,
+                index_value,
+                env_value,
+            } => {
+                write!(
+                    f,
+                    "env.json vs index.json mismatch for {}: index={}, env={}",
                     field, index_value, env_value
                 )
             }
@@ -231,8 +259,7 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
     }
     // git_sha must be 40-char hex for cert/record profiles; dev allows "unknown"
     if index.profile != "dev"
-        && (index.git_sha.len() != 40
-            || !index.git_sha.chars().all(|c| c.is_ascii_hexdigit()))
+        && (index.git_sha.len() != 40 || !index.git_sha.chars().all(|c| c.is_ascii_hexdigit()))
     {
         verify_errors.push(VerifyError::FormatError {
             field: "git_sha".to_string(),
@@ -246,6 +273,19 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
             field: "timestamp_rfc3339".to_string(),
             expected: "valid RFC3339 datetime".to_string(),
             actual: index.timestamp_rfc3339.clone(),
+        });
+    }
+    // content_hash must be 64-char lowercase hex (SHA-256)
+    if index.content_hash.len() != 64
+        || !index
+            .content_hash
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+    {
+        verify_errors.push(VerifyError::FormatError {
+            field: "content_hash".to_string(),
+            expected: "64-character lowercase hex (SHA-256)".to_string(),
+            actual: index.content_hash.clone(),
         });
     }
 
@@ -434,9 +474,15 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
 
     log::info!("verify: OK");
     log::info!("  profile: {}", index.profile);
-    log::info!("  git_sha: {}", index.git_sha.get(..8).unwrap_or(&index.git_sha));
+    log::info!(
+        "  git_sha: {}",
+        index.git_sha.get(..8).unwrap_or(&index.git_sha)
+    );
     log::info!("  timestamp: {}", index.timestamp_rfc3339);
-    log::info!("  content_hash: {}", index.content_hash.get(..16).unwrap_or(&index.content_hash));
+    log::info!(
+        "  content_hash: {}",
+        index.content_hash.get(..16).unwrap_or(&index.content_hash)
+    );
     log::info!("  trace_outputs: {}", index.trace_outputs.len());
 
     Ok(VerifyResult::Pass)

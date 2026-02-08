@@ -3,7 +3,7 @@
 //! This module provides functionality for capturing git repository
 //! state including commit hashes, branch info, and dirty status.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use log;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
@@ -168,15 +168,15 @@ pub fn git_ls_files(prefixes: &[&str]) -> Result<Vec<String>> {
             continue;
         }
         // Require valid UTF-8 paths for evidence integrity
-        let path = std::str::from_utf8(segment)
-            .map_err(|_| anyhow::anyhow!("git ls-files returned non-UTF8 path (evidence requires UTF8)"))?;
+        let path = std::str::from_utf8(segment).map_err(|_| {
+            anyhow::anyhow!("git ls-files returned non-UTF8 path (evidence requires UTF8)")
+        })?;
         files.push(path.to_string());
     }
     // Re-sort for determinism (git output is usually sorted, but be explicit)
     files.sort();
     Ok(files)
 }
-
 
 #[cfg(test)]
 mod tests {

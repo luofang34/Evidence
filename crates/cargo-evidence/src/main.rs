@@ -3,7 +3,7 @@
 //! This tool provides commands for generating, verifying, and managing
 //! build evidence bundles.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -11,12 +11,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use evidence::{
-    backfill_uuids, env::in_nix_shell, git::git_ls_files, parse_cargo_test_output, sign_bundle,
+    Dal, DalConfig, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex,
+    EvidencePolicy, Profile, VerifyResult, backfill_uuids,
+    env::in_nix_shell,
+    git::git_ls_files,
+    parse_cargo_test_output, sign_bundle,
     trace::{
-        generate_traceability_matrix, read_all_trace_files, validate_trace_links, TraceFiles,
+        TraceFiles, generate_traceability_matrix, read_all_trace_files,
+        validate_trace_links_with_policy,
     },
-    verify_bundle_with_key, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex,
-    Profile, VerifyResult,
+    verify_bundle_with_key,
 };
 
 // ============================================================================
@@ -342,9 +346,16 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         Vec::new()
     };
 
+    // Load DAL configuration from boundary.toml
+    let dal_config = load_dal_config(&boundary_path);
+    let dal_map = resolve_dal_map(&dal_config, &in_scope_crates);
+    // Derive max DAL before dal_map is moved into config
+    let max_dal = dal_map.values().copied().max().unwrap_or_default();
+
     // Build config (clone fields we need later)
     let source_prefixes = in_scope_crates.clone();
     let trace_root_list = trace_roots.clone();
+    let dal_map_for_compliance = dal_map.clone();
     let config = EvidenceBuildConfig {
         output_root: output_root.clone(),
         profile,
@@ -352,6 +363,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         trace_roots,
         require_clean_git: matches!(profile, Profile::Cert | Profile::Record),
         fail_on_dirty: matches!(profile, Profile::Cert | Profile::Record),
+        dal_map,
     };
 
     // Create builder
@@ -451,20 +463,29 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     builder.write_commands()?;
 
     // Validate trace links before finalize
+    // Derive trace policy from DAL (use highest DAL across all in-scope crates, or default)
+    let evidence_policy = EvidencePolicy::for_dal(max_dal);
     for root in &trace_root_list {
         let root_path = Path::new(root);
         if !root_path.exists() {
             if !quiet && !json_output {
-                eprintln!("warning: trace root '{}' does not exist, skipping validation", root);
+                eprintln!(
+                    "warning: trace root '{}' does not exist, skipping validation",
+                    root
+                );
             }
             continue;
         }
         match read_all_trace_files(root) {
-            Ok(TraceFiles { hlr, llr, tests, .. }) => {
-                if let Err(e) = validate_trace_links(
+            Ok(TraceFiles {
+                hlr, llr, tests, ..
+            }) => {
+                if let Err(e) = validate_trace_links_with_policy(
                     &hlr.requirements,
                     &llr.requirements,
                     &tests.tests,
+                    &[], // derived entries (TODO: wire from derived.toml)
+                    &evidence_policy.trace,
                 ) {
                     if strict {
                         let err_msg = format!("Trace validation failed in '{}': {}", root, e);
@@ -529,8 +550,36 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                     }
                 }
                 Err(e) => {
-                    eprintln!("warning: could not generate traceability matrix for '{}': {}", root, e);
+                    eprintln!(
+                        "warning: could not generate traceability matrix for '{}': {}",
+                        root, e
+                    );
                 }
+            }
+        }
+    }
+
+    // Generate per-crate compliance reports (before finalize so they're included in SHA256SUMS)
+    if !dal_map_for_compliance.is_empty() {
+        let compliance_dir = builder.bundle_dir().join("compliance");
+        fs::create_dir_all(&compliance_dir)?;
+
+        for (crate_name, dal) in &dal_map_for_compliance {
+            let crate_evidence = evidence::CrateEvidence {
+                has_trace_data: trace_root_list.iter().any(|r| Path::new(r).exists()),
+                trace_validation_passed: true,
+                has_test_results: !skip_tests,
+                tests_passed: !skip_tests,
+                has_coverage_data: false,
+            };
+            let report = evidence::generate_compliance_report(crate_name, *dal, &crate_evidence);
+            let report_path = compliance_dir.join(format!("{}.json", crate_name));
+            fs::write(&report_path, serde_json::to_string_pretty(&report)?)?;
+            if !quiet && !json_output {
+                println!(
+                    "evidence: compliance report for '{}' (DAL-{}): {}/{} objectives met",
+                    crate_name, dal, report.summary.met, report.summary.applicable
+                );
             }
         }
     }
@@ -606,6 +655,40 @@ fn load_trace_roots(path: &Path) -> Vec<String> {
         }
     }
     vec!["cert/trace".to_string()]
+}
+
+/// Load DAL configuration from boundary.toml.
+/// Returns DalConfig::default() if the file doesn't exist or has no [dal] section.
+fn load_dal_config(path: &Path) -> DalConfig {
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return DalConfig::default(),
+    };
+    let config: toml::Value = match toml::from_str(&content) {
+        Ok(c) => c,
+        Err(_) => return DalConfig::default(),
+    };
+    if let Some(dal) = config.get("dal") {
+        if let Ok(dal_config) = toml::Value::try_into::<DalConfig>(dal.clone()) {
+            return dal_config;
+        }
+    }
+    DalConfig::default()
+}
+
+/// Resolve per-crate DAL map from DalConfig and in-scope crate list.
+fn resolve_dal_map(dal_config: &DalConfig, in_scope_crates: &[String]) -> BTreeMap<String, Dal> {
+    in_scope_crates
+        .iter()
+        .map(|name| {
+            let dal = dal_config
+                .crate_overrides
+                .get(name)
+                .copied()
+                .unwrap_or(dal_config.default_dal);
+            (name.clone(), dal)
+        })
+        .collect()
 }
 
 // ============================================================================
@@ -685,9 +768,9 @@ fn cmd_verify(
 
     // Load verify key if provided
     let key_bytes = match &verify_key {
-        Some(path) => Some(
-            fs::read(path).with_context(|| format!("reading verify key from {:?}", path))?,
-        ),
+        Some(path) => {
+            Some(fs::read(path).with_context(|| format!("reading verify key from {:?}", path))?)
+        }
         None => None,
     };
 
@@ -719,7 +802,11 @@ fn cmd_verify(
             Ok(EXIT_SUCCESS)
         }
         Ok(VerifyResult::Fail(errors)) => {
-            let reason = errors.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("; ");
+            let reason = errors
+                .iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
             // Map each VerifyError to its own VerifyCheck for granular JSON output
             for err in &errors {
                 let name = match err {
@@ -766,7 +853,11 @@ fn cmd_verify(
                     success: !treat_as_fail,
                     bundle_path: bundle_path.display().to_string(),
                     checks,
-                    error: if treat_as_fail { Some(format!("strict mode: {}", reason)) } else { None },
+                    error: if treat_as_fail {
+                        Some(format!("strict mode: {}", reason))
+                    } else {
+                        None
+                    },
                 };
                 println!("{}", serde_json::to_string_pretty(&output)?);
             } else if treat_as_fail {
@@ -774,7 +865,11 @@ fn cmd_verify(
             } else {
                 println!("verify: SKIPPED - {}", reason);
             }
-            Ok(if treat_as_fail { EXIT_VERIFICATION_FAILURE } else { EXIT_SUCCESS })
+            Ok(if treat_as_fail {
+                EXIT_VERIFICATION_FAILURE
+            } else {
+                EXIT_SUCCESS
+            })
         }
         Err(e) => {
             if json_output {
@@ -917,7 +1012,11 @@ fn cmd_diff(bundle_a: PathBuf, bundle_b: PathBuf, json_output: bool) -> Result<i
             println!("  profile: {} -> {}", c.a, c.b);
         }
         if let Some(ref c) = diff_output.metadata_diff.git_sha {
-            println!("  git_sha: {}... -> {}...", &c.a[..8.min(c.a.len())], &c.b[..8.min(c.b.len())]);
+            println!(
+                "  git_sha: {}... -> {}...",
+                &c.a[..8.min(c.a.len())],
+                &c.b[..8.min(c.b.len())]
+            );
         }
         if let Some(ref c) = diff_output.metadata_diff.git_branch {
             println!("  git_branch: {} -> {}", c.a, c.b);
@@ -1078,6 +1177,16 @@ forbid_proc_macros = false
 [forbidden_external]
 # External crates that are forbidden with reasons
 # "crate_name" = "reason"
+
+[dal]
+# Default Design Assurance Level for all in-scope crates (A, B, C, or D).
+# D is the least stringent (default if omitted).
+default_dal = "D"
+
+# Per-crate DAL overrides
+# [dal.crate_overrides]
+# "my-critical-crate" = "A"
+# "my-utility-crate" = "C"
 "#;
 
 const PROFILE_DEV: &str = r#"# Development Profile
@@ -1143,9 +1252,7 @@ fn cmd_init(force: bool) -> Result<i32> {
 
     // Check if cert directory exists and not forcing
     if cert_dir.exists() && !force {
-        eprintln!(
-            "error: cert/ directory already exists. Use --force to overwrite."
-        );
+        eprintln!("error: cert/ directory already exists. Use --force to overwrite.");
         return Ok(EXIT_ERROR);
     }
 
@@ -1177,6 +1284,13 @@ fn cmd_init(force: bool) -> Result<i32> {
 
     // Create example trace files (must match struct field names for TOML parsing)
     let hlr_example = r#"# High-Level Requirements
+#
+# Each [[requirements]] entry must include:
+#   uid    - unique identifier (e.g. "HLR-001")
+#   id     - human-readable slug
+#   title  - short description
+# Optional fields: owner, description, rationale, sort_key,
+#   scope, category, source, verification_methods
 
 [schema]
 version = "0.0.3"
@@ -1195,6 +1309,14 @@ verification_methods = ["test", "review"]
 "#;
 
     let llr_example = r#"# Low-Level Requirements
+#
+# Each [[requirements]] entry must include:
+#   uid         - unique identifier (e.g. "LLR-001")
+#   id          - human-readable slug
+#   title       - short description
+#   traces_to   - list of HLR UIDs this LLR derives from
+# Optional fields: owner, description, rationale, sort_key,
+#   derived (bool), modules, verification_methods, source
 
 [schema]
 version = "0.0.3"
@@ -1209,11 +1331,19 @@ id = "llr-example"
 title = "Example Implementation Requirement"
 description = "This is an example low-level requirement."
 owner = "developer@example.com"
-derives_from = ["HLR-001"]
+traces_to = ["HLR-001"]
 verification_methods = ["test"]
 "#;
 
     let tests_example = r#"# Test Cases
+#
+# Each [[tests]] entry must include:
+#   uid        - unique identifier (e.g. "TST-001")
+#   id         - human-readable slug
+#   title      - short description
+#   traces_to  - list of LLR UIDs this test verifies
+# Optional fields: owner, description, sort_key, category,
+#   test_selector (e.g. "crate::module::test_fn"), source
 
 [schema]
 version = "0.0.3"
@@ -1229,10 +1359,17 @@ title = "Example Test Case"
 description = "Verifies that the example LLR is satisfied."
 owner = "tester@example.com"
 traces_to = ["LLR-001"]
-verification_method = "test"
 "#;
 
     let derived_example = r#"# Derived Requirements
+#
+# Each [[requirements]] entry must include:
+#   uid            - unique identifier (e.g. "DRQ-001")
+#   id             - human-readable slug
+#   title          - short description
+#   rationale      - why this requirement was derived
+# Optional fields: owner, description, sort_key,
+#   safety_impact ("none" | "low" | "medium" | "high"), source
 
 [schema]
 version = "0.0.3"
@@ -1300,10 +1437,7 @@ fn cmd_schema_validate(file: PathBuf) -> Result<i32> {
         serde_json::from_str(&content).with_context(|| format!("parsing {:?} as JSON", file))?;
 
     // Determine which schema to use based on file name
-    let file_name = file
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
+    let file_name = file.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
     let (schema_name, schema_content) = if file_name == "index.json" {
         ("index", SCHEMA_INDEX)
@@ -1349,7 +1483,10 @@ fn cmd_schema_validate(file: PathBuf) -> Result<i32> {
 
     match validation_result {
         Ok(()) => {
-            println!("validate: PASS - {:?} is valid {} schema", file, schema_name);
+            println!(
+                "validate: PASS - {:?} is valid {} schema",
+                file, schema_name
+            );
             Ok(EXIT_SUCCESS)
         }
         Err(e) => {
@@ -1459,12 +1596,20 @@ fn validate_hashes_schema(value: &serde_json::Value) -> Result<()> {
 // Trace Command
 // ============================================================================
 
-fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<String>, json_output: bool) -> Result<i32> {
+fn cmd_trace(
+    do_validate: bool,
+    do_backfill: bool,
+    trace_roots_arg: Option<String>,
+    json_output: bool,
+) -> Result<i32> {
     if !do_backfill && !do_validate {
         if json_output {
-            println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-                "error": "specify an action, e.g. --validate or --backfill-uuids"
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "error": "specify an action, e.g. --validate or --backfill-uuids"
+                }))?
+            );
         } else {
             eprintln!("error: specify an action, e.g. --validate or --backfill-uuids");
         }
@@ -1477,6 +1622,14 @@ fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<Strin
 
     // Validate trace links
     if do_validate {
+        // Load DAL config from boundary.toml for DAL-driven validation
+        let boundary_path = PathBuf::from("cert/boundary.toml");
+        let dal_config = load_dal_config(&boundary_path);
+        let in_scope = load_in_scope_crates(&boundary_path).unwrap_or_default();
+        let dal_map = resolve_dal_map(&dal_config, &in_scope);
+        let dal = dal_map.values().copied().max().unwrap_or_default();
+        let evidence_policy = EvidencePolicy::for_dal(dal);
+
         let mut all_valid = true;
         let mut results: Vec<serde_json::Value> = Vec::new();
         for root in &roots {
@@ -1493,8 +1646,16 @@ fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<Strin
                 }
                 continue;
             }
-            let TraceFiles { hlr, llr, tests, .. } = read_all_trace_files(root)?;
-            match validate_trace_links(&hlr.requirements, &llr.requirements, &tests.tests) {
+            let TraceFiles {
+                hlr, llr, tests, ..
+            } = read_all_trace_files(root)?;
+            match validate_trace_links_with_policy(
+                &hlr.requirements,
+                &llr.requirements,
+                &tests.tests,
+                &[], // derived entries (TODO: wire from derived.toml)
+                &evidence_policy.trace,
+            ) {
                 Ok(()) => {
                     if json_output {
                         results.push(serde_json::json!({
@@ -1520,11 +1681,14 @@ fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<Strin
             }
         }
         if json_output {
-            println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-                "command": "validate",
-                "success": all_valid,
-                "results": results
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "command": "validate",
+                    "success": all_valid,
+                    "results": results
+                }))?
+            );
         }
         if !all_valid {
             return Ok(EXIT_ERROR);
@@ -1547,10 +1711,13 @@ fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<Strin
             total += n;
         }
         if json_output {
-            println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-                "command": "backfill_uuids",
-                "uuids_assigned": total
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "command": "backfill_uuids",
+                    "uuids_assigned": total
+                }))?
+            );
         } else if total == 0 {
             println!("trace: all entries already have UUIDs");
         } else {
@@ -1574,7 +1741,10 @@ fn run() -> i32 {
     let CargoCli::Evidence(args) = CargoCli::parse();
 
     let result = match args.command {
-        Some(Commands::Generate { sign_key, skip_tests }) => cmd_generate(GenerateArgs {
+        Some(Commands::Generate {
+            sign_key,
+            skip_tests,
+        }) => cmd_generate(GenerateArgs {
             profile_arg: args.profile.clone(),
             out_dir: args.out_dir.clone(),
             write_workspace: args.write_workspace,

@@ -6,16 +6,16 @@
 use std::collections::BTreeMap;
 use std::fs;
 
+use evidence::Profile;
 use evidence::bundle::{EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex};
 use evidence::git::GitSnapshot;
 use evidence::hash::{sha256, sha256_file, write_sha256sums};
 use evidence::trace::{
-    generate_traceability_matrix, validate_trace_links, HlrEntry, HlrFile, LlrEntry, LlrFile,
-    Schema, TestEntry, TestsFile, TraceMeta,
+    HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile, TraceMeta,
+    generate_traceability_matrix, validate_trace_links,
 };
 use evidence::traits::GitProvider;
 use evidence::verify::verify_bundle;
-use evidence::Profile;
 
 use tempfile::TempDir;
 
@@ -95,7 +95,9 @@ impl GitProvider for FailingGitProvider {
 /// which calls real git). Returns (TempDir, bundle_dir_path).
 fn create_minimal_bundle(profile: &str) -> (TempDir, std::path::PathBuf) {
     let tmp = TempDir::new().expect("create tempdir");
-    let bundle_dir = tmp.path().join(format!("{}-20260207-000000Z-aabbccdd", profile));
+    let bundle_dir = tmp
+        .path()
+        .join(format!("{}-20260207-000000Z-aabbccdd", profile));
     fs::create_dir_all(bundle_dir.join("tests")).unwrap();
     fs::create_dir_all(bundle_dir.join("trace")).unwrap();
 
@@ -168,6 +170,7 @@ fn create_minimal_bundle(profile: &str) -> (TempDir, std::path::PathBuf) {
         bundle_complete: true,
         content_hash,
         test_summary: None,
+        dal_map: std::collections::BTreeMap::new(),
     };
     fs::write(
         bundle_dir.join("index.json"),
@@ -380,9 +383,9 @@ fn test_overwrite_protection() {
         profile: Profile::Dev,
         in_scope_crates: vec![],
         trace_roots: vec![],
-
         require_clean_git: false,
         fail_on_dirty: false,
+        dal_map: std::collections::BTreeMap::new(),
     };
 
     // First builder succeeds and creates the bundle directory.
@@ -465,12 +468,8 @@ fn test_path_normalization_forward_slashes() {
 
     // Also verify hash_file_relative_into normalizes paths
     let mut map = BTreeMap::new();
-    evidence::hash::hash_file_relative_into(
-        &mut map,
-        &root.join("sub").join("file.txt"),
-        root,
-    )
-    .unwrap();
+    evidence::hash::hash_file_relative_into(&mut map, &root.join("sub").join("file.txt"), root)
+        .unwrap();
 
     for key in map.keys() {
         assert!(
@@ -749,10 +748,7 @@ fn test_index_json_excluded_from_sha256sums() {
 fn test_git_snapshot_with_mock_provider() {
     let provider = MockGitProvider::clean();
     let snapshot = GitSnapshot::capture_with(&provider, false).unwrap();
-    assert_eq!(
-        snapshot.sha,
-        "aabbccdd11223344aabbccdd11223344aabbccdd"
-    );
+    assert_eq!(snapshot.sha, "aabbccdd11223344aabbccdd11223344aabbccdd");
     assert_eq!(snapshot.branch, "main");
     assert!(!snapshot.dirty);
 }
@@ -846,9 +842,9 @@ fn test_toctou_detection() {
         profile: Profile::Dev,
         in_scope_crates: vec![],
         trace_roots: vec![],
-
         require_clean_git: false,
         fail_on_dirty: false,
+        dal_map: std::collections::BTreeMap::new(),
     };
 
     let builder = EvidenceBuilder::new_with_provider(config, MutatingGitProvider::new())
@@ -885,7 +881,10 @@ fn test_toctou_detection() {
 
     // finalize should detect the changed SHA and bail
     let result = builder.finalize("0.0.1", "0.0.3", vec![]);
-    assert!(result.is_err(), "finalize should fail when git HEAD changed");
+    assert!(
+        result.is_err(),
+        "finalize should fail when git HEAD changed"
+    );
     let err = result.unwrap_err().to_string();
     assert!(
         err.contains("TOCTOU"),
@@ -905,7 +904,9 @@ fn test_verify_rejects_path_traversal_in_sha256sums() {
     // Tamper SHA256SUMS to include a path-traversal entry
     let sha256sums_path = bundle_dir.join("SHA256SUMS");
     let mut content = fs::read_to_string(&sha256sums_path).unwrap();
-    content.push_str("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  ../../../etc/passwd\n");
+    content.push_str(
+        "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  ../../../etc/passwd\n",
+    );
     fs::write(&sha256sums_path, &content).unwrap();
 
     let result = verify_bundle(&bundle_dir).unwrap();
@@ -924,7 +925,9 @@ fn test_verify_rejects_absolute_path_in_sha256sums() {
 
     let sha256sums_path = bundle_dir.join("SHA256SUMS");
     let mut content = fs::read_to_string(&sha256sums_path).unwrap();
-    content.push_str("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  /etc/shadow\n");
+    content.push_str(
+        "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  /etc/shadow\n",
+    );
     fs::write(&sha256sums_path, &content).unwrap();
 
     let result = verify_bundle(&bundle_dir).unwrap();
@@ -1004,18 +1007,12 @@ fn test_verify_allows_unknown_git_sha_in_dev_profile() {
     // Set git_sha to "unknown" in both files
     let index_path = bundle_dir.join("index.json");
     let content = fs::read_to_string(&index_path).unwrap();
-    let tampered = content.replace(
-        "aabbccdd11223344aabbccdd11223344aabbccdd",
-        "unknown",
-    );
+    let tampered = content.replace("aabbccdd11223344aabbccdd11223344aabbccdd", "unknown");
     fs::write(&index_path, &tampered).unwrap();
 
     let env_path = bundle_dir.join("env.json");
     let env_content = fs::read_to_string(&env_path).unwrap();
-    let env_tampered = env_content.replace(
-        "aabbccdd11223344aabbccdd11223344aabbccdd",
-        "unknown",
-    );
+    let env_tampered = env_content.replace("aabbccdd11223344aabbccdd11223344aabbccdd", "unknown");
     fs::write(&env_path, &env_tampered).unwrap();
 
     // Should fail only on content_hash mismatch (tampered file), not git_sha format

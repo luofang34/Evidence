@@ -5,7 +5,7 @@
 //! HLR (High-Level Requirements), LLR (Low-Level Requirements), and
 //! Test case linking.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use log;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -283,9 +283,7 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
                 document_id: "".into(),
                 revision: "".into(),
             },
-            schema: Schema {
-                version: "".into(),
-            },
+            schema: Schema { version: "".into() },
             requirements: vec![],
         },
     )?;
@@ -296,9 +294,7 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
                 document_id: "".into(),
                 revision: "".into(),
             },
-            schema: Schema {
-                version: "".into(),
-            },
+            schema: Schema { version: "".into() },
             requirements: vec![],
         },
     )?;
@@ -309,9 +305,7 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
                 document_id: "".into(),
                 revision: "".into(),
             },
-            schema: Schema {
-                version: "".into(),
-            },
+            schema: Schema { version: "".into() },
             tests: vec![],
         },
     )?;
@@ -323,7 +317,12 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
         None
     };
 
-    Ok(TraceFiles { hlr, llr, tests, derived })
+    Ok(TraceFiles {
+        hlr,
+        llr,
+        tests,
+        derived,
+    })
 }
 
 // ============================================================================
@@ -394,8 +393,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let mut hlr: HlrFile = read_toml(&hlr_path)?;
         let n = assign_missing_uuids_hlr(&mut hlr.requirements);
         if n > 0 {
-            let content = toml::to_string_pretty(&hlr)
-                .with_context(|| "serializing hlr.toml")?;
+            let content = toml::to_string_pretty(&hlr).with_context(|| "serializing hlr.toml")?;
             fs::write(&hlr_path, content)
                 .with_context(|| format!("writing {}", hlr_path.display()))?;
             total += n;
@@ -408,8 +406,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let mut llr: LlrFile = read_toml(&llr_path)?;
         let n = assign_missing_uuids_llr(&mut llr.requirements);
         if n > 0 {
-            let content = toml::to_string_pretty(&llr)
-                .with_context(|| "serializing llr.toml")?;
+            let content = toml::to_string_pretty(&llr).with_context(|| "serializing llr.toml")?;
             fs::write(&llr_path, content)
                 .with_context(|| format!("writing {}", llr_path.display()))?;
             total += n;
@@ -422,8 +419,8 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let mut tests: TestsFile = read_toml(&tests_path)?;
         let n = assign_missing_uuids_test(&mut tests.tests);
         if n > 0 {
-            let content = toml::to_string_pretty(&tests)
-                .with_context(|| "serializing tests.toml")?;
+            let content =
+                toml::to_string_pretty(&tests).with_context(|| "serializing tests.toml")?;
             fs::write(&tests_path, content)
                 .with_context(|| format!("writing {}", tests_path.display()))?;
             total += n;
@@ -436,8 +433,8 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let mut derived: DerivedFile = read_toml(&derived_path)?;
         let n = assign_missing_uuids_derived(&mut derived.requirements);
         if n > 0 {
-            let content = toml::to_string_pretty(&derived)
-                .with_context(|| "serializing derived.toml")?;
+            let content =
+                toml::to_string_pretty(&derived).with_context(|| "serializing derived.toml")?;
             fs::write(&derived_path, content)
                 .with_context(|| format!("writing {}", derived_path.display()))?;
             total += n;
@@ -467,7 +464,13 @@ pub fn validate_trace_links(
     llrs: &[LlrEntry],
     tests: &[TestEntry],
 ) -> Result<()> {
-    validate_trace_links_with_policy(hlrs, llrs, tests, &[], &crate::policy::TracePolicy::default())
+    validate_trace_links_with_policy(
+        hlrs,
+        llrs,
+        tests,
+        &[],
+        &crate::policy::TracePolicy::default(),
+    )
 }
 
 /// Validate trace links with explicit policy control and derived requirements.
@@ -485,52 +488,51 @@ pub fn validate_trace_links_with_policy(
     // Index: (kind, owner, id) -> uid (to check item uniqueness)
     let mut item_index: BTreeMap<(String, String, String), String> = BTreeMap::new();
 
-    let mut register =
-        |uid: &Option<String>, owner: &Option<String>, id: &String, kind: &str| {
-            let o = if let Some(ow) = owner {
-                ow.clone()
-            } else {
-                if policy.require_owners {
-                    errors.push(format!("[{}:{}] missing 'owner'", kind, id));
-                }
-                return;
-            };
+    let mut register = |uid: &Option<String>, owner: &Option<String>, id: &String, kind: &str| {
+        let o = if let Some(ow) = owner {
+            ow.clone()
+        } else {
+            if policy.require_owners {
+                errors.push(format!("[{}:{}] missing 'owner'", kind, id));
+            }
+            return;
+        };
 
-            let u = match uid {
-                Some(u) => {
-                    if policy.require_uids && uuid::Uuid::parse_str(u).is_err() {
-                        errors.push(format!("[{}:{}] invalid UID format '{}'", kind, id, u));
-                        return;
-                    }
-                    u.clone()
-                }
-                None => {
-                    if policy.require_uids {
-                        errors.push(format!("[{}:{}] missing UID", kind, id));
-                    }
+        let u = match uid {
+            Some(u) => {
+                if policy.require_uids && uuid::Uuid::parse_str(u).is_err() {
+                    errors.push(format!("[{}:{}] invalid UID format '{}'", kind, id, u));
                     return;
                 }
-            };
-
-            if let Some((prev_kind, prev_owner, prev_id)) = uid_index.get(&u) {
-                errors.push(format!(
-                    "Duplicate UID {}: used by [{}({}):{}] and [{}({}):{}]",
-                    u, prev_kind, prev_owner, prev_id, kind, o, id
-                ));
-            } else {
-                uid_index.insert(u.clone(), (kind.to_string(), o.clone(), id.clone()));
+                u.clone()
             }
-
-            let key = (kind.to_string(), o.clone(), id.clone());
-            if let Some(prev_uid) = item_index.get(&key) {
-                errors.push(format!(
-                    "Duplicate Item '{}({}):{}': used by {} and {}",
-                    kind, o, id, prev_uid, u
-                ));
-            } else {
-                item_index.insert(key, u);
+            None => {
+                if policy.require_uids {
+                    errors.push(format!("[{}:{}] missing UID", kind, id));
+                }
+                return;
             }
         };
+
+        if let Some((prev_kind, prev_owner, prev_id)) = uid_index.get(&u) {
+            errors.push(format!(
+                "Duplicate UID {}: used by [{}({}):{}] and [{}({}):{}]",
+                u, prev_kind, prev_owner, prev_id, kind, o, id
+            ));
+        } else {
+            uid_index.insert(u.clone(), (kind.to_string(), o.clone(), id.clone()));
+        }
+
+        let key = (kind.to_string(), o.clone(), id.clone());
+        if let Some(prev_uid) = item_index.get(&key) {
+            errors.push(format!(
+                "Duplicate Item '{}({}):{}': used by {} and {}",
+                kind, o, id, prev_uid, u
+            ));
+        } else {
+            item_index.insert(key, u);
+        }
+    };
 
     for r in hlrs {
         register(&r.uid, &r.owner, &r.id, "HLR");
@@ -564,10 +566,7 @@ pub fn validate_trace_links_with_policy(
      -> Option<String> {
         // 1. Must be UUID
         if uuid::Uuid::parse_str(link).is_err() {
-            return Some(format!(
-                "Link '{}' in {} is not a UUID",
-                link, source_id
-            ));
+            return Some(format!("Link '{}' in {} is not a UUID", link, source_id));
         }
 
         // 2. Must Exist
@@ -577,7 +576,7 @@ pub fn validate_trace_links_with_policy(
                 return Some(format!(
                     "Link '{}' in {} not found (dangling ref)",
                     link, source_id
-                ))
+                ));
             }
         };
 
@@ -590,7 +589,10 @@ pub fn validate_trace_links_with_policy(
         }
 
         // 4. Ownership Logic
-        let s_owner = source_owner.as_ref().map(|s| s.as_str()).unwrap_or("UNKNOWN");
+        let s_owner = source_owner
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or("UNKNOWN");
         let t_owner = target_owner.as_str();
 
         match (source_kind, expected_target_kind) {
@@ -688,10 +690,7 @@ pub fn validate_trace_links_with_policy(
     let orphan_tests: Vec<&TestEntry> = tests.iter().filter(|t| t.traces_to.is_empty()).collect();
     if !orphan_tests.is_empty() {
         for t in &orphan_tests {
-            log::warn!(
-                "  WARNING: Orphan test '{}' is not linked to any LLR",
-                t.id
-            );
+            log::warn!("  WARNING: Orphan test '{}' is not linked to any LLR", t.id);
         }
         log::warn!(
             "  WARNING: {} orphan test(s) found (tests with no LLR link)",
@@ -782,7 +781,10 @@ pub fn generate_traceability_matrix(
         } else {
             h.id.clone()
         };
-        s.push_str(&format!("| {} | {} | {} |\n", display_id, h.title, llr_cell));
+        s.push_str(&format!(
+            "| {} | {} | {} |\n",
+            display_id, h.title, llr_cell
+        ));
     }
 
     // LLR -> TEST table
@@ -808,7 +810,10 @@ pub fn generate_traceability_matrix(
         } else {
             l.id.clone()
         };
-        s.push_str(&format!("| {} | {} | {} |\n", display_id, l.title, test_cell));
+        s.push_str(&format!(
+            "| {} | {} | {} |\n",
+            display_id, l.title, test_cell
+        ));
     }
 
     // ================================================================
@@ -882,7 +887,10 @@ pub fn generate_traceability_matrix(
         } else {
             t.id.clone()
         };
-        s.push_str(&format!("| {} | {} | {} |\n", display_id, llr_cell, hlr_cell));
+        s.push_str(&format!(
+            "| {} | {} | {} |\n",
+            display_id, llr_cell, hlr_cell
+        ));
     }
 
     // ================================================================
@@ -925,7 +933,10 @@ pub fn generate_traceability_matrix(
         } else {
             h.id.clone()
         };
-        s.push_str(&format!("| {} | {} | {} |\n", display_id, h.title, test_cell));
+        s.push_str(&format!(
+            "| {} | {} | {} |\n",
+            display_id, h.title, test_cell
+        ));
     }
 
     // ================================================================
@@ -960,7 +971,10 @@ pub fn generate_traceability_matrix(
     s.push_str(&format!("- **Test count:** {}\n", ts.len()));
     s.push_str(&format!("- **HLR without LLR:** {}\n", hlr_without_llr));
     s.push_str(&format!("- **LLR without Test:** {}\n", llr_without_test));
-    s.push_str(&format!("- **Orphan tests (no LLR link):** {}\n", orphan_tests.len()));
+    s.push_str(&format!(
+        "- **Orphan tests (no LLR link):** {}\n",
+        orphan_tests.len()
+    ));
     s.push('\n');
 
     // Gap report

@@ -3,7 +3,7 @@
 //! This module provides functionality to capture the build environment
 //! including toolchain versions, environment variables, and system info.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::process::Command;
@@ -223,7 +223,6 @@ pub fn tool_exists(prog: &str, args: &[&str]) -> bool {
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
-
 
 #[cfg(test)]
 mod tests {

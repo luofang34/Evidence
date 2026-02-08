@@ -3,7 +3,7 @@
 //! This module handles the creation and manipulation of evidence bundles
 //! that capture build artifacts, hashes, and metadata for certification compliance.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use hmac::{Hmac, Mac};
 use log;
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ use std::process::Command;
 
 use crate::git::{GitSnapshot, RealGitProvider};
 use crate::hash::{hash_file_into, hash_file_relative_into, write_sha256sums};
-use crate::policy::Profile;
+use crate::policy::{Dal, Profile};
 use crate::traits::GitProvider;
 
 type HmacSha256 = Hmac<Sha256>;
@@ -148,12 +148,10 @@ pub fn verify_bundle_signature(bundle_dir: &Path, key: &[u8]) -> Result<bool> {
     let sig_path = bundle_dir.join("BUNDLE.sig");
 
     let content = fs::read(&sha256sums_path).context("reading SHA256SUMS for verification")?;
-    let sig_hex =
-        fs::read_to_string(&sig_path).context("reading BUNDLE.sig for verification")?;
+    let sig_hex = fs::read_to_string(&sig_path).context("reading BUNDLE.sig for verification")?;
     let sig_hex = sig_hex.trim();
 
-    let expected_bytes =
-        hex::decode(sig_hex).context("BUNDLE.sig contains invalid hex")?;
+    let expected_bytes = hex::decode(sig_hex).context("BUNDLE.sig contains invalid hex")?;
 
     let mut mac =
         HmacSha256::new_from_slice(key).map_err(|e| anyhow::anyhow!("HMAC key error: {}", e))?;
@@ -221,6 +219,10 @@ pub struct EvidenceIndex {
     /// Parsed test results summary, if cargo test was executed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub test_summary: Option<TestSummary>,
+    /// Per-crate DAL assignments. Key is crate name, value is DAL level string.
+    /// Empty map for bundles generated before DAL support was added.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub dal_map: BTreeMap<String, String>,
 }
 
 // ============================================================================
@@ -242,6 +244,9 @@ pub struct EvidenceBuildConfig {
     pub require_clean_git: bool,
     /// Whether to fail on dirty git
     pub fail_on_dirty: bool,
+    /// Resolved per-crate DAL map (crate_name -> Dal).
+    #[allow(dead_code)]
+    pub dal_map: BTreeMap<String, Dal>,
 }
 
 /// Builder for creating evidence bundles.
@@ -538,6 +543,12 @@ impl EvidenceBuilder {
             bundle_complete: true,
             content_hash,
             test_summary: self.test_summary.clone(),
+            dal_map: self
+                .config
+                .dal_map
+                .iter()
+                .map(|(k, v)| (k.clone(), v.to_string()))
+                .collect(),
         };
 
         let index_path = self.bundle_dir.join("index.json");
@@ -602,6 +613,7 @@ mod tests {
             bundle_complete: true,
             content_hash: "deadbeef".repeat(8),
             test_summary: None,
+            dal_map: BTreeMap::new(),
         };
         assert!(idx.bundle_complete);
         assert_eq!(idx.profile, "cert");
@@ -634,7 +646,8 @@ test result: ok. 20 passed; 0 failed; 1 ignored; 0 measured; 3 filtered out; fin
 
     #[test]
     fn test_parse_cargo_test_output_failed() {
-        let output = "test result: FAILED. 18 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out";
+        let output =
+            "test result: FAILED. 18 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out";
         let summary = parse_cargo_test_output(output).expect("should parse");
         assert_eq!(summary.passed, 18);
         assert_eq!(summary.failed, 2);

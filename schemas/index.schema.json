@@ -124,6 +124,14 @@
       "required": ["total", "passed", "failed", "ignored", "filtered_out"],
       "additionalProperties": false,
       "description": "Parsed summary of cargo test output, if tests were executed"
+    },
+    "dal_map": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["A", "B", "C", "D"]
+      },
+      "description": "Per-crate DAL (Design Assurance Level) assignments. Key is crate name, value is DAL level."
     }
   },
   "additionalProperties": false

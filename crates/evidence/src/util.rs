@@ -1,6 +1,6 @@
 //! Shared utility functions.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::process::Command;
 
 /// Run a command and capture stdout as a string.
