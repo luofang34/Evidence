@@ -13,8 +13,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::git::GitSnapshot;
+use crate::git::{GitSnapshot, RealGitProvider};
 use crate::hash::{hash_file_into, hash_file_relative_into, write_sha256sums};
+use crate::policy::Profile;
+use crate::traits::GitProvider;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -51,20 +53,25 @@ pub struct TestSummary {
     pub filtered_out: u32,
 }
 
-/// Parse the standard cargo test result line into a `TestSummary`.
+/// Parse cargo test result lines into an accumulated `TestSummary`.
 ///
-/// Looks for a line matching:
-/// `test result: ok. N passed; N failed; N ignored; N measured; N filtered out`
-/// (or `FAILED` instead of `ok`).
+/// In a workspace, `cargo test` produces multiple `test result:` lines
+/// (one per crate). This function accumulates ALL of them to avoid
+/// silently discarding failures in later crates.
 ///
 /// Returns `None` if no matching line is found.
 pub fn parse_cargo_test_output(output: &str) -> Option<TestSummary> {
+    let mut total_passed = 0u64;
+    let mut total_failed = 0u64;
+    let mut total_ignored = 0u64;
+    let mut total_filtered_out = 0u64;
+    let mut found = false;
+
     for line in output.lines() {
         let line = line.trim();
         if !line.starts_with("test result:") {
             continue;
         }
-        // Extract the part after "test result: ok. " or "test result: FAILED. "
         let after_prefix = if let Some(rest) = line.strip_prefix("test result: ok. ") {
             rest
         } else if let Some(rest) = line.strip_prefix("test result: FAILED. ") {
@@ -73,10 +80,7 @@ pub fn parse_cargo_test_output(output: &str) -> Option<TestSummary> {
             continue;
         };
 
-        let mut passed = 0u32;
-        let mut failed = 0u32;
-        let mut ignored = 0u32;
-        let mut filtered_out = 0u32;
+        found = true;
 
         for segment in after_prefix.split(';') {
             let segment = segment.trim().trim_end_matches(';');
@@ -84,29 +88,36 @@ pub fn parse_cargo_test_output(output: &str) -> Option<TestSummary> {
             if parts.len() != 2 {
                 continue;
             }
-            let n: u32 = match parts[0].parse() {
+            let n: u64 = match parts[0].parse() {
                 Ok(v) => v,
                 Err(_) => continue,
             };
             match parts[1].trim() {
-                "passed" => passed = n,
-                "failed" => failed = n,
-                "ignored" => ignored = n,
-                "filtered out" => filtered_out = n,
+                "passed" => total_passed += n,
+                "failed" => total_failed += n,
+                "ignored" => total_ignored += n,
+                "filtered out" => total_filtered_out += n,
                 _ => {}
             }
         }
-
-        let total = passed + failed + ignored + filtered_out;
-        return Some(TestSummary {
-            total,
-            passed,
-            failed,
-            ignored,
-            filtered_out,
-        });
     }
-    None
+
+    if !found {
+        return None;
+    }
+
+    let total = total_passed
+        .saturating_add(total_failed)
+        .saturating_add(total_ignored)
+        .saturating_add(total_filtered_out);
+
+    Some(TestSummary {
+        total: total as u32,
+        passed: total_passed as u32,
+        failed: total_failed as u32,
+        ignored: total_ignored as u32,
+        filtered_out: total_filtered_out as u32,
+    })
 }
 
 // ============================================================================
@@ -221,8 +232,8 @@ pub struct EvidenceIndex {
 pub struct EvidenceBuildConfig {
     /// Output directory for bundles
     pub output_root: PathBuf,
-    /// Active profile
-    pub profile: String,
+    /// Active profile (type-safe enum, not a free-form string)
+    pub profile: Profile,
     /// Crates in scope for certification
     pub in_scope_crates: Vec<String>,
     /// Trace roots to scan
@@ -239,6 +250,7 @@ pub struct EvidenceBuildConfig {
 pub struct EvidenceBuilder {
     config: EvidenceBuildConfig,
     git_snapshot: GitSnapshot,
+    git_provider: Box<dyn GitProvider>,
     bundle_dir: PathBuf,
     commands: Vec<CommandRecord>,
     inputs: BTreeMap<String, String>,
@@ -247,12 +259,25 @@ pub struct EvidenceBuilder {
 
 impl EvidenceBuilder {
     /// Create a new evidence builder with the given configuration.
+    ///
+    /// Uses the real git provider. For testing, use [`new_with_provider`].
     pub fn new(config: EvidenceBuildConfig) -> Result<Self> {
+        Self::new_with_provider(config, RealGitProvider)
+    }
+
+    /// Create a new evidence builder with a custom git provider.
+    ///
+    /// The provider is used both for the initial git snapshot and for the
+    /// TOCTOU re-check at [`finalize`] time.
+    pub fn new_with_provider<G: GitProvider + 'static>(
+        config: EvidenceBuildConfig,
+        provider: G,
+    ) -> Result<Self> {
         // Determine strict mode from profile (cert and record require strictness)
-        let strict = matches!(config.profile.as_str(), "cert" | "record");
+        let strict = matches!(config.profile, Profile::Cert | Profile::Record);
 
         // Snapshot git state at the START (strict mode for cert/record)
-        let git_snapshot = GitSnapshot::capture(strict)?;
+        let git_snapshot = GitSnapshot::capture_with(&provider, strict)?;
 
         // Check for shallow clone
         if Path::new(".git/shallow").exists() {
@@ -264,7 +289,7 @@ impl EvidenceBuilder {
 
         // Check git clean requirements
         if (config.require_clean_git || config.fail_on_dirty) && git_snapshot.dirty {
-            let dirty_files = crate::git::git_dirty_files().unwrap_or_default();
+            let dirty_files = provider.dirty_files().unwrap_or_default();
             let file_list = if dirty_files.is_empty() {
                 String::new()
             } else {
@@ -316,6 +341,7 @@ impl EvidenceBuilder {
         Ok(Self {
             config,
             git_snapshot,
+            git_provider: Box::new(provider),
             bundle_dir,
             commands: Vec::new(),
             inputs: BTreeMap::new(),
@@ -448,6 +474,25 @@ impl EvidenceBuilder {
         trace_schema_version: &str,
         trace_outputs: Vec<PathBuf>,
     ) -> Result<PathBuf> {
+        // TOCTOU check: verify git HEAD hasn't changed since builder was created.
+        // A changed HEAD means source files may have been modified between the
+        // initial snapshot and finalize, invalidating the evidence chain.
+        if self.git_snapshot.sha != "unknown" {
+            if let Ok(current_sha) = self.git_provider.sha() {
+                let current_sha = current_sha.trim().to_string();
+                if current_sha != self.git_snapshot.sha {
+                    bail!(
+                        "TOCTOU: git HEAD changed during evidence generation.\n\
+                         Snapshot SHA: {}\n\
+                         Current SHA:  {}\n\
+                         Source files may have changed. Re-run evidence generation.",
+                        self.git_snapshot.sha,
+                        current_sha
+                    );
+                }
+            }
+        }
+
         let ts = utc_now_rfc3339()?;
         let sha256sums_path = self.bundle_dir.join("SHA256SUMS");
 
@@ -464,7 +509,7 @@ impl EvidenceBuilder {
             schema_version: "0.0.1".to_string(),
             boundary_schema_version: boundary_schema_version.to_string(),
             trace_schema_version: trace_schema_version.to_string(),
-            profile: self.config.profile.clone(),
+            profile: self.config.profile.to_string(),
             timestamp_rfc3339: ts,
             git_sha: self.git_snapshot.sha.clone(),
             git_branch: self.git_snapshot.branch.clone(),

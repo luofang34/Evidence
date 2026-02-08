@@ -42,7 +42,7 @@
     },
     "profile": {
       "type": "string",
-      "enum": ["dev", "cert"],
+      "enum": ["dev", "cert", "record"],
       "description": "Build profile used for evidence generation"
     },
     "timestamp_rfc3339": {
@@ -71,8 +71,7 @@
     },
     "engine_git_sha": {
       "type": "string",
-      "pattern": "^[a-f0-9]{40}$",
-      "description": "Git SHA of the evidence engine"
+      "description": "Git SHA of the evidence engine (40-char hex when available, or placeholder until build-time embedding is implemented)"
     },
     "inputs_hashes_file": {
       "type": "string",

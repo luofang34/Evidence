@@ -9,6 +9,7 @@ use log;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io;
 use std::path::Path;
 
 /// Compute the SHA-256 hash of the given data.
@@ -19,10 +20,15 @@ pub fn sha256(data: &[u8]) -> String {
     hex::encode(result)
 }
 
-/// Compute the SHA-256 hash of a file.
+/// Compute the SHA-256 hash of a file using streaming I/O.
+///
+/// Uses buffered reads to avoid loading the entire file into memory,
+/// which is critical for large build artifacts (firmware images, FPGA bitstreams).
 pub fn sha256_file(path: &Path) -> Result<String> {
-    let data = fs::read(path).with_context(|| format!("Reading {:?}", path))?;
-    Ok(sha256(&data))
+    let mut file = fs::File::open(path).with_context(|| format!("Opening {:?}", path))?;
+    let mut hasher = Sha256::new();
+    io::copy(&mut file, &mut hasher).with_context(|| format!("Reading {:?}", path))?;
+    Ok(hex::encode(hasher.finalize()))
 }
 
 /// Compute SHA-256 hash of a file and insert into a BTreeMap.
@@ -48,10 +54,12 @@ pub fn hash_file_relative_into(
     let hash = sha256_file(path)?;
     let rel = path
         .strip_prefix(base)
-        .unwrap_or(path)
-        .to_string_lossy()
+        .with_context(|| format!("{:?} is not under base {:?}", path, base))?;
+    let rel_str = rel
+        .to_str()
+        .with_context(|| format!("Non-UTF-8 path: {:?}", rel))?
         .replace('\\', "/");
-    map.insert(rel, hash);
+    map.insert(rel_str, hash);
     Ok(())
 }
 

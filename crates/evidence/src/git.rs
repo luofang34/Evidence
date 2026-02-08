@@ -75,10 +75,10 @@ impl GitSnapshot {
                 Ok(d) => d,
                 Err(_) => {
                     log::warn!(
-                        "Could not determine git dirty status; defaulting to clean. \
-                         Evidence may be generated from an unknown working directory state."
+                        "Could not determine git dirty status; defaulting to dirty. \
+                         Safety-critical default: assume worst case when status is unknown."
                     );
-                    false
+                    true
                 }
             },
         })

@@ -252,18 +252,30 @@ pub struct TraceFiles {
 
 /// Read all trace files from a root directory.
 ///
-/// Missing files are returned with empty requirement lists
+/// Missing files are returned with empty requirement lists and a warning is logged.
 /// (derived returns None if absent).
 pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
     fn read_or_default<T: for<'de> Deserialize<'de>>(path: &Path, default: T) -> Result<T> {
         if path.exists() {
             read_toml(path)
         } else {
+            log::warn!(
+                "Trace file not found: {} — using empty defaults. \
+                 Check trace root path if this is unexpected.",
+                path.display()
+            );
             Ok(default)
         }
     }
 
     let root_path = Path::new(root);
+
+    if !root_path.exists() {
+        log::warn!(
+            "Trace root directory does not exist: {} — all trace files will be empty.",
+            root_path.display()
+        );
+    }
     let hlr = read_or_default(
         &root_path.join("hlr.toml"),
         HlrFile {
@@ -439,19 +451,32 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
 // Validation
 // ============================================================================
 
-/// Validate trace links between HLRs, LLRs, and Tests.
+/// Validate trace links between HLRs, LLRs, Tests, and optionally Derived requirements.
 ///
-/// Checks:
-/// - All items have UIDs and owners
-/// - No duplicate UIDs
+/// Checks (gated by `policy`):
+/// - All items have UIDs (if `policy.require_uids`)
+/// - All items have owners (if `policy.require_owners`)
+/// - No duplicate UIDs across all tiers
 /// - All links point to valid UIDs
 /// - Ownership rules are respected
-/// - Derived LLRs have rationale
-/// - All items have verification methods
+/// - Derived LLRs have rationale (if `policy.require_derived_rationale`)
+/// - HLR/LLR verification methods present (if `policy.require_*_verification_methods`)
+/// - Derived requirements validated for UID/owner/rationale
 pub fn validate_trace_links(
     hlrs: &[HlrEntry],
     llrs: &[LlrEntry],
     tests: &[TestEntry],
+) -> Result<()> {
+    validate_trace_links_with_policy(hlrs, llrs, tests, &[], &crate::policy::TracePolicy::default())
+}
+
+/// Validate trace links with explicit policy control and derived requirements.
+pub fn validate_trace_links_with_policy(
+    hlrs: &[HlrEntry],
+    llrs: &[LlrEntry],
+    tests: &[TestEntry],
+    derived: &[DerivedEntry],
+    policy: &crate::policy::TracePolicy,
 ) -> Result<()> {
     let mut errors: Vec<String> = Vec::new();
 
@@ -465,20 +490,24 @@ pub fn validate_trace_links(
             let o = if let Some(ow) = owner {
                 ow.clone()
             } else {
-                errors.push(format!("[{}:{}] missing 'owner'", kind, id));
-                return; // Strict fail
+                if policy.require_owners {
+                    errors.push(format!("[{}:{}] missing 'owner'", kind, id));
+                }
+                return;
             };
 
             let u = match uid {
                 Some(u) => {
-                    if uuid::Uuid::parse_str(u).is_err() {
+                    if policy.require_uids && uuid::Uuid::parse_str(u).is_err() {
                         errors.push(format!("[{}:{}] invalid UID format '{}'", kind, id, u));
                         return;
                     }
                     u.clone()
                 }
                 None => {
-                    errors.push(format!("[{}:{}] missing UID", kind, id));
+                    if policy.require_uids {
+                        errors.push(format!("[{}:{}] missing UID", kind, id));
+                    }
                     return;
                 }
             };
@@ -511,6 +540,9 @@ pub fn validate_trace_links(
     }
     for t in tests {
         register(&t.uid, &t.owner, &t.id, "TEST");
+    }
+    for d in derived {
+        register(&d.uid, &d.owner, &d.id, "DERIVED");
     }
 
     if !errors.is_empty() {
@@ -588,11 +620,11 @@ pub fn validate_trace_links(
         None
     };
 
-    // Strict Policy Checks
+    // Policy-Gated Checks
 
     // HLR Policy
     for r in hlrs {
-        if r.verification_methods.is_empty() {
+        if policy.require_hlr_verification_methods && r.verification_methods.is_empty() {
             errors.push(format!("HLR missing verification_methods: {}", r.id));
         }
     }
@@ -605,7 +637,9 @@ pub fn validate_trace_links(
                     "LLR {} has no parent links. Must be marked 'derived = true'",
                     r.id
                 ));
-            } else if r.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+            } else if policy.require_derived_rationale
+                && r.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true)
+            {
                 errors.push(format!("Derived LLR {} missing 'rationale'", r.id));
             }
         } else if r.derived {
@@ -615,7 +649,7 @@ pub fn validate_trace_links(
             ));
         }
 
-        if r.verification_methods.is_empty() {
+        if policy.require_llr_verification_methods && r.verification_methods.is_empty() {
             errors.push(format!("LLR missing verification_methods: {}", r.id));
         }
 
@@ -638,6 +672,15 @@ pub fn validate_trace_links(
             if let Some(e) = check_link("TEST", &t.id, &t.owner, link, "LLR") {
                 errors.push(e);
             }
+        }
+    }
+
+    // Derived requirements validation
+    for d in derived {
+        if policy.require_derived_rationale
+            && d.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true)
+        {
+            errors.push(format!("Derived requirement {} missing 'rationale'", d.id));
         }
     }
 

@@ -86,37 +86,9 @@ struct EvidenceArgs {
 enum Commands {
     /// Generate a new evidence bundle for the current build (default command)
     Generate {
-        /// Build profile [dev, cert, record] (auto-detected if not specified)
-        #[arg(long)]
-        profile: Option<String>,
-
-        /// Output directory for bundles (required unless --write-workspace)
-        #[arg(long)]
-        out_dir: Option<PathBuf>,
-
-        /// Allow writing to workspace (dangerous, for xtask integration)
-        #[arg(long)]
-        write_workspace: bool,
-
-        /// Path to boundary.toml
-        #[arg(long)]
-        boundary: Option<PathBuf>,
-
-        /// Comma-separated list of trace root directories
-        #[arg(long)]
-        trace_roots: Option<String>,
-
         /// Path to HMAC signing key file (raw bytes)
         #[arg(long)]
         sign_key: Option<PathBuf>,
-
-        /// Suppress non-error output
-        #[arg(long, short)]
-        quiet: bool,
-
-        /// Output results as JSON
-        #[arg(long)]
-        json: bool,
     },
 
     /// Verify an evidence bundle
@@ -172,10 +144,6 @@ enum Commands {
         /// Assign UUIDs to entries that are missing them
         #[arg(long)]
         backfill_uuids: bool,
-
-        /// Comma-separated list of trace root directories
-        #[arg(long)]
-        trace_roots: Option<String>,
     },
 }
 
@@ -367,7 +335,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     let trace_root_list = trace_roots.clone();
     let config = EvidenceBuildConfig {
         output_root: output_root.clone(),
-        profile: profile.to_string(),
+        profile,
         in_scope_crates,
         trace_roots,
         skip_tests: false,
@@ -581,7 +549,7 @@ struct VerifyCheck {
 
 fn cmd_verify(
     bundle_path: PathBuf,
-    _strict: bool,
+    strict: bool,
     verify_key: Option<PathBuf>,
     json_output: bool,
 ) -> Result<i32> {
@@ -613,6 +581,27 @@ fn cmd_verify(
         status: "pass".to_string(),
         message: None,
     });
+
+    // Strict mode: require BUNDLE.sig to exist
+    if strict && !bundle_path.join("BUNDLE.sig").exists() && verify_key.is_none() {
+        let err_msg = "strict mode: BUNDLE.sig not found and no --verify-key provided".to_string();
+        if json_output {
+            let output = VerifyOutput {
+                success: false,
+                bundle_path: bundle_path.display().to_string(),
+                checks: vec![VerifyCheck {
+                    name: "bundle_signature".to_string(),
+                    status: "fail".to_string(),
+                    message: Some(err_msg.clone()),
+                }],
+                error: Some(err_msg),
+            };
+            println!("{}", serde_json::to_string_pretty(&output)?);
+        } else {
+            eprintln!("verify: FAIL - {}", err_msg);
+        }
+        return Ok(EXIT_VERIFICATION_FAILURE);
+    }
 
     // Load verify key if provided
     let key_bytes = match &verify_key {
@@ -671,24 +660,28 @@ fn cmd_verify(
             Ok(EXIT_VERIFICATION_FAILURE)
         }
         Ok(VerifyResult::Skipped(reason)) => {
+            // In strict mode, skipped checks are treated as failures
+            let treat_as_fail = strict;
             checks.push(VerifyCheck {
                 name: "bundle_integrity".to_string(),
-                status: "skipped".to_string(),
+                status: if treat_as_fail { "fail" } else { "skipped" }.to_string(),
                 message: Some(reason.clone()),
             });
 
             if json_output {
                 let output = VerifyOutput {
-                    success: true,
+                    success: !treat_as_fail,
                     bundle_path: bundle_path.display().to_string(),
                     checks,
-                    error: None,
+                    error: if treat_as_fail { Some(format!("strict mode: {}", reason)) } else { None },
                 };
                 println!("{}", serde_json::to_string_pretty(&output)?);
+            } else if treat_as_fail {
+                eprintln!("verify: FAIL (strict) - {}", reason);
             } else {
                 println!("verify: SKIPPED - {}", reason);
             }
-            Ok(EXIT_SUCCESS)
+            Ok(if treat_as_fail { EXIT_VERIFICATION_FAILURE } else { EXIT_SUCCESS })
         }
         Err(e) => {
             if json_output {
@@ -1338,24 +1331,15 @@ fn run() -> i32 {
     let CargoCli::Evidence(args) = CargoCli::parse();
 
     let result = match args.command {
-        Some(Commands::Generate {
-            profile,
-            out_dir,
-            write_workspace,
-            boundary,
-            trace_roots,
+        Some(Commands::Generate { sign_key }) => cmd_generate(GenerateArgs {
+            profile_arg: args.profile.clone(),
+            out_dir: args.out_dir.clone(),
+            write_workspace: args.write_workspace,
+            boundary: args.boundary.clone(),
+            trace_roots_arg: args.trace_roots.clone(),
             sign_key,
-            quiet,
-            json,
-        }) => cmd_generate(GenerateArgs {
-            profile_arg: profile,
-            out_dir,
-            write_workspace,
-            boundary,
-            trace_roots_arg: trace_roots,
-            sign_key,
-            quiet,
-            json_output: json,
+            quiet: args.quiet,
+            json_output: args.json,
         }),
         Some(Commands::Verify {
             bundle_path,
@@ -1376,8 +1360,7 @@ fn run() -> i32 {
         Some(Commands::Trace {
             validate,
             backfill_uuids,
-            trace_roots,
-        }) => cmd_trace(validate, backfill_uuids, trace_roots.or(args.trace_roots.clone())),
+        }) => cmd_trace(validate, backfill_uuids, args.trace_roots.clone()),
         None => {
             // Default to generate command with global args
             cmd_generate(GenerateArgs {

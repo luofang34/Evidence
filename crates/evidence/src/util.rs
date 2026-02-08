@@ -12,5 +12,6 @@ pub fn cmd_stdout(prog: &str, args: &[&str]) -> Result<String> {
     if !out.status.success() {
         bail!("{} {:?} failed", prog, args);
     }
-    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+    String::from_utf8(out.stdout)
+        .map_err(|_| anyhow::anyhow!("{} {:?} produced non-UTF-8 output", prog, args))
 }

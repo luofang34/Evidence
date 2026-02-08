@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 
-use evidence::bundle::EvidenceIndex;
+use evidence::bundle::{EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex};
 use evidence::git::GitSnapshot;
 use evidence::hash::{sha256, sha256_file, write_sha256sums};
 use evidence::trace::{
@@ -15,6 +15,7 @@ use evidence::trace::{
 };
 use evidence::traits::GitProvider;
 use evidence::verify::verify_bundle;
+use evidence::Profile;
 
 use tempfile::TempDir;
 
@@ -294,17 +295,18 @@ fn test_tampering_detection() {
     content.push_str("\n/* tampered */");
     fs::write(&env_path, content).unwrap();
 
-    // Verification must now fail (error = hash mismatch)
-    let result = verify_bundle(&bundle_dir);
+    // Verification must now return Fail (not Pass)
+    let result = verify_bundle(&bundle_dir).unwrap();
     assert!(
-        result.is_err(),
-        "Tampered bundle should cause verify_bundle to return an error"
+        result.is_fail(),
+        "Tampered bundle should cause verify_bundle to return Fail, got: {}",
+        result.summary()
     );
-    let err_msg = result.unwrap_err().to_string();
+    let summary = result.summary();
     assert!(
-        err_msg.contains("SHA256") || err_msg.contains("verification failed"),
-        "Error should mention SHA256 verification failure, got: {}",
-        err_msg
+        summary.contains("hash mismatch") || summary.contains("Hash"),
+        "Failure should mention hash mismatch, got: {}",
+        summary
     );
 }
 
@@ -372,44 +374,35 @@ fn test_non_strict_mode_allows_unknown_git() {
 #[test]
 fn test_overwrite_protection() {
     let tmp = TempDir::new().unwrap();
-    let output_root = tmp.path().to_path_buf();
 
-    // Use MockGitProvider to avoid real git requirement.
-    // We cannot use EvidenceBuilder::new directly because it calls real git.
-    // Instead, test the overwrite protection logic manually:
-    // Create a directory that matches the expected bundle path pattern.
-    let provider = MockGitProvider::clean();
-    let git_snapshot = GitSnapshot::capture_with(&provider, false).unwrap();
+    let make_config = || EvidenceBuildConfig {
+        output_root: tmp.path().to_path_buf(),
+        profile: Profile::Dev,
+        in_scope_crates: vec![],
+        trace_roots: vec![],
+        skip_tests: false,
+        require_clean_git: false,
+        fail_on_dirty: false,
+    };
 
-    // Simulate what EvidenceBuilder::new would do: create the bundle dir once
-    let _sha_short = &git_snapshot.sha[..8];
-    // We need to create a dir with the expected name pattern
-    // The actual builder creates: <profile>-<timestamp>-<sha8>
-    // Since timestamps vary, we test the overwrite check directly.
+    // First builder succeeds and creates the bundle directory.
+    let _builder1 = EvidenceBuilder::new_with_provider(make_config(), MockGitProvider::clean())
+        .expect("first builder should succeed");
 
-    // Create a bundle directory manually
-    let existing_dir = output_root.join("dev-20260207-000000Z-aabbccdd");
-    fs::create_dir_all(&existing_dir).unwrap();
-
-    // Now try to create another bundle at the SAME path
-    // This simulates the overwrite check: if bundle_dir.exists() { bail! }
-    assert!(
-        existing_dir.exists(),
-        "Pre-created directory should exist for overwrite test"
-    );
-
-    // The EvidenceBuilder::new checks `if bundle_dir.exists() { bail!(...) }`
-    // Since we cannot control timestamps to match exactly, we test the logic
-    // by verifying the condition directly:
-    let would_overwrite = existing_dir.exists();
-    assert!(
-        would_overwrite,
-        "Existing bundle directory should be detected"
-    );
-
-    // Additionally, verify the actual error message pattern from the code:
-    // "Bundle directory {:?} already exists. Remove it first or use a different --out-dir."
-    // We can verify this by testing directly with the bundle module
+    // Second builder called immediately (same second, same SHA) must fail
+    // because the bundle directory already exists.
+    let result = EvidenceBuilder::new_with_provider(make_config(), MockGitProvider::clean());
+    match result {
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                msg.contains("already exists"),
+                "Error should mention 'already exists', got: {}",
+                msg
+            );
+        }
+        Ok(_) => panic!("Second builder in same second should fail (overwrite protection)"),
+    }
 }
 
 // ============================================================================
@@ -797,5 +790,287 @@ fn test_sha256_file_matches_sha256_bytes() {
     assert_eq!(
         file_hash, bytes_hash,
         "sha256_file and sha256 must agree on the same content"
+    );
+}
+
+// ============================================================================
+// TEST: TOCTOU detection — git HEAD change between new() and finalize()
+// ============================================================================
+
+/// A mock GitProvider that changes its SHA after the first call,
+/// simulating a commit happening during evidence generation.
+struct MutatingGitProvider {
+    call_count: std::cell::Cell<u32>,
+}
+
+impl MutatingGitProvider {
+    fn new() -> Self {
+        Self {
+            call_count: std::cell::Cell::new(0),
+        }
+    }
+}
+
+impl GitProvider for MutatingGitProvider {
+    fn sha(&self) -> anyhow::Result<String> {
+        let n = self.call_count.get();
+        self.call_count.set(n + 1);
+        if n == 0 {
+            // Initial snapshot
+            Ok("aabbccdd11223344aabbccdd11223344aabbccdd".to_string())
+        } else {
+            // Changed HEAD at finalize time
+            Ok("1111111122222222333333334444444455555555".to_string())
+        }
+    }
+
+    fn branch(&self) -> anyhow::Result<String> {
+        Ok("main".to_string())
+    }
+
+    fn is_dirty(&self) -> anyhow::Result<bool> {
+        Ok(false)
+    }
+
+    fn dirty_files(&self) -> anyhow::Result<Vec<String>> {
+        Ok(vec![])
+    }
+}
+
+#[test]
+fn test_toctou_detection() {
+    let tmp = TempDir::new().unwrap();
+
+    let config = EvidenceBuildConfig {
+        output_root: tmp.path().to_path_buf(),
+        profile: Profile::Dev,
+        in_scope_crates: vec![],
+        trace_roots: vec![],
+        skip_tests: false,
+        require_clean_git: false,
+        fail_on_dirty: false,
+    };
+
+    let builder = EvidenceBuilder::new_with_provider(config, MutatingGitProvider::new())
+        .expect("builder should succeed");
+
+    // Write minimal bundle files so finalize can proceed to the TOCTOU check
+    let bundle_dir = builder.bundle_dir();
+    let empty_map: BTreeMap<String, String> = BTreeMap::new();
+    fs::write(
+        bundle_dir.join("inputs_hashes.json"),
+        serde_json::to_vec_pretty(&empty_map).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        bundle_dir.join("outputs_hashes.json"),
+        serde_json::to_vec_pretty(&empty_map).unwrap(),
+    )
+    .unwrap();
+    let empty_cmds: Vec<serde_json::Value> = vec![];
+    fs::write(
+        bundle_dir.join("commands.json"),
+        serde_json::to_vec_pretty(&empty_cmds).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        bundle_dir.join("env.json"),
+        serde_json::json!({"profile":"dev"}).to_string(),
+    )
+    .unwrap();
+
+    builder.write_inputs().unwrap();
+    builder.write_outputs().unwrap();
+    builder.write_commands().unwrap();
+
+    // finalize should detect the changed SHA and bail
+    let result = builder.finalize("0.0.1", "0.0.3", vec![]);
+    assert!(result.is_err(), "finalize should fail when git HEAD changed");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("TOCTOU"),
+        "Error should mention TOCTOU, got: {}",
+        err
+    );
+}
+
+// ============================================================================
+// TEST: Path traversal detection in verify
+// ============================================================================
+
+#[test]
+fn test_verify_rejects_path_traversal_in_sha256sums() {
+    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+
+    // Tamper SHA256SUMS to include a path-traversal entry
+    let sha256sums_path = bundle_dir.join("SHA256SUMS");
+    let mut content = fs::read_to_string(&sha256sums_path).unwrap();
+    content.push_str("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  ../../../etc/passwd\n");
+    fs::write(&sha256sums_path, &content).unwrap();
+
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(result.is_fail(), "Should fail with path traversal");
+    let summary = result.summary();
+    assert!(
+        summary.contains("unsafe path") || summary.contains("Unsafe"),
+        "Should mention unsafe path, got: {}",
+        summary
+    );
+}
+
+#[test]
+fn test_verify_rejects_absolute_path_in_sha256sums() {
+    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+
+    let sha256sums_path = bundle_dir.join("SHA256SUMS");
+    let mut content = fs::read_to_string(&sha256sums_path).unwrap();
+    content.push_str("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  /etc/shadow\n");
+    fs::write(&sha256sums_path, &content).unwrap();
+
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(result.is_fail(), "Should fail with absolute path");
+    assert!(
+        result.summary().contains("unsafe path"),
+        "Should mention unsafe path, got: {}",
+        result.summary()
+    );
+}
+
+// ============================================================================
+// TEST: index.json field format validation
+// ============================================================================
+
+#[test]
+fn test_verify_rejects_invalid_profile() {
+    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+
+    // Tamper index.json to have an invalid profile
+    let index_path = bundle_dir.join("index.json");
+    let content = fs::read_to_string(&index_path).unwrap();
+    let tampered = content.replace("\"dev\"", "\"yolo\"");
+    fs::write(&index_path, &tampered).unwrap();
+
+    // Also tamper env.json so the cross-file check doesn't confuse matters
+    let env_path = bundle_dir.join("env.json");
+    let env_content = fs::read_to_string(&env_path).unwrap();
+    let env_tampered = env_content.replace("\"dev\"", "\"yolo\"");
+    fs::write(&env_path, &env_tampered).unwrap();
+
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(result.is_fail(), "Should fail with invalid profile");
+    assert!(
+        result.summary().contains("profile"),
+        "Should mention profile, got: {}",
+        result.summary()
+    );
+}
+
+#[test]
+fn test_verify_rejects_bad_git_sha_in_cert_profile() {
+    let (_tmp, bundle_dir) = create_minimal_bundle("cert");
+
+    // Tamper index.json git_sha to be invalid
+    let index_path = bundle_dir.join("index.json");
+    let content = fs::read_to_string(&index_path).unwrap();
+    let tampered = content.replace(
+        "aabbccdd11223344aabbccdd11223344aabbccdd",
+        "not-a-valid-sha",
+    );
+    fs::write(&index_path, &tampered).unwrap();
+
+    // Also tamper env.json to match so cross-file doesn't trigger
+    let env_path = bundle_dir.join("env.json");
+    let env_content = fs::read_to_string(&env_path).unwrap();
+    let env_tampered = env_content.replace(
+        "aabbccdd11223344aabbccdd11223344aabbccdd",
+        "not-a-valid-sha",
+    );
+    fs::write(&env_path, &env_tampered).unwrap();
+
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(result.is_fail(), "Should fail with bad git_sha for cert");
+    assert!(
+        result.summary().contains("git_sha"),
+        "Should mention git_sha, got: {}",
+        result.summary()
+    );
+}
+
+#[test]
+fn test_verify_allows_unknown_git_sha_in_dev_profile() {
+    // Dev profile allows "unknown" git_sha — should not trigger FormatError
+    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+
+    // Set git_sha to "unknown" in both files
+    let index_path = bundle_dir.join("index.json");
+    let content = fs::read_to_string(&index_path).unwrap();
+    let tampered = content.replace(
+        "aabbccdd11223344aabbccdd11223344aabbccdd",
+        "unknown",
+    );
+    fs::write(&index_path, &tampered).unwrap();
+
+    let env_path = bundle_dir.join("env.json");
+    let env_content = fs::read_to_string(&env_path).unwrap();
+    let env_tampered = env_content.replace(
+        "aabbccdd11223344aabbccdd11223344aabbccdd",
+        "unknown",
+    );
+    fs::write(&env_path, &env_tampered).unwrap();
+
+    // Should fail only on content_hash mismatch (tampered file), not git_sha format
+    let result = verify_bundle(&bundle_dir).unwrap();
+    let summary = result.summary();
+    assert!(
+        !summary.contains("git_sha"),
+        "Dev profile should not flag git_sha='unknown', got: {}",
+        summary
+    );
+}
+
+// ============================================================================
+// TEST: Cross-file consistency env.json vs index.json
+// ============================================================================
+
+#[test]
+fn test_verify_detects_env_index_profile_mismatch() {
+    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+
+    // Tamper env.json profile to differ from index.json
+    let env_path = bundle_dir.join("env.json");
+    let content = fs::read_to_string(&env_path).unwrap();
+    let tampered = content.replace("\"dev\"", "\"cert\"");
+    fs::write(&env_path, &tampered).unwrap();
+
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(result.is_fail(), "Should fail with profile mismatch");
+    let summary = result.summary();
+    assert!(
+        summary.contains("mismatch") && summary.contains("profile"),
+        "Should mention profile mismatch, got: {}",
+        summary
+    );
+}
+
+#[test]
+fn test_verify_detects_env_index_git_sha_mismatch() {
+    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+
+    // Tamper env.json git_sha to differ from index.json
+    let env_path = bundle_dir.join("env.json");
+    let content = fs::read_to_string(&env_path).unwrap();
+    let tampered = content.replace(
+        "aabbccdd11223344aabbccdd11223344aabbccdd",
+        "1111111111111111111111111111111111111111",
+    );
+    fs::write(&env_path, &tampered).unwrap();
+
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(result.is_fail(), "Should fail with git_sha mismatch");
+    let summary = result.summary();
+    assert!(
+        summary.contains("mismatch") && summary.contains("git_sha"),
+        "Should mention git_sha mismatch, got: {}",
+        summary
     );
 }
