@@ -253,6 +253,7 @@ pub struct EvidenceBuilder {
     commands: Vec<CommandRecord>,
     inputs: BTreeMap<String, String>,
     outputs: BTreeMap<String, String>,
+    test_summary: Option<TestSummary>,
 }
 
 impl EvidenceBuilder {
@@ -344,6 +345,7 @@ impl EvidenceBuilder {
             commands: Vec::new(),
             inputs: BTreeMap::new(),
             outputs: BTreeMap::new(),
+            test_summary: None,
         })
     }
 
@@ -457,6 +459,11 @@ impl EvidenceBuilder {
         Ok(path)
     }
 
+    /// Store test results for inclusion in the evidence index.
+    pub fn set_test_summary(&mut self, summary: TestSummary) {
+        self.test_summary = Some(summary);
+    }
+
     /// Finalize the bundle by writing SHA256SUMS (content layer) then index.json (metadata layer).
     ///
     /// The two-layer design ensures determinism:
@@ -513,7 +520,7 @@ impl EvidenceBuilder {
             git_branch: self.git_snapshot.branch.clone(),
             git_dirty: self.git_snapshot.dirty,
             engine_crate_version: env!("CARGO_PKG_VERSION").to_string(),
-            engine_git_sha: "n/a (use engine_crate_version)".to_string(),
+            engine_git_sha: env!("EVIDENCE_ENGINE_GIT_SHA").to_string(),
             inputs_hashes_file: "inputs_hashes.json".to_string(),
             outputs_hashes_file: "outputs_hashes.json".to_string(),
             commands_file: "commands.json".to_string(),
@@ -530,7 +537,7 @@ impl EvidenceBuilder {
                 .collect(),
             bundle_complete: true,
             content_hash,
-            test_summary: None,
+            test_summary: self.test_summary.clone(),
         };
 
         let index_path = self.bundle_dir.join("index.json");

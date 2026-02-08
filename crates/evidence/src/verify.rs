@@ -10,6 +10,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
+use chrono;
 use crate::bundle::EvidenceIndex;
 use crate::hash::sha256_file;
 
@@ -237,6 +238,14 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
             field: "git_sha".to_string(),
             expected: "40-character hex (required for cert/record profiles)".to_string(),
             actual: index.git_sha.clone(),
+        });
+    }
+    // timestamp_rfc3339 must be a valid RFC3339 datetime
+    if chrono::DateTime::parse_from_rfc3339(&index.timestamp_rfc3339).is_err() {
+        verify_errors.push(VerifyError::FormatError {
+            field: "timestamp_rfc3339".to_string(),
+            expected: "valid RFC3339 datetime".to_string(),
+            actual: index.timestamp_rfc3339.clone(),
         });
     }
 

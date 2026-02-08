@@ -11,8 +11,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use evidence::{
-    backfill_uuids, env::in_nix_shell, git::git_ls_files, sign_bundle,
-    trace::{read_all_trace_files, validate_trace_links, TraceFiles},
+    backfill_uuids, env::in_nix_shell, git::git_ls_files, parse_cargo_test_output, sign_bundle,
+    trace::{
+        generate_traceability_matrix, read_all_trace_files, validate_trace_links, TraceFiles,
+    },
     verify_bundle_with_key, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex,
     Profile, VerifyResult,
 };
@@ -89,6 +91,10 @@ enum Commands {
         /// Path to HMAC signing key file (raw bytes)
         #[arg(long)]
         sign_key: Option<PathBuf>,
+
+        /// Skip running cargo test during evidence generation
+        #[arg(long)]
+        skip_tests: bool,
     },
 
     /// Verify an evidence bundle
@@ -144,6 +150,10 @@ enum Commands {
         /// Assign UUIDs to entries that are missing them
         #[arg(long)]
         backfill_uuids: bool,
+
+        /// Output results as JSON
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -232,6 +242,7 @@ struct GenerateArgs {
     boundary: Option<PathBuf>,
     trace_roots_arg: Option<String>,
     sign_key: Option<PathBuf>,
+    skip_tests: bool,
     quiet: bool,
     json_output: bool,
 }
@@ -244,6 +255,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         boundary,
         trace_roots_arg,
         sign_key,
+        skip_tests,
         quiet,
         json_output,
     } = args;
@@ -408,6 +420,36 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     // Write commands (populated by run_capture calls)
     builder.write_commands()?;
 
+    // Run cargo test and capture results (unless --skip-tests)
+    if !skip_tests {
+        let mut test_cmd = std::process::Command::new("cargo");
+        test_cmd.args(["test", "--workspace"]);
+        match builder.run_capture(test_cmd, "tests", "cargo_test", "cargo test --workspace") {
+            Ok((stdout, _stderr)) => {
+                let stdout_str = String::from_utf8_lossy(&stdout);
+                if let Some(summary) = parse_cargo_test_output(&stdout_str) {
+                    if !quiet && !json_output {
+                        println!(
+                            "evidence: tests: {} passed, {} failed, {} ignored",
+                            summary.passed, summary.failed, summary.ignored
+                        );
+                    }
+                    builder.set_test_summary(summary);
+                }
+            }
+            Err(e) => {
+                if strict {
+                    return Err(e.context("running cargo test"));
+                }
+                eprintln!("warning: cargo test failed: {}", e);
+            }
+        }
+    }
+
+    // Re-write outputs and commands after test capture added new files
+    builder.write_outputs()?;
+    builder.write_commands()?;
+
     // Validate trace links before finalize
     for root in &trace_root_list {
         let root_path = Path::new(root);
@@ -454,8 +496,47 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         }
     }
 
+    // Copy trace data into bundle and generate traceability matrix
+    let mut trace_outputs: Vec<PathBuf> = Vec::new();
+    for root in &trace_root_list {
+        let root_path = Path::new(root);
+        if !root_path.exists() {
+            continue;
+        }
+        if let Ok(trace_files) = read_all_trace_files(root) {
+            let bundle_trace_dir = builder.bundle_dir().join("trace");
+            // Copy source TOML files into bundle
+            for filename in &["hlr.toml", "llr.toml", "tests.toml", "derived.toml"] {
+                let src = root_path.join(filename);
+                if src.exists() {
+                    fs::copy(&src, bundle_trace_dir.join(filename))?;
+                }
+            }
+            // Generate traceability matrix
+            let doc_id = &trace_files.hlr.meta.document_id;
+            match generate_traceability_matrix(
+                &trace_files.hlr,
+                &trace_files.llr,
+                &trace_files.tests,
+                doc_id,
+            ) {
+                Ok(matrix_md) => {
+                    let matrix_path = bundle_trace_dir.join("matrix.md");
+                    fs::write(&matrix_path, matrix_md)?;
+                    trace_outputs.push(matrix_path);
+                    if !quiet && !json_output {
+                        println!("evidence: trace data copied from '{}'", root);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("warning: could not generate traceability matrix for '{}': {}", root, e);
+                }
+            }
+        }
+    }
+
     // Finalize bundle
-    let bundle_path = builder.finalize("0.0.1", "0.0.3", vec![])?;
+    let bundle_path = builder.finalize("0.0.1", "0.0.3", trace_outputs)?;
 
     // HMAC signing if key provided
     if let Some(key_path) = sign_key {
@@ -717,12 +798,20 @@ fn cmd_verify(
 // ============================================================================
 
 #[derive(Serialize)]
+struct EnvFieldChange {
+    field: String,
+    a: String,
+    b: String,
+}
+
+#[derive(Serialize)]
 struct DiffOutput {
     bundle_a: String,
     bundle_b: String,
     inputs_diff: HashDiff,
     outputs_diff: HashDiff,
     metadata_diff: MetadataDiff,
+    env_diff: Vec<EnvFieldChange>,
 }
 
 #[derive(Serialize, Default)]
@@ -802,12 +891,16 @@ fn cmd_diff(bundle_a: PathBuf, bundle_b: PathBuf, json_output: bool) -> Result<i
         });
     }
 
+    // Compare env.json (toolchain, platform, flags — skip git fields already in metadata)
+    let env_diff = compute_env_diff(&bundle_a, &bundle_b);
+
     let diff_output = DiffOutput {
         bundle_a: bundle_a.display().to_string(),
         bundle_b: bundle_b.display().to_string(),
         inputs_diff,
         outputs_diff,
         metadata_diff,
+        env_diff,
     };
 
     if json_output {
@@ -831,6 +924,14 @@ fn cmd_diff(bundle_a: PathBuf, bundle_b: PathBuf, json_output: bool) -> Result<i
         }
         if let Some(ref c) = diff_output.metadata_diff.git_dirty {
             println!("  git_dirty: {} -> {}", c.a, c.b);
+        }
+
+        // Environment diff
+        if !diff_output.env_diff.is_empty() {
+            println!("\n=== Environment ===");
+            for c in &diff_output.env_diff {
+                println!("  {}: {} -> {}", c.field, c.a, c.b);
+            }
         }
 
         // Inputs diff
@@ -907,6 +1008,38 @@ fn print_hash_diff(diff: &HashDiff) {
     for f in &diff.changed {
         println!("  ~ {} (hash changed)", f.path);
     }
+}
+
+/// Compare env.json from two bundles, returning field-level differences.
+/// Skips git fields (profile, git_sha, git_branch, git_dirty) which are
+/// already covered by metadata_diff.
+fn compute_env_diff(bundle_a: &Path, bundle_b: &Path) -> Vec<EnvFieldChange> {
+    let skip = ["profile", "git_sha", "git_branch", "git_dirty"];
+    let load = |p: &Path| -> Option<serde_json::Map<String, serde_json::Value>> {
+        let content = fs::read_to_string(p.join("env.json")).ok()?;
+        let v: serde_json::Value = serde_json::from_str(&content).ok()?;
+        v.as_object().cloned()
+    };
+    let (Some(obj_a), Some(obj_b)) = (load(bundle_a), load(bundle_b)) else {
+        return Vec::new();
+    };
+    let all_keys: std::collections::BTreeSet<_> = obj_a.keys().chain(obj_b.keys()).collect();
+    let mut changes = Vec::new();
+    for key in all_keys {
+        if skip.contains(&key.as_str()) {
+            continue;
+        }
+        let val_a = obj_a.get(key).map(|v| v.to_string()).unwrap_or_default();
+        let val_b = obj_b.get(key).map(|v| v.to_string()).unwrap_or_default();
+        if val_a != val_b {
+            changes.push(EnvFieldChange {
+                field: key.clone(),
+                a: val_a,
+                b: val_b,
+            });
+        }
+    }
+    changes
 }
 
 // ============================================================================
@@ -1042,12 +1175,19 @@ fn cmd_init(force: bool) -> Result<i32> {
         }
     }
 
-    // Create example trace files
+    // Create example trace files (must match struct field names for TOML parsing)
     let hlr_example = r#"# High-Level Requirements
-# Schema version: 0.0.3
 
-[[hlr]]
+[schema]
+version = "0.0.3"
+
+[meta]
+document_id = "HLR-DOC-001"
+revision = "1"
+
+[[requirements]]
 uid = "HLR-001"
+id = "hlr-example"
 title = "Example Requirement"
 description = "This is an example high-level requirement."
 owner = "team@example.com"
@@ -1055,10 +1195,17 @@ verification_methods = ["test", "review"]
 "#;
 
     let llr_example = r#"# Low-Level Requirements
-# Schema version: 0.0.3
 
-[[llr]]
+[schema]
+version = "0.0.3"
+
+[meta]
+document_id = "LLR-DOC-001"
+revision = "1"
+
+[[requirements]]
 uid = "LLR-001"
+id = "llr-example"
 title = "Example Implementation Requirement"
 description = "This is an example low-level requirement."
 owner = "developer@example.com"
@@ -1066,24 +1213,64 @@ derives_from = ["HLR-001"]
 verification_methods = ["test"]
 "#;
 
+    let tests_example = r#"# Test Cases
+
+[schema]
+version = "0.0.3"
+
+[meta]
+document_id = "TST-DOC-001"
+revision = "1"
+
+[[tests]]
+uid = "TST-001"
+id = "test-example"
+title = "Example Test Case"
+description = "Verifies that the example LLR is satisfied."
+owner = "tester@example.com"
+traces_to = ["LLR-001"]
+verification_method = "test"
+"#;
+
+    let derived_example = r#"# Derived Requirements
+
+[schema]
+version = "0.0.3"
+
+[meta]
+document_id = "DRQ-DOC-001"
+revision = "1"
+
+[[requirements]]
+uid = "DRQ-001"
+id = "derived-example"
+title = "Example Derived Requirement"
+description = "A requirement derived during design or implementation."
+owner = "team@example.com"
+rationale = "Required for implementation of HLR-001"
+safety_impact = "none"
+"#;
+
     let trace_dir = cert_dir.join("trace");
-    let hlr_path = trace_dir.join("hlr.toml");
-    let llr_path = trace_dir.join("llr.toml");
+    let trace_files = [
+        ("hlr.toml", hlr_example),
+        ("llr.toml", llr_example),
+        ("tests.toml", tests_example),
+        ("derived.toml", derived_example),
+    ];
 
-    if !hlr_path.exists() || force {
-        fs::write(&hlr_path, hlr_example)?;
-        println!("created: {:?}", hlr_path);
-    }
-
-    if !llr_path.exists() || force {
-        fs::write(&llr_path, llr_example)?;
-        println!("created: {:?}", llr_path);
+    for (name, content) in trace_files {
+        let path = trace_dir.join(name);
+        if !path.exists() || force {
+            fs::write(&path, content)?;
+            println!("created: {:?}", path);
+        }
     }
 
     println!("\nInitialized evidence tracking in cert/");
     println!("\nNext steps:");
     println!("  1. Edit cert/boundary.toml to define in-scope crates");
-    println!("  2. Add requirements to cert/trace/hlr.toml and llr.toml");
+    println!("  2. Add requirements to cert/trace/ (hlr.toml, llr.toml, tests.toml)");
     println!("  3. Run: cargo evidence generate --out-dir evidence");
 
     Ok(EXIT_SUCCESS)
@@ -1272,9 +1459,15 @@ fn validate_hashes_schema(value: &serde_json::Value) -> Result<()> {
 // Trace Command
 // ============================================================================
 
-fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<String>) -> Result<i32> {
+fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<String>, json_output: bool) -> Result<i32> {
     if !do_backfill && !do_validate {
-        eprintln!("error: specify an action, e.g. --validate or --backfill-uuids");
+        if json_output {
+            println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                "error": "specify an action, e.g. --validate or --backfill-uuids"
+            }))?);
+        } else {
+            eprintln!("error: specify an action, e.g. --validate or --backfill-uuids");
+        }
         return Ok(EXIT_ERROR);
     }
 
@@ -1285,20 +1478,53 @@ fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<Strin
     // Validate trace links
     if do_validate {
         let mut all_valid = true;
+        let mut results: Vec<serde_json::Value> = Vec::new();
         for root in &roots {
             let root_path = Path::new(root);
             if !root_path.exists() {
-                eprintln!("warning: trace root '{}' does not exist, skipping", root);
+                if json_output {
+                    results.push(serde_json::json!({
+                        "root": root,
+                        "status": "skipped",
+                        "message": "trace root does not exist"
+                    }));
+                } else {
+                    eprintln!("warning: trace root '{}' does not exist, skipping", root);
+                }
                 continue;
             }
             let TraceFiles { hlr, llr, tests, .. } = read_all_trace_files(root)?;
             match validate_trace_links(&hlr.requirements, &llr.requirements, &tests.tests) {
-                Ok(()) => println!("trace: validation passed for '{}'", root),
+                Ok(()) => {
+                    if json_output {
+                        results.push(serde_json::json!({
+                            "root": root,
+                            "status": "pass"
+                        }));
+                    } else {
+                        println!("trace: validation passed for '{}'", root);
+                    }
+                }
                 Err(e) => {
-                    eprintln!("trace: validation FAILED for '{}': {}", root, e);
+                    if json_output {
+                        results.push(serde_json::json!({
+                            "root": root,
+                            "status": "fail",
+                            "message": e.to_string()
+                        }));
+                    } else {
+                        eprintln!("trace: validation FAILED for '{}': {}", root, e);
+                    }
                     all_valid = false;
                 }
             }
+        }
+        if json_output {
+            println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                "command": "validate",
+                "success": all_valid,
+                "results": results
+            }))?);
         }
         if !all_valid {
             return Ok(EXIT_ERROR);
@@ -1315,12 +1541,17 @@ fn cmd_trace(do_validate: bool, do_backfill: bool, trace_roots_arg: Option<Strin
                 continue;
             }
             let n = backfill_uuids(root)?;
-            if n > 0 {
+            if n > 0 && !json_output {
                 println!("trace: assigned {} UUID(s) in {}", n, root);
             }
             total += n;
         }
-        if total == 0 {
+        if json_output {
+            println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                "command": "backfill_uuids",
+                "uuids_assigned": total
+            }))?);
+        } else if total == 0 {
             println!("trace: all entries already have UUIDs");
         } else {
             println!("trace: assigned {} UUID(s) total", total);
@@ -1343,13 +1574,14 @@ fn run() -> i32 {
     let CargoCli::Evidence(args) = CargoCli::parse();
 
     let result = match args.command {
-        Some(Commands::Generate { sign_key }) => cmd_generate(GenerateArgs {
+        Some(Commands::Generate { sign_key, skip_tests }) => cmd_generate(GenerateArgs {
             profile_arg: args.profile.clone(),
             out_dir: args.out_dir.clone(),
             write_workspace: args.write_workspace,
             boundary: args.boundary.clone(),
             trace_roots_arg: args.trace_roots.clone(),
             sign_key,
+            skip_tests,
             quiet: args.quiet,
             json_output: args.json,
         }),
@@ -1372,7 +1604,8 @@ fn run() -> i32 {
         Some(Commands::Trace {
             validate,
             backfill_uuids,
-        }) => cmd_trace(validate, backfill_uuids, args.trace_roots.clone()),
+            json,
+        }) => cmd_trace(validate, backfill_uuids, args.trace_roots.clone(), json),
         None => {
             // Default to generate command with global args
             cmd_generate(GenerateArgs {
@@ -1381,7 +1614,8 @@ fn run() -> i32 {
                 write_workspace: args.write_workspace,
                 boundary: args.boundary,
                 trace_roots_arg: args.trace_roots,
-                sign_key: None, // no sign key from global args
+                sign_key: None,
+                skip_tests: false,
                 quiet: args.quiet,
                 json_output: args.json,
             })
