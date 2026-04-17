@@ -1,0 +1,22 @@
+{
+  "schema_version": "0.0.1",
+  "boundary_schema_version": "0.0.1",
+  "trace_schema_version": "0.0.3",
+  "profile": "dev",
+  "timestamp_rfc3339": "2026-04-17T04:40:11.912893+00:00",
+  "git_sha": "c3bf8d5cdd6584cf0424ad89c1b3849c6f4330ef",
+  "git_branch": "pr/3-golden-bundle",
+  "git_dirty": false,
+  "engine_crate_version": "0.1.0",
+  "engine_git_sha": "c3bf8d5cdd6584cf0424ad89c1b3849c6f4330ef",
+  "inputs_hashes_file": "inputs_hashes.json",
+  "outputs_hashes_file": "outputs_hashes.json",
+  "commands_file": "commands.json",
+  "env_fingerprint_file": "env.json",
+  "trace_roots": [
+    "cert/trace"
+  ],
+  "trace_outputs": [],
+  "bundle_complete": true,
+  "content_hash": "56d9d6a739aca6d80c4773418eb857df0f2eb3b8c541ea52ccf1b9032d13259e"
+}

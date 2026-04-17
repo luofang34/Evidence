@@ -11,6 +11,8 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+use crate::util::normalize_bundle_path;
+
 /// Compute the SHA-256 hash of the given data.
 pub fn sha256(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
@@ -54,11 +56,11 @@ pub fn hash_file_relative_into(
     let rel = path
         .strip_prefix(base)
         .with_context(|| format!("{:?} is not under base {:?}", path, base))?;
-    let rel_str = rel
-        .to_str()
-        .with_context(|| format!("Non-UTF-8 path: {:?}", rel))?
-        .replace('\\', "/");
-    map.insert(rel_str, hash);
+    // Reject non-UTF-8 up-front; `normalize_bundle_path` would otherwise
+    // use `to_string_lossy` and silently mangle the key.
+    rel.to_str()
+        .with_context(|| format!("Non-UTF-8 path: {:?}", rel))?;
+    map.insert(normalize_bundle_path(rel), hash);
     Ok(())
 }
 
@@ -98,7 +100,7 @@ pub fn write_sha256sums(root: &Path, out_path: &Path) -> Result<()> {
     for f in files {
         let rel = f.strip_prefix(root).unwrap_or(&f);
         // Normalize to forward slashes for cross-platform determinism (ADR-001 Invariant 6)
-        let rel_path = rel.to_string_lossy().replace('\\', "/");
+        let rel_path = normalize_bundle_path(rel);
         let hash = sha256_file(&f)?;
         lines.push(format!("{}  {}", hash, rel_path));
     }

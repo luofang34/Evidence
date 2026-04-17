@@ -59,8 +59,16 @@ pub struct TestSummary {
 /// (one per crate). This function accumulates ALL of them to avoid
 /// silently discarding failures in later crates.
 ///
+/// Normalizes `\r\n` → `\n` on entry so output captured from a Windows
+/// cargo run (which terminates lines with CRLF) is parsed the same way
+/// as Linux/macOS output — a stray trailing `\r` would otherwise break
+/// the `trim_end_matches(';')` / split-by-space tokenization on the
+/// last segment of every line.
+///
 /// Returns `None` if no matching line is found.
 pub fn parse_cargo_test_output(output: &str) -> Option<TestSummary> {
+    let output = output.replace("\r\n", "\n");
+
     let mut total_passed = 0u64;
     let mut total_failed = 0u64;
     let mut total_ignored = 0u64;
@@ -533,10 +541,9 @@ impl EvidenceBuilder {
             trace_outputs: trace_outputs
                 .iter()
                 .map(|p| {
-                    p.strip_prefix(&self.bundle_dir)
-                        .unwrap_or(p)
-                        .to_string_lossy()
-                        .to_string()
+                    crate::util::normalize_bundle_path(
+                        p.strip_prefix(&self.bundle_dir).unwrap_or(p),
+                    )
                 })
                 .collect(),
             bundle_complete: true,
@@ -582,6 +589,22 @@ pub fn utc_compact_stamp() -> Result<String> {
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_cargo_test_output_handles_crlf_line_endings() {
+        // Windows `Command::output()` captures cargo test with CRLF line
+        // endings; the parser must normalize before tokenizing or the
+        // trailing `\r` on each `; N filtered out` segment breaks the
+        // "filtered out" match.
+        let crlf =
+            "test result: ok. 3 passed; 1 failed; 2 ignored; 0 filtered out; finished in 0.01s\r\n";
+        let summary = parse_cargo_test_output(crlf).expect("should parse CRLF output");
+        assert_eq!(summary.passed, 3);
+        assert_eq!(summary.failed, 1);
+        assert_eq!(summary.ignored, 2);
+        assert_eq!(summary.filtered_out, 0);
+        assert_eq!(summary.total, 6);
+    }
 
     #[test]
     fn test_command_record_fields() {
