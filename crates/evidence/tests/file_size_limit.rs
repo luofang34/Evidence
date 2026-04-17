@@ -40,15 +40,6 @@ const LIMIT: usize = 500;
 /// Every entry must have a comment naming the follow-up PR or
 /// reason; empty this list out as entries get resolved.
 const ALLOWLIST: &[(&str, &str)] = &[
-    // `tests/integration.rs` (~1240 lines) is a single Cargo test
-    // binary holding 29 cross-concern integration tests against the
-    // public API. Every `.rs` file directly in `tests/` compiles to
-    // its own test binary, so splitting requires either tolerating
-    // per-concern test binaries (slow compile) or introducing a
-    // shared `mod common;` pattern that conflicts with CLAUDE.md's
-    // "no mod.rs" rule. Scheduled for a dedicated refactor PR once
-    // the split strategy is agreed on.
-    ("crates/evidence/tests/integration.rs", "pending split PR"),
     // `env.rs` (~544 lines) is at ~9% over the limit. The module
     // decomposes cleanly into host detection / EnvFingerprint /
     // DeterministicManifest / capture, but the split is mechanical
