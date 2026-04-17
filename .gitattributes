@@ -1,0 +1,6 @@
+# Golden-bundle fixture files must land on disk byte-for-byte identical on
+# every platform, including Windows — their hashes are recorded in
+# SHA256SUMS / index.json.content_hash, so any EOL translation from
+# `core.autocrlf` breaks `verify_bundle`. Mark the whole fixture tree as
+# binary to disable text normalization, filter, and diff attributes.
+crates/cargo-evidence/tests/fixtures/golden-dev-bundle/** binary
