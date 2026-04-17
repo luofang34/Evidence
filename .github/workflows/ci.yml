@@ -111,9 +111,12 @@ jobs:
           fetch-depth: 0
 
       - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
+        # DeterminateSystems installer (not cachix/install-nix-action)
+        # because the macos-latest runner image ships with residual
+        # `_nixbld` users from GitHub's base image; cachix's installer
+        # aborts on `eDSRecordAlreadyExists` there. DeterminateSystems
+        # detects and reuses pre-existing state.
+        uses: DeterminateSystems/nix-installer-action@v14
 
       - name: Nix flake check
         run: nix flake check
@@ -378,9 +381,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
+        # See the `nix` job for why we're on DeterminateSystems, not
+        # cachix/install-nix-action.
+        uses: DeterminateSystems/nix-installer-action@v14
 
       - name: Cache cargo registry & build (Nix-segregated)
         uses: actions/cache@v4
