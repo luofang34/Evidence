@@ -565,12 +565,22 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         let compliance_dir = builder.bundle_dir().join("compliance");
         fs::create_dir_all(&compliance_dir)?;
 
+        // `builder.tests_passed()` is the authoritative verdict —
+        // it reads the recorded TestSummary's `failed == 0`. Using
+        // `!skip_tests` here was a placeholder that conflated "the
+        // user didn't pass --skip-tests" with "the tests passed",
+        // which is exactly backwards: a run that actually attempted
+        // tests and saw failures would still register as passed in
+        // the compliance report.
+        let tests_passed = builder.tests_passed();
+        let has_test_results = tests_passed.is_some();
+
         for (crate_name, dal) in &dal_map_for_compliance {
             let crate_evidence = evidence::CrateEvidence {
                 has_trace_data: trace_root_list.iter().any(|r| Path::new(r).exists()),
                 trace_validation_passed: true,
-                has_test_results: !skip_tests,
-                tests_passed: !skip_tests,
+                has_test_results,
+                tests_passed,
                 has_coverage_data: false,
             };
             let report = evidence::generate_compliance_report(crate_name, *dal, &crate_evidence);

@@ -346,8 +346,16 @@ pub struct CrateEvidence {
     pub trace_validation_passed: bool,
     /// Whether test results exist
     pub has_test_results: bool,
-    /// Whether all tests passed
-    pub tests_passed: bool,
+    /// Did all tests pass?
+    ///
+    /// - `None` — no data, either because tests were never run or
+    ///   the test output couldn't be parsed. Treated as "no evidence"
+    ///   for objective satisfaction.
+    /// - `Some(false)` — at least one test failed. Treated the same
+    ///   way as "no evidence" for Table A-7 objectives; a
+    ///   certification argument cannot rely on a red test run.
+    /// - `Some(true)` — all recorded tests passed.
+    pub tests_passed: Option<bool>,
     /// Whether structural coverage data exists
     pub has_coverage_data: bool,
 }
@@ -531,59 +539,72 @@ fn determine_a7_status(
 ) -> (String, Vec<String>, Option<String>) {
     match obj.id {
         "A7-1" | "A7-2" => {
-            // HLR-level testing
-            if evidence.has_test_results && evidence.tests_passed {
-                ("partial".to_string(), vec!["tests/cargo_test_stdout.txt".to_string()], Some("aggregate test results available; per-requirement mapping requires test_selector".to_string()))
-            } else if evidence.has_test_results {
-                (
+            // HLR-level testing. Only reports any credit when tests
+            // actually passed; Some(false)/None both fall into
+            // not_met so a red test run can't prop up the objective.
+            match evidence.tests_passed {
+                Some(true) if evidence.has_test_results => (
                     "partial".to_string(),
                     vec!["tests/cargo_test_stdout.txt".to_string()],
-                    Some("tests exist but some failed".to_string()),
-                )
-            } else {
-                (
+                    Some("aggregate test results available; per-requirement mapping requires test_selector".to_string()),
+                ),
+                Some(false) => (
+                    "not_met".to_string(),
+                    vec!["tests/cargo_test_stdout.txt".to_string()],
+                    Some("tests ran but at least one failed".to_string()),
+                ),
+                _ => (
                     "not_met".to_string(),
                     vec![],
                     Some("no test results in bundle".to_string()),
-                )
+                ),
             }
         }
         "A7-3" | "A7-4" => {
             // LLR-level testing
-            if evidence.has_test_results && evidence.tests_passed {
-                (
+            match evidence.tests_passed {
+                Some(true) if evidence.has_test_results => (
                     "partial".to_string(),
                     vec!["tests/cargo_test_stdout.txt".to_string()],
                     Some(
                         "aggregate test results available; per-LLR mapping requires test_selector"
                             .to_string(),
                     ),
-                )
-            } else {
-                (
+                ),
+                Some(false) => (
+                    "not_met".to_string(),
+                    vec!["tests/cargo_test_stdout.txt".to_string()],
+                    Some("tests ran but at least one failed".to_string()),
+                ),
+                _ => (
                     "not_met".to_string(),
                     vec![],
-                    Some("no test results or tests failed".to_string()),
-                )
+                    Some("no test results in bundle".to_string()),
+                ),
             }
         }
         "A7-5" => {
-            // Target compatibility
-            if evidence.has_test_results && evidence.tests_passed {
-                (
+            // Target compatibility — only "met" when tests actually
+            // passed on the recorded target.
+            match evidence.tests_passed {
+                Some(true) if evidence.has_test_results => (
                     "met".to_string(),
                     vec![
                         "tests/cargo_test_stdout.txt".to_string(),
                         "env.json".to_string(),
                     ],
                     None,
-                )
-            } else {
-                (
+                ),
+                Some(false) => (
+                    "not_met".to_string(),
+                    vec!["tests/cargo_test_stdout.txt".to_string()],
+                    Some("tests ran but at least one failed".to_string()),
+                ),
+                _ => (
                     "not_met".to_string(),
                     vec![],
                     Some("no passing test results".to_string()),
-                )
+                ),
             }
         }
         "A7-6" => {
@@ -734,7 +755,7 @@ mod tests {
             has_trace_data: true,
             trace_validation_passed: true,
             has_test_results: true,
-            tests_passed: true,
+            tests_passed: Some(true),
             has_coverage_data: false,
         };
         let report = generate_compliance_report("util-crate", Dal::D, &evidence);
@@ -743,6 +764,100 @@ mod tests {
         assert!(report.summary.applicable < report.summary.total_objectives);
         // With passing tests and trace, some should be met or partial
         assert!(report.summary.met + report.summary.partial > 0);
+    }
+
+    /// Core regression: a Some(false) verdict must NOT earn any
+    /// Table A-7 credit. The previous API treated `tests_passed:
+    /// bool` as "did the bundle record a test run", which let a
+    /// failing run still register as partial/met for A7-1..A7-5.
+    /// With Option<bool>, Some(false) and None both land in not_met.
+    #[test]
+    fn test_failing_tests_mark_all_a7_objectives_not_met() {
+        let evidence = CrateEvidence {
+            has_trace_data: true,
+            trace_validation_passed: true,
+            has_test_results: true,
+            tests_passed: Some(false),
+            has_coverage_data: false,
+        };
+        let report = generate_compliance_report("failing-crate", Dal::A, &evidence);
+
+        for id in ["A7-1", "A7-2", "A7-3", "A7-4", "A7-5"] {
+            let obj = report
+                .objectives
+                .iter()
+                .find(|o| o.objective_id == id)
+                .unwrap_or_else(|| panic!("objective {} missing from report", id));
+            assert_eq!(
+                obj.status, "not_met",
+                "{} must be not_met when tests_passed = Some(false), got {}",
+                id, obj.status
+            );
+        }
+    }
+
+    /// No data at all (tests never ran or output couldn't be parsed)
+    /// also lands in not_met for every A7-* with a "no test results"
+    /// note. Distinguishes from Some(false) in wording only; the
+    /// compliance verdict is the same.
+    #[test]
+    fn test_missing_tests_passed_data_marks_a7_not_met() {
+        let evidence = CrateEvidence {
+            has_trace_data: true,
+            trace_validation_passed: true,
+            has_test_results: false,
+            tests_passed: None,
+            has_coverage_data: false,
+        };
+        let report = generate_compliance_report("no-tests-crate", Dal::A, &evidence);
+
+        for id in ["A7-1", "A7-2", "A7-3", "A7-4", "A7-5"] {
+            let obj = report
+                .objectives
+                .iter()
+                .find(|o| o.objective_id == id)
+                .unwrap_or_else(|| panic!("objective {} missing from report", id));
+            assert_eq!(
+                obj.status, "not_met",
+                "{} must be not_met when tests_passed = None, got {}",
+                id, obj.status
+            );
+        }
+    }
+
+    /// Positive control: Some(true) earns the partial/met verdicts
+    /// Table A-7 was designed for, proving the gating logic hasn't
+    /// accidentally blocked the happy path.
+    #[test]
+    fn test_passing_tests_earn_a7_partial_or_met() {
+        let evidence = CrateEvidence {
+            has_trace_data: true,
+            trace_validation_passed: true,
+            has_test_results: true,
+            tests_passed: Some(true),
+            has_coverage_data: false,
+        };
+        let report = generate_compliance_report("passing-crate", Dal::A, &evidence);
+
+        for id in ["A7-1", "A7-2", "A7-3", "A7-4"] {
+            let obj = report
+                .objectives
+                .iter()
+                .find(|o| o.objective_id == id)
+                .unwrap_or_else(|| panic!("objective {} missing from report", id));
+            assert_eq!(
+                obj.status, "partial",
+                "{} must be partial when tests pass, got {}",
+                id, obj.status
+            );
+        }
+
+        let a7_5 = report
+            .objectives
+            .iter()
+            .find(|o| o.objective_id == "A7-5")
+            .expect("A7-5 missing");
+        assert_eq!(a7_5.status, "met");
     }
 
     #[test]

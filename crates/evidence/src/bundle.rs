@@ -518,6 +518,22 @@ impl EvidenceBuilder {
         self.test_summary = Some(summary);
     }
 
+    /// Pass/fail verdict derived from the stored `TestSummary`.
+    ///
+    /// - `None` when no test run was recorded (`cargo test` was
+    ///   skipped, the command failed to execute, or
+    ///   `parse_cargo_test_output` could not find a result line).
+    /// - `Some(true)` when `failed == 0`.
+    /// - `Some(false)` when any test failed.
+    ///
+    /// Note the asymmetry with "tests present": a summary with
+    /// `total == 0` reports `Some(true)` — there were no failures
+    /// because there were no tests. Callers that care about the
+    /// distinction should check `test_summary` directly.
+    pub fn tests_passed(&self) -> Option<bool> {
+        self.test_summary.as_ref().map(|s| s.failed == 0)
+    }
+
     /// Finalize the bundle by writing SHA256SUMS (content layer) then index.json (metadata layer).
     ///
     /// The two-layer design ensures determinism:
