@@ -5,12 +5,11 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 
 use evidence::{
-    EvidencePolicy, backfill_uuids,
+    BoundaryConfig, EvidencePolicy, backfill_uuids, load_trace_roots,
     trace::{TraceFiles, read_all_trace_files, validate_trace_links_with_policy},
 };
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS};
-use super::{load_dal_config, load_in_scope_crates, load_trace_roots, resolve_dal_map};
 
 pub fn cmd_trace(
     do_validate: bool,
@@ -38,11 +37,10 @@ pub fn cmd_trace(
 
     // Validate trace links
     if do_validate {
-        // Load DAL config from boundary.toml for DAL-driven validation
-        let boundary_path = PathBuf::from("cert/boundary.toml");
-        let dal_config = load_dal_config(&boundary_path);
-        let in_scope = load_in_scope_crates(&boundary_path).unwrap_or_default();
-        let dal_map = resolve_dal_map(&dal_config, &in_scope);
+        // Load DAL config from boundary.toml for DAL-driven validation.
+        // Missing/malformed file → default config (DAL-D everywhere).
+        let boundary_config = BoundaryConfig::load_or_default(&PathBuf::from("cert/boundary.toml"));
+        let dal_map = boundary_config.dal_map();
         let dal = dal_map.values().copied().max().unwrap_or_default();
         let evidence_policy = EvidencePolicy::for_dal(dal);
 

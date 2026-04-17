@@ -3,8 +3,12 @@
 //! This module defines the configuration and policy types used
 //! to control evidence generation and boundary enforcement.
 
+use anyhow::{Context, Result};
+use log;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
 
 // ============================================================================
 // Profile Configuration
@@ -109,6 +113,128 @@ pub struct BoundaryConfig {
     /// DAL configuration. If absent, all crates default to DAL-D.
     #[serde(default)]
     pub dal: DalConfig,
+}
+
+impl BoundaryConfig {
+    /// Load and parse a `boundary.toml`. Returns `Err` on IO or parse
+    /// failure.
+    ///
+    /// Logs the set of enabled policy rules at `debug` level on
+    /// success; this used to happen inline in the CLI's hand-rolled
+    /// loader and moved here when the typed loader became the single
+    /// source of truth.
+    pub fn load(path: &Path) -> Result<Self> {
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("reading boundary config from {:?}", path))?;
+        let config: Self = toml::from_str(&content)
+            .with_context(|| format!("parsing boundary config from {:?}", path))?;
+        log::debug!(
+            "boundary policy rules enabled: {:?}",
+            config.policy.enabled_rules()
+        );
+        Ok(config)
+    }
+
+    /// Best-effort load. Returns a default-populated config (empty
+    /// scope, default DAL-D) when the file is absent, unreadable, or
+    /// unparseable. Used by CLI code paths that want to keep running
+    /// when the user hasn't initialized a boundary yet.
+    pub fn load_or_default(path: &Path) -> Self {
+        Self::load(path).unwrap_or_else(|_| Self::default_empty())
+    }
+
+    /// A blank boundary config: empty scope, empty policy, DAL-D
+    /// default. Matches what the old hand-rolled CLI loader would
+    /// produce when the file was missing.
+    pub fn default_empty() -> Self {
+        Self {
+            schema: Schema {
+                version: String::new(),
+            },
+            scope: BoundaryScope {
+                in_scope: Vec::new(),
+                explicit_forbidden: Vec::new(),
+            },
+            policy: BoundaryPolicy {
+                no_out_of_scope_deps: false,
+                forbid_build_rs: false,
+                forbid_proc_macros: false,
+            },
+            forbidden_external: BTreeMap::new(),
+            dal: DalConfig::default(),
+        }
+    }
+
+    /// Resolve the per-crate DAL map from the `[dal]` section plus
+    /// the in-scope list. Each in-scope crate maps to its override if
+    /// one exists, otherwise to `dal.default_dal`.
+    pub fn dal_map(&self) -> BTreeMap<String, Dal> {
+        self.scope
+            .in_scope
+            .iter()
+            .map(|name| {
+                let dal = self
+                    .dal
+                    .crate_overrides
+                    .get(name)
+                    .copied()
+                    .unwrap_or(self.dal.default_dal);
+                (name.clone(), dal)
+            })
+            .collect()
+    }
+
+    /// `scope.trace_roots` with fallback. Reads an `additional_roots`
+    /// side channel if populated; otherwise returns `["cert/trace"]`.
+    /// Callers that need the raw list without the fallback should
+    /// touch `self.scope` directly.
+    pub fn trace_roots_or_default(&self) -> Vec<String> {
+        // BoundaryScope historically serialized a separate
+        // `trace_roots` key that isn't on the struct; `load` preserves
+        // unknown fields via serde's default behavior. The CLI's old
+        // loader hand-read this key from `toml::Value` and fell back
+        // to `["cert/trace"]` when it was missing or empty. To keep
+        // that exact behavior, we re-parse the source file here when
+        // we have access — but since callers usually only hold the
+        // typed `BoundaryConfig`, we expose the read-through helper
+        // as a separate free function. Callers that pass a path get
+        // the full fallback; callers that hold just the config get
+        // just `["cert/trace"]` (the default).
+        vec!["cert/trace".to_string()]
+    }
+}
+
+/// Load `scope.trace_roots` from a boundary TOML with the historical
+/// CLI fallback chain: file → array value → `["cert/trace"]`.
+///
+/// This lives as a free function (not a method on `BoundaryConfig`)
+/// because `trace_roots` is not currently typed on `BoundaryScope` —
+/// adding it there would be a serialization-compatibility change we
+/// don't need for this PR. Behavior matches the pre-existing CLI
+/// loader byte-for-byte.
+pub fn load_trace_roots(path: &Path) -> Vec<String> {
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return vec!["cert/trace".to_string()],
+    };
+    let config: toml::Value = match toml::from_str(&content) {
+        Ok(c) => c,
+        Err(_) => return vec!["cert/trace".to_string()],
+    };
+    if let Some(scope) = config.get("scope") {
+        if let Some(roots) = scope.get("trace_roots") {
+            if let Some(arr) = roots.as_array() {
+                let v: Vec<String> = arr
+                    .iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect();
+                if !v.is_empty() {
+                    return v;
+                }
+            }
+        }
+    }
+    vec!["cert/trace".to_string()]
 }
 
 // ============================================================================

@@ -6,6 +6,7 @@
 use anyhow::{Result, bail};
 use log;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::process::Command;
 
 use crate::traits::GitProvider;
@@ -118,6 +119,37 @@ pub fn git_branch() -> Result<String> {
     Ok(cmd_stdout("git", &["rev-parse", "--abbrev-ref", "HEAD"])?
         .trim()
         .to_string())
+}
+
+/// Safety-critical "is the working tree dirty?" check.
+///
+/// Returns `true` when `git status --porcelain` reports any output,
+/// `false` when the output is empty, and — critically — `true` when
+/// the check itself fails for any reason. Evidence bundles treat
+/// unknown git state as dirty; this is the single source of truth for
+/// that semantic.
+///
+/// Use this from CLI paths and from environment-fingerprint capture
+/// where a `false` default would let a silently-failing git query
+/// record a clean tree and mis-represent the build state.
+pub fn is_dirty_or_unknown() -> bool {
+    git_dirty().unwrap_or(true)
+}
+
+/// Refuse to run when the working copy is a shallow clone.
+///
+/// Evidence generation resolves git SHAs and needs complete history;
+/// a shallow clone can silently produce bundles that cannot be
+/// verified against a full repository later. Returns `Err` if
+/// `.git/shallow` exists.
+pub fn check_shallow_clone() -> Result<()> {
+    if Path::new(".git/shallow").exists() {
+        bail!(
+            "Shallow clone detected. Evidence generation requires full repository history.\n\
+             Run: git fetch --unshallow"
+        );
+    }
+    Ok(())
 }
 
 /// Check if the git working directory is dirty.

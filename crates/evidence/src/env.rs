@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::process::Command;
 
-use crate::git::{git_branch, git_dirty, git_sha};
+use crate::git::{git_branch, git_sha, is_dirty_or_unknown};
 use crate::util::cmd_stdout;
 
 // ============================================================================
@@ -233,7 +233,12 @@ pub fn env_fingerprint(profile: &str, strict: bool) -> Result<EnvFingerprint> {
         cargo: cargo_str.trim().to_string(),
         git_sha: git_sha().unwrap_or_else(|_| "unknown".to_string()),
         git_branch: git_branch().unwrap_or_else(|_| "unknown".to_string()),
-        git_dirty: git_dirty().unwrap_or(false),
+        // Safe default: treat unknown git state as dirty. This
+        // matches `is_git_dirty` in the CLI and `GitSnapshot::capture`
+        // inside the bundler, closing the previous three-site
+        // divergence where env.json could silently claim "clean" when
+        // git failed.
+        git_dirty: is_dirty_or_unknown(),
         in_nix_shell: in_nix_shell(),
         tools,
         nav_env,

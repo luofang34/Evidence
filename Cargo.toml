@@ -5,7 +5,7 @@ members = ["crates/*"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.95"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/user/evidence"
 homepage = "https://github.com/user/evidence"
@@ -21,6 +21,7 @@ serde_json = "1"
 sha2 = "0.10"
 hmac = "0.12"
 hex = "0.4"
+jsonschema = { version = "0.35", default-features = false }
 log = "0.4"
 toml = "0.8"
 walkdir = "2"
@@ -45,3 +46,11 @@ expect_used = "deny"
 panic = "deny"
 todo = "deny"
 dbg_macro = "deny"
+
+# `collapsible_if` / `collapsible_match` are style lints promoted to
+# warn-by-default in recent clippy versions. We routinely keep nested
+# `if let … { if … { … } }` blocks when the outer binding and inner
+# condition are semantically distinct; collapsing them produces
+# harder-to-read combined conditions. Allow both at workspace level.
+collapsible_if = "allow"
+collapsible_match = "allow"

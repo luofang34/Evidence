@@ -23,11 +23,23 @@
           '';
         };
 
-        packages.default = pkgs.rustPlatform.buildRustPackage {
-          pname = "cargo-evidence";
-          version = "0.1.0";
-          src = ./.;
-          cargoLock.lockFile = ./Cargo.lock;
-        };
+        packages.default =
+          let
+            # `pkgs.rustPlatform` uses nixpkgs' bundled rustc, which
+            # lags the workspace MSRV. Build the package with the
+            # same toolchain the devShell uses (driven by
+            # rust-toolchain.toml) so the Nix build honors the
+            # project's `rust-version = "1.95"` pin.
+            rustPlatform = pkgs.makeRustPlatform {
+              cargo = rustToolchain;
+              rustc = rustToolchain;
+            };
+          in
+          rustPlatform.buildRustPackage {
+            pname = "cargo-evidence";
+            version = "0.1.0";
+            src = ./.;
+            cargoLock.lockFile = ./Cargo.lock;
+          };
       });
 }

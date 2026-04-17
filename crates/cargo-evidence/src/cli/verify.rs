@@ -26,6 +26,36 @@ struct VerifyCheck {
     message: Option<String>,
 }
 
+/// Emit a verify failure envelope and return the given exit code.
+///
+/// Unifies the pattern that used to repeat five times in cmd_verify:
+/// build a `VerifyOutput { success: false, ... error: Some(msg) }`,
+/// emit JSON on --json or print a text line with the given prefix to
+/// stderr (so e.g. "verify: FAIL - foo" vs "error: foo" vs "verify:
+/// ERROR - foo" are all one call site). The caller controls the
+/// text prefix and exit code.
+fn fail_verify(
+    json_output: bool,
+    bundle_path: &std::path::Path,
+    checks: Vec<VerifyCheck>,
+    text_prefix: &str,
+    msg: impl Into<String>,
+    exit_code: i32,
+) -> Result<i32> {
+    let msg = msg.into();
+    if json_output {
+        emit_json(&VerifyOutput {
+            success: false,
+            bundle_path: bundle_path.display().to_string(),
+            checks,
+            error: Some(msg),
+        })?;
+    } else {
+        eprintln!("{} {}", text_prefix, msg);
+    }
+    Ok(exit_code)
+}
+
 pub fn cmd_verify(
     bundle_path: PathBuf,
     strict: bool,
@@ -37,21 +67,18 @@ pub fn cmd_verify(
     // Check bundle exists
     if !bundle_path.exists() {
         let err_msg = format!("bundle not found: {:?}", bundle_path);
-        if json_output {
-            emit_json(&VerifyOutput {
-                success: false,
-                bundle_path: bundle_path.display().to_string(),
-                checks: vec![VerifyCheck {
-                    name: "bundle_exists".to_string(),
-                    status: "fail".to_string(),
-                    message: Some(err_msg.clone()),
-                }],
-                error: Some(err_msg),
-            })?;
-        } else {
-            eprintln!("error: {}", err_msg);
-        }
-        return Ok(EXIT_VERIFICATION_FAILURE);
+        return fail_verify(
+            json_output,
+            &bundle_path,
+            vec![VerifyCheck {
+                name: "bundle_exists".to_string(),
+                status: "fail".to_string(),
+                message: Some(err_msg.clone()),
+            }],
+            "error:",
+            err_msg,
+            EXIT_VERIFICATION_FAILURE,
+        );
     }
 
     checks.push(VerifyCheck {
@@ -62,22 +89,19 @@ pub fn cmd_verify(
 
     // Strict mode: require BUNDLE.sig to exist
     if strict && !bundle_path.join("BUNDLE.sig").exists() && verify_key.is_none() {
-        let err_msg = "strict mode: BUNDLE.sig not found and no --verify-key provided".to_string();
-        if json_output {
-            emit_json(&VerifyOutput {
-                success: false,
-                bundle_path: bundle_path.display().to_string(),
-                checks: vec![VerifyCheck {
-                    name: "bundle_signature".to_string(),
-                    status: "fail".to_string(),
-                    message: Some(err_msg.clone()),
-                }],
-                error: Some(err_msg),
-            })?;
-        } else {
-            eprintln!("verify: FAIL - {}", err_msg);
-        }
-        return Ok(EXIT_VERIFICATION_FAILURE);
+        let err_msg = "strict mode: BUNDLE.sig not found and no --verify-key provided";
+        return fail_verify(
+            json_output,
+            &bundle_path,
+            vec![VerifyCheck {
+                name: "bundle_signature".to_string(),
+                status: "fail".to_string(),
+                message: Some(err_msg.to_string()),
+            }],
+            "verify: FAIL -",
+            err_msg,
+            EXIT_VERIFICATION_FAILURE,
+        );
     }
 
     // Load verify key if provided
@@ -139,17 +163,14 @@ pub fn cmd_verify(
                 });
             }
 
-            if json_output {
-                emit_json(&VerifyOutput {
-                    success: false,
-                    bundle_path: bundle_path.display().to_string(),
-                    checks,
-                    error: Some(reason.clone()),
-                })?;
-            } else {
-                eprintln!("verify: FAIL - {}", reason);
-            }
-            Ok(EXIT_VERIFICATION_FAILURE)
+            fail_verify(
+                json_output,
+                &bundle_path,
+                checks,
+                "verify: FAIL -",
+                reason,
+                EXIT_VERIFICATION_FAILURE,
+            )
         }
         Ok(VerifyResult::Skipped(reason)) => {
             // In strict mode, skipped checks are treated as failures
@@ -182,18 +203,13 @@ pub fn cmd_verify(
                 EXIT_SUCCESS
             })
         }
-        Err(e) => {
-            if json_output {
-                emit_json(&VerifyOutput {
-                    success: false,
-                    bundle_path: bundle_path.display().to_string(),
-                    checks,
-                    error: Some(e.to_string()),
-                })?;
-            } else {
-                eprintln!("verify: ERROR - {}", e);
-            }
-            Ok(EXIT_VERIFICATION_FAILURE)
-        }
+        Err(e) => fail_verify(
+            json_output,
+            &bundle_path,
+            checks,
+            "verify: ERROR -",
+            e.to_string(),
+            EXIT_VERIFICATION_FAILURE,
+        ),
     }
 }

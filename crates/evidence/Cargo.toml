@@ -19,6 +19,7 @@ serde_json.workspace = true
 sha2.workspace = true
 hmac.workspace = true
 hex.workspace = true
+jsonschema.workspace = true
 log.workspace = true
 toml.workspace = true
 walkdir.workspace = true

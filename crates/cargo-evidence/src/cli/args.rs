@@ -1,8 +1,7 @@
 //! CLI argument types, exit code constants, and environment detection.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use anyhow::{Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence::{Profile, env::in_nix_shell};
 
@@ -180,26 +179,8 @@ pub fn is_ci() -> bool {
     std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok()
 }
 
-/// Refuse to run when the working copy is a shallow clone. Evidence
-/// generation needs full history to resolve git SHAs reliably.
-pub fn check_shallow_clone() -> Result<()> {
-    if Path::new(".git/shallow").exists() {
-        bail!(
-            "Shallow clone detected. Evidence generation requires full repository history.\n\
-             Run: git fetch --unshallow"
-        );
-    }
-    Ok(())
-}
-
-/// Best-effort "is the working tree dirty" check. Defaults to `true`
-/// on error so that safety-critical profiles fail-closed when git is
-/// unreachable.
-pub fn is_git_dirty() -> bool {
-    use std::process::Command;
-    Command::new("git")
-        .args(["status", "--porcelain"])
-        .output()
-        .map(|o| !o.stdout.is_empty())
-        .unwrap_or(true)
-}
+// `check_shallow_clone` and `is_git_dirty` used to live here. They
+// moved to `evidence::git::{check_shallow_clone, is_dirty_or_unknown}`
+// so the library, the CLI, and env.json capture all share one source
+// of truth. Import them directly from `evidence::git::*` in command
+// modules.

@@ -7,18 +7,17 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 
 use evidence::{
-    EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder, EvidencePolicy, Profile,
-    git::git_ls_files,
-    parse_cargo_test_output, sign_bundle,
+    BoundaryConfig, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder, EvidencePolicy, Profile,
+    git::{check_shallow_clone, git_ls_files, is_dirty_or_unknown},
+    load_trace_roots, parse_cargo_test_output, sign_bundle,
     trace::{
         TraceFiles, generate_traceability_matrix, read_all_trace_files,
         validate_trace_links_with_policy,
     },
 };
 
-use super::args::{EXIT_ERROR, EXIT_SUCCESS, check_shallow_clone, detect_profile, is_git_dirty};
+use super::args::{EXIT_ERROR, EXIT_SUCCESS, detect_profile};
 use super::output::emit_json;
-use super::{load_dal_config, load_in_scope_crates, load_trace_roots, resolve_dal_map};
 
 #[derive(Serialize)]
 struct GenerateOutput {
@@ -27,6 +26,28 @@ struct GenerateOutput {
     profile: String,
     git_sha: Option<String>,
     error: Option<String>,
+}
+
+/// Emit a failure envelope and return EXIT_ERROR.
+///
+/// Collapses the `if json { emit_json(GenerateOutput{error: …}) } else
+/// { eprintln!("error: {msg}") }` pattern that repeated five times in
+/// cmd_generate's preflight branches. Every error path now shapes
+/// the JSON envelope identically instead of open-coding it.
+fn fail(json_output: bool, profile: Profile, msg: impl Into<String>) -> Result<i32> {
+    let msg = msg.into();
+    if json_output {
+        emit_json(&GenerateOutput {
+            success: false,
+            bundle_path: None,
+            profile: profile.to_string(),
+            git_sha: None,
+            error: Some(msg),
+        })?;
+    } else {
+        eprintln!("error: {}", msg);
+    }
+    Ok(EXIT_ERROR)
 }
 
 /// Arguments for the generate command, grouped to avoid clippy::too_many_arguments.
@@ -62,38 +83,19 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
 
     // Check shallow clone
     if let Err(e) = check_shallow_clone() {
-        if json_output {
-            emit_json(&GenerateOutput {
-                success: false,
-                bundle_path: None,
-                profile: profile.to_string(),
-                git_sha: None,
-                error: Some(e.to_string()),
-            })?;
-        } else {
-            eprintln!("error: {}", e);
-        }
-        return Ok(EXIT_ERROR);
+        return fail(json_output, profile, e.to_string());
     }
 
     // In Cert/Record profile: error if git is dirty
-    if matches!(profile, Profile::Cert | Profile::Record) && is_git_dirty() {
-        let err_msg = format!(
-            "profile '{}' requires clean git tree. Commit or stash changes first.",
-            profile
+    if matches!(profile, Profile::Cert | Profile::Record) && is_dirty_or_unknown() {
+        return fail(
+            json_output,
+            profile,
+            format!(
+                "profile '{}' requires clean git tree. Commit or stash changes first.",
+                profile
+            ),
         );
-        if json_output {
-            emit_json(&GenerateOutput {
-                success: false,
-                bundle_path: None,
-                profile: profile.to_string(),
-                git_sha: None,
-                error: Some(err_msg.clone()),
-            })?;
-        } else {
-            eprintln!("error: {}", err_msg);
-        }
-        return Ok(EXIT_ERROR);
     }
 
     // Determine output directory
@@ -102,19 +104,11 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     } else if write_workspace {
         PathBuf::from("evidence")
     } else {
-        let err_msg = "--out-dir is required unless --write-workspace is specified";
-        if json_output {
-            emit_json(&GenerateOutput {
-                success: false,
-                bundle_path: None,
-                profile: profile.to_string(),
-                git_sha: None,
-                error: Some(err_msg.to_string()),
-            })?;
-        } else {
-            eprintln!("error: {}", err_msg);
-        }
-        return Ok(EXIT_ERROR);
+        return fail(
+            json_output,
+            profile,
+            "--out-dir is required unless --write-workspace is specified",
+        );
     };
 
     // Resolve boundary config path
@@ -127,16 +121,12 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         .map(|s| s.split(',').map(|t| t.trim().to_string()).collect())
         .unwrap_or_else(|| load_trace_roots(&boundary_path));
 
-    // Load boundary config if provided
-    let in_scope_crates = if boundary_path.exists() {
-        load_in_scope_crates(&boundary_path)?
-    } else {
-        Vec::new()
-    };
-
-    // Load DAL configuration from boundary.toml
-    let dal_config = load_dal_config(&boundary_path);
-    let dal_map = resolve_dal_map(&dal_config, &in_scope_crates);
+    // Load boundary + DAL config. A missing/malformed file yields
+    // a default-populated BoundaryConfig (empty scope, DAL-D),
+    // matching the behavior of the old hand-rolled CLI loaders.
+    let boundary_config = BoundaryConfig::load_or_default(&boundary_path);
+    let in_scope_crates = boundary_config.scope.in_scope.clone();
+    let dal_map = boundary_config.dal_map();
     // Derive max DAL before dal_map is moved into config
     let max_dal = dal_map.values().copied().max().unwrap_or_default();
 
@@ -157,20 +147,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     // Create builder
     let mut builder = match EvidenceBuilder::new(config) {
         Ok(b) => b,
-        Err(e) => {
-            if json_output {
-                emit_json(&GenerateOutput {
-                    success: false,
-                    bundle_path: None,
-                    profile: profile.to_string(),
-                    git_sha: None,
-                    error: Some(e.to_string()),
-                })?;
-            } else {
-                eprintln!("error: {}", e);
-            }
-            return Ok(EXIT_ERROR);
-        }
+        Err(e) => return fail(json_output, profile, e.to_string()),
     };
 
     if !quiet && !json_output {
@@ -275,19 +252,11 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                     &evidence_policy.trace,
                 ) {
                     if strict {
-                        let err_msg = format!("Trace validation failed in '{}': {}", root, e);
-                        if json_output {
-                            emit_json(&GenerateOutput {
-                                success: false,
-                                bundle_path: None,
-                                profile: profile.to_string(),
-                                git_sha: None,
-                                error: Some(err_msg.clone()),
-                            })?;
-                        } else {
-                            eprintln!("error: {}", err_msg);
-                        }
-                        return Ok(EXIT_ERROR);
+                        return fail(
+                            json_output,
+                            profile,
+                            format!("Trace validation failed in '{}': {}", root, e),
+                        );
                     }
                     eprintln!("warning: trace validation failed in '{}': {}", root, e);
                 } else if !quiet && !json_output {
