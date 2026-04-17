@@ -46,6 +46,26 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: Forbid schema-version literals outside schema_versions
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # Mirrors the `schema_versions_locked` integration test. A
+          # grep-level gate catches non-Rust-source additions
+          # (e.g. markdown docs, example TOMLs) that the Rust test
+          # doesn't walk.
+          hits=$(grep -rnE '"0\.0\.[0-9]+"' crates/ \
+            --include='*.rs' --include='*.toml' --include='*.json' --include='*.md' \
+            --exclude-dir='target' \
+            --exclude-dir='fixtures' \
+            --exclude='schema_versions.rs' \
+            --exclude='schema_versions_locked.rs' || true)
+          if [ -n "$hits" ]; then
+            echo "::error::schema-version literal found outside evidence::schema_versions:"
+            echo "$hits"
+            exit 1
+          fi
+
       - name: Forbid new `#[allow(dead_code)]`
         if: runner.os == 'Linux'
         shell: bash

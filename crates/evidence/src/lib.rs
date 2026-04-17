@@ -39,6 +39,7 @@ pub mod git;
 pub mod hash;
 pub mod policy;
 pub mod schema;
+pub mod schema_versions;
 pub mod trace;
 pub mod traits;
 pub mod util;

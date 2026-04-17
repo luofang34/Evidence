@@ -465,26 +465,30 @@ mod tests {
 
     #[test]
     fn test_boundary_config_without_dal_section() {
-        let toml_str = r#"
+        let toml_str = format!(
+            r#"
 [schema]
-version = "0.0.1"
+version = "{ver}"
 
 [scope]
 in_scope = ["my-crate"]
 
 [policy]
 no_out_of_scope_deps = true
-"#;
-        let config: BoundaryConfig = toml::from_str(toml_str).unwrap();
+"#,
+            ver = crate::schema_versions::BOUNDARY
+        );
+        let config: BoundaryConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(config.dal.default_dal, Dal::D);
         assert!(config.dal.crate_overrides.is_empty());
     }
 
     #[test]
     fn test_boundary_config_with_dal_section() {
-        let toml_str = r#"
+        let toml_str = format!(
+            r#"
 [schema]
-version = "0.0.1"
+version = "{ver}"
 
 [scope]
 in_scope = ["flight-core", "telemetry"]
@@ -497,8 +501,10 @@ default_dal = "C"
 
 [dal.crate_overrides]
 "flight-core" = "A"
-"#;
-        let config: BoundaryConfig = toml::from_str(toml_str).unwrap();
+"#,
+            ver = crate::schema_versions::BOUNDARY
+        );
+        let config: BoundaryConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(config.dal.default_dal, Dal::C);
         assert_eq!(config.dal.crate_overrides["flight-core"], Dal::A);
     }

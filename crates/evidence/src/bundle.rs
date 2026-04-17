@@ -538,12 +538,7 @@ impl EvidenceBuilder {
     /// 3. `index.json` is written last with `content_hash` embedded. Because
     ///    `index.json` is excluded from SHA256SUMS, timestamps do not affect
     ///    the content hash.
-    pub fn finalize(
-        &self,
-        boundary_schema_version: &str,
-        trace_schema_version: &str,
-        trace_outputs: Vec<PathBuf>,
-    ) -> Result<PathBuf> {
+    pub fn finalize(&self, trace_outputs: Vec<PathBuf>) -> Result<PathBuf> {
         // TOCTOU check: verify git HEAD hasn't changed since builder was created.
         // A changed HEAD means source files may have been modified between the
         // initial snapshot and finalize, invalidating the evidence chain.
@@ -576,9 +571,9 @@ impl EvidenceBuilder {
 
         // Step 3: Build and write index.json (metadata layer).
         let idx = EvidenceIndex {
-            schema_version: "0.0.1".to_string(),
-            boundary_schema_version: boundary_schema_version.to_string(),
-            trace_schema_version: trace_schema_version.to_string(),
+            schema_version: crate::schema_versions::INDEX.to_string(),
+            boundary_schema_version: crate::schema_versions::BOUNDARY.to_string(),
+            trace_schema_version: crate::schema_versions::TRACE.to_string(),
             profile: self.config.profile.to_string(),
             timestamp_rfc3339: ts,
             git_sha: self.git_snapshot.sha.clone(),
@@ -720,9 +715,9 @@ mod tests {
     #[test]
     fn test_evidence_index_fields() {
         let idx = EvidenceIndex {
-            schema_version: "0.0.1".to_string(),
-            boundary_schema_version: "0.0.1".to_string(),
-            trace_schema_version: "0.0.3".to_string(),
+            schema_version: crate::schema_versions::INDEX.to_string(),
+            boundary_schema_version: crate::schema_versions::BOUNDARY.to_string(),
+            trace_schema_version: crate::schema_versions::TRACE.to_string(),
             profile: "cert".to_string(),
             timestamp_rfc3339: "2024-01-01T00:00:00Z".to_string(),
             git_sha: "abc123".to_string(),

@@ -349,8 +349,10 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         }
     }
 
-    // Finalize bundle
-    let bundle_path = builder.finalize("0.0.1", "0.0.3", trace_outputs)?;
+    // Finalize bundle. Schema versions flow from
+    // `evidence::schema_versions` inside `finalize` — no magic strings
+    // at the call site.
+    let bundle_path = builder.finalize(trace_outputs)?;
 
     // HMAC signing if key provided
     if let Some(key_path) = sign_key {
