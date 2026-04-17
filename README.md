@@ -42,11 +42,11 @@ fork it, read every line, and plan to own the delta.
 The CI matrix covers three host platforms; the level of confidence in each
 is intentionally different.
 
-| Platform     | Compiles | Unit + integration tests | Nix reproducible build | Cross-host `deterministic_hash` parity |
-|--------------|----------|--------------------------|------------------------|-----------------------------------------|
-| Linux x86_64 | yes      | yes                      | yes                    | yes (gated in CI)                       |
-| macOS (Apple Silicon) | yes | yes                  | not tested             | yes (gated in CI)                       |
-| Windows x86_64 | yes    | yes                      | not tested             | yes (gated in CI)                       |
+| Platform     | Compiles | Unit + integration tests | Nix reproducible build | Cross-host `deterministic_hash` parity | `deterministic_hash` parity under Nix |
+|--------------|----------|--------------------------|------------------------|-----------------------------------------|----------------------------------------|
+| Linux x86_64 | yes      | yes                      | yes (gated in CI)      | yes (gated in CI)                       | yes (gated in CI)                      |
+| macOS (Apple Silicon) | yes | yes                  | works via devShell (gated in CI) | yes (gated in CI)             | yes (gated in CI)                      |
+| Windows x86_64 | yes    | yes                      | n/a (no Nix on Windows) | yes (gated in CI)                       | n/a (no Nix on Windows)                |
 
 What's being claimed:
 
@@ -56,11 +56,16 @@ What's being claimed:
   and `deterministic_hash` (the SHA-256 of a committed
   `deterministic-manifest.json`, which is a projection of `env.json` down
   to toolchain + target + source identity).
-- **`deterministic_hash` parity across hosts is gated in CI** via the
-  `evidence-cross-host` job: every push runs the generator on Linux,
-  macOS, and Windows and asserts the three `deterministic_hash` values are
-  byte-equal. If they diverge, the job fails the PR. See
-  [`evidence-cross-host-compare` in `.github/workflows/ci.yml`](.github/workflows/ci.yml).
+- **`deterministic_hash` parity is gated in CI across five flavors**
+  (3 native + 2 Nix) via the `determinism-compare` job: every push runs
+  the generator on Linux, macOS, and Windows *native* plus Linux and
+  macOS *under `nix develop`*, and asserts all five `deterministic_hash`
+  values are byte-equal. If any flavor diverges, or if any flavor's
+  artifact is missing, the job fails the PR. The Nix flavors dogfood
+  the cert-build toolchain resolution path (rust-overlay) against the
+  dev path (rustup), so silent drift between dev and cert bundles is
+  caught mechanically. See
+  [`determinism-compare` in `.github/workflows/ci.yml`](.github/workflows/ci.yml).
 - `content_hash` **still differs** per host by design, and that's
   intentional: the full SHA256SUMS-hashed chain records the host
   operating environment so a DO-330 auditor has cryptographically-bound
