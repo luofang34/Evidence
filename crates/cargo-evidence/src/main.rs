@@ -1751,11 +1751,20 @@ fn main() {
 
 /// Initialize the global tracing subscriber. Writes to stderr so that any
 /// `--json` or plain stdout output from commands isn't polluted by
-/// diagnostics. Respects `RUST_LOG` if set; otherwise defaults to `info`.
+/// diagnostics.
+///
+/// Filter resolution: honor `RUST_LOG` when it parses, otherwise fall
+/// through to the `info` default. `try_from_default_env` + `unwrap_or_else`
+/// is not enough here — the Nix build sandbox exports `RUST_LOG=""`, which
+/// that API accepts as a "match nothing" filter and silently swallows every
+/// diagnostic. `from_env_lossy` with an explicit default directive handles
+/// unset, empty, and unparseable values uniformly.
 fn init_tracing(format: LogFormat) {
     use tracing_subscriber::{EnvFilter, fmt};
 
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::builder()
+        .with_default_directive(tracing::Level::INFO.into())
+        .from_env_lossy();
 
     let builder = fmt().with_env_filter(filter).with_writer(std::io::stderr);
 

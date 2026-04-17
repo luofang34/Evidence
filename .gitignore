@@ -21,3 +21,7 @@ Thumbs.db
 
 .claude
 claude.md
+
+# Nix build output symlinks
+/result
+/result-*
