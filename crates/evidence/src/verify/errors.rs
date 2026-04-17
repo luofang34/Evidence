@@ -1,0 +1,245 @@
+//! `VerifyError` + `VerifyResult` — the structured result types
+//! returned by every verification pass.
+
+use serde::Serialize;
+
+/// Structured verification error codes for programmatic handling.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "code", content = "detail")]
+pub enum VerifyError {
+    /// A file exists in the bundle but is not listed in SHA256SUMS
+    UnexpectedFile(String),
+    /// HMAC signature verification failed
+    HmacFailure,
+    /// A hash in SHA256SUMS does not match the actual file hash
+    HashMismatch {
+        file: String,
+        expected: String,
+        actual: String,
+    },
+    /// A file listed in SHA256SUMS is missing from the bundle
+    MissingHashedFile(String),
+    /// content_hash in index.json doesn't match SHA256SUMS hash
+    ContentHashMismatch {
+        index_hash: String,
+        actual_hash: String,
+    },
+    /// A path in SHA256SUMS or trace_outputs contains path traversal
+    /// (`..`, absolute path, or Windows drive prefix)
+    UnsafePath(String),
+    /// A field in index.json has an invalid format
+    FormatError {
+        field: String,
+        expected: String,
+        actual: String,
+    },
+    /// A field in env.json is inconsistent with the same field in index.json
+    CrossFileInconsistency {
+        field: String,
+        index_value: String,
+        env_value: String,
+    },
+    /// `deterministic_hash` in `index.json` does not match the actual
+    /// SHA-256 of `deterministic-manifest.json`.
+    DeterministicHashMismatch {
+        index_hash: String,
+        actual_hash: String,
+    },
+    /// Re-projecting `env.json`'s `DeterministicManifest` subset
+    /// does not byte-equal the committed `deterministic-manifest.json`.
+    /// Indicates tampering or a CLI bug that let the two drift apart
+    /// at generation time.
+    ManifestProjectionDrift { detail: String },
+    /// A trace output path in `index.json.trace_outputs` is not
+    /// listed in `SHA256SUMS`. Every generated trace matrix must be
+    /// in the content layer; an index-only reference overclaims
+    /// coverage because the referenced file would not be integrity-
+    /// checked.
+    TraceOutputNotHashed(String),
+    /// `index.json.test_summary` disagrees with a re-parse of the
+    /// captured `tests/cargo_test_stdout.txt` — either the summary
+    /// was tampered or the generator's parser drifted from the
+    /// verifier's.
+    TestSummaryMismatch {
+        field: &'static str,
+        index_value: String,
+        parsed_value: String,
+    },
+    /// `index.json.dal_map[crate]` disagrees with
+    /// `compliance/<crate>.json.dal` for the same crate.
+    DalMapMismatch {
+        crate_name: String,
+        index_value: String,
+        compliance_value: String,
+    },
+    /// `compliance/<crate>.json` is present in the bundle but its
+    /// crate name is not referenced in `index.json.dal_map`, or
+    /// vice versa.
+    DalMapOrphan { crate_name: String, detail: String },
+}
+
+impl std::fmt::Display for VerifyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VerifyError::UnexpectedFile(file) => write!(f, "unexpected file: {}", file),
+            VerifyError::HmacFailure => write!(f, "HMAC signature verification failed"),
+            VerifyError::HashMismatch {
+                file,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "hash mismatch for {}: expected {}, got {}",
+                    file, expected, actual
+                )
+            }
+            VerifyError::MissingHashedFile(file) => {
+                write!(f, "file in SHA256SUMS not found: {}", file)
+            }
+            VerifyError::ContentHashMismatch {
+                index_hash,
+                actual_hash,
+            } => {
+                write!(
+                    f,
+                    "content_hash mismatch: index={}, actual={}",
+                    index_hash, actual_hash
+                )
+            }
+            VerifyError::UnsafePath(path) => {
+                write!(f, "unsafe path in bundle: {}", path)
+            }
+            VerifyError::FormatError {
+                field,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "invalid format for {}: expected {}, got {}",
+                    field, expected, actual
+                )
+            }
+            VerifyError::CrossFileInconsistency {
+                field,
+                index_value,
+                env_value,
+            } => {
+                write!(
+                    f,
+                    "env.json vs index.json mismatch for {}: index={}, env={}",
+                    field, index_value, env_value
+                )
+            }
+            VerifyError::DeterministicHashMismatch {
+                index_hash,
+                actual_hash,
+            } => {
+                write!(
+                    f,
+                    "deterministic_hash mismatch: index={}, actual={}",
+                    index_hash, actual_hash
+                )
+            }
+            VerifyError::ManifestProjectionDrift { detail } => {
+                write!(
+                    f,
+                    "deterministic-manifest.json is not a valid projection of env.json: {}",
+                    detail
+                )
+            }
+            VerifyError::TraceOutputNotHashed(path) => {
+                write!(
+                    f,
+                    "trace_outputs entry '{}' is not listed in SHA256SUMS",
+                    path
+                )
+            }
+            VerifyError::TestSummaryMismatch {
+                field,
+                index_value,
+                parsed_value,
+            } => {
+                write!(
+                    f,
+                    "test_summary.{} disagrees with re-parsed stdout: index={}, parsed={}",
+                    field, index_value, parsed_value
+                )
+            }
+            VerifyError::DalMapMismatch {
+                crate_name,
+                index_value,
+                compliance_value,
+            } => {
+                write!(
+                    f,
+                    "dal_map[{}] disagrees with compliance/{}.json: index={}, compliance={}",
+                    crate_name, crate_name, index_value, compliance_value
+                )
+            }
+            VerifyError::DalMapOrphan { crate_name, detail } => {
+                write!(f, "dal_map orphan for '{}': {}", crate_name, detail)
+            }
+        }
+    }
+}
+
+/// Result of a verification operation.
+#[derive(Debug, Clone)]
+pub enum VerifyResult {
+    /// Verification passed
+    Pass,
+    /// Verification failed with structured error(s)
+    Fail(Vec<VerifyError>),
+    /// Verification skipped with a reason
+    Skipped(String),
+}
+
+impl VerifyResult {
+    /// Check if verification passed.
+    pub fn is_pass(&self) -> bool {
+        matches!(self, VerifyResult::Pass)
+    }
+
+    /// Check if verification failed.
+    pub fn is_fail(&self) -> bool {
+        matches!(self, VerifyResult::Fail(_))
+    }
+
+    /// Human-readable summary of any failure reasons.
+    pub fn summary(&self) -> String {
+        match self {
+            VerifyResult::Pass => "PASS".to_string(),
+            VerifyResult::Fail(errors) => errors
+                .iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("; "),
+            VerifyResult::Skipped(reason) => format!("SKIPPED: {}", reason),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_verify_result_methods() {
+        assert!(VerifyResult::Pass.is_pass());
+        assert!(!VerifyResult::Pass.is_fail());
+
+        assert!(VerifyResult::Fail(vec![VerifyError::HmacFailure]).is_fail());
+        assert!(!VerifyResult::Fail(vec![VerifyError::HmacFailure]).is_pass());
+
+        assert!(!VerifyResult::Skipped("reason".to_string()).is_pass());
+        assert!(!VerifyResult::Skipped("reason".to_string()).is_fail());
+    }
+}
