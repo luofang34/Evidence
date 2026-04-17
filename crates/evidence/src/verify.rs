@@ -65,6 +65,32 @@ pub enum VerifyError {
     /// Indicates tampering or a CLI bug that let the two drift apart
     /// at generation time.
     ManifestProjectionDrift { detail: String },
+    /// A trace output path in `index.json.trace_outputs` is not
+    /// listed in `SHA256SUMS`. Every generated trace matrix must be
+    /// in the content layer; an index-only reference overclaims
+    /// coverage because the referenced file would not be integrity-
+    /// checked.
+    TraceOutputNotHashed(String),
+    /// `index.json.test_summary` disagrees with a re-parse of the
+    /// captured `tests/cargo_test_stdout.txt` — either the summary
+    /// was tampered or the generator's parser drifted from the
+    /// verifier's.
+    TestSummaryMismatch {
+        field: &'static str,
+        index_value: String,
+        parsed_value: String,
+    },
+    /// `index.json.dal_map[crate]` disagrees with
+    /// `compliance/<crate>.json.dal` for the same crate.
+    DalMapMismatch {
+        crate_name: String,
+        index_value: String,
+        compliance_value: String,
+    },
+    /// `compliance/<crate>.json` is present in the bundle but its
+    /// crate name is not referenced in `index.json.dal_map`, or
+    /// vice versa.
+    DalMapOrphan { crate_name: String, detail: String },
 }
 
 impl std::fmt::Display for VerifyError {
@@ -137,6 +163,38 @@ impl std::fmt::Display for VerifyError {
                     "deterministic-manifest.json is not a valid projection of env.json: {}",
                     detail
                 )
+            }
+            VerifyError::TraceOutputNotHashed(path) => {
+                write!(
+                    f,
+                    "trace_outputs entry '{}' is not listed in SHA256SUMS",
+                    path
+                )
+            }
+            VerifyError::TestSummaryMismatch {
+                field,
+                index_value,
+                parsed_value,
+            } => {
+                write!(
+                    f,
+                    "test_summary.{} disagrees with re-parsed stdout: index={}, parsed={}",
+                    field, index_value, parsed_value
+                )
+            }
+            VerifyError::DalMapMismatch {
+                crate_name,
+                index_value,
+                compliance_value,
+            } => {
+                write!(
+                    f,
+                    "dal_map[{}] disagrees with compliance/{}.json: index={}, compliance={}",
+                    crate_name, crate_name, index_value, compliance_value
+                )
+            }
+            VerifyError::DalMapOrphan { crate_name, detail } => {
+                write!(f, "dal_map orphan for '{}': {}", crate_name, detail)
             }
         }
     }
@@ -610,6 +668,145 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
                     // Covered by the REQUIRED_FILES check above —
                     // one or both files missing already produced a
                     // MissingHashedFile error. Nothing to do here.
+                }
+            }
+        }
+    }
+
+    // 6c. trace_outputs: every path in index.json.trace_outputs must
+    //     also appear in SHA256SUMS. The earlier "file exists on
+    //     disk" check (step 4) is too weak — a tamperer could add a
+    //     phantom entry pointing at some other hashed file and then
+    //     claim coverage it doesn't have. Binding trace outputs to
+    //     the content layer via SHA256SUMS closes that.
+    for trace_out in &index.trace_outputs {
+        if !listed_files.contains(trace_out) {
+            verify_errors.push(VerifyError::TraceOutputNotHashed(trace_out.clone()));
+        }
+    }
+
+    // 6d. test_summary cross-check: re-parse the captured cargo test
+    //     stdout and require byte-level agreement with
+    //     index.json.test_summary. Catches two failure modes:
+    //     (1) a tamperer who rewrote test_summary counts in index.json;
+    //     (2) tool drift where the generate-time parser and the
+    //         verify-time parser produce different summaries from the
+    //         same stdout bytes (a DO-330 tool-qualification concern).
+    //
+    //     Only fires when BOTH a captured stdout AND an
+    //     index.json.test_summary are present. A bundle generated with
+    //     --skip-tests legitimately carries neither, and that's fine.
+    if let Some(index_ts) = index.test_summary.as_ref() {
+        let stdout_rel = "tests/cargo_test_stdout.txt";
+        let stdout_path = bundle.join(stdout_rel);
+        if stdout_path.exists() {
+            match fs::read_to_string(&stdout_path) {
+                Ok(captured) => match crate::bundle::parse_cargo_test_output(&captured) {
+                    Some(parsed) => {
+                        let cases: [(&'static str, u32, u32); 5] = [
+                            ("total", index_ts.total, parsed.total),
+                            ("passed", index_ts.passed, parsed.passed),
+                            ("failed", index_ts.failed, parsed.failed),
+                            ("ignored", index_ts.ignored, parsed.ignored),
+                            ("filtered_out", index_ts.filtered_out, parsed.filtered_out),
+                        ];
+                        for (field, idx_v, parsed_v) in cases {
+                            if idx_v != parsed_v {
+                                verify_errors.push(VerifyError::TestSummaryMismatch {
+                                    field,
+                                    index_value: idx_v.to_string(),
+                                    parsed_value: parsed_v.to_string(),
+                                });
+                            }
+                        }
+                    }
+                    None => {
+                        verify_errors.push(VerifyError::TestSummaryMismatch {
+                            field: "parse",
+                            index_value: format!(
+                                "total={} passed={} failed={}",
+                                index_ts.total, index_ts.passed, index_ts.failed
+                            ),
+                            parsed_value: "no `test result:` line found in cargo_test_stdout.txt"
+                                .to_string(),
+                        });
+                    }
+                },
+                Err(e) => {
+                    log::warn!("verify: cannot re-parse {}: {}", stdout_rel, e);
+                }
+            }
+        }
+    }
+
+    // 6e. dal_map ↔ compliance/<crate>.json cross-check. Each crate
+    //     named in index.json.dal_map must have a compliance report
+    //     under `compliance/<crate>.json` whose `dal` field matches.
+    //     Extra compliance files (or missing dal_map entries) are
+    //     reported as orphans rather than silently ignored. Without
+    //     this, a holder with the HMAC key could demote a crate's
+    //     DAL in index.json while leaving the qualifying compliance
+    //     artifact untouched.
+    {
+        let compliance_dir = bundle.join("compliance");
+        // index → compliance direction.
+        for (crate_name, index_dal) in &index.dal_map {
+            let rep_path = compliance_dir.join(format!("{}.json", crate_name));
+            if !rep_path.exists() {
+                verify_errors.push(VerifyError::DalMapOrphan {
+                    crate_name: crate_name.clone(),
+                    detail: format!("compliance/{}.json missing", crate_name),
+                });
+                continue;
+            }
+            match fs::read_to_string(&rep_path)
+                .map(|s| serde_json::from_str::<crate::compliance::ComplianceReport>(&s))
+            {
+                Ok(Ok(report)) => {
+                    if report.dal != *index_dal {
+                        verify_errors.push(VerifyError::DalMapMismatch {
+                            crate_name: crate_name.clone(),
+                            index_value: index_dal.clone(),
+                            compliance_value: report.dal.clone(),
+                        });
+                    }
+                }
+                Ok(Err(e)) => {
+                    verify_errors.push(VerifyError::DalMapOrphan {
+                        crate_name: crate_name.clone(),
+                        detail: format!("compliance/{}.json parse error: {}", crate_name, e),
+                    });
+                }
+                Err(e) => {
+                    verify_errors.push(VerifyError::DalMapOrphan {
+                        crate_name: crate_name.clone(),
+                        detail: format!("compliance/{}.json read error: {}", crate_name, e),
+                    });
+                }
+            }
+        }
+        // compliance → index direction: any `compliance/*.json` not
+        // referenced in dal_map is also a drift.
+        if compliance_dir.is_dir() {
+            if let Ok(entries) = fs::read_dir(&compliance_dir) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.extension().and_then(|e| e.to_str()) != Some("json") {
+                        continue;
+                    }
+                    let stem = match p.file_stem().and_then(|s| s.to_str()) {
+                        Some(s) => s.to_string(),
+                        None => continue,
+                    };
+                    if !index.dal_map.contains_key(&stem) {
+                        verify_errors.push(VerifyError::DalMapOrphan {
+                            crate_name: stem.clone(),
+                            detail: format!(
+                                "compliance/{}.json has no entry in index.dal_map",
+                                stem
+                            ),
+                        });
+                    }
                 }
             }
         }
