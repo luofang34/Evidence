@@ -67,4 +67,5 @@ pub use trace::{
     validate_trace_links_with_policy,
 };
 pub use traits::GitProvider;
+pub use util::normalize_bundle_path;
 pub use verify::{VerifyError, VerifyResult, verify_bundle, verify_bundle_with_key};

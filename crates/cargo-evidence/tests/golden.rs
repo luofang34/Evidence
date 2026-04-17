@@ -15,6 +15,7 @@
 
 use assert_cmd::Command;
 use evidence::verify::verify_bundle;
+use std::fs;
 use std::path::PathBuf;
 
 fn fixture_path() -> PathBuf {
@@ -46,6 +47,52 @@ fn golden_bundle_verify_returns_pass() {
         result,
         result.summary()
     );
+}
+
+#[test]
+fn golden_bundle_has_no_carriage_returns() {
+    // Hashes in SHA256SUMS / index.json.content_hash are byte-exact, so a
+    // single stray `\r` on any platform would ripple into a hash mismatch
+    // and a failed `verify_bundle`. Lock the promise in one unit test:
+    // every byte of every file under the fixture is LF-only.
+    let fixture = fixture_path();
+    assert!(fixture.is_dir(), "fixture missing at {:?}", fixture);
+
+    for entry in walkdir(&fixture) {
+        let bytes =
+            fs::read(&entry).unwrap_or_else(|e| panic!("reading fixture file {:?}: {}", entry, e));
+        if let Some(pos) = bytes.iter().position(|b| *b == b'\r') {
+            panic!(
+                "fixture file {:?} contains a \\r byte at offset {} — \
+                 writers must normalize line endings before serializing, \
+                 and .gitattributes must pin the fixture as `binary` to \
+                 prevent Git from reintroducing CRLF on Windows checkouts",
+                entry.strip_prefix(&fixture).unwrap_or(&entry),
+                pos
+            );
+        }
+    }
+}
+
+fn walkdir(root: &std::path::Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(p) = stack.pop() {
+        let read = match fs::read_dir(&p) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        for entry in read.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.is_file() {
+                out.push(path);
+            }
+        }
+    }
+    out.sort();
+    out
 }
 
 #[test]
