@@ -96,8 +96,14 @@ jobs:
         run: cargo build --workspace --release
 
   nix:
-    name: Nix build
-    runs-on: ubuntu-latest
+    name: Nix build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS + Linux. Windows Nix requires WSL plumbing that isn't
+        # worth the complexity for a flake-check + build smoke test.
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -116,14 +122,16 @@ jobs:
         run: nix build
 
   evidence-self:
-    # Dogfood: run cargo-evidence against this repo and publish the
-    # bundle as a CI artifact. Fails early on the kind of regression
-    # that a unit test can't see — e.g. `engine_git_sha` falling back
-    # to "unknown" because build.rs can't find git, or content_hash
-    # drifting between two back-to-back runs on the same commit.
+    # Dogfood the **native dev workflow**: run cargo-evidence against
+    # this repo on a plain ubuntu-latest runner (not under Nix) and
+    # assert same-host same-commit content_hash reproducibility across
+    # two back-to-back runs.
+    #
+    # `needs: check` intentionally NOT set. This job does its own
+    # `cargo build --release`, so a compile failure surfaces here too.
+    # Running in parallel with `check` cuts critical-path latency.
     name: Evidence (self)
     runs-on: ubuntu-latest
-    needs: check
 
     steps:
       - uses: actions/checkout@v4
@@ -255,19 +263,22 @@ jobs:
   evidence-cross-host:
     # Generates a bundle on each OS from the same commit and
     # publishes its index.json + SHA256SUMS + deterministic-manifest
-    # as a per-OS artifact. The aggregator job below downloads all
-    # three and asserts `deterministic_hash` parity.
+    # as a per-OS artifact. The determinism-compare job downloads all
+    # and asserts `deterministic_hash` parity across native + Nix
+    # flavors.
     #
     # `content_hash` still differs per host by design (env.json
     # records `host.os`, libc, tool availability — those are baked
     # into SHA256SUMS as part of the integrity chain, same as every
-    # other recorded byte). What's gating now is the committed
+    # other recorded byte). What's gating is the committed
     # `deterministic-manifest.json`, a projection of env.json onto
-    # toolchain + target + source identity, which MUST be byte-equal
-    # across all three hosts built from the same commit with the
-    # same `rust-toolchain.toml`.
+    # toolchain + source identity, which MUST be byte-equal across
+    # every flavor built from the same commit with the same
+    # `rust-toolchain.toml`.
+    #
+    # `needs: check` intentionally NOT set — runs in parallel with
+    # check; each matrix entry does its own release build.
     name: Cross-host determinism (${{ matrix.os }})
-    needs: check
     strategy:
       fail-fast: false
       matrix:
@@ -317,8 +328,8 @@ jobs:
           cp "$bundle/SHA256SUMS"                   ./xhost-stage/SHA256SUMS
           cp "$bundle/env.json"                     ./xhost-stage/env.json
           cp "$bundle/deterministic-manifest.json"  ./xhost-stage/deterministic-manifest.json
-          # The runner.os value ("Linux" / "macOS" / "Windows") is
-          # the stable identifier the aggregator keys on.
+          # runner.os ("Linux" / "macOS" / "Windows") is the flavor
+          # label the determinism-compare job keys on.
           echo "${{ runner.os }}" > ./xhost-stage/runner-os.txt
           echo "---- on ${{ runner.os }} ----"
           echo "content_hash:       $(jq -r .content_hash        ./xhost-stage/index.json)"
@@ -333,93 +344,272 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  evidence-cross-host-compare:
-    # Downloads the three per-OS artifacts and asserts
-    # `deterministic_hash` parity (gating). `content_hash` still
-    # differs by host by design — env.json records host identity
-    # and is in SHA256SUMS, so its hash differs; the committed
-    # manifest is the channel for cross-host reproducibility.
+  evidence-self-nix:
+    # Dogfood the **Nix cert-equivalent workflow**: build and run
+    # cargo-evidence inside `nix develop -c`, using the rust-overlay-
+    # pinned toolchain from `rust-toolchain.toml` rather than whatever
+    # dtolnay/rust-toolchain fetches.
     #
-    # The summary table surfaces both hashes per host so reviewers
-    # can confirm (i) deterministic_hash is the same value everywhere
-    # and (ii) content_hash varies in a predictable way (i.e. no two
-    # hosts produce the same content_hash — that would hint at an
-    # env.json field that's accidentally host-invariant).
+    # Two purposes:
+    #   1. Prove the tool actually runs under the canonical cert
+    #      environment, with the same two-run same-host content_hash
+    #      parity gate as `evidence-self`.
+    #   2. Upload a per-flavor artifact so `determinism-compare` can
+    #      assert that Nix-flavor bundles and native-flavor bundles
+    #      produce the same `deterministic_hash` (same projection
+    #      fields: rustc version string, cargo version, Cargo.lock
+    #      hash, rust-toolchain.toml content, rustflags, git state).
     #
-    # `if: always()` runs even if a matrix job failed to upload,
-    # because a single missing host is still useful to call out.
-    name: Cross-host determinism (compare)
-    needs: evidence-cross-host
+    # Why both Linux and macOS: user explicitly asked for parity
+    # between the two Nix hosts. If rust-overlay ever ships a rustc
+    # whose version string differs across platforms, this gate fires.
+    #
+    # Windows Nix requires WSL plumbing; skipped.
+    name: Evidence (self, Nix, ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Cache cargo registry & build (Nix-segregated)
+        uses: actions/cache@v4
+        with:
+          # Separate key namespace from the native jobs so a `target/`
+          # tree compiled by a native rustc can't contaminate the
+          # `nix develop` build (or vice versa).
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-nix-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-nix-cargo-
+
+      - name: Build release binary inside `nix develop`
+        shell: bash
+        run: |
+          # Defensive RUSTFLAGS / CARGO_TERM_COLOR pass-through. `nix
+          # develop -c` inherits the caller env today, but relying on
+          # that is fragile if nix ever changes behavior — any lost
+          # RUSTFLAGS value silently changes env.json's rustflags
+          # field and therefore the deterministic_hash. Keep it
+          # explicit.
+          nix develop -c env \
+            RUSTFLAGS="$RUSTFLAGS" \
+            CARGO_TERM_COLOR="$CARGO_TERM_COLOR" \
+            cargo build --release -p cargo-evidence
+
+      - name: Generate bundle (run A) under Nix
+        shell: bash
+        run: |
+          # RUSTFLAGS is read at generate time (env.rs), not build
+          # time, so pass it through on the generate invocation too.
+          mkdir -p "$RUNNER_TEMP/out-a"
+          nix develop -c env RUSTFLAGS="$RUSTFLAGS" \
+            ./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --out-dir "$RUNNER_TEMP/out-a" \
+            --profile dev
+
+      - name: Locate bundle A
+        id: bundle_a
+        shell: bash
+        run: |
+          path=$(ls -d "$RUNNER_TEMP"/out-a/dev-*/ | head -n1)
+          path=${path%/}
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "Bundle A: $path"
+
+      - name: Verify bundle A
+        shell: bash
+        run: |
+          nix develop -c \
+            ./target/release/cargo-evidence evidence verify \
+            "${{ steps.bundle_a.outputs.path }}"
+
+      - name: Generate bundle (run B) and compare content_hash
+        shell: bash
+        run: |
+          # Same-host same-commit determinism gate, identical in
+          # spirit to `evidence-self`. Two runs under `nix develop`
+          # must produce the same content_hash.
+          mkdir -p "$RUNNER_TEMP/out-b"
+          nix develop -c env RUSTFLAGS="$RUSTFLAGS" \
+            ./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --out-dir "$RUNNER_TEMP/out-b" \
+            --profile dev
+
+          path_b=$(ls -d "$RUNNER_TEMP"/out-b/dev-*/ | head -n1)
+          path_b=${path_b%/}
+          echo "Bundle B: $path_b"
+
+          hash_a=$(jq -r .content_hash "${{ steps.bundle_a.outputs.path }}/index.json")
+          hash_b=$(jq -r .content_hash "$path_b/index.json")
+
+          echo "content_hash A: $hash_a"
+          echo "content_hash B: $hash_b"
+
+          if [ "$hash_a" != "$hash_b" ]; then
+            echo "::error::Nix-${{ runner.os }}: content_hash drift between two runs."
+            echo "::error::A = $hash_a"
+            echo "::error::B = $hash_b"
+            exit 1
+          fi
+
+      - name: Stage per-flavor bundle metadata
+        if: always()
+        shell: bash
+        run: |
+          bundle="${{ steps.bundle_a.outputs.path }}"
+          if [ -z "$bundle" ] || [ ! -d "$bundle" ]; then
+            echo "::warning::bundle A not located; skipping stage"
+            exit 0
+          fi
+          mkdir -p ./xhost-stage
+          cp "$bundle/index.json"                   ./xhost-stage/index.json
+          cp "$bundle/SHA256SUMS"                   ./xhost-stage/SHA256SUMS
+          cp "$bundle/env.json"                     ./xhost-stage/env.json
+          cp "$bundle/deterministic-manifest.json"  ./xhost-stage/deterministic-manifest.json
+          # `Nix-` prefix makes the determinism-compare table show
+          # Nix-Linux / Nix-macOS distinct from plain Linux / macOS.
+          echo "Nix-${{ runner.os }}" > ./xhost-stage/runner-os.txt
+          echo "---- Nix-${{ runner.os }} ----"
+          echo "content_hash:       $(jq -r .content_hash        ./xhost-stage/index.json)"
+          echo "deterministic_hash: $(jq -r .deterministic_hash  ./xhost-stage/index.json)"
+
+      - name: Upload per-flavor artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xhost-nix-${{ runner.os }}
+          path: ./xhost-stage/
+          if-no-files-found: error
+          retention-days: 14
+
+  determinism-compare:
+    # Downloads the FIVE expected artifacts — three native
+    # (xhost-Linux / xhost-macOS / xhost-Windows) and two Nix
+    # (xhost-nix-Linux / xhost-nix-macOS) — and asserts
+    # `deterministic_hash` parity across every flavor (gating).
+    #
+    # Strict missing-artifact policy: if any of the five doesn't
+    # show up (Nix install flaked, runner outage, …) this job fails
+    # loud. A persistent upload bug must not silently reduce coverage.
+    #
+    # `content_hash` is expected to differ per flavor — env.json
+    # records host identity and `in_nix_shell`, so 5 flavors must
+    # produce 5 distinct content_hashes. Fewer means env.json lost a
+    # host-varying field; annotate as a warning, don't fail.
+    name: Determinism compare (5 flavors)
+    needs: [evidence-cross-host, evidence-self-nix]
     if: always()
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download all per-OS artifacts
+      - name: Download all per-flavor artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./xhost
           pattern: xhost-*
 
-      - name: Assert deterministic_hash parity
+      - name: Assert deterministic_hash parity across all flavors
         shell: bash
         run: |
           set -u
-          echo "## Cross-host determinism report" >> "$GITHUB_STEP_SUMMARY"
+
+          # The five expected flavor labels, keyed by what each job
+          # writes into runner-os.txt.
+          declare -a EXPECTED=(Linux macOS Windows Nix-Linux Nix-macOS)
+
+          echo "## Determinism compare report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| host | deterministic_hash | content_hash |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| flavor | deterministic_hash | content_hash |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
 
+          declare -A seen_det
+          declare -A seen_content
+          declare -a flavors=()
           declare -a det_hashes=()
           declare -a content_hashes=()
-          declare -a hosts=()
+
           for dir in ./xhost/xhost-*/; do
-            host=$(cat "$dir/runner-os.txt" | tr -d '[:space:]')
+            [ -d "$dir" ] || continue
+            flavor=$(cat "$dir/runner-os.txt" | tr -d '[:space:]')
             det=$(jq -r .deterministic_hash "$dir/index.json")
             content=$(jq -r .content_hash "$dir/index.json")
-            echo "$host: deterministic=$det content=$content"
-            echo "| $host | \`$det\` | \`$content\` |" >> "$GITHUB_STEP_SUMMARY"
+            echo "$flavor: deterministic=$det content=$content"
+            echo "| $flavor | \`$det\` | \`$content\` |" >> "$GITHUB_STEP_SUMMARY"
+            seen_det[$flavor]="$det"
+            seen_content[$flavor]="$content"
+            flavors+=("$flavor")
             det_hashes+=("$det")
             content_hashes+=("$content")
-            hosts+=("$host")
           done
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          n=${#det_hashes[@]}
-          if [ "$n" -lt 2 ]; then
-            echo "::error::only $n host(s) reported — cannot assert parity"
-            echo "_Only $n host(s) reported; cannot assert parity._" >> "$GITHUB_STEP_SUMMARY"
+          # Missing-flavor guard: EVERY expected flavor must have
+          # uploaded. A flaky Nix install on one matrix entry is a
+          # bug to investigate, not to paper over.
+          missing=()
+          for flavor in "${EXPECTED[@]}"; do
+            if [ -z "${seen_det[$flavor]:-}" ]; then
+              missing+=("$flavor")
+            fi
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::missing flavor(s): ${missing[*]}"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_❌ Expected 5 flavors; missing: ${missing[*]}_" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
+          n=${#det_hashes[@]}
           distinct_det=$(printf '%s\n' "${det_hashes[@]}" | sort -u | wc -l | tr -d '[:space:]')
           distinct_content=$(printf '%s\n' "${content_hashes[@]}" | sort -u | wc -l | tr -d '[:space:]')
 
-          echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**deterministic_hash distinct values: $distinct_det / $n (must be 1)**" >> "$GITHUB_STEP_SUMMARY"
-          echo "**content_hash distinct values:       $distinct_content / $n (expected $n, one per host)**" >> "$GITHUB_STEP_SUMMARY"
+          echo "**content_hash distinct values:       $distinct_content / $n (expected $n, one per flavor)**" >> "$GITHUB_STEP_SUMMARY"
 
           fail=0
           if [ "$distinct_det" -ne 1 ]; then
-            echo "::error::deterministic_hash drift — $distinct_det distinct values across $n hosts"
+            echo "::error::deterministic_hash drift — $distinct_det distinct values across $n flavors"
+            # Name each drifted flavor in the log so the reviewer
+            # doesn't need to dig through the summary table.
+            for flavor in "${EXPECTED[@]}"; do
+              echo "::error::flavor=$flavor deterministic_hash=${seen_det[$flavor]}"
+            done
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "_❌ deterministic_hash MUST be identical across all hosts. Inspect each bundle's \`deterministic-manifest.json\`: toolchain, target triple, rustc/cargo versions, or source state is drifting between runners._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_❌ deterministic_hash MUST be identical across all flavors. Inspect each artifact's \`deterministic-manifest.json\`: toolchain / cargo_lock_hash / rust_toolchain_toml / rustflags / git state is drifting between flavors._" >> "$GITHUB_STEP_SUMMARY"
             fail=1
           else
-            echo "::notice::deterministic_hash parity: PASS ($n/$n hosts agree)"
+            echo "::notice::deterministic_hash parity: PASS ($n/$n flavors agree)"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "_✅ deterministic_hash matches across all $n hosts._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_✅ deterministic_hash matches across all $n flavors._" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           if [ "$distinct_content" -ne "$n" ]; then
-            # Two hosts produced the same content_hash. By design env.json
-            # records `host.os`, libc, tools — so two different hosts
-            # sharing a content_hash means either (a) env.json lost a
-            # host-varying field, or (b) the host setup is identical in a
-            # way we should record. Annotate only; don't fail.
-            echo "::warning::content_hash collision: $distinct_content distinct values across $n hosts (expected $n)"
+            # Two flavors produced the same content_hash. By design
+            # env.json records `host.os`, libc, tools, in_nix_shell —
+            # so two different flavors sharing a content_hash means
+            # either (a) env.json lost a host-varying field, or (b)
+            # the two flavors are setup-identical in a way we should
+            # record. Annotate only; don't fail.
+            echo "::warning::content_hash collision: $distinct_content distinct values across $n flavors (expected $n)"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "_⚠ Expected $n distinct content_hash values (one per host); got $distinct_content. Check env.json's host-varying fields._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_⚠ Expected $n distinct content_hash values (one per flavor); got $distinct_content. Check env.json's host-varying fields (host.*, tools, in_nix_shell)._" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           exit $fail
