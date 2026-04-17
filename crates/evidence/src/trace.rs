@@ -6,7 +6,6 @@
 //! Test case linking.
 
 use anyhow::{Context, Result, bail};
-use log;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -244,7 +243,7 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
         if path.exists() {
             read_toml(path)
         } else {
-            log::warn!(
+            tracing::warn!(
                 "Trace file not found: {} — using empty defaults. \
                  Check trace root path if this is unexpected.",
                 path.display()
@@ -256,7 +255,7 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
     let root_path = Path::new(root);
 
     if !root_path.exists() {
-        log::warn!(
+        tracing::warn!(
             "Trace root directory does not exist: {} — all trace files will be empty.",
             root_path.display()
         );
@@ -534,7 +533,7 @@ pub fn validate_trace_links_with_policy(
 
     if !errors.is_empty() {
         for e in &errors {
-            log::error!("  VALIDATION ERROR: {}", e);
+            tracing::error!("  VALIDATION ERROR: {}", e);
         }
         bail!(
             "Validation failed with {} errors (fix before linking check)",
@@ -675,9 +674,9 @@ pub fn validate_trace_links_with_policy(
     let orphan_tests: Vec<&TestEntry> = tests.iter().filter(|t| t.traces_to.is_empty()).collect();
     if !orphan_tests.is_empty() {
         for t in &orphan_tests {
-            log::warn!("  WARNING: Orphan test '{}' is not linked to any LLR", t.id);
+            tracing::warn!("  WARNING: Orphan test '{}' is not linked to any LLR", t.id);
         }
-        log::warn!(
+        tracing::warn!(
             "  WARNING: {} orphan test(s) found (tests with no LLR link)",
             orphan_tests.len()
         );
@@ -685,7 +684,7 @@ pub fn validate_trace_links_with_policy(
 
     if !errors.is_empty() {
         for e in &errors {
-            log::error!("  LINK ERROR: {}", e);
+            tracing::error!("  LINK ERROR: {}", e);
         }
         bail!("Trace link validation failed with {} errors", errors.len());
     }

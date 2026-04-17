@@ -4,7 +4,6 @@
 //! state including commit hashes, branch info, and dirty status.
 
 use anyhow::{Result, bail};
-use log;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
@@ -74,7 +73,7 @@ impl GitSnapshot {
             dirty: match dirty {
                 Ok(d) => d,
                 Err(_) => {
-                    log::warn!(
+                    tracing::warn!(
                         "Could not determine git dirty status; defaulting to dirty. \
                          Safety-critical default: assume worst case when status is unknown."
                     );

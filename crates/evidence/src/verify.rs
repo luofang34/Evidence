@@ -4,7 +4,6 @@
 //! including hash verification, completeness checks, and schema validation.
 
 use anyhow::{Context, Result, bail};
-use log;
 use serde::Serialize;
 use std::collections::BTreeSet;
 use std::fs;
@@ -209,7 +208,7 @@ pub fn verify_bundle(bundle: &Path) -> Result<VerifyResult> {
 
 /// Verify an evidence bundle, optionally checking HMAC signature.
 pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Result<VerifyResult> {
-    log::info!("verify: checking bundle at {:?}", bundle);
+    tracing::info!("verify: checking bundle at {:?}", bundle);
 
     // Collect all verification errors rather than bailing on first failure.
     // bail!() is reserved for I/O errors and parse failures (runtime faults).
@@ -457,33 +456,35 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
             if !valid {
                 verify_errors.push(VerifyError::HmacFailure);
             } else {
-                log::info!("verify: HMAC signature OK");
+                tracing::info!("verify: HMAC signature OK");
             }
         }
     } else if sig_path.exists() {
-        log::info!("verify: BUNDLE.sig present but no --verify-key provided, skipping HMAC check");
+        tracing::info!(
+            "verify: BUNDLE.sig present but no --verify-key provided, skipping HMAC check"
+        );
     }
 
     // Return collected errors or pass
     if !verify_errors.is_empty() {
         for e in &verify_errors {
-            log::error!("  VERIFY ERROR: {}", e);
+            tracing::error!("  VERIFY ERROR: {}", e);
         }
         return Ok(VerifyResult::Fail(verify_errors));
     }
 
-    log::info!("verify: OK");
-    log::info!("  profile: {}", index.profile);
-    log::info!(
+    tracing::info!("verify: OK");
+    tracing::info!("  profile: {}", index.profile);
+    tracing::info!(
         "  git_sha: {}",
         index.git_sha.get(..8).unwrap_or(&index.git_sha)
     );
-    log::info!("  timestamp: {}", index.timestamp_rfc3339);
-    log::info!(
+    tracing::info!("  timestamp: {}", index.timestamp_rfc3339);
+    tracing::info!(
         "  content_hash: {}",
         index.content_hash.get(..16).unwrap_or(&index.content_hash)
     );
-    log::info!("  trace_outputs: {}", index.trace_outputs.len());
+    tracing::info!("  trace_outputs: {}", index.trace_outputs.len());
 
     Ok(VerifyResult::Pass)
 }

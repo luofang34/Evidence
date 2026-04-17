@@ -86,6 +86,16 @@ struct EvidenceArgs {
     /// Output results as JSON
     #[arg(long, global = true)]
     json: bool,
+
+    /// Diagnostic log format on stderr: `human` (default) or `json`.
+    #[arg(long, global = true, value_enum, default_value_t = LogFormat::Human)]
+    log_format: LogFormat,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum LogFormat {
+    Human,
+    Json,
 }
 
 #[derive(Subcommand)]
@@ -282,7 +292,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
             };
             println!("{}", serde_json::to_string_pretty(&output)?);
         } else {
-            eprintln!("error: {}", e);
+            tracing::error!("{}", e);
         }
         return Ok(EXIT_ERROR);
     }
@@ -303,7 +313,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
             };
             println!("{}", serde_json::to_string_pretty(&output)?);
         } else {
-            eprintln!("error: {}", err_msg);
+            tracing::error!("{}", err_msg);
         }
         return Ok(EXIT_ERROR);
     }
@@ -325,7 +335,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
             };
             println!("{}", serde_json::to_string_pretty(&output)?);
         } else {
-            eprintln!("error: {}", err_msg);
+            tracing::error!("{}", err_msg);
         }
         return Ok(EXIT_ERROR);
     };
@@ -381,7 +391,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                 };
                 println!("{}", serde_json::to_string_pretty(&output)?);
             } else {
-                eprintln!("error: {}", e);
+                tracing::error!("{}", e);
             }
             return Ok(EXIT_ERROR);
         }
@@ -408,7 +418,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                         if strict {
                             return Err(e.context(format!("hashing source file: {}", f)));
                         }
-                        eprintln!("warning: could not hash {}: {}", f, e);
+                        tracing::warn!("could not hash {}: {}", f, e);
                     }
                 }
                 if !quiet && !json_output {
@@ -419,7 +429,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                 if strict {
                     return Err(e.context("listing in-scope source files"));
                 }
-                eprintln!("warning: could not list source files: {}", e);
+                tracing::warn!("could not list source files: {}", e);
             }
         }
     }
@@ -454,7 +464,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                 if strict {
                     return Err(e.context("running cargo test"));
                 }
-                eprintln!("warning: cargo test failed: {}", e);
+                tracing::warn!("cargo test failed: {}", e);
             }
         }
     }
@@ -470,10 +480,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         let root_path = Path::new(root);
         if !root_path.exists() {
             if !quiet && !json_output {
-                eprintln!(
-                    "warning: trace root '{}' does not exist, skipping validation",
-                    root
-                );
+                tracing::warn!("trace root '{}' does not exist, skipping validation", root);
             }
             continue;
         }
@@ -500,11 +507,11 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                             };
                             println!("{}", serde_json::to_string_pretty(&output)?);
                         } else {
-                            eprintln!("error: {}", err_msg);
+                            tracing::error!("{}", err_msg);
                         }
                         return Ok(EXIT_ERROR);
                     }
-                    eprintln!("warning: trace validation failed in '{}': {}", root, e);
+                    tracing::warn!("trace validation failed in {:?}: {}", root, e);
                 } else if !quiet && !json_output {
                     println!("evidence: trace links valid in '{}'", root);
                 }
@@ -513,7 +520,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                 if strict {
                     return Err(e.context(format!("reading trace files from '{}'", root)));
                 }
-                eprintln!("warning: could not read trace files from '{}': {}", root, e);
+                tracing::warn!("could not read trace files from {:?}: {}", root, e);
             }
         }
     }
@@ -551,9 +558,10 @@ fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                     }
                 }
                 Err(e) => {
-                    eprintln!(
-                        "warning: could not generate traceability matrix for '{}': {}",
-                        root, e
+                    tracing::warn!(
+                        "could not generate traceability matrix for '{}': {}",
+                        root,
+                        e
                     );
                 }
             }
@@ -621,7 +629,7 @@ fn load_in_scope_crates(path: &Path) -> Result<Vec<String>> {
 
     if let Some(policy_val) = config.get("policy") {
         if let Ok(policy) = toml::Value::try_into::<BoundaryPolicy>(policy_val.clone()) {
-            log::debug!(
+            tracing::debug!(
                 "boundary policy rules enabled: {:?}",
                 policy.enabled_rules()
             );
@@ -744,7 +752,7 @@ fn cmd_verify(
             };
             println!("{}", serde_json::to_string_pretty(&output)?);
         } else {
-            eprintln!("error: {}", err_msg);
+            tracing::error!("{}", err_msg);
         }
         return Ok(EXIT_VERIFICATION_FAILURE);
     }
@@ -771,7 +779,7 @@ fn cmd_verify(
             };
             println!("{}", serde_json::to_string_pretty(&output)?);
         } else {
-            eprintln!("verify: FAIL - {}", err_msg);
+            tracing::error!("verify: FAIL - {}", err_msg);
         }
         return Ok(EXIT_VERIFICATION_FAILURE);
     }
@@ -845,7 +853,7 @@ fn cmd_verify(
                 };
                 println!("{}", serde_json::to_string_pretty(&output)?);
             } else {
-                eprintln!("verify: FAIL - {}", reason);
+                tracing::error!("verify: FAIL - {}", reason);
             }
             Ok(EXIT_VERIFICATION_FAILURE)
         }
@@ -871,7 +879,7 @@ fn cmd_verify(
                 };
                 println!("{}", serde_json::to_string_pretty(&output)?);
             } else if treat_as_fail {
-                eprintln!("verify: FAIL (strict) - {}", reason);
+                tracing::error!("verify: FAIL (strict) - {}", reason);
             } else {
                 println!("verify: SKIPPED - {}", reason);
             }
@@ -891,7 +899,7 @@ fn cmd_verify(
                 };
                 println!("{}", serde_json::to_string_pretty(&output)?);
             } else {
-                eprintln!("verify: ERROR - {}", e);
+                tracing::error!("verify: ERROR - {}", e);
             }
             Ok(EXIT_VERIFICATION_FAILURE)
         }
@@ -1262,7 +1270,7 @@ fn cmd_init(force: bool) -> Result<i32> {
 
     // Check if cert directory exists and not forcing
     if cert_dir.exists() && !force {
-        eprintln!("error: cert/ directory already exists. Use --force to overwrite.");
+        tracing::error!("cert/ directory already exists. Use --force to overwrite.");
         return Ok(EXIT_ERROR);
     }
 
@@ -1473,8 +1481,10 @@ fn cmd_schema_validate(file: PathBuf) -> Result<i32> {
         {
             "hashes"
         } else {
-            eprintln!("error: could not determine schema type for {:?}", file);
-            eprintln!("hint: rename file to index.json, env.json, commands.json, or *_hashes.json");
+            tracing::error!("could not determine schema type for {:?}", file);
+            tracing::error!(
+                "hint: rename file to index.json, env.json, commands.json, or *_hashes.json"
+            );
             return Ok(EXIT_ERROR);
         }
     };
@@ -1497,7 +1507,7 @@ fn cmd_schema_validate(file: PathBuf) -> Result<i32> {
             Ok(EXIT_SUCCESS)
         }
         Err(e) => {
-            eprintln!("validate: FAIL - {}", e);
+            tracing::error!("validate: FAIL - {}", e);
             Ok(EXIT_VERIFICATION_FAILURE)
         }
     }
@@ -1613,7 +1623,7 @@ fn cmd_trace(
                 }))?
             );
         } else {
-            eprintln!("error: specify an action, e.g. --validate or --backfill-uuids");
+            tracing::error!("specify an action, e.g. --validate or --backfill-uuids");
         }
         return Ok(EXIT_ERROR);
     }
@@ -1644,7 +1654,7 @@ fn cmd_trace(
                         "message": "trace root does not exist"
                     }));
                 } else {
-                    eprintln!("warning: trace root '{}' does not exist, skipping", root);
+                    tracing::warn!("trace root {:?} does not exist, skipping", root);
                 }
                 continue;
             }
@@ -1676,7 +1686,7 @@ fn cmd_trace(
                             "message": e.to_string()
                         }));
                     } else {
-                        eprintln!("trace: validation FAILED for '{}': {}", root, e);
+                        tracing::error!("trace: validation FAILED for {:?}: {}", root, e);
                     }
                     all_valid = false;
                 }
@@ -1703,7 +1713,7 @@ fn cmd_trace(
         for root in &roots {
             let root_path = Path::new(root);
             if !root_path.exists() {
-                eprintln!("warning: trace root '{}' does not exist, skipping", root);
+                tracing::warn!("trace root {:?} does not exist, skipping", root);
                 continue;
             }
             let n = backfill_uuids(root)?;
@@ -1739,8 +1749,29 @@ fn main() {
     std::process::exit(exit_code);
 }
 
+/// Initialize the global tracing subscriber. Writes to stderr so that any
+/// `--json` or plain stdout output from commands isn't polluted by
+/// diagnostics. Respects `RUST_LOG` if set; otherwise defaults to `info`.
+fn init_tracing(format: LogFormat) {
+    use tracing_subscriber::{EnvFilter, fmt};
+
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+    let builder = fmt().with_env_filter(filter).with_writer(std::io::stderr);
+
+    match format {
+        LogFormat::Json => {
+            let _ = builder.json().try_init();
+        }
+        LogFormat::Human => {
+            let _ = builder.try_init();
+        }
+    }
+}
+
 fn run() -> i32 {
     let CargoCli::Evidence(args) = CargoCli::parse();
+    init_tracing(args.log_format);
 
     let result = match args.command {
         Some(Commands::Generate {
@@ -1797,7 +1828,7 @@ fn run() -> i32 {
     match result {
         Ok(code) => code,
         Err(e) => {
-            eprintln!("error: {:#}", e);
+            tracing::error!("{:#}", e);
             EXIT_ERROR
         }
     }

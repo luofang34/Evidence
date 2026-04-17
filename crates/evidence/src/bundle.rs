@@ -5,7 +5,6 @@
 
 use anyhow::{Context, Result, bail};
 use hmac::{Hmac, Mac};
-use log;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::collections::BTreeMap;
@@ -389,15 +388,15 @@ impl EvidenceBuilder {
             v
         };
 
-        log::info!("evidence: running {}...", display_name);
+        tracing::info!("evidence: running {}...", display_name);
         let output = cmd
             .output()
             .with_context(|| format!("Running {}", display_name))?;
         let exit_code = output.status.code().unwrap_or(-1);
 
         if !output.status.success() {
-            log::error!("{} failed with exit code {}", display_name, exit_code);
-            log::error!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+            tracing::error!("{} failed with exit code {}", display_name, exit_code);
+            tracing::error!("stderr: {}", String::from_utf8_lossy(&output.stderr));
         }
 
         let (stdout_path, stderr_path) = if rel_dir.is_empty() {
