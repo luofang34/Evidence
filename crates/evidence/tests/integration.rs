@@ -192,7 +192,10 @@ fn create_minimal_bundle(profile: &str) -> (TempDir, std::path::PathBuf) {
         git_branch: "main".to_string(),
         git_dirty: false,
         engine_crate_version: env!("CARGO_PKG_VERSION").to_string(),
-        engine_git_sha: "aabbccdd11223344aabbccdd11223344aabbccdd".to_string(),
+        // Distinct constant from `git_sha` so tests that sed on
+        // `git_sha` don't accidentally also mutate `engine_git_sha`.
+        engine_git_sha: "eeff001122334455667788990011223344556677".to_string(),
+        engine_build_source: "git".to_string(),
         inputs_hashes_file: "inputs_hashes.json".to_string(),
         outputs_hashes_file: "outputs_hashes.json".to_string(),
         commands_file: "commands.json".to_string(),
@@ -1055,6 +1058,112 @@ fn test_verify_allows_unknown_git_sha_in_dev_profile() {
         !summary.contains("git_sha"),
         "Dev profile should not flag git_sha='unknown', got: {}",
         summary
+    );
+}
+
+// ============================================================================
+// TEST: engine_build_source cross-check vs engine_git_sha
+// ============================================================================
+
+/// Rewrite `index.json` in `bundle_dir` with the given substitution.
+/// `index.json` is excluded from SHA256SUMS, so edits don't rotate
+/// `content_hash` and the bundle still verifies as long as the
+/// envelope stays schema-valid.
+fn replace_in_index(bundle_dir: &std::path::Path, from: &str, to: &str) {
+    let index_path = bundle_dir.join("index.json");
+    let content = fs::read_to_string(&index_path).unwrap();
+    assert!(
+        content.contains(from),
+        "replace_in_index: '{from}' not found in index.json",
+    );
+    fs::write(&index_path, content.replace(from, to)).unwrap();
+}
+
+#[test]
+fn test_verify_rejects_git_source_with_nonhex_sha() {
+    // source="git" but engine_git_sha is a release-style string —
+    // exactly the drift we want the verifier to catch.
+    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    replace_in_index(
+        &bundle_dir,
+        "eeff001122334455667788990011223344556677",
+        "release-v0.1.0",
+    );
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(
+        result.is_fail(),
+        "should fail when source=git but sha is non-hex"
+    );
+    assert!(
+        result.summary().contains("engine_git_sha"),
+        "summary should name engine_git_sha, got: {}",
+        result.summary()
+    );
+}
+
+#[test]
+fn test_verify_accepts_release_source_on_dev_profile() {
+    // source="release" with a legitimate release-v... string on dev.
+    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    replace_in_index(
+        &bundle_dir,
+        "eeff001122334455667788990011223344556677",
+        "release-v0.1.0",
+    );
+    replace_in_index(
+        &bundle_dir,
+        "\"engine_build_source\": \"git\"",
+        "\"engine_build_source\": \"release\"",
+    );
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(
+        result.is_pass(),
+        "dev profile should accept release source; got: {}",
+        result.summary()
+    );
+}
+
+#[test]
+fn test_verify_rejects_release_source_on_cert_profile() {
+    // Same release shape on cert profile should be rejected: cert
+    // bundles must be pinned to a commit.
+    let (_tmp, bundle_dir) = create_minimal_bundle("cert");
+    replace_in_index(
+        &bundle_dir,
+        "eeff001122334455667788990011223344556677",
+        "release-v0.1.0",
+    );
+    replace_in_index(
+        &bundle_dir,
+        "\"engine_build_source\": \"git\"",
+        "\"engine_build_source\": \"release\"",
+    );
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(result.is_fail(), "cert profile must reject release source");
+    assert!(
+        result.summary().contains("engine_build_source"),
+        "summary should name engine_build_source, got: {}",
+        result.summary()
+    );
+}
+
+#[test]
+fn test_verify_rejects_unknown_source_on_cert_profile() {
+    // Legacy-shaped bundle (source="unknown") on cert profile must
+    // fail: cert cannot accept a bundle whose engine provenance is
+    // unlabeled.
+    let (_tmp, bundle_dir) = create_minimal_bundle("cert");
+    replace_in_index(
+        &bundle_dir,
+        "\"engine_build_source\": \"git\"",
+        "\"engine_build_source\": \"unknown\"",
+    );
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(result.is_fail(), "cert profile must reject unknown source");
+    assert!(
+        result.summary().contains("engine_build_source"),
+        "summary should name engine_build_source, got: {}",
+        result.summary()
     );
 }
 

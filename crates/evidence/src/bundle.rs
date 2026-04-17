@@ -207,6 +207,12 @@ pub fn verify_bundle_signature(bundle_dir: &Path, key: &[u8]) -> Result<bool> {
 
 /// Evidence bundle index (index.json).
 ///
+/// Default for `EvidenceIndex::engine_build_source` when deserializing
+/// a pre-0.0.2 bundle that predates the field.
+fn default_engine_build_source() -> String {
+    "unknown".to_string()
+}
+
 /// Contains metadata about the evidence bundle including schema versions,
 /// timestamps, git state, and file references.
 ///
@@ -235,8 +241,26 @@ pub struct EvidenceIndex {
     pub git_dirty: bool,
     /// Evidence engine crate version
     pub engine_crate_version: String,
-    /// Evidence engine git SHA
+    /// Evidence engine commit SHA or release-version placeholder.
+    ///
+    /// When `engine_build_source == "git"` this is a 40-char hex SHA
+    /// captured either by `build.rs`' `git rev-parse HEAD` or by an
+    /// explicit `EVIDENCE_ENGINE_GIT_SHA` override at build time (CI
+    /// publish path: `${GITHUB_SHA}`). When
+    /// `engine_build_source == "release"` this is `release-v<version>`,
+    /// embedded when no git metadata was reachable — typical of
+    /// crates.io tarball builds. `"unknown"` appears only in pre-0.0.2
+    /// bundles whose writer didn't emit `engine_build_source`.
     pub engine_git_sha: String,
+    /// Origin of `engine_git_sha`: `"git"` | `"release"` | `"unknown"`.
+    ///
+    /// Written by every `EvidenceBuilder` from schema version 0.0.2 on;
+    /// `#[serde(default)]` returns `"unknown"` for pre-0.0.2 bundles
+    /// so older fixtures still deserialize. `verify` cross-checks the
+    /// pair (source, sha) to catch a build that e.g. claims `"git"`
+    /// but embeds a non-40-hex value.
+    #[serde(default = "default_engine_build_source")]
+    pub engine_build_source: String,
     /// Path to inputs hashes file
     pub inputs_hashes_file: String,
     /// Path to outputs hashes file
@@ -613,6 +637,7 @@ impl EvidenceBuilder {
             git_dirty: self.git_snapshot.dirty,
             engine_crate_version: env!("CARGO_PKG_VERSION").to_string(),
             engine_git_sha: env!("EVIDENCE_ENGINE_GIT_SHA").to_string(),
+            engine_build_source: env!("EVIDENCE_ENGINE_BUILD_SOURCE").to_string(),
             inputs_hashes_file: "inputs_hashes.json".to_string(),
             outputs_hashes_file: "outputs_hashes.json".to_string(),
             commands_file: "commands.json".to_string(),
@@ -758,6 +783,7 @@ mod tests {
             git_dirty: false,
             engine_crate_version: "0.1.0".to_string(),
             engine_git_sha: "abc123".to_string(),
+            engine_build_source: "git".to_string(),
             inputs_hashes_file: "inputs_hashes.json".to_string(),
             outputs_hashes_file: "outputs_hashes.json".to_string(),
             commands_file: "commands.json".to_string(),

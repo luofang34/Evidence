@@ -72,7 +72,12 @@
     },
     "engine_git_sha": {
       "type": "string",
-      "description": "Git SHA of the evidence engine (40-char hex when available, or placeholder until build-time embedding is implemented)"
+      "description": "Identity of the evidence-engine build that produced this bundle. 40-char hex commit SHA when `engine_build_source == \"git\"`; `release-v<version>` string when `engine_build_source == \"release\"`. Cross-field shape is enforced by `evidence::verify`, not at the JSON schema level."
+    },
+    "engine_build_source": {
+      "type": "string",
+      "enum": ["git", "release", "unknown"],
+      "description": "How `engine_git_sha` was resolved. `git`: captured from `git rev-parse HEAD` or an `EVIDENCE_ENGINE_GIT_SHA` env override at build time. `release`: no git metadata available, fallback string embedded (crates.io tarball builds). `unknown`: legacy value only present in pre-0.0.2 bundles that predate this field."
     },
     "inputs_hashes_file": {
       "type": "string",

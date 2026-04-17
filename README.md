@@ -395,14 +395,18 @@ These items are tracked and not yet resolved:
    per-test-case structured verification results are not.
 2. **No derived requirements safety report** -- derived LLRs are validated but no
    summary report is generated for safety analysis.
-3. **`engine_git_sha` conflation** -- records the consuming project's SHA instead of
-   the evidence engine's own build-time SHA.
 
 Previously tracked items now resolved:
 
 - ~~No cryptographic signing~~ → HMAC-SHA256 via `sign_bundle()` + `BUNDLE.sig`
 - ~~No extra-file detection~~ → `verify.rs` walks bundle and flags unexpected files
 - ~~Incomplete SCI/SECI~~ → `Cargo.lock` hash, `RUSTFLAGS`, `rust-toolchain.toml` captured
+- ~~`engine_git_sha` conflation / `"unknown"` fallback~~ → `build.rs` captures the engine's own
+  SHA via `EVIDENCE_ENGINE_GIT_SHA` env override (CI publish path uses `${GITHUB_SHA}`) with
+  `git rev-parse HEAD` as the second choice; a `release-v<version>` string is embedded when
+  neither is available (crates.io tarball builds). `engine_build_source` in `index.json`
+  records which branch fired, and `verify` rejects cert/record bundles whose provenance is
+  `"release"` or `"unknown"`.
 
 
 
