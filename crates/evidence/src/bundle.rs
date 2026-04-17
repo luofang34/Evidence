@@ -323,13 +323,8 @@ impl EvidenceBuilder {
         // Snapshot git state at the START (strict mode for cert/record)
         let git_snapshot = GitSnapshot::capture_with(&provider, strict)?;
 
-        // Check for shallow clone
-        if Path::new(".git/shallow").exists() {
-            bail!(
-                "Shallow clone detected. Evidence generation requires full repository history.\n\
-                 Run: git fetch --unshallow"
-            );
-        }
+        // Check for shallow clone (shared with CLI's preflight).
+        crate::git::check_shallow_clone()?;
 
         // Check git clean requirements
         if (config.require_clean_git || config.fail_on_dirty) && git_snapshot.dirty {

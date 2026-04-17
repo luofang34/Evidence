@@ -38,6 +38,7 @@ pub mod env;
 pub mod git;
 pub mod hash;
 pub mod policy;
+pub mod schema;
 pub mod trace;
 pub mod traits;
 pub mod util;
@@ -54,10 +55,11 @@ pub use compliance::{
 };
 pub use coverage::{CoverageLevel, CoverageSummary};
 pub use env::{EnvFingerprint, Host};
-pub use git::{GitSnapshot, RealGitProvider};
+pub use git::{GitSnapshot, RealGitProvider, check_shallow_clone, is_dirty_or_unknown};
 pub use hash::{sha256, sha256_file};
 pub use policy::{
     BoundaryConfig, BoundaryPolicy, Dal, DalConfig, EvidencePolicy, Profile, TracePolicy,
+    load_trace_roots,
 };
 pub use trace::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile,
