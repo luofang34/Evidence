@@ -29,3 +29,8 @@ claude.md
 # (`/tmp/evidence`, `$RUNNER_TEMP/evidence` in CI, …). See README
 # "Choosing --out-dir" for why.
 /evidence/
+
+# Nix build output symlinks produced by `nix build`. Safe to ignore —
+# they are GC roots into /nix/store, not artifacts worth tracking.
+/result
+/result-*

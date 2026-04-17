@@ -114,6 +114,8 @@ fn test_trace_validate_missing_root_warns() {
 
 #[test]
 fn test_trace_validate_valid_traces() {
+    use evidence::schema_versions::TRACE;
+
     let tmp = TempDir::new().unwrap();
     let trace_dir = tmp.path().join("trace");
     fs::create_dir_all(&trace_dir).unwrap();
@@ -121,13 +123,14 @@ fn test_trace_validate_valid_traces() {
     // Minimal valid HLR
     fs::write(
         trace_dir.join("hlr.toml"),
-        r#"
+        format!(
+            r#"
 [meta]
 document_id = "HLR-001"
 revision = "1.0"
 
 [schema]
-version = "0.0.1"
+version = "{ver}"
 
 [[requirements]]
 id = "HLR-1"
@@ -136,19 +139,22 @@ owner = "soi"
 uid = "11111111-1111-1111-1111-111111111111"
 verification_methods = ["review"]
 "#,
+            ver = TRACE
+        ),
     )
     .unwrap();
 
     // Minimal valid LLR pointing to HLR
     fs::write(
         trace_dir.join("llr.toml"),
-        r#"
+        format!(
+            r#"
 [meta]
 document_id = "LLR-001"
 revision = "1.0"
 
 [schema]
-version = "0.0.1"
+version = "{ver}"
 
 [[requirements]]
 id = "LLR-1"
@@ -159,19 +165,22 @@ derived = false
 traces_to = ["11111111-1111-1111-1111-111111111111"]
 verification_methods = ["unit_test"]
 "#,
+            ver = TRACE
+        ),
     )
     .unwrap();
 
     // Minimal valid Tests pointing to LLR
     fs::write(
         trace_dir.join("tests.toml"),
-        r#"
+        format!(
+            r#"
 [meta]
 document_id = "TESTS-001"
 revision = "1.0"
 
 [schema]
-version = "0.0.1"
+version = "{ver}"
 
 [[tests]]
 id = "TEST-1"
@@ -181,6 +190,8 @@ uid = "33333333-3333-3333-3333-333333333333"
 traces_to = ["22222222-2222-2222-2222-222222222222"]
 verification_method = "unit_test"
 "#,
+            ver = TRACE
+        ),
     )
     .unwrap();
 

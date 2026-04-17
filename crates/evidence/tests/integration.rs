@@ -158,9 +158,9 @@ fn create_minimal_bundle(profile: &str) -> (TempDir, std::path::PathBuf) {
 
     // Write index.json (metadata layer)
     let index = EvidenceIndex {
-        schema_version: "0.0.1".to_string(),
-        boundary_schema_version: "0.0.1".to_string(),
-        trace_schema_version: "0.0.3".to_string(),
+        schema_version: evidence::schema_versions::INDEX.to_string(),
+        boundary_schema_version: evidence::schema_versions::BOUNDARY.to_string(),
+        trace_schema_version: evidence::schema_versions::TRACE.to_string(),
         profile: profile.to_string(),
         timestamp_rfc3339: "2026-02-07T00:00:00Z".to_string(),
         git_sha: "aabbccdd11223344aabbccdd11223344aabbccdd".to_string(),
@@ -201,7 +201,7 @@ fn make_trace_meta() -> TraceMeta {
 
 fn make_schema() -> Schema {
     Schema {
-        version: "0.0.3".to_string(),
+        version: evidence::schema_versions::TRACE.to_string(),
     }
 }
 
@@ -887,7 +887,7 @@ fn test_toctou_detection() {
     builder.write_commands().unwrap();
 
     // finalize should detect the changed SHA and bail
-    let result = builder.finalize("0.0.1", "0.0.3", vec![]);
+    let result = builder.finalize(vec![]);
     assert!(
         result.is_err(),
         "finalize should fail when git HEAD changed"

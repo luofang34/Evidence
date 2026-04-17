@@ -5,13 +5,22 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
+use evidence::schema_versions::{BOUNDARY, TRACE};
+
 use super::args::{EXIT_ERROR, EXIT_SUCCESS};
 
-const BOUNDARY_TEMPLATE: &str = r#"# Navigate Certification Boundary Configuration
-# Schema version: 0.0.1
+/// Render the `boundary.toml` template.
+///
+/// Built at call time rather than stored as a `const` so the
+/// `[schema].version` string flows from `schema_versions::BOUNDARY`
+/// — no literals to hunt down on a schema bump.
+fn boundary_template() -> String {
+    format!(
+        r#"# Navigate Certification Boundary Configuration
+# Schema version: {ver}
 
 [schema]
-version = "0.0.1"
+version = "{ver}"
 
 [scope]
 # Crates that are in scope for certification
@@ -49,7 +58,10 @@ default_dal = "D"
 # [dal.crate_overrides]
 # "my-critical-crate" = "A"
 # "my-utility-crate" = "C"
-"#;
+"#,
+        ver = BOUNDARY
+    )
+}
 
 const PROFILE_DEV: &str = r#"# Development Profile
 # Relaxed checks for local development
@@ -125,7 +137,7 @@ pub fn cmd_init(force: bool) -> Result<i32> {
     // Write boundary.toml
     let boundary_path = cert_dir.join("boundary.toml");
     if !boundary_path.exists() || force {
-        fs::write(&boundary_path, BOUNDARY_TEMPLATE)?;
+        fs::write(&boundary_path, boundary_template())?;
         println!("created: {:?}", boundary_path);
     }
 
@@ -145,7 +157,8 @@ pub fn cmd_init(force: bool) -> Result<i32> {
     }
 
     // Create example trace files (must match struct field names for TOML parsing)
-    let hlr_example = r#"# High-Level Requirements
+    let hlr_example = format!(
+        r#"# High-Level Requirements
 #
 # Each [[requirements]] entry must include:
 #   uid    - unique identifier (e.g. "HLR-001")
@@ -155,7 +168,7 @@ pub fn cmd_init(force: bool) -> Result<i32> {
 #   scope, category, source, verification_methods
 
 [schema]
-version = "0.0.3"
+version = "{TRACE_VERSION}"
 
 [meta]
 document_id = "HLR-DOC-001"
@@ -168,9 +181,12 @@ title = "Example Requirement"
 description = "This is an example high-level requirement."
 owner = "team@example.com"
 verification_methods = ["test", "review"]
-"#;
+"#,
+        TRACE_VERSION = TRACE
+    );
 
-    let llr_example = r#"# Low-Level Requirements
+    let llr_example = format!(
+        r#"# Low-Level Requirements
 #
 # Each [[requirements]] entry must include:
 #   uid         - unique identifier (e.g. "LLR-001")
@@ -181,7 +197,7 @@ verification_methods = ["test", "review"]
 #   derived (bool), modules, verification_methods, source
 
 [schema]
-version = "0.0.3"
+version = "{TRACE_VERSION}"
 
 [meta]
 document_id = "LLR-DOC-001"
@@ -195,9 +211,12 @@ description = "This is an example low-level requirement."
 owner = "developer@example.com"
 traces_to = ["HLR-001"]
 verification_methods = ["test"]
-"#;
+"#,
+        TRACE_VERSION = TRACE
+    );
 
-    let tests_example = r#"# Test Cases
+    let tests_example = format!(
+        r#"# Test Cases
 #
 # Each [[tests]] entry must include:
 #   uid        - unique identifier (e.g. "TST-001")
@@ -208,7 +227,7 @@ verification_methods = ["test"]
 #   test_selector (e.g. "crate::module::test_fn"), source
 
 [schema]
-version = "0.0.3"
+version = "{TRACE_VERSION}"
 
 [meta]
 document_id = "TST-DOC-001"
@@ -221,9 +240,12 @@ title = "Example Test Case"
 description = "Verifies that the example LLR is satisfied."
 owner = "tester@example.com"
 traces_to = ["LLR-001"]
-"#;
+"#,
+        TRACE_VERSION = TRACE
+    );
 
-    let derived_example = r#"# Derived Requirements
+    let derived_example = format!(
+        r#"# Derived Requirements
 #
 # Each [[requirements]] entry must include:
 #   uid            - unique identifier (e.g. "DRQ-001")
@@ -234,7 +256,7 @@ traces_to = ["LLR-001"]
 #   safety_impact ("none" | "low" | "medium" | "high"), source
 
 [schema]
-version = "0.0.3"
+version = "{TRACE_VERSION}"
 
 [meta]
 document_id = "DRQ-DOC-001"
@@ -248,7 +270,9 @@ description = "A requirement derived during design or implementation."
 owner = "team@example.com"
 rationale = "Required for implementation of HLR-001"
 safety_impact = "none"
-"#;
+"#,
+        TRACE_VERSION = TRACE
+    );
 
     let trace_dir = cert_dir.join("trace");
     let trace_files = [
@@ -261,7 +285,7 @@ safety_impact = "none"
     for (name, content) in trace_files {
         let path = trace_dir.join(name);
         if !path.exists() || force {
-            fs::write(&path, content)?;
+            fs::write(&path, &content)?;
             println!("created: {:?}", path);
         }
     }

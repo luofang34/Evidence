@@ -411,7 +411,7 @@ pub fn generate_compliance_report(
     ComplianceReport {
         crate_name: crate_name.to_string(),
         dal: dal.to_string(),
-        schema_version: "0.0.1".to_string(),
+        schema_version: crate::schema_versions::COMPLIANCE.to_string(),
         objectives,
         summary: ComplianceSummary {
             total_objectives: OBJECTIVES.len() as u32,
