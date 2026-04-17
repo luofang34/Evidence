@@ -199,21 +199,26 @@ jobs:
       - name: Verify bundle A
         run: ./target/release/cargo-evidence evidence verify "${{ steps.bundle_a.outputs.path }}"
 
-      - name: Assert engine_git_sha is populated
+      - name: Assert engine provenance captured honestly
         shell: bash
         run: |
-          # build.rs embeds the git SHA via `cargo:rustc-env`. If git
-          # isn't reachable from the build sandbox, it falls back to
-          # "unknown" — which means evidence bundles can no longer be
-          # correlated back to the engine source that produced them.
-          # Fail loud if that's happening in CI.
-          sha=$(jq -r .engine_git_sha "${{ steps.bundle_a.outputs.path }}/index.json")
-          echo "engine_git_sha = $sha"
-          if [ "$sha" = "unknown" ] || [ -z "$sha" ]; then
-            echo "::error::engine_git_sha is '$sha' — build.rs did not capture a git SHA."
+          # `build.rs` resolves the engine SHA from (1) an explicit
+          # EVIDENCE_ENGINE_GIT_SHA env var, (2) `git rev-parse HEAD`,
+          # or (3) a `release-v<version>` fallback, and records which
+          # branch fired in `engine_build_source`. In CI we always
+          # build from a tracked checkout, so the source must be "git"
+          # and the SHA must be 40-char hex. Anything else means build.rs
+          # couldn't see `.git/` — an environment bug we need to hear
+          # about before crates.io ships a bundle stamped "release-*"
+          # for a git-backed run.
+          sha=$(jq -r .engine_git_sha        "${{ steps.bundle_a.outputs.path }}/index.json")
+          source=$(jq -r .engine_build_source "${{ steps.bundle_a.outputs.path }}/index.json")
+          echo "engine_git_sha       = $sha"
+          echo "engine_build_source  = $source"
+          if [ "$source" != "git" ]; then
+            echo "::error::engine_build_source is '$source'; expected 'git' in CI."
             exit 1
           fi
-          # Must be 40 hex chars.
           if ! printf '%s' "$sha" | grep -qE '^[a-f0-9]{40}$'; then
             echo "::error::engine_git_sha is not a 40-char hex SHA: '$sha'"
             exit 1
