@@ -108,21 +108,44 @@ fn create_minimal_bundle(profile: &str) -> (TempDir, std::path::PathBuf) {
     fs::create_dir_all(bundle_dir.join("tests")).unwrap();
     fs::create_dir_all(bundle_dir.join("trace")).unwrap();
 
-    // Write env.json
-    let env_json = serde_json::json!({
-        "profile": profile,
-        "rustc": "rustc 1.85.0",
-        "cargo": "cargo 1.85.0",
-        "git_sha": "aabbccdd11223344aabbccdd11223344aabbccdd",
-        "git_branch": "main",
-        "git_dirty": false,
-        "in_nix_shell": false,
-        "tools": {},
-        "nav_env": {}
-    });
+    // Write env.json. Must deserialize cleanly into
+    // `evidence::EnvFingerprint` because `verify_bundle` re-projects
+    // it and compares byte-for-byte against the committed
+    // deterministic-manifest.json.
+    let env_fp = evidence::EnvFingerprint {
+        profile: profile.to_string(),
+        rustc: "rustc 1.85.0".to_string(),
+        cargo: "cargo 1.85.0".to_string(),
+        git_sha: "aabbccdd11223344aabbccdd11223344aabbccdd".to_string(),
+        git_branch: "main".to_string(),
+        git_dirty: false,
+        in_nix_shell: false,
+        tools: BTreeMap::new(),
+        nav_env: BTreeMap::new(),
+        llvm_version: None,
+        host: evidence::Host::Linux {
+            arch: "x86_64".to_string(),
+            libc: None,
+            kernel: None,
+        },
+        cargo_lock_hash: None,
+        rust_toolchain_toml: None,
+        rustflags: None,
+        target_triple: "x86_64-unknown-linux-gnu".to_string(),
+    };
     fs::write(
         bundle_dir.join("env.json"),
-        serde_json::to_vec_pretty(&env_json).unwrap(),
+        serde_json::to_vec_pretty(&env_fp).unwrap(),
+    )
+    .unwrap();
+
+    // Write deterministic-manifest.json using the library's
+    // projection so the re-projection check inside verify_bundle
+    // matches byte-for-byte.
+    let manifest = env_fp.deterministic_manifest();
+    fs::write(
+        bundle_dir.join("deterministic-manifest.json"),
+        serde_json::to_vec_pretty(&manifest).unwrap(),
     )
     .unwrap();
 
@@ -153,8 +176,10 @@ fn create_minimal_bundle(profile: &str) -> (TempDir, std::path::PathBuf) {
     let sha256sums_path = bundle_dir.join("SHA256SUMS");
     write_sha256sums(&bundle_dir, &sha256sums_path).unwrap();
 
-    // Compute content_hash = SHA256(SHA256SUMS)
+    // Compute hashes: content_hash (full SHA256SUMS) +
+    // deterministic_hash (the manifest projection).
     let content_hash = sha256_file(&sha256sums_path).unwrap();
+    let deterministic_hash = sha256_file(&bundle_dir.join("deterministic-manifest.json")).unwrap();
 
     // Write index.json (metadata layer)
     let index = EvidenceIndex {
@@ -176,6 +201,7 @@ fn create_minimal_bundle(profile: &str) -> (TempDir, std::path::PathBuf) {
         trace_outputs: vec![],
         bundle_complete: true,
         content_hash,
+        deterministic_hash,
         test_summary: None,
         dal_map: std::collections::BTreeMap::new(),
     };

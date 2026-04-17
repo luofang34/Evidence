@@ -36,3 +36,8 @@ pub const TRACE: &str = "0.0.3";
 
 /// Schema version for per-crate `compliance/*.json` reports.
 pub const COMPLIANCE: &str = "0.0.1";
+
+/// Schema version for `deterministic-manifest.json` — the committed,
+/// hashed projection of `env.json` whose hash is recorded as
+/// `index.json.deterministic_hash`.
+pub const DETERMINISTIC_MANIFEST: &str = "0.0.1";

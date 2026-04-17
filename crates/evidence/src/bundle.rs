@@ -251,12 +251,25 @@ pub struct EvidenceIndex {
     pub trace_outputs: Vec<String>,
     /// Whether the bundle is complete
     pub bundle_complete: bool,
-    /// SHA-256 of the SHA256SUMS file (deterministic content hash).
+    /// SHA-256 of the SHA256SUMS file.
     ///
-    /// This hash covers all files in the content layer (everything except
-    /// `index.json` and `SHA256SUMS` itself). It is reproducible across
-    /// runs on the same commit with the same inputs.
+    /// Covers every byte in the content layer (all files except
+    /// `index.json` and `SHA256SUMS` itself, plus `BUNDLE.sig` when
+    /// present). Reproducible across runs **on the same host** for
+    /// the same commit and inputs; differs across hosts because
+    /// `env.json` records host identity (host.os, libc, tools). For
+    /// cross-host equality see `deterministic_hash`.
     pub content_hash: String,
+    /// SHA-256 of `deterministic-manifest.json`.
+    ///
+    /// The committed manifest is a projection of `env.json` down to
+    /// fields that are cross-host stable (toolchain, target triple,
+    /// source identity). Bundles built from the same commit with the
+    /// same `rust-toolchain.toml` on Linux, macOS, and Windows share
+    /// this hash. This is the tool's cross-host reproducibility
+    /// contract, running alongside the full-content `content_hash`
+    /// which stays in `SHA256SUMS` for audit-chain integrity.
+    pub deterministic_hash: String,
     /// Parsed test results summary, if cargo test was executed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub test_summary: Option<TestSummary>,
@@ -561,15 +574,34 @@ impl EvidenceBuilder {
         let ts = utc_now_rfc3339()?;
         let sha256sums_path = self.bundle_dir.join("SHA256SUMS");
 
-        // Step 1: Write SHA256SUMS covering the content layer only.
+        // Step 1: Project env.json onto the cross-host-stable subset
+        // and write `deterministic-manifest.json`. The manifest is
+        // the committed artifact whose hash becomes the cross-host
+        // reproducibility contract; writing it before SHA256SUMS is
+        // assembled means `write_sha256sums` picks it up for free
+        // and the integrity chain binds it like any other content
+        // file.
+        let env_path = self.bundle_dir.join("env.json");
+        let env_bytes = fs::read(&env_path)
+            .with_context(|| format!("reading {:?} to build deterministic manifest", env_path))?;
+        let env_fp: crate::env::EnvFingerprint = serde_json::from_slice(&env_bytes)
+            .context("parsing env.json to derive deterministic manifest")?;
+        let manifest = env_fp.deterministic_manifest();
+        let manifest_path = self.bundle_dir.join("deterministic-manifest.json");
+        fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
+
+        // Step 2: Write SHA256SUMS covering the content layer only.
         // index.json does not exist yet so it is naturally excluded.
         write_sha256sums(&self.bundle_dir, &sha256sums_path)?;
 
-        // Step 2: Compute deterministic content hash from SHA256SUMS.
+        // Step 3: Compute full content_hash and the narrower
+        // deterministic_hash.
         let content_hash =
             crate::hash::sha256_file(&sha256sums_path).context("hashing SHA256SUMS")?;
+        let deterministic_hash = crate::hash::sha256_file(&manifest_path)
+            .context("hashing deterministic-manifest.json")?;
 
-        // Step 3: Build and write index.json (metadata layer).
+        // Step 4: Build and write index.json (metadata layer).
         let idx = EvidenceIndex {
             schema_version: crate::schema_versions::INDEX.to_string(),
             boundary_schema_version: crate::schema_versions::BOUNDARY.to_string(),
@@ -596,6 +628,7 @@ impl EvidenceBuilder {
                 .collect(),
             bundle_complete: true,
             content_hash,
+            deterministic_hash,
             test_summary: self.test_summary.clone(),
             dal_map: self
                 .config
@@ -733,6 +766,7 @@ mod tests {
             trace_outputs: vec!["trace/matrix.md".to_string()],
             bundle_complete: true,
             content_hash: "deadbeef".repeat(8),
+            deterministic_hash: "cafebabe".repeat(8),
             test_summary: None,
             dal_map: BTreeMap::new(),
         };

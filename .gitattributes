@@ -4,3 +4,13 @@
 # `core.autocrlf` breaks `verify_bundle`. Mark the whole fixture tree as
 # binary to disable text normalization, filter, and diff attributes.
 crates/cargo-evidence/tests/fixtures/golden-dev-bundle/** binary
+
+# Source-tracked files whose bytes flow directly into the
+# `deterministic_hash` projection. `cargo_lock_hash` is SHA-256 of
+# `Cargo.lock`'s bytes; `rust_toolchain_toml` is the raw file
+# content. On Windows with `core.autocrlf=true` (default), git checks
+# these out with CRLF and their bytes drift from the Unix checkouts,
+# breaking cross-host parity. Force LF everywhere so the three CI
+# runners and any dev workstation see the same bytes.
+Cargo.lock            text eol=lf
+rust-toolchain.toml   text eol=lf

@@ -155,6 +155,8 @@ pub fn cmd_verify(
                     evidence::VerifyError::UnsafePath(_) => "unsafe_path",
                     evidence::VerifyError::FormatError { .. } => "format_error",
                     evidence::VerifyError::CrossFileInconsistency { .. } => "cross_file_mismatch",
+                    evidence::VerifyError::DeterministicHashMismatch { .. } => "deterministic_hash",
+                    evidence::VerifyError::ManifestProjectionDrift { .. } => "manifest_projection",
                 };
                 checks.push(VerifyCheck {
                     name: name.to_string(),

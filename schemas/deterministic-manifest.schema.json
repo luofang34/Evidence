@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://navigate.dev/schema/evidence/deterministic-manifest.schema.json",
+  "title": "DeterministicManifest",
+  "description": "Projection of env.json onto cross-host-stable fields; its SHA-256 is recorded as index.json.deterministic_hash.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "profile",
+    "rustc",
+    "cargo",
+    "git_sha",
+    "git_branch",
+    "git_dirty"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Manifest schema version"
+    },
+    "profile": {
+      "type": "string",
+      "enum": ["dev", "cert", "record"]
+    },
+    "rustc": {
+      "type": "string",
+      "description": "rustc --version output"
+    },
+    "cargo": {
+      "type": "string",
+      "description": "cargo --version output"
+    },
+    "llvm_version": {
+      "type": "string",
+      "description": "LLVM version from rustc -vV (optional)"
+    },
+    "cargo_lock_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 of Cargo.lock if present"
+    },
+    "rust_toolchain_toml": {
+      "type": "string",
+      "description": "Raw contents of rust-toolchain.toml if present"
+    },
+    "rustflags": {
+      "type": "string",
+      "description": "Value of RUSTFLAGS env var if set"
+    },
+    "git_sha": {
+      "type": "string",
+      "description": "Source commit SHA"
+    },
+    "git_branch": {
+      "type": "string",
+      "description": "Source branch name"
+    },
+    "git_dirty": {
+      "type": "boolean",
+      "description": "Whether working tree is dirty at capture time"
+    }
+  },
+  "additionalProperties": false
+}
