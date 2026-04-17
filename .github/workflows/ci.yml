@@ -316,14 +316,21 @@ jobs:
 
   evidence-cross-host-compare:
     # Downloads all three per-OS artifacts and diffs their
-    # content_hash. Exits non-zero if any two differ; the
-    # continue-on-error flag keeps the workflow green regardless,
-    # because this PR ships the test as a diagnostic, not a gate.
+    # content_hash. This job is purely diagnostic — its output lives
+    # in the workflow summary (table of host → content_hash) and, on
+    # drift, a `::warning::` annotation. The job ALWAYS exits 0 so
+    # the PR checks list doesn't paint a red ❌ next to a diagnostic
+    # with no required action; `continue-on-error` is kept as
+    # defense-in-depth against unrelated step failures (download,
+    # jq, etc.).
+    #
+    # When this check becomes gating (after the schema is refactored
+    # so cross-host content_hash parity is achievable), swap the
+    # trailing `exit 0` for `exit 1` in the drift branch and drop
+    # `continue-on-error`.
     #
     # `if: always()` runs even if one of the matrix jobs failed to
-    # upload — the comparison is still useful with 2/3 inputs, and a
-    # missing artifact surfaces as a clear "no artifact" error in
-    # the step log rather than a silent skip.
+    # upload — the comparison is still useful with 2/3 inputs.
     name: Cross-host determinism (compare)
     continue-on-error: true
     needs: evidence-cross-host
@@ -384,7 +391,8 @@ jobs:
           echo "::warning::cross-host determinism: DRIFT — $distinct distinct content_hash values across $n hosts"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "_$distinct distinct content_hash values across $n hosts. Drift is expected today because \`env.json.host\` (tagged enum) legitimately differs per OS; follow-up work will decide how to bracket host-dependent evidence._" >> "$GITHUB_STEP_SUMMARY"
-          # Non-zero exit annotates the job red in the UI; the
-          # job-level continue-on-error keeps the workflow overall
-          # green. Diagnostic only.
-          exit 1
+          # Diagnostic: exit 0 so the PR checks list stays green. The
+          # drift is fully captured by the `::warning::` annotation
+          # above and the summary table. Flip to `exit 1` once this
+          # check becomes gating.
+          exit 0
