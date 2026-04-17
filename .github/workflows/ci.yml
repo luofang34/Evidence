@@ -231,3 +231,160 @@ jobs:
           path: ./dogfood-artifact/
           if-no-files-found: warn
           retention-days: 14
+
+  evidence-cross-host:
+    # Diagnostic (NOT gating). Generates a bundle on each OS from the
+    # same commit and publishes its index.json + SHA256SUMS as a
+    # per-OS artifact. The aggregator job below downloads all three
+    # and diffs content_hash.
+    #
+    # Expected outcome today: the three content_hash values diverge
+    # because env.json's `host` field (a tagged enum with per-OS
+    # shape) legitimately differs across Linux / macOS / Windows.
+    # Purpose in this PR is to *quantify* that drift; a follow-up
+    # will decide whether to normalize env.json's host-dependent
+    # fields or to split evidence bundles into a host-agnostic
+    # reproducibility layer and a host-specific evidence layer.
+    #
+    # `continue-on-error: true` at the job level keeps the workflow
+    # green even when these jobs fail the internal hash comparison.
+    name: Cross-host determinism (diagnostic, ${{ matrix.os }})
+    continue-on-error: true
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release -p cargo-evidence
+
+      - name: Generate bundle
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/xhost-out"
+          ./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --out-dir "$RUNNER_TEMP/xhost-out" \
+            --profile dev
+
+      - name: Stage per-OS diagnostic files
+        shell: bash
+        run: |
+          bundle=$(ls -d "$RUNNER_TEMP"/xhost-out/dev-*/ | head -n1)
+          bundle=${bundle%/}
+          mkdir -p ./xhost-stage
+          cp "$bundle/index.json"   ./xhost-stage/index.json
+          cp "$bundle/SHA256SUMS"   ./xhost-stage/SHA256SUMS
+          cp "$bundle/env.json"     ./xhost-stage/env.json
+          # The runner.os value ("Linux" / "macOS" / "Windows") is
+          # the stable identifier we'll key on in the aggregator.
+          echo "${{ runner.os }}" > ./xhost-stage/runner-os.txt
+          echo "---- content_hash on ${{ runner.os }} ----"
+          jq -r .content_hash ./xhost-stage/index.json
+
+      - name: Upload per-OS artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xhost-${{ runner.os }}
+          path: ./xhost-stage/
+          if-no-files-found: error
+          retention-days: 14
+
+  evidence-cross-host-compare:
+    # Downloads all three per-OS artifacts and diffs their
+    # content_hash. Exits non-zero if any two differ; the
+    # continue-on-error flag keeps the workflow green regardless,
+    # because this PR ships the test as a diagnostic, not a gate.
+    #
+    # `if: always()` runs even if one of the matrix jobs failed to
+    # upload — the comparison is still useful with 2/3 inputs, and a
+    # missing artifact surfaces as a clear "no artifact" error in
+    # the step log rather than a silent skip.
+    name: Cross-host determinism (compare)
+    continue-on-error: true
+    needs: evidence-cross-host
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all per-OS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./xhost
+          pattern: xhost-*
+
+      - name: Diff content_hash across hosts
+        shell: bash
+        run: |
+          set -u
+          echo "## Cross-host determinism report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| host | content_hash |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+          declare -a hashes=()
+          declare -a hosts=()
+          for dir in ./xhost/xhost-*/; do
+            host=$(cat "$dir/runner-os.txt" | tr -d '[:space:]')
+            hash=$(jq -r .content_hash "$dir/index.json")
+            echo "$host: $hash"
+            echo "| $host | \`$hash\` |" >> "$GITHUB_STEP_SUMMARY"
+            hashes+=("$hash")
+            hosts+=("$host")
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          n=${#hashes[@]}
+          if [ "$n" -lt 2 ]; then
+            echo "::warning::only $n host(s) reported — cannot compare"
+            echo "_Only $n host(s) reported; nothing to compare._" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Count distinct hashes — a quick way to describe the drift
+          # shape ("1 distinct" = all agree; "2 distinct" = 2 vs 1
+          # split; "3 distinct" = full drift).
+          distinct=$(printf '%s\n' "${hashes[@]}" | sort -u | wc -l | tr -d '[:space:]')
+          echo "distinct content_hash values: $distinct / $n"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Distinct content_hash values: $distinct / $n**" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$distinct" -eq 1 ]; then
+            echo "::notice::cross-host determinism: PASS ($n/$n hosts agree)"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_All $n hosts produced identical content_hash. ✅_" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "::warning::cross-host determinism: DRIFT — $distinct distinct content_hash values across $n hosts"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_$distinct distinct content_hash values across $n hosts. Drift is expected today because \`env.json.host\` (tagged enum) legitimately differs per OS; follow-up work will decide how to bracket host-dependent evidence._" >> "$GITHUB_STEP_SUMMARY"
+          # Non-zero exit annotates the job red in the UI; the
+          # job-level continue-on-error keeps the workflow overall
+          # green. Diagnostic only.
+          exit 1
