@@ -151,6 +151,38 @@ evidence/cert-20260207-143022Z-a1b2c3d4/
   submission of `dev` bundles as `cert`.
 - Existing bundle directories are never overwritten.
 
+### Captured Output Normalization
+
+Every file written by `cargo evidence generate` under the capture directory
+(`tests/`) has its line endings normalized to LF (`\n`) before being written
+to disk and hashed. This applies uniformly to `cargo test` stdout and stderr
+on every host.
+
+**Why:** a Windows host running `cargo test` emits output with CRLF
+(`\r\n`) line endings; a Linux host emits LF. Without normalization, the
+same logical test run on two different hosts would produce different bytes
+on disk, different `SHA256SUMS` entries, and therefore different
+`content_hash` values — a cross-platform determinism leak that would
+defeat the evidence chain the tool is built around.
+
+**What's normalized:** strict `\r\n` pairs collapse to a single `\n`.
+Lone `\r` bytes (e.g. cargo's `Compiling foo\r` progress spinners) are
+**preserved**, so legitimate carriage-return use is not corrupted. Lone
+`\n` bytes pass through unchanged.
+
+**What Windows users should expect:** opening
+`tests/cargo_test_stdout.txt` in Notepad may render as one long line.
+Use VS Code, Notepad++, or any editor that handles Unix line endings.
+This is a deliberate, tool-wide invariant — there is no flag to opt
+out, and bundles from all three supported hosts are byte-comparable as
+a result.
+
+**What's not normalized:** this rule applies only to captured
+subprocess text output. JSON files (`index.json`, `env.json`, `*_hashes.json`,
+`commands.json`) and `SHA256SUMS` are written by the tool itself and are
+LF-only by construction. Binary outputs recorded into `outputs_hashes`
+are hashed as-is — normalization would corrupt them and would not apply.
+
 ---
 
 ## Commands Reference
