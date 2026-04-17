@@ -94,3 +94,124 @@ jobs:
 
       - name: Nix build
         run: nix build
+
+  evidence-self:
+    # Dogfood: run cargo-evidence against this repo and publish the
+    # bundle as a CI artifact. Fails early on the kind of regression
+    # that a unit test can't see — e.g. `engine_git_sha` falling back
+    # to "unknown" because build.rs can't find git, or content_hash
+    # drifting between two back-to-back runs on the same commit.
+    name: Evidence (self)
+    runs-on: ubuntu-latest
+    needs: check
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so git_sha / git_branch are populated and the
+          # shallow-clone guard in `cargo-evidence` is satisfied.
+          fetch-depth: 0
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release -p cargo-evidence
+
+      - name: Generate bundle (run A)
+        run: |
+          mkdir -p ./out-a
+          ./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --out-dir ./out-a \
+            --profile dev
+
+      - name: Locate bundle A
+        id: bundle_a
+        run: |
+          path=$(ls -d ./out-a/dev-*/ | head -n1)
+          path=${path%/}
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "Bundle A: $path"
+
+      - name: Verify bundle A
+        run: ./target/release/cargo-evidence evidence verify "${{ steps.bundle_a.outputs.path }}"
+
+      - name: Assert engine_git_sha is populated
+        shell: bash
+        run: |
+          # build.rs embeds the git SHA via `cargo:rustc-env`. If git
+          # isn't reachable from the build sandbox, it falls back to
+          # "unknown" — which means evidence bundles can no longer be
+          # correlated back to the engine source that produced them.
+          # Fail loud if that's happening in CI.
+          sha=$(jq -r .engine_git_sha "${{ steps.bundle_a.outputs.path }}/index.json")
+          echo "engine_git_sha = $sha"
+          if [ "$sha" = "unknown" ] || [ -z "$sha" ]; then
+            echo "::error::engine_git_sha is '$sha' — build.rs did not capture a git SHA."
+            exit 1
+          fi
+          # Must be 40 hex chars.
+          if ! printf '%s' "$sha" | grep -qE '^[a-f0-9]{40}$'; then
+            echo "::error::engine_git_sha is not a 40-char hex SHA: '$sha'"
+            exit 1
+          fi
+
+      - name: Generate bundle (run B) and compare content_hash
+        shell: bash
+        run: |
+          # Two generate runs on the same commit should produce the
+          # same content_hash; index.json's timestamp field differs,
+          # but content_hash is SHA-256 of SHA256SUMS which excludes
+          # index.json by design. A mismatch here is a real
+          # determinism leak on the generate path — the static
+          # cross_platform_determinism test wouldn't catch it if the
+          # leak lived in env capture, trace matrix generation, or
+          # command recording.
+          mkdir -p ./out-b
+          ./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --out-dir ./out-b \
+            --profile dev
+
+          path_b=$(ls -d ./out-b/dev-*/ | head -n1)
+          path_b=${path_b%/}
+          echo "Bundle B: $path_b"
+
+          hash_a=$(jq -r .content_hash "${{ steps.bundle_a.outputs.path }}/index.json")
+          hash_b=$(jq -r .content_hash "$path_b/index.json")
+
+          echo "content_hash A: $hash_a"
+          echo "content_hash B: $hash_b"
+
+          if [ "$hash_a" != "$hash_b" ]; then
+            echo "::error::content_hash drift between two back-to-back runs on the same commit."
+            echo "::error::A = $hash_a"
+            echo "::error::B = $hash_b"
+            echo "::error::Inspect both bundles in the workflow artifacts to diff SHA256SUMS."
+            exit 1
+          fi
+
+      - name: Upload bundle as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-self-bundle
+          path: |
+            out-a/
+            out-b/
+          if-no-files-found: warn
+          retention-days: 14
