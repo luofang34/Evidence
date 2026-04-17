@@ -1,0 +1,276 @@
+//! `cargo evidence init`.
+
+use std::fs;
+use std::path::PathBuf;
+
+use anyhow::Result;
+
+use super::args::{EXIT_ERROR, EXIT_SUCCESS};
+
+const BOUNDARY_TEMPLATE: &str = r#"# Navigate Certification Boundary Configuration
+# Schema version: 0.0.1
+
+[schema]
+version = "0.0.1"
+
+[scope]
+# Crates that are in scope for certification
+in_scope = [
+    # Add your certifiable crates here
+    # "my-crate",
+]
+
+# Trace root directories (relative to workspace root)
+trace_roots = ["cert/trace"]
+
+# Workspace crates explicitly forbidden as dependencies
+explicit_forbidden = []
+
+[policy]
+# Forbid dependencies on out-of-scope workspace crates
+no_out_of_scope_deps = true
+
+# Forbid build.rs in boundary crates (DO-178C determinism)
+forbid_build_rs = false
+
+# Forbid proc-macros in boundary crates (DO-178C auditability)
+forbid_proc_macros = false
+
+[forbidden_external]
+# External crates that are forbidden with reasons
+# "crate_name" = "reason"
+
+[dal]
+# Default Design Assurance Level for all in-scope crates (A, B, C, or D).
+# D is the least stringent (default if omitted).
+default_dal = "D"
+
+# Per-crate DAL overrides
+# [dal.crate_overrides]
+# "my-critical-crate" = "A"
+# "my-utility-crate" = "C"
+"#;
+
+const PROFILE_DEV: &str = r#"# Development Profile
+# Relaxed checks for local development
+
+[profile]
+name = "dev"
+description = "Development profile with relaxed checks"
+
+[checks]
+require_clean_git = false
+require_coverage = false
+allow_all_features = true
+offline_required = false
+
+[evidence]
+include_timestamps = true
+strict_hash_validation = false
+fail_on_dirty = false
+"#;
+
+const PROFILE_CERT: &str = r#"# Certification Profile
+# Strict checks for certification builds
+
+[profile]
+name = "cert"
+description = "Certification profile with strict compliance checks"
+
+[checks]
+require_clean_git = true
+require_coverage = true
+allow_all_features = false
+offline_required = true
+
+[evidence]
+include_timestamps = false
+strict_hash_validation = true
+fail_on_dirty = true
+"#;
+
+const PROFILE_RECORD: &str = r#"# Recording Profile
+# Captures evidence without full enforcement
+
+[profile]
+name = "record"
+description = "Recording profile for evidence capture"
+
+[checks]
+require_clean_git = true
+require_coverage = false
+allow_all_features = true
+offline_required = false
+
+[evidence]
+include_timestamps = true
+strict_hash_validation = false
+fail_on_dirty = true
+"#;
+
+pub fn cmd_init(force: bool) -> Result<i32> {
+    let cert_dir = PathBuf::from("cert");
+    let profiles_dir = cert_dir.join("profiles");
+
+    // Check if cert directory exists and not forcing
+    if cert_dir.exists() && !force {
+        eprintln!("error: cert/ directory already exists. Use --force to overwrite.");
+        return Ok(EXIT_ERROR);
+    }
+
+    // Create directories
+    fs::create_dir_all(&profiles_dir)?;
+    fs::create_dir_all(cert_dir.join("trace"))?;
+
+    // Write boundary.toml
+    let boundary_path = cert_dir.join("boundary.toml");
+    if !boundary_path.exists() || force {
+        fs::write(&boundary_path, BOUNDARY_TEMPLATE)?;
+        println!("created: {:?}", boundary_path);
+    }
+
+    // Write profile configs
+    let profiles = [
+        ("dev.toml", PROFILE_DEV),
+        ("cert.toml", PROFILE_CERT),
+        ("record.toml", PROFILE_RECORD),
+    ];
+
+    for (name, content) in profiles {
+        let path = profiles_dir.join(name);
+        if !path.exists() || force {
+            fs::write(&path, content)?;
+            println!("created: {:?}", path);
+        }
+    }
+
+    // Create example trace files (must match struct field names for TOML parsing)
+    let hlr_example = r#"# High-Level Requirements
+#
+# Each [[requirements]] entry must include:
+#   uid    - unique identifier (e.g. "HLR-001")
+#   id     - human-readable slug
+#   title  - short description
+# Optional fields: owner, description, rationale, sort_key,
+#   scope, category, source, verification_methods
+
+[schema]
+version = "0.0.3"
+
+[meta]
+document_id = "HLR-DOC-001"
+revision = "1"
+
+[[requirements]]
+uid = "HLR-001"
+id = "hlr-example"
+title = "Example Requirement"
+description = "This is an example high-level requirement."
+owner = "team@example.com"
+verification_methods = ["test", "review"]
+"#;
+
+    let llr_example = r#"# Low-Level Requirements
+#
+# Each [[requirements]] entry must include:
+#   uid         - unique identifier (e.g. "LLR-001")
+#   id          - human-readable slug
+#   title       - short description
+#   traces_to   - list of HLR UIDs this LLR derives from
+# Optional fields: owner, description, rationale, sort_key,
+#   derived (bool), modules, verification_methods, source
+
+[schema]
+version = "0.0.3"
+
+[meta]
+document_id = "LLR-DOC-001"
+revision = "1"
+
+[[requirements]]
+uid = "LLR-001"
+id = "llr-example"
+title = "Example Implementation Requirement"
+description = "This is an example low-level requirement."
+owner = "developer@example.com"
+traces_to = ["HLR-001"]
+verification_methods = ["test"]
+"#;
+
+    let tests_example = r#"# Test Cases
+#
+# Each [[tests]] entry must include:
+#   uid        - unique identifier (e.g. "TST-001")
+#   id         - human-readable slug
+#   title      - short description
+#   traces_to  - list of LLR UIDs this test verifies
+# Optional fields: owner, description, sort_key, category,
+#   test_selector (e.g. "crate::module::test_fn"), source
+
+[schema]
+version = "0.0.3"
+
+[meta]
+document_id = "TST-DOC-001"
+revision = "1"
+
+[[tests]]
+uid = "TST-001"
+id = "test-example"
+title = "Example Test Case"
+description = "Verifies that the example LLR is satisfied."
+owner = "tester@example.com"
+traces_to = ["LLR-001"]
+"#;
+
+    let derived_example = r#"# Derived Requirements
+#
+# Each [[requirements]] entry must include:
+#   uid            - unique identifier (e.g. "DRQ-001")
+#   id             - human-readable slug
+#   title          - short description
+#   rationale      - why this requirement was derived
+# Optional fields: owner, description, sort_key,
+#   safety_impact ("none" | "low" | "medium" | "high"), source
+
+[schema]
+version = "0.0.3"
+
+[meta]
+document_id = "DRQ-DOC-001"
+revision = "1"
+
+[[requirements]]
+uid = "DRQ-001"
+id = "derived-example"
+title = "Example Derived Requirement"
+description = "A requirement derived during design or implementation."
+owner = "team@example.com"
+rationale = "Required for implementation of HLR-001"
+safety_impact = "none"
+"#;
+
+    let trace_dir = cert_dir.join("trace");
+    let trace_files = [
+        ("hlr.toml", hlr_example),
+        ("llr.toml", llr_example),
+        ("tests.toml", tests_example),
+        ("derived.toml", derived_example),
+    ];
+
+    for (name, content) in trace_files {
+        let path = trace_dir.join(name);
+        if !path.exists() || force {
+            fs::write(&path, content)?;
+            println!("created: {:?}", path);
+        }
+    }
+
+    println!("\nInitialized evidence tracking in cert/");
+    println!("\nNext steps:");
+    println!("  1. Edit cert/boundary.toml to define in-scope crates");
+    println!("  2. Add requirements to cert/trace/ (hlr.toml, llr.toml, tests.toml)");
+    println!("  3. Run: cargo evidence generate --out-dir evidence");
+
+    Ok(EXIT_SUCCESS)
+}
