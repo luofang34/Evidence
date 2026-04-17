@@ -157,6 +157,10 @@ pub fn cmd_verify(
                     evidence::VerifyError::CrossFileInconsistency { .. } => "cross_file_mismatch",
                     evidence::VerifyError::DeterministicHashMismatch { .. } => "deterministic_hash",
                     evidence::VerifyError::ManifestProjectionDrift { .. } => "manifest_projection",
+                    evidence::VerifyError::TraceOutputNotHashed(_) => "trace_output_not_hashed",
+                    evidence::VerifyError::TestSummaryMismatch { .. } => "test_summary_mismatch",
+                    evidence::VerifyError::DalMapMismatch { .. } => "dal_map_mismatch",
+                    evidence::VerifyError::DalMapOrphan { .. } => "dal_map_orphan",
                 };
                 checks.push(VerifyCheck {
                     name: name.to_string(),

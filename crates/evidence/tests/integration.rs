@@ -1148,6 +1148,30 @@ fn test_verify_rejects_release_source_on_cert_profile() {
 }
 
 #[test]
+fn test_verify_rejects_phantom_trace_output_not_in_sha256sums() {
+    // Add an entry to index.json.trace_outputs pointing at a path
+    // that isn't listed in SHA256SUMS. This is the tampering path
+    // the cross-check is designed to catch (an attacker overclaiming
+    // coverage without having to forge any hashed content).
+    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    replace_in_index(
+        &bundle_dir,
+        "\"trace_outputs\": []",
+        "\"trace_outputs\": [\n    \"trace/phantom.md\"\n  ]",
+    );
+    let result = verify_bundle(&bundle_dir).unwrap();
+    assert!(
+        result.is_fail(),
+        "phantom trace_outputs entry must be rejected"
+    );
+    assert!(
+        result.summary().contains("trace_outputs") && result.summary().contains("phantom"),
+        "summary should name the phantom path, got: {}",
+        result.summary()
+    );
+}
+
+#[test]
 fn test_verify_rejects_unknown_source_on_cert_profile() {
     // Legacy-shaped bundle (source="unknown") on cert profile must
     // fail: cert cannot accept a bundle whose engine provenance is
