@@ -53,7 +53,7 @@ pub use compliance::{
     generate_compliance_report,
 };
 pub use coverage::{CoverageLevel, CoverageSummary};
-pub use env::EnvFingerprint;
+pub use env::{EnvFingerprint, Host};
 pub use git::{GitSnapshot, RealGitProvider};
 pub use hash::{sha256, sha256_file};
 pub use policy::{

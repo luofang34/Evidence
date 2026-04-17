@@ -1544,12 +1544,32 @@ fn validate_env_schema(value: &serde_json::Value) -> Result<()> {
         "in_nix_shell",
         "tools",
         "nav_env",
+        "host",
+        "target_triple",
     ];
 
     for field in required {
         if value.get(field).is_none() {
             bail!("missing required field: {}", field);
         }
+    }
+
+    // `host` is a tagged enum; every valid shape has `os` and `arch`.
+    let host = value
+        .get("host")
+        .ok_or_else(|| anyhow::anyhow!("missing required field: host"))?;
+    let host_os = host
+        .get("os")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("host.os must be a string"))?;
+    if !matches!(host_os, "linux" | "macos" | "windows") {
+        bail!(
+            "host.os must be one of linux|macos|windows, got {}",
+            host_os
+        );
+    }
+    if host.get("arch").and_then(|v| v.as_str()).is_none() {
+        bail!("host.arch must be a string");
     }
     Ok(())
 }
