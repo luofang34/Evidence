@@ -54,6 +54,17 @@ pub enum VerifyError {
         index_value: String,
         env_value: String,
     },
+    /// `deterministic_hash` in `index.json` does not match the actual
+    /// SHA-256 of `deterministic-manifest.json`.
+    DeterministicHashMismatch {
+        index_hash: String,
+        actual_hash: String,
+    },
+    /// Re-projecting `env.json`'s `DeterministicManifest` subset
+    /// does not byte-equal the committed `deterministic-manifest.json`.
+    /// Indicates tampering or a CLI bug that let the two drift apart
+    /// at generation time.
+    ManifestProjectionDrift { detail: String },
 }
 
 impl std::fmt::Display for VerifyError {
@@ -108,6 +119,23 @@ impl std::fmt::Display for VerifyError {
                     f,
                     "env.json vs index.json mismatch for {}: index={}, env={}",
                     field, index_value, env_value
+                )
+            }
+            VerifyError::DeterministicHashMismatch {
+                index_hash,
+                actual_hash,
+            } => {
+                write!(
+                    f,
+                    "deterministic_hash mismatch: index={}, actual={}",
+                    index_hash, actual_hash
+                )
+            }
+            VerifyError::ManifestProjectionDrift { detail } => {
+                write!(
+                    f,
+                    "deterministic-manifest.json is not a valid projection of env.json: {}",
+                    detail
                 )
             }
         }
@@ -186,6 +214,7 @@ pub const REQUIRED_FILES: &[&str] = &[
     "outputs_hashes.json",
     "commands.json",
     "env.json",
+    "deterministic-manifest.json",
     "SHA256SUMS",
 ];
 
@@ -286,6 +315,19 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
             field: "content_hash".to_string(),
             expected: "64-character lowercase hex (SHA-256)".to_string(),
             actual: index.content_hash.clone(),
+        });
+    }
+    // deterministic_hash must also be 64-char lowercase hex
+    if index.deterministic_hash.len() != 64
+        || !index
+            .deterministic_hash
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+    {
+        verify_errors.push(VerifyError::FormatError {
+            field: "deterministic_hash".to_string(),
+            expected: "64-character lowercase hex (SHA-256)".to_string(),
+            actual: index.deterministic_hash.clone(),
         });
     }
 
@@ -425,6 +467,77 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
         });
     }
 
+    // 6a. Verify deterministic_hash matches actual SHA-256 of
+    //     deterministic-manifest.json.
+    //
+    //     The manifest file is already covered by SHA256SUMS (so the
+    //     content_hash check above would catch a tampered manifest
+    //     against its SHA256SUMS entry). This additional check
+    //     protects against a malformed `index.json` whose
+    //     deterministic_hash has been changed to claim a different
+    //     cross-host identity than the committed manifest actually
+    //     produces.
+    let manifest_path = bundle.join("deterministic-manifest.json");
+    if manifest_path.exists() {
+        let actual_manifest_hash = sha256_file(&manifest_path)?;
+        if index.deterministic_hash != actual_manifest_hash {
+            verify_errors.push(VerifyError::DeterministicHashMismatch {
+                index_hash: index.deterministic_hash.clone(),
+                actual_hash: actual_manifest_hash,
+            });
+        }
+
+        // 6b. Verify the manifest is a faithful projection of env.json.
+        //
+        //     Without this check, a tamperer could produce a
+        //     well-formed bundle where `deterministic-manifest.json`
+        //     and `index.json.deterministic_hash` agree with each
+        //     other but disagree with `env.json`. The projection
+        //     check closes that gap: we deserialize env.json into
+        //     `EnvFingerprint`, run `.deterministic_manifest()`,
+        //     serialize with the same writer the bundler used, and
+        //     compare bytes.
+        let env_path = bundle.join("env.json");
+        if env_path.exists() {
+            match (fs::read(&env_path), fs::read(&manifest_path)) {
+                (Ok(env_bytes), Ok(manifest_bytes)) => {
+                    match serde_json::from_slice::<crate::env::EnvFingerprint>(&env_bytes) {
+                        Ok(env_fp) => {
+                            match serde_json::to_vec_pretty(&env_fp.deterministic_manifest()) {
+                                Ok(reprojected) => {
+                                    if reprojected != manifest_bytes {
+                                        verify_errors.push(VerifyError::ManifestProjectionDrift {
+                                            detail: format!(
+                                                "manifest {} bytes, reprojection {} bytes",
+                                                manifest_bytes.len(),
+                                                reprojected.len()
+                                            ),
+                                        });
+                                    }
+                                }
+                                Err(e) => {
+                                    verify_errors.push(VerifyError::ManifestProjectionDrift {
+                                        detail: format!("serialize reprojection: {}", e),
+                                    });
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            verify_errors.push(VerifyError::ManifestProjectionDrift {
+                                detail: format!("parse env.json: {}", e),
+                            });
+                        }
+                    }
+                }
+                _ => {
+                    // Covered by the REQUIRED_FILES check above —
+                    // one or both files missing already produced a
+                    // MissingHashedFile error. Nothing to do here.
+                }
+            }
+        }
+    }
+
     // 7. Extra-file detection: walk all files in bundle and flag unexpected ones
     for entry in walkdir::WalkDir::new(bundle) {
         let entry = entry?;
@@ -514,7 +627,8 @@ mod tests {
     fn test_required_files_list() {
         assert!(REQUIRED_FILES.contains(&"index.json"));
         assert!(REQUIRED_FILES.contains(&"SHA256SUMS"));
-        assert_eq!(REQUIRED_FILES.len(), 6);
+        assert!(REQUIRED_FILES.contains(&"deterministic-manifest.json"));
+        assert_eq!(REQUIRED_FILES.len(), 7);
     }
 
     #[test]

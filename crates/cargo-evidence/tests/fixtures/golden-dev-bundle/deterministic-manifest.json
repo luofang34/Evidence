@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.0.1",
+  "profile": "dev",
+  "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+  "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)",
+  "llvm_version": "22.1.2",
+  "target_triple": "aarch64-apple-darwin",
+  "cargo_lock_hash": "01810a602c605c8a3a415e8948340dabf5b14e3b8375a1a6c8ea7498c75fcd8c",
+  "rust_toolchain_toml": "[toolchain]\nchannel = \"1.95\"\n",
+  "git_sha": "6de6b9ad415869deabfff961d13c3e39731f0a57",
+  "git_branch": "pr/15-deterministic-hash",
+  "git_dirty": true
+}

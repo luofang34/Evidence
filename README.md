@@ -42,31 +42,48 @@ fork it, read every line, and plan to own the delta.
 The CI matrix covers three host platforms; the level of confidence in each
 is intentionally different.
 
-| Platform     | Compiles | Unit + integration tests | Nix reproducible build | Cross-platform bit-for-bit determinism |
+| Platform     | Compiles | Unit + integration tests | Nix reproducible build | Cross-host `deterministic_hash` parity |
 |--------------|----------|--------------------------|------------------------|-----------------------------------------|
-| Linux x86_64 | yes      | yes                      | yes                    | **unverified**                          |
-| macOS (Apple Silicon) | yes | yes                  | not tested             | **unverified**                          |
-| Windows x86_64 | yes    | yes                      | not tested             | **unverified**                          |
+| Linux x86_64 | yes      | yes                      | yes                    | yes (gated in CI)                       |
+| macOS (Apple Silicon) | yes | yes                  | not tested             | yes (gated in CI)                       |
+| Windows x86_64 | yes    | yes                      | not tested             | yes (gated in CI)                       |
 
-Guarantees you should *not* read into this table:
+What's being claimed:
 
-- "Unverified" means "we have not written the test that compares `content_hash`
-  across platforms from identical inputs." It does **not** mean "deterministic
-  on Linux, broken elsewhere" — it means we haven't measured any of them.
-- Passing CI tests proves the tool runs. It does not prove it produces
-  evidence fit for qualification on that platform.
-- The Windows and macOS targets are kept green primarily so contributors on
-  those hosts can develop the tool. Bundles generated there are **best-effort**.
+- Every bundle carries **two** SHA-256 hashes in `index.json`:
+  `content_hash` (the full SHA-256 of `SHA256SUMS`, covers every recorded
+  byte, necessarily host-specific because `env.json` records host identity)
+  and `deterministic_hash` (the SHA-256 of a committed
+  `deterministic-manifest.json`, which is a projection of `env.json` down
+  to toolchain + target + source identity).
+- **`deterministic_hash` parity across hosts is gated in CI** via the
+  `evidence-cross-host` job: every push runs the generator on Linux,
+  macOS, and Windows and asserts the three `deterministic_hash` values are
+  byte-equal. If they diverge, the job fails the PR. See
+  [`evidence-cross-host-compare` in `.github/workflows/ci.yml`](.github/workflows/ci.yml).
+- `content_hash` **still differs** per host by design, and that's
+  intentional: the full SHA256SUMS-hashed chain records the host
+  operating environment so a DO-330 auditor has cryptographically-bound
+  provenance for the build environment. The cross-host equality channel
+  is `deterministic_hash`.
+
+What this matrix does **not** claim:
+
+- Passing CI tests and matching `deterministic_hash` prove the tool runs
+  consistently on that platform. Neither proves a bundle is fit for
+  regulatory qualification on that platform — that's a DER's call, not a
+  CI signal.
+- macOS and Windows are kept green primarily so contributors on those
+  hosts can develop the tool. Bundles generated there are still
+  **development artifacts** pending qualification review.
 
 **Recommended posture for anyone evaluating the tool:**
 
-- Generate evidence on Linux under the provided Nix flake.
-- Treat bundles generated elsewhere as development artifacts only.
+- Final cert builds should run on Linux under the provided Nix flake.
+- For dev work on macOS / Windows, compare `deterministic_hash` against
+  the Linux reference when you need to confirm reproducibility; don't
+  compare `content_hash` across hosts (it will always differ).
 - Pin a commit SHA, because the formats may still change.
-
-This matrix will tighten as the cross-platform determinism test, schema
-freeze, and tool-qualification work land. Until then, no row above should be
-read as a promise.
 
 ---
 
@@ -149,27 +166,56 @@ Every bundle is a self-contained directory with deterministic content:
 
 ```
 evidence/cert-20260207-143022Z-a1b2c3d4/
-  index.json              # Bundle metadata, schema versions, content_hash
-  env.json                # Environment fingerprint (rustc, cargo, LLVM, libc, OS)
-  inputs_hashes.json      # SHA-256 hashes of all source inputs
-  outputs_hashes.json     # SHA-256 hashes of all build outputs
-  commands.json           # Recorded command executions with exit codes
-  SHA256SUMS              # Content-layer integrity manifest
-  trace/                  # Traceability matrix outputs (Markdown)
-    matrix.md             # HLR <-> LLR <-> Test bidirectional matrix
-  tests/                  # Test execution artifacts (stdout/stderr)
+  index.json                   # Bundle metadata, schema versions, content_hash + deterministic_hash
+  env.json                     # Environment fingerprint (rustc, cargo, LLVM, libc, OS, tools, …)
+  deterministic-manifest.json  # Cross-host-stable projection of env.json (toolchain + target + source)
+  inputs_hashes.json           # SHA-256 hashes of all source inputs
+  outputs_hashes.json          # SHA-256 hashes of all build outputs
+  commands.json                # Recorded command executions with exit codes
+  SHA256SUMS                   # Content-layer integrity manifest
+  trace/                       # Traceability matrix outputs (Markdown)
+    matrix.md                  # HLR <-> LLR <-> Test bidirectional matrix
+  tests/                       # Test execution artifacts (stdout/stderr)
 ```
 
 **Design invariants:**
 
-- `SHA256SUMS` covers all content-layer files. `index.json` is metadata-layer
-  and excluded from `SHA256SUMS`, so timestamps never affect the content hash.
-- `content_hash` in `index.json` is the SHA-256 of `SHA256SUMS` itself --
-  two runs on the same commit produce the same `content_hash`.
+- `SHA256SUMS` covers every content-layer file, including
+  `env.json` **and** `deterministic-manifest.json`. `index.json` is
+  metadata-layer and excluded from `SHA256SUMS`, so timestamps do not
+  affect either hash.
+- `content_hash` in `index.json` is `SHA-256(SHA256SUMS)` — the
+  full-fidelity integrity hash. It differs per host because
+  `env.json` records host identity (host.os, libc, tool availability).
+- `deterministic_hash` in `index.json` is
+  `SHA-256(deterministic-manifest.json)` — the cross-host
+  reproducibility contract. Two runs on the same commit with the
+  same `rust-toolchain.toml` and the same `--target` produce the
+  same `deterministic_hash` regardless of host. This is what CI's
+  cross-host determinism job gates on.
+- The manifest is a **projection** of `env.json`, not a rewrite.
+  `verify_bundle` re-projects `env.json` at verification time and
+  asserts byte-equality against the committed manifest; tampering
+  with either side is caught.
 - All paths in `SHA256SUMS` use forward slashes, regardless of OS.
-- Bundle directories are prefixed with the profile name to prevent accidental
-  submission of `dev` bundles as `cert`.
+- Bundle directories are prefixed with the profile name to prevent
+  accidental submission of `dev` bundles as `cert`.
 - Existing bundle directories are never overwritten.
+
+### content_hash vs deterministic_hash — when to compare which
+
+Use `content_hash` when you need to attest that **every recorded byte**
+is unchanged. It is the integrity hash in the classical sense and is
+what `sha256sum -c SHA256SUMS` inside the bundle will attest to
+(subject to the `index.json` exclusion). Comparing `content_hash`
+across hosts is meaningless because the bundles legitimately record
+different host identities.
+
+Use `deterministic_hash` when you need to confirm that two bundles
+**represent the same logical build** (same commit, same toolchain,
+same target). It is the cross-host reproducibility channel. Our CI
+cross-host job asserts `deterministic_hash` parity across Linux,
+macOS, and Windows on every push.
 
 ### Captured Output Normalization
 
@@ -327,14 +373,14 @@ candidate.
 
 The six invariants that govern this tool's design:
 
-| # | Invariant        | Status  | How enforced                                              |
-|---|------------------|---------|-----------------------------------------------------------|
-| 1 | Non-mutating     | PASS    | `--out-dir` required; never modifies source tree           |
-| 2 | Self-describing  | PASS    | `index.json` + `SHA256SUMS` in every bundle                |
-| 3 | Deterministic    | PARTIAL | `content_hash` excludes timestamps; BTreeMap ordering; same-host same-commit reproducibility is unverified |
-| 4 | Data-driven      | PASS    | TOML policy files in `cert/`                               |
-| 5 | Offline-capable  | PASS    | Zero network calls; all operations are local              |
-| 6 | Cross-platform   | PARTIAL | Forward-slash normalization in all hash paths; bit-for-bit cross-platform equivalence is unverified (see Platform Support) |
+| # | Invariant        | Status | How enforced                                              |
+|---|------------------|--------|-----------------------------------------------------------|
+| 1 | Non-mutating     | PASS   | `--out-dir` required; never modifies source tree           |
+| 2 | Self-describing  | PASS   | `index.json` + `SHA256SUMS` in every bundle                |
+| 3 | Deterministic    | PASS   | `content_hash` excludes timestamps; BTreeMap ordering; two back-to-back runs on the same commit produce identical `content_hash` (gated by the dogfood `Evidence (self)` CI job) |
+| 4 | Data-driven      | PASS   | TOML policy files in `cert/`                               |
+| 5 | Offline-capable  | PASS   | Zero network calls; all operations are local              |
+| 6 | Cross-platform   | PASS   | `deterministic_hash` parity across Linux/macOS/Windows is gated by the `evidence-cross-host` CI job; `content_hash` differs by host by design (it binds `env.json`'s host identity fields) |
 
 ### Known Limitations (P1 Items)
 

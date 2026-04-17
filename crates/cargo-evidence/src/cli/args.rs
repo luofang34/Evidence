@@ -155,6 +155,9 @@ pub enum SchemaName {
     Env,
     Commands,
     Hashes,
+    /// Alias for deterministic-manifest.json.
+    #[value(name = "deterministic-manifest", alias = "manifest")]
+    DeterministicManifest,
 }
 
 // ============================================================================

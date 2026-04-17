@@ -253,23 +253,20 @@ jobs:
           retention-days: 14
 
   evidence-cross-host:
-    # Diagnostic (NOT gating). Generates a bundle on each OS from the
-    # same commit and publishes its index.json + SHA256SUMS as a
-    # per-OS artifact. The aggregator job below downloads all three
-    # and diffs content_hash.
+    # Generates a bundle on each OS from the same commit and
+    # publishes its index.json + SHA256SUMS + deterministic-manifest
+    # as a per-OS artifact. The aggregator job below downloads all
+    # three and asserts `deterministic_hash` parity.
     #
-    # Expected outcome today: the three content_hash values diverge
-    # because env.json's `host` field (a tagged enum with per-OS
-    # shape) legitimately differs across Linux / macOS / Windows.
-    # Purpose in this PR is to *quantify* that drift; a follow-up
-    # will decide whether to normalize env.json's host-dependent
-    # fields or to split evidence bundles into a host-agnostic
-    # reproducibility layer and a host-specific evidence layer.
-    #
-    # `continue-on-error: true` at the job level keeps the workflow
-    # green even when these jobs fail the internal hash comparison.
-    name: Cross-host determinism (diagnostic, ${{ matrix.os }})
-    continue-on-error: true
+    # `content_hash` still differs per host by design (env.json
+    # records `host.os`, libc, tool availability — those are baked
+    # into SHA256SUMS as part of the integrity chain, same as every
+    # other recorded byte). What's gating now is the committed
+    # `deterministic-manifest.json`, a projection of env.json onto
+    # toolchain + target + source identity, which MUST be byte-equal
+    # across all three hosts built from the same commit with the
+    # same `rust-toolchain.toml`.
+    name: Cross-host determinism (${{ matrix.os }})
     needs: check
     strategy:
       fail-fast: false
@@ -310,20 +307,22 @@ jobs:
             --out-dir "$RUNNER_TEMP/xhost-out" \
             --profile dev
 
-      - name: Stage per-OS diagnostic files
+      - name: Stage per-OS bundle metadata
         shell: bash
         run: |
           bundle=$(ls -d "$RUNNER_TEMP"/xhost-out/dev-*/ | head -n1)
           bundle=${bundle%/}
           mkdir -p ./xhost-stage
-          cp "$bundle/index.json"   ./xhost-stage/index.json
-          cp "$bundle/SHA256SUMS"   ./xhost-stage/SHA256SUMS
-          cp "$bundle/env.json"     ./xhost-stage/env.json
+          cp "$bundle/index.json"                   ./xhost-stage/index.json
+          cp "$bundle/SHA256SUMS"                   ./xhost-stage/SHA256SUMS
+          cp "$bundle/env.json"                     ./xhost-stage/env.json
+          cp "$bundle/deterministic-manifest.json"  ./xhost-stage/deterministic-manifest.json
           # The runner.os value ("Linux" / "macOS" / "Windows") is
-          # the stable identifier we'll key on in the aggregator.
+          # the stable identifier the aggregator keys on.
           echo "${{ runner.os }}" > ./xhost-stage/runner-os.txt
-          echo "---- content_hash on ${{ runner.os }} ----"
-          jq -r .content_hash ./xhost-stage/index.json
+          echo "---- on ${{ runner.os }} ----"
+          echo "content_hash:       $(jq -r .content_hash        ./xhost-stage/index.json)"
+          echo "deterministic_hash: $(jq -r .deterministic_hash  ./xhost-stage/index.json)"
 
       - name: Upload per-OS artifact
         if: always()
@@ -335,24 +334,21 @@ jobs:
           retention-days: 14
 
   evidence-cross-host-compare:
-    # Downloads all three per-OS artifacts and diffs their
-    # content_hash. This job is purely diagnostic — its output lives
-    # in the workflow summary (table of host → content_hash) and, on
-    # drift, a `::warning::` annotation. The job ALWAYS exits 0 so
-    # the PR checks list doesn't paint a red ❌ next to a diagnostic
-    # with no required action; `continue-on-error` is kept as
-    # defense-in-depth against unrelated step failures (download,
-    # jq, etc.).
+    # Downloads the three per-OS artifacts and asserts
+    # `deterministic_hash` parity (gating). `content_hash` still
+    # differs by host by design — env.json records host identity
+    # and is in SHA256SUMS, so its hash differs; the committed
+    # manifest is the channel for cross-host reproducibility.
     #
-    # When this check becomes gating (after the schema is refactored
-    # so cross-host content_hash parity is achievable), swap the
-    # trailing `exit 0` for `exit 1` in the drift branch and drop
-    # `continue-on-error`.
+    # The summary table surfaces both hashes per host so reviewers
+    # can confirm (i) deterministic_hash is the same value everywhere
+    # and (ii) content_hash varies in a predictable way (i.e. no two
+    # hosts produce the same content_hash — that would hint at an
+    # env.json field that's accidentally host-invariant).
     #
-    # `if: always()` runs even if one of the matrix jobs failed to
-    # upload — the comparison is still useful with 2/3 inputs.
+    # `if: always()` runs even if a matrix job failed to upload,
+    # because a single missing host is still useful to call out.
     name: Cross-host determinism (compare)
-    continue-on-error: true
     needs: evidence-cross-host
     if: always()
     runs-on: ubuntu-latest
@@ -364,55 +360,66 @@ jobs:
           path: ./xhost
           pattern: xhost-*
 
-      - name: Diff content_hash across hosts
+      - name: Assert deterministic_hash parity
         shell: bash
         run: |
           set -u
           echo "## Cross-host determinism report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| host | content_hash |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| host | deterministic_hash | content_hash |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
 
-          declare -a hashes=()
+          declare -a det_hashes=()
+          declare -a content_hashes=()
           declare -a hosts=()
           for dir in ./xhost/xhost-*/; do
             host=$(cat "$dir/runner-os.txt" | tr -d '[:space:]')
-            hash=$(jq -r .content_hash "$dir/index.json")
-            echo "$host: $hash"
-            echo "| $host | \`$hash\` |" >> "$GITHUB_STEP_SUMMARY"
-            hashes+=("$hash")
+            det=$(jq -r .deterministic_hash "$dir/index.json")
+            content=$(jq -r .content_hash "$dir/index.json")
+            echo "$host: deterministic=$det content=$content"
+            echo "| $host | \`$det\` | \`$content\` |" >> "$GITHUB_STEP_SUMMARY"
+            det_hashes+=("$det")
+            content_hashes+=("$content")
             hosts+=("$host")
           done
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          n=${#hashes[@]}
+          n=${#det_hashes[@]}
           if [ "$n" -lt 2 ]; then
-            echo "::warning::only $n host(s) reported — cannot compare"
-            echo "_Only $n host(s) reported; nothing to compare._" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            echo "::error::only $n host(s) reported — cannot assert parity"
+            echo "_Only $n host(s) reported; cannot assert parity._" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
 
-          # Count distinct hashes — a quick way to describe the drift
-          # shape ("1 distinct" = all agree; "2 distinct" = 2 vs 1
-          # split; "3 distinct" = full drift).
-          distinct=$(printf '%s\n' "${hashes[@]}" | sort -u | wc -l | tr -d '[:space:]')
-          echo "distinct content_hash values: $distinct / $n"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Distinct content_hash values: $distinct / $n**" >> "$GITHUB_STEP_SUMMARY"
+          distinct_det=$(printf '%s\n' "${det_hashes[@]}" | sort -u | wc -l | tr -d '[:space:]')
+          distinct_content=$(printf '%s\n' "${content_hashes[@]}" | sort -u | wc -l | tr -d '[:space:]')
 
-          if [ "$distinct" -eq 1 ]; then
-            echo "::notice::cross-host determinism: PASS ($n/$n hosts agree)"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**deterministic_hash distinct values: $distinct_det / $n (must be 1)**" >> "$GITHUB_STEP_SUMMARY"
+          echo "**content_hash distinct values:       $distinct_content / $n (expected $n, one per host)**" >> "$GITHUB_STEP_SUMMARY"
+
+          fail=0
+          if [ "$distinct_det" -ne 1 ]; then
+            echo "::error::deterministic_hash drift — $distinct_det distinct values across $n hosts"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "_All $n hosts produced identical content_hash. ✅_" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            echo "_❌ deterministic_hash MUST be identical across all hosts. Inspect each bundle's \`deterministic-manifest.json\`: toolchain, target triple, rustc/cargo versions, or source state is drifting between runners._" >> "$GITHUB_STEP_SUMMARY"
+            fail=1
+          else
+            echo "::notice::deterministic_hash parity: PASS ($n/$n hosts agree)"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_✅ deterministic_hash matches across all $n hosts._" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-          echo "::warning::cross-host determinism: DRIFT — $distinct distinct content_hash values across $n hosts"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "_$distinct distinct content_hash values across $n hosts. Drift is expected today because \`env.json.host\` (tagged enum) legitimately differs per OS; follow-up work will decide how to bracket host-dependent evidence._" >> "$GITHUB_STEP_SUMMARY"
-          # Diagnostic: exit 0 so the PR checks list stays green. The
-          # drift is fully captured by the `::warning::` annotation
-          # above and the summary table. Flip to `exit 1` once this
-          # check becomes gating.
-          exit 0
+          if [ "$distinct_content" -ne "$n" ]; then
+            # Two hosts produced the same content_hash. By design env.json
+            # records `host.os`, libc, tools — so two different hosts
+            # sharing a content_hash means either (a) env.json lost a
+            # host-varying field, or (b) the host setup is identical in a
+            # way we should record. Annotate only; don't fail.
+            echo "::warning::content_hash collision: $distinct_content distinct values across $n hosts (expected $n)"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_⚠ Expected $n distinct content_hash values (one per host); got $distinct_content. Check env.json's host-varying fields._" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit $fail

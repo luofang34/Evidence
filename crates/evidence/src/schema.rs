@@ -26,6 +26,7 @@ pub enum Schema {
     Env,
     Commands,
     Hashes,
+    DeterministicManifest,
 }
 
 impl Schema {
@@ -36,6 +37,7 @@ impl Schema {
             Schema::Env => SCHEMA_ENV,
             Schema::Commands => SCHEMA_COMMANDS,
             Schema::Hashes => SCHEMA_HASHES,
+            Schema::DeterministicManifest => SCHEMA_DETERMINISTIC_MANIFEST,
         }
     }
 
@@ -47,6 +49,7 @@ impl Schema {
             Schema::Env => "env",
             Schema::Commands => "commands",
             Schema::Hashes => "hashes",
+            Schema::DeterministicManifest => "deterministic-manifest",
         }
     }
 
@@ -60,6 +63,8 @@ impl Schema {
             Some(Schema::Env)
         } else if name == "commands.json" {
             Some(Schema::Commands)
+        } else if name == "deterministic-manifest.json" {
+            Some(Schema::DeterministicManifest)
         } else if name.contains("hashes") {
             Some(Schema::Hashes)
         } else {
@@ -71,8 +76,18 @@ impl Schema {
     /// doesn't fit the usual pattern. Used as a fallback by
     /// `schema validate`.
     pub fn for_content(value: &Value) -> Option<Self> {
+        // Both index.json and deterministic-manifest.json carry
+        // `schema_version`, but only the index has `bundle_complete`.
+        // The manifest has `target_triple` without env-specific
+        // fields like `host` or `tools` — that's the cheapest
+        // discriminator.
         if value.get("schema_version").is_some() && value.get("bundle_complete").is_some() {
             Some(Schema::Index)
+        } else if value.get("schema_version").is_some()
+            && value.get("target_triple").is_some()
+            && value.get("host").is_none()
+        {
+            Some(Schema::DeterministicManifest)
         } else if value.get("rustc").is_some() && value.get("cargo").is_some() {
             Some(Schema::Env)
         } else if value.is_array() {
@@ -98,6 +113,8 @@ const SCHEMA_INDEX: &str = include_str!("../../../schemas/index.schema.json");
 const SCHEMA_ENV: &str = include_str!("../../../schemas/env.schema.json");
 const SCHEMA_COMMANDS: &str = include_str!("../../../schemas/commands.schema.json");
 const SCHEMA_HASHES: &str = include_str!("../../../schemas/hashes.schema.json");
+const SCHEMA_DETERMINISTIC_MANIFEST: &str =
+    include_str!("../../../schemas/deterministic-manifest.schema.json");
 
 // ============================================================================
 // Validation
@@ -156,6 +173,10 @@ mod tests {
             Some(Schema::Commands)
         );
         assert_eq!(
+            Schema::for_filename("deterministic-manifest.json"),
+            Some(Schema::DeterministicManifest)
+        );
+        assert_eq!(
             Schema::for_filename("inputs_hashes.json"),
             Some(Schema::Hashes)
         );
@@ -170,7 +191,13 @@ mod tests {
     fn embedded_schemas_compile() {
         // A library bug (bad JSON Schema in the source tree) would
         // surface here first, not on the user's first invocation.
-        for s in [Schema::Index, Schema::Env, Schema::Commands, Schema::Hashes] {
+        for s in [
+            Schema::Index,
+            Schema::Env,
+            Schema::Commands,
+            Schema::Hashes,
+            Schema::DeterministicManifest,
+        ] {
             let value: Value = serde_json::from_str(s.source()).expect("parse");
             jsonschema::options()
                 .with_draft(jsonschema::Draft::Draft202012)

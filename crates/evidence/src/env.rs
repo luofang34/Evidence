@@ -164,6 +164,82 @@ impl EnvFingerprint {
     pub fn capture(profile: &str, strict: bool) -> Result<Self> {
         env_fingerprint(profile, strict)
     }
+
+    /// Project this fingerprint onto the cross-host-stable subset
+    /// used for `deterministic_hash` — the field set whose equality
+    /// across hosts is the tool's reproducibility contract.
+    ///
+    /// Excluded on purpose: `host.*` (per-OS shape), `tools`
+    /// (availability map that varies by host install), `nav_env`
+    /// (arbitrary host-local env vars), `in_nix_shell` (depends on
+    /// how the user invoked the build, not what's being built).
+    /// Those fields are still recorded in `env.json` and still flow
+    /// into `content_hash`; they simply are not part of the
+    /// deterministic identity.
+    pub fn deterministic_manifest(&self) -> DeterministicManifest {
+        DeterministicManifest {
+            schema_version: crate::schema_versions::DETERMINISTIC_MANIFEST.to_string(),
+            profile: self.profile.clone(),
+            rustc: self.rustc.clone(),
+            cargo: self.cargo.clone(),
+            llvm_version: self.llvm_version.clone(),
+            target_triple: self.target_triple.clone(),
+            cargo_lock_hash: self.cargo_lock_hash.clone(),
+            rust_toolchain_toml: self.rust_toolchain_toml.clone(),
+            rustflags: self.rustflags.clone(),
+            git_sha: self.git_sha.clone(),
+            git_branch: self.git_branch.clone(),
+            git_dirty: self.git_dirty,
+        }
+    }
+}
+
+/// Cross-host reproducibility contract.
+///
+/// A committed, SHA-256-hashed projection of `EnvFingerprint` that
+/// contains only fields which are stable across hosts sharing the
+/// same toolchain + target. Bundles built on the same commit from
+/// the same `rust-toolchain.toml` on Linux, macOS, and Windows
+/// produce byte-identical `DeterministicManifest` JSON — and
+/// therefore a shared `deterministic_hash` in `index.json`.
+///
+/// This runs alongside, not in place of, `content_hash`. Full
+/// content (including host identity) stays in `SHA256SUMS`, so the
+/// integrity chain is unbroken and `sha256sum -c` still attests to
+/// every recorded byte. `deterministic_hash` is a second hash
+/// specifically for cross-host equality comparisons.
+///
+/// Serialized as `deterministic-manifest.json` inside the bundle.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeterministicManifest {
+    /// Schema version for this manifest.
+    pub schema_version: String,
+    /// Active profile name (dev/cert/record).
+    pub profile: String,
+    /// rustc version string.
+    pub rustc: String,
+    /// cargo version string.
+    pub cargo: String,
+    /// LLVM version derived from rustc.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llvm_version: Option<String>,
+    /// Build target triple from rustc.
+    pub target_triple: String,
+    /// SHA-256 of `Cargo.lock` if present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cargo_lock_hash: Option<String>,
+    /// Raw contents of `rust-toolchain.toml` if present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rust_toolchain_toml: Option<String>,
+    /// Value of the `RUSTFLAGS` env var.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rustflags: Option<String>,
+    /// Source commit SHA.
+    pub git_sha: String,
+    /// Source branch name.
+    pub git_branch: String,
+    /// Source tree dirty status.
+    pub git_dirty: bool,
 }
 
 /// Capture a complete environment fingerprint.
