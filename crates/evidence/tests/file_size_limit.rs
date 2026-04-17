@@ -40,14 +40,7 @@ const LIMIT: usize = 500;
 /// Every entry must have a comment naming the follow-up PR or
 /// reason; empty this list out as entries get resolved.
 const ALLOWLIST: &[(&str, &str)] = &[
-    // `env.rs` (~544 lines) is at ~9% over the limit. The module
-    // decomposes cleanly into host detection / EnvFingerprint /
-    // DeterministicManifest / capture, but the split is mechanical
-    // and orthogonal to the compliance.rs work in the same PR that
-    // introduced this guardrail. Land guardrail first, split in a
-    // follow-up.
-    ("crates/evidence/src/env.rs", "pending split PR"),
-    // `policy.rs` (~554 lines) — same story as env.rs. Profile /
+    // `policy.rs` (~554 lines) at ~10% over the limit. Profile /
     // BoundaryConfig / Dal / EvidencePolicy / TracePolicy are clear
     // split lines but belong in a separate PR.
     ("crates/evidence/src/policy.rs", "pending split PR"),
