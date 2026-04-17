@@ -45,7 +45,7 @@ is intentionally different.
 | Platform     | Compiles | Unit + integration tests | Nix reproducible build | Cross-host `deterministic_hash` parity | `deterministic_hash` parity under Nix |
 |--------------|----------|--------------------------|------------------------|-----------------------------------------|----------------------------------------|
 | Linux x86_64 | yes      | yes                      | yes (gated in CI)      | yes (gated in CI)                       | yes (gated in CI)                      |
-| macOS (Apple Silicon) | yes | yes                  | yes (gated in CI)      | yes (gated in CI)                       | yes (gated in CI)                      |
+| macOS (Apple Silicon) | yes | yes                  | works via devShell (gated in CI) | yes (gated in CI)             | yes (gated in CI)                      |
 | Windows x86_64 | yes    | yes                      | n/a (no Nix on Windows) | yes (gated in CI)                       | n/a (no Nix on Windows)                |
 
 What's being claimed:

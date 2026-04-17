@@ -96,14 +96,18 @@ jobs:
         run: cargo build --workspace --release
 
   nix:
-    name: Nix build (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        # macOS + Linux. Windows Nix requires WSL plumbing that isn't
-        # worth the complexity for a flake-check + build smoke test.
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    # Exercises the cert-ship path: `nix build` of `packages.default`
+    # via `makeRustPlatform`. Linux-only because the README is explicit
+    # that final cert builds run on Linux under Nix; macOS Nix is a
+    # dev-convenience path, and it's already exercised end-to-end by
+    # `evidence-self-nix (macos-latest)` via the devShell — which is
+    # what the 5-flavor `deterministic_hash` parity claim depends on.
+    # Running a second macOS `nix build` added ~9 min to the critical
+    # path for ~5% more coverage (breakage unique to `makeRustPlatform`
+    # on macOS that doesn't also hit the devShell); not worth blocking
+    # PRs on.
+    name: Nix build (ubuntu-latest)
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -111,11 +115,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install Nix
-        # DeterminateSystems installer (not cachix/install-nix-action)
-        # because the macos-latest runner image ships with residual
-        # `_nixbld` users from GitHub's base image; cachix's installer
-        # aborts on `eDSRecordAlreadyExists` there. DeterminateSystems
-        # detects and reuses pre-existing state.
+        # DeterminateSystems installer detects and reuses pre-existing
+        # `_nixbld` state so it doesn't abort on `eDSRecordAlreadyExists`
+        # the way cachix/install-nix-action does.
         uses: DeterminateSystems/nix-installer-action@v14
 
       - name: Nix flake check
