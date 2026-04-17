@@ -131,18 +131,27 @@ jobs:
       - name: Build release binary
         run: cargo build --release -p cargo-evidence
 
+      # Output dirs live outside the tracked tree. If we wrote them
+      # inside the repo, run A would leave an untracked `./out-a/`
+      # directory that makes `git status --porcelain` non-empty for
+      # run B — flipping `git_dirty` from false to true and
+      # legitimately rotating env.json's hash. That's correct tool
+      # behavior (an untracked dir IS dirty state), so the fix is the
+      # CI setup, not the tool: the same advice applies to real users
+      # who run `cargo-evidence generate --out-dir <somewhere>`.
+
       - name: Generate bundle (run A)
         run: |
-          mkdir -p ./out-a
+          mkdir -p "$RUNNER_TEMP/out-a"
           ./target/release/cargo-evidence evidence generate \
             --skip-tests \
-            --out-dir ./out-a \
+            --out-dir "$RUNNER_TEMP/out-a" \
             --profile dev
 
       - name: Locate bundle A
         id: bundle_a
         run: |
-          path=$(ls -d ./out-a/dev-*/ | head -n1)
+          path=$(ls -d "$RUNNER_TEMP"/out-a/dev-*/ | head -n1)
           path=${path%/}
           echo "path=$path" >> "$GITHUB_OUTPUT"
           echo "Bundle A: $path"
@@ -181,13 +190,13 @@ jobs:
           # cross_platform_determinism test wouldn't catch it if the
           # leak lived in env capture, trace matrix generation, or
           # command recording.
-          mkdir -p ./out-b
+          mkdir -p "$RUNNER_TEMP/out-b"
           ./target/release/cargo-evidence evidence generate \
             --skip-tests \
-            --out-dir ./out-b \
+            --out-dir "$RUNNER_TEMP/out-b" \
             --profile dev
 
-          path_b=$(ls -d ./out-b/dev-*/ | head -n1)
+          path_b=$(ls -d "$RUNNER_TEMP"/out-b/dev-*/ | head -n1)
           path_b=${path_b%/}
           echo "Bundle B: $path_b"
 
@@ -205,13 +214,20 @@ jobs:
             exit 1
           fi
 
+      - name: Stage bundles for artifact upload
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ./dogfood-artifact
+          # cp -r tolerates a missing dir when a job fails before run B.
+          cp -r "$RUNNER_TEMP/out-a" ./dogfood-artifact/ 2>/dev/null || true
+          cp -r "$RUNNER_TEMP/out-b" ./dogfood-artifact/ 2>/dev/null || true
+
       - name: Upload bundle as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: evidence-self-bundle
-          path: |
-            out-a/
-            out-b/
+          path: ./dogfood-artifact/
           if-no-files-found: warn
           retention-days: 14
