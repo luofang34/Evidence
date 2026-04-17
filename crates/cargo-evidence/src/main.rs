@@ -1563,7 +1563,10 @@ fn validate_env_schema(value: &serde_json::Value) -> Result<()> {
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("host.os must be a string"))?;
     if !matches!(host_os, "linux" | "macos" | "windows") {
-        bail!("host.os must be one of linux|macos|windows, got {}", host_os);
+        bail!(
+            "host.os must be one of linux|macos|windows, got {}",
+            host_os
+        );
     }
     if host.get("arch").and_then(|v| v.as_str()).is_none() {
         bail!("host.arch must be a string");

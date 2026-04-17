@@ -293,7 +293,9 @@ fn detect_libc_linux() -> Option<String> {
 /// Best-effort Linux kernel version (`uname -r`).
 #[cfg(target_os = "linux")]
 fn detect_kernel_linux() -> Option<String> {
-    cmd_stdout("uname", &["-r"]).ok().map(|s| s.trim().to_string())
+    cmd_stdout("uname", &["-r"])
+        .ok()
+        .map(|s| s.trim().to_string())
 }
 
 /// macOS product version (`sw_vers -productVersion`).

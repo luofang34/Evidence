@@ -3,12 +3,12 @@
   "boundary_schema_version": "0.0.1",
   "trace_schema_version": "0.0.3",
   "profile": "dev",
-  "timestamp_rfc3339": "2026-04-17T04:40:11.912893+00:00",
-  "git_sha": "c3bf8d5cdd6584cf0424ad89c1b3849c6f4330ef",
-  "git_branch": "pr/3-golden-bundle",
+  "timestamp_rfc3339": "2026-04-17T06:29:06.973095+00:00",
+  "git_sha": "daa1bee9cdb8ae6b625da99e7f49124c073a47cb",
+  "git_branch": "pr/5-platform-info",
   "git_dirty": false,
   "engine_crate_version": "0.1.0",
-  "engine_git_sha": "c3bf8d5cdd6584cf0424ad89c1b3849c6f4330ef",
+  "engine_git_sha": "5896187884564f54ec65b2f75e597a28eaeb4f99",
   "inputs_hashes_file": "inputs_hashes.json",
   "outputs_hashes_file": "outputs_hashes.json",
   "commands_file": "commands.json",
@@ -18,5 +18,5 @@
   ],
   "trace_outputs": [],
   "bundle_complete": true,
-  "content_hash": "56d9d6a739aca6d80c4773418eb857df0f2eb3b8c541ea52ccf1b9032d13259e"
+  "content_hash": "570b553bf71ae651fd078f0b11054e63172e07a284901509308b5094e9be4953"
 }
