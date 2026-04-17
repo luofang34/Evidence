@@ -56,7 +56,9 @@ pub use coverage::{CoverageLevel, CoverageSummary};
 pub use env::EnvFingerprint;
 pub use git::{GitSnapshot, RealGitProvider};
 pub use hash::{sha256, sha256_file};
-pub use policy::{BoundaryConfig, Dal, DalConfig, EvidencePolicy, Profile, TracePolicy};
+pub use policy::{
+    BoundaryConfig, BoundaryPolicy, Dal, DalConfig, EvidencePolicy, Profile, TracePolicy,
+};
 pub use trace::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile,
     TraceFiles, TraceMeta, assign_missing_uuids_derived, assign_missing_uuids_hlr,

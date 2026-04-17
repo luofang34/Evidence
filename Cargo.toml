@@ -29,3 +29,19 @@ uuid = { version = "1", features = ["v4"] }
 
 # Internal crates
 evidence = { version = "0.1.0", path = "crates/evidence" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+# These are set to `deny` (not `forbid`) because the `clap` derive macros
+# emit blanket `#[allow(clippy::restriction)]` in their expansion, which
+# `forbid` at workspace level would reject with E0453. `deny` + CI's
+# `-D warnings` still fails builds on any violation, and leaves room for
+# test modules to opt into targeted `#[allow(...)]` where a `Result`-
+# returning pattern isn't ergonomic.
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+dbg_macro = "deny"

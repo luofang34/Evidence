@@ -46,6 +46,29 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: Forbid new `#[allow(dead_code)]`
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # PR diff mode: look only at lines the PR adds. Push mode: scan
+          # the whole tree so a direct-to-main push still fails fast.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="origin/${{ github.base_ref }}"
+            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+            diff=$(git diff "$base"...HEAD -- '*.rs')
+            added=$(printf '%s\n' "$diff" | grep -E '^\+[^+]' || true)
+            if printf '%s\n' "$added" | grep -qE '#\[allow\(dead_code\)\]'; then
+              echo "::error::This PR adds #[allow(dead_code)] — either use the field or delete it."
+              printf '%s\n' "$added" | grep -nE '#\[allow\(dead_code\)\]' || true
+              exit 1
+            fi
+          else
+            if grep -rnE '#\[allow\(dead_code\)\]' crates/; then
+              echo "::error::tree contains #[allow(dead_code)] — either use the field or delete it."
+              exit 1
+            fi
+          fi
+
       - name: Test
         run: cargo test --workspace
 

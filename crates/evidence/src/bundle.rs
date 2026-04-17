@@ -574,6 +574,12 @@ pub fn utc_compact_stamp() -> Result<String> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
 mod tests {
     use super::*;
 

@@ -179,6 +179,12 @@ pub fn git_ls_files(prefixes: &[&str]) -> Result<Vec<String>> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
 mod tests {
     use super::*;
 

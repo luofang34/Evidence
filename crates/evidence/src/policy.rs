@@ -71,14 +71,30 @@ pub struct BoundaryScope {
 pub struct BoundaryPolicy {
     /// Whether to forbid dependencies on out-of-scope workspace crates
     pub no_out_of_scope_deps: bool,
-    /// Whether to forbid build.rs in boundary crates (future)
+    /// Whether to forbid build.rs in boundary crates (DO-178C determinism)
     #[serde(default)]
-    #[allow(dead_code)]
     pub forbid_build_rs: bool,
-    /// Whether to forbid proc-macros in boundary crates (future)
+    /// Whether to forbid proc-macros in boundary crates (DO-178C auditability)
     #[serde(default)]
-    #[allow(dead_code)]
     pub forbid_proc_macros: bool,
+}
+
+impl BoundaryPolicy {
+    /// Names of the rules currently enabled by this policy, in a
+    /// stable order suitable for logging and reports.
+    pub fn enabled_rules(&self) -> Vec<&'static str> {
+        let mut rules = Vec::new();
+        if self.no_out_of_scope_deps {
+            rules.push("no_out_of_scope_deps");
+        }
+        if self.forbid_build_rs {
+            rules.push("forbid_build_rs");
+        }
+        if self.forbid_proc_macros {
+            rules.push("forbid_proc_macros");
+        }
+        rules
+    }
 }
 
 /// Complete boundary configuration (loaded from boundary.toml).
@@ -267,6 +283,12 @@ fn default_true() -> bool {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
 mod tests {
     use super::*;
 

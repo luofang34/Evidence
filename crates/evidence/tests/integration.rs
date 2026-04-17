@@ -3,6 +3,13 @@
 //! These tests exercise the PUBLIC API end-to-end, using mock GitProvider
 //! implementations and tempfile::TempDir for filesystem isolation.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+
 use std::collections::BTreeMap;
 use std::fs;
 
@@ -660,7 +667,7 @@ fn test_orphan_test_detection() {
             title: "Orphan test with no LLR link".to_string(),
             owner: Some("nav-kernel".to_string()),
             sort_key: Some(2),
-            traces_to: vec![], // Empty! This is the orphan.
+            traces_to: vec![],
             description: None,
             category: None,
             test_selector: None,

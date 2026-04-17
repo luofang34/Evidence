@@ -137,6 +137,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "evidence",
+ "log",
  "predicates",
  "serde",
  "serde_json",

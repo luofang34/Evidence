@@ -11,8 +11,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use evidence::{
-    Dal, DalConfig, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex,
-    EvidencePolicy, Profile, VerifyResult, backfill_uuids,
+    BoundaryPolicy, Dal, DalConfig, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
+    EvidenceIndex, EvidencePolicy, Profile, VerifyResult, backfill_uuids,
     env::in_nix_shell,
     git::git_ls_files,
     parse_cargo_test_output, sign_bundle,
@@ -619,6 +619,15 @@ fn load_in_scope_crates(path: &Path) -> Result<Vec<String>> {
         .with_context(|| format!("reading boundary config from {:?}", path))?;
     let config: toml::Value = toml::from_str(&content)?;
 
+    if let Some(policy_val) = config.get("policy") {
+        if let Ok(policy) = toml::Value::try_into::<BoundaryPolicy>(policy_val.clone()) {
+            log::debug!(
+                "boundary policy rules enabled: {:?}",
+                policy.enabled_rules()
+            );
+        }
+    }
+
     if let Some(scope) = config.get("scope") {
         if let Some(in_scope) = scope.get("in_scope") {
             if let Some(arr) = in_scope.as_array() {
@@ -1169,10 +1178,10 @@ explicit_forbidden = []
 # Forbid dependencies on out-of-scope workspace crates
 no_out_of_scope_deps = true
 
-# Forbid build.rs in boundary crates (future)
+# Forbid build.rs in boundary crates (DO-178C determinism)
 forbid_build_rs = false
 
-# Forbid proc-macros in boundary crates (future)
+# Forbid proc-macros in boundary crates (DO-178C auditability)
 forbid_proc_macros = false
 
 [forbidden_external]
@@ -1546,11 +1555,9 @@ fn validate_env_schema(value: &serde_json::Value) -> Result<()> {
 }
 
 fn validate_commands_schema(value: &serde_json::Value) -> Result<()> {
-    if !value.is_array() {
-        bail!("commands schema requires an array");
-    }
-
-    let arr = value.as_array().unwrap();
+    let arr = value
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("commands schema requires an array"))?;
     for (i, item) in arr.iter().enumerate() {
         if item.get("argv").is_none() {
             bail!("command[{}] missing required field: argv", i);
@@ -1566,16 +1573,13 @@ fn validate_commands_schema(value: &serde_json::Value) -> Result<()> {
 }
 
 fn validate_hashes_schema(value: &serde_json::Value) -> Result<()> {
-    if !value.is_object() {
-        bail!("hashes schema requires an object");
-    }
-
-    let obj = value.as_object().unwrap();
+    let obj = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("hashes schema requires an object"))?;
     for (key, val) in obj {
-        if !val.is_string() {
-            bail!("hash value for '{}' must be a string", key);
-        }
-        let hash = val.as_str().unwrap();
+        let hash = val
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("hash value for '{}' must be a string", key))?;
         if hash.len() != 64 {
             bail!(
                 "hash for '{}' must be 64 hex characters, got {}",

@@ -52,18 +52,15 @@ pub struct HlrEntry {
     pub owner: Option<String>,
     /// Scope ("soi" | "component")
     #[serde(default)]
-    #[allow(dead_code)]
     pub scope: Option<String>,
     /// Sort key for deterministic ordering
     #[serde(default)]
     pub sort_key: Option<i64>,
     /// Requirement category
     #[serde(default)]
-    #[allow(dead_code)]
     pub category: Option<String>,
     /// Source reference
     #[serde(default)]
-    #[allow(dead_code)]
     pub source: Option<String>,
     /// Requirement description
     #[serde(default)]
@@ -83,9 +80,7 @@ pub struct HlrEntry {
 /// LLR TOML file structure.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LlrFile {
-    #[allow(dead_code)]
     pub schema: Schema,
-    #[allow(dead_code)]
     pub meta: TraceMeta,
     pub requirements: Vec<LlrEntry>,
 }
@@ -113,11 +108,9 @@ pub struct LlrEntry {
     pub traces_to: Vec<String>,
     /// Source reference
     #[serde(default)]
-    #[allow(dead_code)]
     pub source: Option<String>,
-    /// Implementation modules
+    /// Implementation modules (DO-178C Table A-4 traceability)
     #[serde(default)]
-    #[allow(dead_code)]
     pub modules: Vec<String>,
     /// Whether this is a derived requirement
     #[serde(default)]
@@ -140,9 +133,7 @@ pub struct LlrEntry {
 /// Tests TOML file structure.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TestsFile {
-    #[allow(dead_code)]
     pub schema: Schema,
-    #[allow(dead_code)]
     pub meta: TraceMeta,
     pub tests: Vec<TestEntry>,
 }
@@ -171,17 +162,14 @@ pub struct TestEntry {
     /// Test description
     #[serde(default)]
     pub description: Option<String>,
-    /// Test category
+    /// Test category (used to group objectives in compliance reports)
     #[serde(default)]
-    #[allow(dead_code)]
     pub category: Option<String>,
-    /// Test selector (e.g., test function path)
+    /// Test selector (test function path for CI execution)
     #[serde(default)]
-    #[allow(dead_code)]
     pub test_selector: Option<String>,
     /// Source reference
     #[serde(default)]
-    #[allow(dead_code)]
     pub source: Option<String>,
 }
 
@@ -287,22 +275,22 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
     let llr = read_or_default(
         &root_path.join("llr.toml"),
         LlrFile {
+            schema: Schema { version: "".into() },
             meta: TraceMeta {
                 document_id: "".into(),
                 revision: "".into(),
             },
-            schema: Schema { version: "".into() },
             requirements: vec![],
         },
     )?;
     let tests = read_or_default(
         &root_path.join("tests.toml"),
         TestsFile {
+            schema: Schema { version: "".into() },
             meta: TraceMeta {
                 document_id: "".into(),
                 revision: "".into(),
             },
-            schema: Schema { version: "".into() },
             tests: vec![],
         },
     )?;
@@ -729,6 +717,20 @@ pub fn generate_traceability_matrix(
     s.push_str("<!-- Source: cert/trace roots (see project.toml trace.roots) -->\n");
     s.push_str(&format!("**Document ID:** {}\n\n", doc_id));
 
+    s.push_str("## Schema & Provenance\n\n");
+    s.push_str(&format!(
+        "- **HLR:** schema={}, document={}, rev={}\n",
+        hlr.schema.version, hlr.meta.document_id, hlr.meta.revision
+    ));
+    s.push_str(&format!(
+        "- **LLR:** schema={}, document={}, rev={}\n",
+        llr.schema.version, llr.meta.document_id, llr.meta.revision
+    ));
+    s.push_str(&format!(
+        "- **Tests:** schema={}, document={}, rev={}\n\n",
+        tests.schema.version, tests.meta.document_id, tests.meta.revision
+    ));
+
     // Sort by sort_key, then by ID for determinism
     let mut hlrs = hlr.requirements.clone();
     hlrs.sort_by(|a, b| {
@@ -891,6 +893,59 @@ pub fn generate_traceability_matrix(
     }
 
     // ================================================================
+    // Annotations: scope/category/source/modules/test_selector
+    // (preserves DO-178C metadata that's not shown in the tables above)
+    // ================================================================
+
+    let mut annotations = String::new();
+    for h in &hlrs {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(ref v) = h.scope {
+            parts.push(format!("scope={}", v));
+        }
+        if let Some(ref v) = h.category {
+            parts.push(format!("category={}", v));
+        }
+        if let Some(ref v) = h.source {
+            parts.push(format!("source={}", v));
+        }
+        if !parts.is_empty() {
+            annotations.push_str(&format!("- HLR {}: {}\n", h.id, parts.join(", ")));
+        }
+    }
+    for l in &llrs {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(ref v) = l.source {
+            parts.push(format!("source={}", v));
+        }
+        if !l.modules.is_empty() {
+            parts.push(format!("modules=[{}]", l.modules.join(", ")));
+        }
+        if !parts.is_empty() {
+            annotations.push_str(&format!("- LLR {}: {}\n", l.id, parts.join(", ")));
+        }
+    }
+    for t in &ts {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(ref v) = t.category {
+            parts.push(format!("category={}", v));
+        }
+        if let Some(ref v) = t.test_selector {
+            parts.push(format!("selector={}", v));
+        }
+        if let Some(ref v) = t.source {
+            parts.push(format!("source={}", v));
+        }
+        if !parts.is_empty() {
+            annotations.push_str(&format!("- TEST {}: {}\n", t.id, parts.join(", ")));
+        }
+    }
+    if !annotations.is_empty() {
+        s.push_str("\n## Annotations\n\n");
+        s.push_str(&annotations);
+    }
+
+    // ================================================================
     // End-to-End HLR -> Test Roll-Up Table
     // ================================================================
 
@@ -1022,6 +1077,12 @@ pub fn generate_traceability_matrix(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
 mod tests {
     use super::*;
 
@@ -1048,7 +1109,7 @@ mod tests {
     }
 
     #[test]
-    fn test_llr_entry_fields() {
+    fn test_llr_entry_fields() -> anyhow::Result<()> {
         let llr = LlrEntry {
             uid: Some("test-uuid".to_string()),
             ns: None,
@@ -1067,10 +1128,11 @@ mod tests {
         assert_eq!(llr.id, "LLR-001");
         assert!(!llr.derived);
         assert_eq!(llr.description.as_deref(), Some("An LLR description"));
+        Ok(())
     }
 
     #[test]
-    fn test_assign_missing_uuids_hlr() {
+    fn test_assign_missing_uuids_hlr() -> anyhow::Result<()> {
         let mut entries = vec![
             HlrEntry {
                 uid: None,
@@ -1104,15 +1166,18 @@ mod tests {
 
         let count = assign_missing_uuids_hlr(&mut entries);
         assert_eq!(count, 1);
-        assert!(entries[0].uid.is_some());
-        // Verify it's a valid UUID
-        assert!(uuid::Uuid::parse_str(entries[0].uid.as_ref().unwrap()).is_ok());
+        let assigned_uid = entries[0]
+            .uid
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("expected uid to be assigned"))?;
+        assert!(uuid::Uuid::parse_str(assigned_uid).is_ok());
         // The existing one should be untouched
         assert_eq!(entries[1].uid.as_deref(), Some("existing-uuid"));
+        Ok(())
     }
 
     #[test]
-    fn test_assign_missing_uuids_derived() {
+    fn test_assign_missing_uuids_derived() -> anyhow::Result<()> {
         let mut entries = vec![DerivedEntry {
             uid: None,
             id: "DER-001".to_string(),
@@ -1127,6 +1192,11 @@ mod tests {
 
         let count = assign_missing_uuids_derived(&mut entries);
         assert_eq!(count, 1);
-        assert!(uuid::Uuid::parse_str(entries[0].uid.as_ref().unwrap()).is_ok());
+        let assigned_uid = entries[0]
+            .uid
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("expected uid to be assigned"))?;
+        assert!(uuid::Uuid::parse_str(assigned_uid).is_ok());
+        Ok(())
     }
 }

@@ -3,6 +3,13 @@
 //! These tests exercise the binary end-to-end using `assert_cmd`.
 //! Each test runs in an isolated temp directory.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
