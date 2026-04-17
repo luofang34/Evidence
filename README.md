@@ -6,10 +6,67 @@
 [![CI](https://github.com/user/evidence/actions/workflows/ci.yml/badge.svg)](https://github.com/user/evidence/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/cargo-evidence.svg)](LICENSE-MIT)
 
-`cargo-evidence` generates self-describing, deterministic, and offline-verifiable
-evidence bundles for safety-critical Rust builds. It captures environment
-fingerprints, source/artifact hashes, command logs, and bidirectional traceability
-matrices -- everything a DER needs to evaluate your tool qualification data.
+`cargo-evidence` generates self-describing, offline-verifiable evidence bundles
+for safety-critical Rust builds. It captures environment fingerprints,
+source/artifact hashes, command logs, and bidirectional traceability matrices.
+
+---
+
+## Project Status
+
+> **Work in progress. Not production-ready. Not yet qualified for use on a
+> certification program.**
+
+This repository is an early-stage tool and its on-disk formats, CLI surface,
+schema versions, and tool-qualification story are all still moving. Treat
+anything below as an implementation sketch, not a contract:
+
+- **No public release yet.** There is no crates.io publication and no stable
+  version number. Breaking changes land on `main` without deprecation cycles.
+- **Determinism is a design goal, not a proven property.** The tool is built
+  around reproducible bundles (see ADR-001 invariants), but end-to-end
+  cross-platform bit-for-bit determinism has not been measured and is not
+  asserted by the test suite.
+- **No DER review.** No auditor, DER, or certification authority has evaluated
+  the tool. The "For Auditors" section below documents the intended design,
+  not a qualification claim.
+- **Schema versions (`0.0.x`) signal pre-1.0 instability.** Treat them as such.
+
+If you are considering this tool on a real program, the honest answer today is:
+fork it, read every line, and plan to own the delta.
+
+---
+
+## Platform Support
+
+The CI matrix covers three host platforms; the level of confidence in each
+is intentionally different.
+
+| Platform     | Compiles | Unit + integration tests | Nix reproducible build | Cross-platform bit-for-bit determinism |
+|--------------|----------|--------------------------|------------------------|-----------------------------------------|
+| Linux x86_64 | yes      | yes                      | yes                    | **unverified**                          |
+| macOS (Apple Silicon) | yes | yes                  | not tested             | **unverified**                          |
+| Windows x86_64 | yes    | yes                      | not tested             | **unverified**                          |
+
+Guarantees you should *not* read into this table:
+
+- "Unverified" means "we have not written the test that compares `content_hash`
+  across platforms from identical inputs." It does **not** mean "deterministic
+  on Linux, broken elsewhere" — it means we haven't measured any of them.
+- Passing CI tests proves the tool runs. It does not prove it produces
+  evidence fit for qualification on that platform.
+- The Windows and macOS targets are kept green primarily so contributors on
+  those hosts can develop the tool. Bundles generated there are **best-effort**.
+
+**Recommended posture for anyone evaluating the tool:**
+
+- Generate evidence on Linux under the provided Nix flake.
+- Treat bundles generated elsewhere as development artifacts only.
+- Pin a commit SHA, because the formats may still change.
+
+This matrix will tighten as the cross-platform determinism test, schema
+freeze, and tool-qualification work land. Until then, no row above should be
+read as a promise.
 
 ---
 
@@ -218,14 +275,14 @@ candidate.
 
 The six invariants that govern this tool's design:
 
-| # | Invariant        | Status | How enforced                                         |
-|---|------------------|--------|------------------------------------------------------|
-| 1 | Non-mutating     | PASS   | `--out-dir` required; never modifies source tree      |
-| 2 | Self-describing  | PASS   | `index.json` + `SHA256SUMS` in every bundle           |
-| 3 | Deterministic    | PASS   | `content_hash` excludes timestamps; BTreeMap ordering  |
-| 4 | Data-driven      | PASS   | TOML policy files in `cert/`                           |
-| 5 | Offline-capable  | PASS   | Zero network calls; all operations are local           |
-| 6 | Cross-platform   | PASS   | Forward-slash normalization in all hash paths           |
+| # | Invariant        | Status  | How enforced                                              |
+|---|------------------|---------|-----------------------------------------------------------|
+| 1 | Non-mutating     | PASS    | `--out-dir` required; never modifies source tree           |
+| 2 | Self-describing  | PASS    | `index.json` + `SHA256SUMS` in every bundle                |
+| 3 | Deterministic    | PARTIAL | `content_hash` excludes timestamps; BTreeMap ordering; same-host same-commit reproducibility is unverified |
+| 4 | Data-driven      | PASS    | TOML policy files in `cert/`                               |
+| 5 | Offline-capable  | PASS    | Zero network calls; all operations are local              |
+| 6 | Cross-platform   | PARTIAL | Forward-slash normalization in all hash paths; bit-for-bit cross-platform equivalence is unverified (see Platform Support) |
 
 ### Known Limitations (P1 Items)
 
