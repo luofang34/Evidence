@@ -24,7 +24,7 @@
 //! these constants to `cargo semver-checks` or an equivalent gate.
 
 /// Schema version for `index.json`. Covers the EvidenceIndex shape.
-pub const INDEX: &str = "0.0.2";
+pub const INDEX: &str = "0.0.1";
 
 /// Schema version for `boundary.toml` under the `[schema]` table.
 pub const BOUNDARY: &str = "0.0.1";

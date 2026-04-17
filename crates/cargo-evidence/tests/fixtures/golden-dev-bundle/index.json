@@ -1,14 +1,14 @@
 {
-  "schema_version": "0.0.2",
+  "schema_version": "0.0.1",
   "boundary_schema_version": "0.0.1",
   "trace_schema_version": "0.0.3",
   "profile": "dev",
-  "timestamp_rfc3339": "2026-04-17T16:34:01.123208+00:00",
-  "git_sha": "479cee955138222259d8ccf47e433597cd7fa833",
-  "git_branch": "pr/18-engine-git-sha-honest",
+  "timestamp_rfc3339": "2026-04-17T16:51:06.353337+00:00",
+  "git_sha": "984a91b0aaa88b543b2964ea25e27ab56afbe0b7",
+  "git_branch": "pr/19-keep-index-0-0-1",
   "git_dirty": true,
   "engine_crate_version": "0.1.0",
-  "engine_git_sha": "479cee955138222259d8ccf47e433597cd7fa833",
+  "engine_git_sha": "984a91b0aaa88b543b2964ea25e27ab56afbe0b7",
   "engine_build_source": "git",
   "inputs_hashes_file": "inputs_hashes.json",
   "outputs_hashes_file": "outputs_hashes.json",
@@ -19,6 +19,6 @@
   ],
   "trace_outputs": [],
   "bundle_complete": true,
-  "content_hash": "34d25c2cc7b6635786ec0959c8b595ed93f002f52c3c259441868dfae9a1803d",
-  "deterministic_hash": "039fbc399e6b3c54400240676d2a5232918e602993741315ce50570e3e8681e8"
+  "content_hash": "b68d87da18df26209613b37b443dfe649ac7af3cc19231e7b9814efd2d4f184d",
+  "deterministic_hash": "33115ca17d95e6d03ed9aa8a4a6753cae86dbf4474a8df3522833e76a4660711"
 }

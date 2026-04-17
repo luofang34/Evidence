@@ -208,7 +208,7 @@ pub fn verify_bundle_signature(bundle_dir: &Path, key: &[u8]) -> Result<bool> {
 /// Evidence bundle index (index.json).
 ///
 /// Default for `EvidenceIndex::engine_build_source` when deserializing
-/// a pre-0.0.2 bundle that predates the field.
+/// a legacy bundle that predates the field.
 fn default_engine_build_source() -> String {
     "unknown".to_string()
 }
@@ -249,16 +249,16 @@ pub struct EvidenceIndex {
     /// publish path: `${GITHUB_SHA}`). When
     /// `engine_build_source == "release"` this is `release-v<version>`,
     /// embedded when no git metadata was reachable — typical of
-    /// crates.io tarball builds. `"unknown"` appears only in pre-0.0.2
-    /// bundles whose writer didn't emit `engine_build_source`.
+    /// crates.io tarball builds. `"unknown"` only appears in legacy
+    /// bundles written before `engine_build_source` existed.
     pub engine_git_sha: String,
     /// Origin of `engine_git_sha`: `"git"` | `"release"` | `"unknown"`.
     ///
-    /// Written by every `EvidenceBuilder` from schema version 0.0.2 on;
-    /// `#[serde(default)]` returns `"unknown"` for pre-0.0.2 bundles
-    /// so older fixtures still deserialize. `verify` cross-checks the
-    /// pair (source, sha) to catch a build that e.g. claims `"git"`
-    /// but embeds a non-40-hex value.
+    /// Every `EvidenceBuilder` populates this to `"git"` or `"release"`;
+    /// `#[serde(default)]` returns `"unknown"` when deserializing a
+    /// legacy bundle that predates the field so older fixtures still
+    /// load. `verify` cross-checks the pair (source, sha) to catch a
+    /// build that e.g. claims `"git"` but embeds a non-40-hex value.
     #[serde(default = "default_engine_build_source")]
     pub engine_build_source: String,
     /// Path to inputs hashes file

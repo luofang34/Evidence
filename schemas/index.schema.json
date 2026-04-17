@@ -77,7 +77,7 @@
     "engine_build_source": {
       "type": "string",
       "enum": ["git", "release", "unknown"],
-      "description": "How `engine_git_sha` was resolved. `git`: captured from `git rev-parse HEAD` or an `EVIDENCE_ENGINE_GIT_SHA` env override at build time. `release`: no git metadata available, fallback string embedded (crates.io tarball builds). `unknown`: legacy value only present in pre-0.0.2 bundles that predate this field."
+      "description": "How `engine_git_sha` was resolved. `git`: captured from `git rev-parse HEAD` or an `EVIDENCE_ENGINE_GIT_SHA` env override at build time. `release`: no git metadata available, fallback string embedded (crates.io tarball builds). `unknown`: legacy value — only present in bundles written before this field was added; new bundles always emit `git` or `release`."
     },
     "inputs_hashes_file": {
       "type": "string",

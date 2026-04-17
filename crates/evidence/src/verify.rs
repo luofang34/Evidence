@@ -279,10 +279,10 @@ fn check_engine_source(source: &str, sha: &str, profile: &str, errors: &mut Vec<
             }
         }
         "unknown" => {
-            // Pre-0.0.2 bundle or one whose writer skipped the field.
-            // Dev tolerates it for backward compatibility; cert/record
-            // cannot accept a bundle whose engine provenance is
-            // unlabeled.
+            // Legacy bundle written before `engine_build_source` was
+            // added (serde default fills it in on read). Dev tolerates
+            // it for backward compatibility; cert/record cannot accept
+            // a bundle whose engine provenance is unlabeled.
             if profile != "dev" {
                 errors.push(VerifyError::FormatError {
                     field: "engine_build_source".to_string(),
