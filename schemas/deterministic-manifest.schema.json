@@ -9,7 +9,6 @@
     "profile",
     "rustc",
     "cargo",
-    "target_triple",
     "git_sha",
     "git_branch",
     "git_dirty"
@@ -34,10 +33,6 @@
     "llvm_version": {
       "type": "string",
       "description": "LLVM version from rustc -vV (optional)"
-    },
-    "target_triple": {
-      "type": "string",
-      "description": "Build target triple from rustc -vV"
     },
     "cargo_lock_hash": {
       "type": "string",

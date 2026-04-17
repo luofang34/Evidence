@@ -166,16 +166,28 @@ impl EnvFingerprint {
     }
 
     /// Project this fingerprint onto the cross-host-stable subset
-    /// used for `deterministic_hash` — the field set whose equality
-    /// across hosts is the tool's reproducibility contract.
+    /// used for `deterministic_hash` — the scope of the tool's
+    /// reproducibility contract.
     ///
-    /// Excluded on purpose: `host.*` (per-OS shape), `tools`
-    /// (availability map that varies by host install), `nav_env`
-    /// (arbitrary host-local env vars), `in_nix_shell` (depends on
-    /// how the user invoked the build, not what's being built).
-    /// Those fields are still recorded in `env.json` and still flow
-    /// into `content_hash`; they simply are not part of the
-    /// deterministic identity.
+    /// **Scope: "same commit + same toolchain."** Any two bundles
+    /// that agree on these ten fields represent the same logical
+    /// build from a source + toolchain perspective.
+    ///
+    /// Intentionally NOT in the manifest (but still in `env.json`
+    /// and therefore still in `content_hash`):
+    ///
+    /// - `host.*`, `tools`, `nav_env`, `in_nix_shell` — per-host
+    ///   state. Belongs to content_hash, not to identity.
+    /// - `target_triple` — semantically identity-defining, but
+    ///   practically host-variable. Native `cargo build` on Linux /
+    ///   macOS / Windows defaults to the host triple, so a CI matrix
+    ///   that runs native builds on all three hosts would produce
+    ///   three different target triples and the parity test could
+    ///   never pass without cross-compile plumbing. We keep target
+    ///   triple fully recorded in `env.json` (it's in `content_hash`
+    ///   for audit), and downstream consumers that need strict build
+    ///   identity should compare `deterministic_hash` **and**
+    ///   `env.target_triple` together.
     pub fn deterministic_manifest(&self) -> DeterministicManifest {
         DeterministicManifest {
             schema_version: crate::schema_versions::DETERMINISTIC_MANIFEST.to_string(),
@@ -183,7 +195,6 @@ impl EnvFingerprint {
             rustc: self.rustc.clone(),
             cargo: self.cargo.clone(),
             llvm_version: self.llvm_version.clone(),
-            target_triple: self.target_triple.clone(),
             cargo_lock_hash: self.cargo_lock_hash.clone(),
             rust_toolchain_toml: self.rust_toolchain_toml.clone(),
             rustflags: self.rustflags.clone(),
@@ -198,16 +209,22 @@ impl EnvFingerprint {
 ///
 /// A committed, SHA-256-hashed projection of `EnvFingerprint` that
 /// contains only fields which are stable across hosts sharing the
-/// same toolchain + target. Bundles built on the same commit from
-/// the same `rust-toolchain.toml` on Linux, macOS, and Windows
-/// produce byte-identical `DeterministicManifest` JSON — and
-/// therefore a shared `deterministic_hash` in `index.json`.
+/// same commit and toolchain. Bundles built from the same commit
+/// with the same `rust-toolchain.toml` on Linux, macOS, and
+/// Windows produce byte-identical `DeterministicManifest` JSON —
+/// and therefore a shared `deterministic_hash` in `index.json`.
+///
+/// Scope note: **target_triple is intentionally excluded**. See the
+/// `deterministic_manifest()` method doc for the full rationale;
+/// short version is that default-target native builds on the three
+/// CI hosts produce three different targets, and target parity
+/// requires cross-compile plumbing that's out of scope today.
+/// `env.target_triple` still flows into `content_hash`.
 ///
 /// This runs alongside, not in place of, `content_hash`. Full
-/// content (including host identity) stays in `SHA256SUMS`, so the
-/// integrity chain is unbroken and `sha256sum -c` still attests to
-/// every recorded byte. `deterministic_hash` is a second hash
-/// specifically for cross-host equality comparisons.
+/// content (including host identity and target triple) stays in
+/// `SHA256SUMS`, so the integrity chain is unbroken and
+/// `sha256sum -c` still attests to every recorded byte.
 ///
 /// Serialized as `deterministic-manifest.json` inside the bundle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -223,8 +240,6 @@ pub struct DeterministicManifest {
     /// LLVM version derived from rustc.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub llvm_version: Option<String>,
-    /// Build target triple from rustc.
-    pub target_triple: String,
     /// SHA-256 of `Cargo.lock` if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cargo_lock_hash: Option<String>,
