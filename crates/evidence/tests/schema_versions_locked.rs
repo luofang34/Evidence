@@ -66,16 +66,19 @@ fn workspace_root() -> PathBuf {
 }
 
 fn is_excluded(rel: &Path) -> bool {
+    // Normalize the path to forward slashes before substring-matching
+    // so the same rules apply on Windows (native `\`) and Unix (`/`).
+    let s = rel.to_string_lossy().replace('\\', "/");
+
     // The source of truth itself is allowed to declare the constants.
-    if rel.ends_with("evidence/src/schema_versions.rs") {
+    if s.ends_with("evidence/src/schema_versions.rs") {
         return true;
     }
     // This regression test's own source contains the search needle.
-    if rel.ends_with("evidence/tests/schema_versions_locked.rs") {
+    if s.ends_with("evidence/tests/schema_versions_locked.rs") {
         return true;
     }
     // Committed frozen evidence bundle — captured bytes are the point.
-    let s = rel.to_string_lossy();
     if s.contains("tests/fixtures/") {
         return true;
     }
