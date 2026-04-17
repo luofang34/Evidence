@@ -6,7 +6,7 @@
   "llvm_version": "22.1.2",
   "cargo_lock_hash": "01810a602c605c8a3a415e8948340dabf5b14e3b8375a1a6c8ea7498c75fcd8c",
   "rust_toolchain_toml": "[toolchain]\nchannel = \"1.95\"\n",
-  "git_sha": "479cee955138222259d8ccf47e433597cd7fa833",
-  "git_branch": "pr/18-engine-git-sha-honest",
+  "git_sha": "984a91b0aaa88b543b2964ea25e27ab56afbe0b7",
+  "git_branch": "pr/19-keep-index-0-0-1",
   "git_dirty": true
 }
