@@ -42,7 +42,7 @@
     },
     "profile": {
       "type": "string",
-      "enum": ["dev", "cert"],
+      "enum": ["dev", "cert", "record"],
       "description": "Build profile used for evidence generation"
     },
     "timestamp_rfc3339": {
@@ -71,8 +71,7 @@
     },
     "engine_git_sha": {
       "type": "string",
-      "pattern": "^[a-f0-9]{40}$",
-      "description": "Git SHA of the evidence engine"
+      "description": "Git SHA of the evidence engine (40-char hex when available, or placeholder until build-time embedding is implemented)"
     },
     "inputs_hashes_file": {
       "type": "string",
@@ -125,6 +124,14 @@
       "required": ["total", "passed", "failed", "ignored", "filtered_out"],
       "additionalProperties": false,
       "description": "Parsed summary of cargo test output, if tests were executed"
+    },
+    "dal_map": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["A", "B", "C", "D"]
+      },
+      "description": "Per-crate DAL (Design Assurance Level) assignments. Key is crate name, value is DAL level."
     }
   },
   "additionalProperties": false

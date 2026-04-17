@@ -3,13 +3,12 @@
 //! This module provides functionality to capture the build environment
 //! including toolchain versions, environment variables, and system info.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::process::Command;
 
 use crate::git::{git_branch, git_dirty, git_sha};
-use crate::traits::EnvironmentDetector;
 use crate::util::cmd_stdout;
 
 /// Complete build environment fingerprint.
@@ -69,36 +68,6 @@ impl EnvFingerprint {
     /// cert-mode strict error handling requirements.
     pub fn capture(profile: &str, strict: bool) -> Result<Self> {
         env_fingerprint(profile, strict)
-    }
-}
-
-/// Real environment detector that queries system state.
-pub struct RealEnvironmentDetector {
-    profile: String,
-    strict: bool,
-}
-
-impl RealEnvironmentDetector {
-    /// Create a new detector for the given profile.
-    pub fn new(profile: impl Into<String>) -> Self {
-        Self {
-            profile: profile.into(),
-            strict: false,
-        }
-    }
-
-    /// Create a new detector with strict mode for cert/record profiles.
-    pub fn new_strict(profile: impl Into<String>, strict: bool) -> Self {
-        Self {
-            profile: profile.into(),
-            strict,
-        }
-    }
-}
-
-impl EnvironmentDetector for RealEnvironmentDetector {
-    fn detect(&self) -> Result<EnvFingerprint> {
-        env_fingerprint(&self.profile, self.strict)
     }
 }
 
@@ -255,8 +224,13 @@ pub fn tool_exists(prog: &str, args: &[&str]) -> bool {
         .unwrap_or(false)
 }
 
-
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
 mod tests {
     use super::*;
 

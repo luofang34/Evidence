@@ -7,6 +7,8 @@
 //! # Modules
 //!
 //! - [`bundle`] - Evidence bundle creation and management
+//! - [`compliance`] - Per-crate DO-178C compliance reporting
+//! - [`coverage`] - Structural coverage data types
 //! - [`env`] - Build environment fingerprinting
 //! - [`git`] - Git repository state capture
 //! - [`hash`] - Cryptographic hashing utilities
@@ -30,6 +32,8 @@
 //! ```
 
 pub mod bundle;
+pub mod compliance;
+pub mod coverage;
 pub mod env;
 pub mod git;
 pub mod hash;
@@ -41,18 +45,26 @@ pub mod verify;
 
 // Re-export key types for convenience
 pub use bundle::{
-    parse_cargo_test_output, sign_bundle, verify_bundle_signature, CommandRecord,
-    EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, TestSummary,
+    CommandRecord, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, TestSummary,
+    parse_cargo_test_output, sign_bundle, verify_bundle_signature,
 };
+pub use compliance::{
+    Applicability, ComplianceReport, ComplianceSummary, CrateEvidence, OBJECTIVES, ObjectiveStatus,
+    generate_compliance_report,
+};
+pub use coverage::{CoverageLevel, CoverageSummary};
 pub use env::EnvFingerprint;
 pub use git::{GitSnapshot, RealGitProvider};
 pub use hash::{sha256, sha256_file};
-pub use policy::{BoundaryConfig, Profile, ProfileConfig, TracePolicy, VerifyPolicy};
-pub use trace::{
-    assign_missing_uuids_derived, assign_missing_uuids_hlr, assign_missing_uuids_llr,
-    assign_missing_uuids_test, backfill_uuids, generate_traceability_matrix, read_all_trace_files,
-    read_toml, validate_trace_links, DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry,
-    LlrFile, Schema, TestEntry, TestsFile, TraceFiles, TraceMeta,
+pub use policy::{
+    BoundaryConfig, BoundaryPolicy, Dal, DalConfig, EvidencePolicy, Profile, TracePolicy,
 };
-pub use traits::{CommandOutput, CommandRunner, EnvironmentDetector, FileSystem, GitProvider};
-pub use verify::{verify_bundle, verify_bundle_with_key, VerifyError, VerifyResult};
+pub use trace::{
+    DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile,
+    TraceFiles, TraceMeta, assign_missing_uuids_derived, assign_missing_uuids_hlr,
+    assign_missing_uuids_llr, assign_missing_uuids_test, backfill_uuids,
+    generate_traceability_matrix, read_all_trace_files, read_toml, validate_trace_links,
+    validate_trace_links_with_policy,
+};
+pub use traits::GitProvider;
+pub use verify::{VerifyError, VerifyResult, verify_bundle, verify_bundle_with_key};

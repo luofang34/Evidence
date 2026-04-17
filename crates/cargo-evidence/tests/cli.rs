@@ -3,6 +3,13 @@
 //! These tests exercise the binary end-to-end using `assert_cmd`.
 //! Each test runs in an isolated temp directory.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
@@ -219,4 +226,112 @@ fn test_schema_show_index() {
         .assert()
         .success()
         .stdout(predicate::str::contains("\"type\""));
+}
+
+#[test]
+fn test_schema_show_env() {
+    cargo_evidence()
+        .arg("evidence")
+        .arg("schema")
+        .arg("show")
+        .arg("env")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("rustc"));
+}
+
+#[test]
+fn test_schema_show_commands() {
+    cargo_evidence()
+        .arg("evidence")
+        .arg("schema")
+        .arg("show")
+        .arg("commands")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("argv"));
+}
+
+#[test]
+fn test_schema_show_hashes() {
+    cargo_evidence()
+        .arg("evidence")
+        .arg("schema")
+        .arg("show")
+        .arg("hashes")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("additionalProperties"));
+}
+
+// ============================================================================
+// Help and Version
+// ============================================================================
+
+#[test]
+fn test_help_flag() {
+    cargo_evidence()
+        .arg("evidence")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("evidence"));
+}
+
+#[test]
+fn test_generate_help() {
+    cargo_evidence()
+        .arg("evidence")
+        .arg("generate")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("sign-key"));
+}
+
+// ============================================================================
+// Verify: exit codes and JSON output
+// ============================================================================
+
+#[test]
+fn test_verify_nonexistent_exit_code_2() {
+    let tmp = TempDir::new().unwrap();
+    cargo_evidence()
+        .arg("evidence")
+        .arg("verify")
+        .arg("nonexistent-bundle")
+        .current_dir(tmp.path())
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("bundle not found"));
+}
+
+#[test]
+fn test_verify_json_nonexistent() {
+    let tmp = TempDir::new().unwrap();
+    cargo_evidence()
+        .arg("evidence")
+        .arg("verify")
+        .arg("--json")
+        .arg("nonexistent-bundle")
+        .current_dir(tmp.path())
+        .assert()
+        .code(2)
+        .stdout(predicate::str::contains("\"success\": false"));
+}
+
+// ============================================================================
+// Generate: missing --out-dir
+// ============================================================================
+
+#[test]
+fn test_generate_requires_out_dir() {
+    let tmp = TempDir::new().unwrap();
+    cargo_evidence()
+        .arg("evidence")
+        .arg("generate")
+        .current_dir(tmp.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("--out-dir"));
 }

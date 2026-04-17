@@ -3,7 +3,7 @@
 //! This module provides functionality for capturing git repository
 //! state including commit hashes, branch info, and dirty status.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use log;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
@@ -75,10 +75,10 @@ impl GitSnapshot {
                 Ok(d) => d,
                 Err(_) => {
                     log::warn!(
-                        "Could not determine git dirty status; defaulting to clean. \
-                         Evidence may be generated from an unknown working directory state."
+                        "Could not determine git dirty status; defaulting to dirty. \
+                         Safety-critical default: assume worst case when status is unknown."
                     );
-                    false
+                    true
                 }
             },
         })
@@ -168,8 +168,9 @@ pub fn git_ls_files(prefixes: &[&str]) -> Result<Vec<String>> {
             continue;
         }
         // Require valid UTF-8 paths for evidence integrity
-        let path = std::str::from_utf8(segment)
-            .map_err(|_| anyhow::anyhow!("git ls-files returned non-UTF8 path (evidence requires UTF8)"))?;
+        let path = std::str::from_utf8(segment).map_err(|_| {
+            anyhow::anyhow!("git ls-files returned non-UTF8 path (evidence requires UTF8)")
+        })?;
         files.push(path.to_string());
     }
     // Re-sort for determinism (git output is usually sorted, but be explicit)
@@ -177,8 +178,13 @@ pub fn git_ls_files(prefixes: &[&str]) -> Result<Vec<String>> {
     Ok(files)
 }
 
-
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
 mod tests {
     use super::*;
 

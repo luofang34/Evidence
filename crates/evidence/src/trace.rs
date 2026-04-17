@@ -5,7 +5,7 @@
 //! HLR (High-Level Requirements), LLR (Low-Level Requirements), and
 //! Test case linking.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use log;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -30,7 +30,6 @@ pub struct TraceMeta {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HlrFile {
     pub schema: Schema,
-    #[allow(dead_code)]
     pub meta: TraceMeta,
     pub requirements: Vec<HlrEntry>,
 }
@@ -53,18 +52,15 @@ pub struct HlrEntry {
     pub owner: Option<String>,
     /// Scope ("soi" | "component")
     #[serde(default)]
-    #[allow(dead_code)]
     pub scope: Option<String>,
     /// Sort key for deterministic ordering
     #[serde(default)]
     pub sort_key: Option<i64>,
     /// Requirement category
     #[serde(default)]
-    #[allow(dead_code)]
     pub category: Option<String>,
     /// Source reference
     #[serde(default)]
-    #[allow(dead_code)]
     pub source: Option<String>,
     /// Requirement description
     #[serde(default)]
@@ -84,9 +80,7 @@ pub struct HlrEntry {
 /// LLR TOML file structure.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LlrFile {
-    #[allow(dead_code)]
     pub schema: Schema,
-    #[allow(dead_code)]
     pub meta: TraceMeta,
     pub requirements: Vec<LlrEntry>,
 }
@@ -114,11 +108,9 @@ pub struct LlrEntry {
     pub traces_to: Vec<String>,
     /// Source reference
     #[serde(default)]
-    #[allow(dead_code)]
     pub source: Option<String>,
-    /// Implementation modules
+    /// Implementation modules (DO-178C Table A-4 traceability)
     #[serde(default)]
-    #[allow(dead_code)]
     pub modules: Vec<String>,
     /// Whether this is a derived requirement
     #[serde(default)]
@@ -141,9 +133,7 @@ pub struct LlrEntry {
 /// Tests TOML file structure.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TestsFile {
-    #[allow(dead_code)]
     pub schema: Schema,
-    #[allow(dead_code)]
     pub meta: TraceMeta,
     pub tests: Vec<TestEntry>,
 }
@@ -156,12 +146,10 @@ pub struct TestEntry {
     pub uid: Option<String>,
     /// Namespace prefix
     #[serde(default)]
-    #[allow(dead_code)]
     pub ns: Option<String>,
     /// Human-readable ID
     pub id: String,
     /// Test title
-    #[allow(dead_code)]
     pub title: String,
     /// Owner (schema v0.0.3+)
     #[serde(default)]
@@ -174,17 +162,14 @@ pub struct TestEntry {
     /// Test description
     #[serde(default)]
     pub description: Option<String>,
-    /// Test category
+    /// Test category (used to group objectives in compliance reports)
     #[serde(default)]
-    #[allow(dead_code)]
     pub category: Option<String>,
-    /// Test selector (e.g., test function path)
+    /// Test selector (test function path for CI execution)
     #[serde(default)]
-    #[allow(dead_code)]
     pub test_selector: Option<String>,
     /// Source reference
     #[serde(default)]
-    #[allow(dead_code)]
     pub source: Option<String>,
 }
 
@@ -252,18 +237,30 @@ pub struct TraceFiles {
 
 /// Read all trace files from a root directory.
 ///
-/// Missing files are returned with empty requirement lists
+/// Missing files are returned with empty requirement lists and a warning is logged.
 /// (derived returns None if absent).
 pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
     fn read_or_default<T: for<'de> Deserialize<'de>>(path: &Path, default: T) -> Result<T> {
         if path.exists() {
             read_toml(path)
         } else {
+            log::warn!(
+                "Trace file not found: {} — using empty defaults. \
+                 Check trace root path if this is unexpected.",
+                path.display()
+            );
             Ok(default)
         }
     }
 
     let root_path = Path::new(root);
+
+    if !root_path.exists() {
+        log::warn!(
+            "Trace root directory does not exist: {} — all trace files will be empty.",
+            root_path.display()
+        );
+    }
     let hlr = read_or_default(
         &root_path.join("hlr.toml"),
         HlrFile {
@@ -271,21 +268,17 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
                 document_id: "".into(),
                 revision: "".into(),
             },
-            schema: Schema {
-                version: "".into(),
-            },
+            schema: Schema { version: "".into() },
             requirements: vec![],
         },
     )?;
     let llr = read_or_default(
         &root_path.join("llr.toml"),
         LlrFile {
+            schema: Schema { version: "".into() },
             meta: TraceMeta {
                 document_id: "".into(),
                 revision: "".into(),
-            },
-            schema: Schema {
-                version: "".into(),
             },
             requirements: vec![],
         },
@@ -293,12 +286,10 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
     let tests = read_or_default(
         &root_path.join("tests.toml"),
         TestsFile {
+            schema: Schema { version: "".into() },
             meta: TraceMeta {
                 document_id: "".into(),
                 revision: "".into(),
-            },
-            schema: Schema {
-                version: "".into(),
             },
             tests: vec![],
         },
@@ -311,7 +302,12 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
         None
     };
 
-    Ok(TraceFiles { hlr, llr, tests, derived })
+    Ok(TraceFiles {
+        hlr,
+        llr,
+        tests,
+        derived,
+    })
 }
 
 // ============================================================================
@@ -382,8 +378,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let mut hlr: HlrFile = read_toml(&hlr_path)?;
         let n = assign_missing_uuids_hlr(&mut hlr.requirements);
         if n > 0 {
-            let content = toml::to_string_pretty(&hlr)
-                .with_context(|| "serializing hlr.toml")?;
+            let content = toml::to_string_pretty(&hlr).with_context(|| "serializing hlr.toml")?;
             fs::write(&hlr_path, content)
                 .with_context(|| format!("writing {}", hlr_path.display()))?;
             total += n;
@@ -396,8 +391,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let mut llr: LlrFile = read_toml(&llr_path)?;
         let n = assign_missing_uuids_llr(&mut llr.requirements);
         if n > 0 {
-            let content = toml::to_string_pretty(&llr)
-                .with_context(|| "serializing llr.toml")?;
+            let content = toml::to_string_pretty(&llr).with_context(|| "serializing llr.toml")?;
             fs::write(&llr_path, content)
                 .with_context(|| format!("writing {}", llr_path.display()))?;
             total += n;
@@ -410,8 +404,8 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let mut tests: TestsFile = read_toml(&tests_path)?;
         let n = assign_missing_uuids_test(&mut tests.tests);
         if n > 0 {
-            let content = toml::to_string_pretty(&tests)
-                .with_context(|| "serializing tests.toml")?;
+            let content =
+                toml::to_string_pretty(&tests).with_context(|| "serializing tests.toml")?;
             fs::write(&tests_path, content)
                 .with_context(|| format!("writing {}", tests_path.display()))?;
             total += n;
@@ -424,8 +418,8 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let mut derived: DerivedFile = read_toml(&derived_path)?;
         let n = assign_missing_uuids_derived(&mut derived.requirements);
         if n > 0 {
-            let content = toml::to_string_pretty(&derived)
-                .with_context(|| "serializing derived.toml")?;
+            let content =
+                toml::to_string_pretty(&derived).with_context(|| "serializing derived.toml")?;
             fs::write(&derived_path, content)
                 .with_context(|| format!("writing {}", derived_path.display()))?;
             total += n;
@@ -439,19 +433,38 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
 // Validation
 // ============================================================================
 
-/// Validate trace links between HLRs, LLRs, and Tests.
+/// Validate trace links between HLRs, LLRs, Tests, and optionally Derived requirements.
 ///
-/// Checks:
-/// - All items have UIDs and owners
-/// - No duplicate UIDs
+/// Checks (gated by `policy`):
+/// - All items have UIDs (if `policy.require_uids`)
+/// - All items have owners (if `policy.require_owners`)
+/// - No duplicate UIDs across all tiers
 /// - All links point to valid UIDs
 /// - Ownership rules are respected
-/// - Derived LLRs have rationale
-/// - All items have verification methods
+/// - Derived LLRs have rationale (if `policy.require_derived_rationale`)
+/// - HLR/LLR verification methods present (if `policy.require_*_verification_methods`)
+/// - Derived requirements validated for UID/owner/rationale
 pub fn validate_trace_links(
     hlrs: &[HlrEntry],
     llrs: &[LlrEntry],
     tests: &[TestEntry],
+) -> Result<()> {
+    validate_trace_links_with_policy(
+        hlrs,
+        llrs,
+        tests,
+        &[],
+        &crate::policy::TracePolicy::default(),
+    )
+}
+
+/// Validate trace links with explicit policy control and derived requirements.
+pub fn validate_trace_links_with_policy(
+    hlrs: &[HlrEntry],
+    llrs: &[LlrEntry],
+    tests: &[TestEntry],
+    derived: &[DerivedEntry],
+    policy: &crate::policy::TracePolicy,
 ) -> Result<()> {
     let mut errors: Vec<String> = Vec::new();
 
@@ -460,48 +473,51 @@ pub fn validate_trace_links(
     // Index: (kind, owner, id) -> uid (to check item uniqueness)
     let mut item_index: BTreeMap<(String, String, String), String> = BTreeMap::new();
 
-    let mut register =
-        |uid: &Option<String>, owner: &Option<String>, id: &String, kind: &str| {
-            let o = if let Some(ow) = owner {
-                ow.clone()
-            } else {
+    let mut register = |uid: &Option<String>, owner: &Option<String>, id: &String, kind: &str| {
+        let o = if let Some(ow) = owner {
+            ow.clone()
+        } else {
+            if policy.require_owners {
                 errors.push(format!("[{}:{}] missing 'owner'", kind, id));
-                return; // Strict fail
-            };
+            }
+            return;
+        };
 
-            let u = match uid {
-                Some(u) => {
-                    if uuid::Uuid::parse_str(u).is_err() {
-                        errors.push(format!("[{}:{}] invalid UID format '{}'", kind, id, u));
-                        return;
-                    }
-                    u.clone()
-                }
-                None => {
-                    errors.push(format!("[{}:{}] missing UID", kind, id));
+        let u = match uid {
+            Some(u) => {
+                if policy.require_uids && uuid::Uuid::parse_str(u).is_err() {
+                    errors.push(format!("[{}:{}] invalid UID format '{}'", kind, id, u));
                     return;
                 }
-            };
-
-            if let Some((prev_kind, prev_owner, prev_id)) = uid_index.get(&u) {
-                errors.push(format!(
-                    "Duplicate UID {}: used by [{}({}):{}] and [{}({}):{}]",
-                    u, prev_kind, prev_owner, prev_id, kind, o, id
-                ));
-            } else {
-                uid_index.insert(u.clone(), (kind.to_string(), o.clone(), id.clone()));
+                u.clone()
             }
-
-            let key = (kind.to_string(), o.clone(), id.clone());
-            if let Some(prev_uid) = item_index.get(&key) {
-                errors.push(format!(
-                    "Duplicate Item '{}({}):{}': used by {} and {}",
-                    kind, o, id, prev_uid, u
-                ));
-            } else {
-                item_index.insert(key, u);
+            None => {
+                if policy.require_uids {
+                    errors.push(format!("[{}:{}] missing UID", kind, id));
+                }
+                return;
             }
         };
+
+        if let Some((prev_kind, prev_owner, prev_id)) = uid_index.get(&u) {
+            errors.push(format!(
+                "Duplicate UID {}: used by [{}({}):{}] and [{}({}):{}]",
+                u, prev_kind, prev_owner, prev_id, kind, o, id
+            ));
+        } else {
+            uid_index.insert(u.clone(), (kind.to_string(), o.clone(), id.clone()));
+        }
+
+        let key = (kind.to_string(), o.clone(), id.clone());
+        if let Some(prev_uid) = item_index.get(&key) {
+            errors.push(format!(
+                "Duplicate Item '{}({}):{}': used by {} and {}",
+                kind, o, id, prev_uid, u
+            ));
+        } else {
+            item_index.insert(key, u);
+        }
+    };
 
     for r in hlrs {
         register(&r.uid, &r.owner, &r.id, "HLR");
@@ -511,6 +527,9 @@ pub fn validate_trace_links(
     }
     for t in tests {
         register(&t.uid, &t.owner, &t.id, "TEST");
+    }
+    for d in derived {
+        register(&d.uid, &d.owner, &d.id, "DERIVED");
     }
 
     if !errors.is_empty() {
@@ -532,10 +551,7 @@ pub fn validate_trace_links(
      -> Option<String> {
         // 1. Must be UUID
         if uuid::Uuid::parse_str(link).is_err() {
-            return Some(format!(
-                "Link '{}' in {} is not a UUID",
-                link, source_id
-            ));
+            return Some(format!("Link '{}' in {} is not a UUID", link, source_id));
         }
 
         // 2. Must Exist
@@ -545,7 +561,7 @@ pub fn validate_trace_links(
                 return Some(format!(
                     "Link '{}' in {} not found (dangling ref)",
                     link, source_id
-                ))
+                ));
             }
         };
 
@@ -558,7 +574,10 @@ pub fn validate_trace_links(
         }
 
         // 4. Ownership Logic
-        let s_owner = source_owner.as_ref().map(|s| s.as_str()).unwrap_or("UNKNOWN");
+        let s_owner = source_owner
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or("UNKNOWN");
         let t_owner = target_owner.as_str();
 
         match (source_kind, expected_target_kind) {
@@ -588,11 +607,11 @@ pub fn validate_trace_links(
         None
     };
 
-    // Strict Policy Checks
+    // Policy-Gated Checks
 
     // HLR Policy
     for r in hlrs {
-        if r.verification_methods.is_empty() {
+        if policy.require_hlr_verification_methods && r.verification_methods.is_empty() {
             errors.push(format!("HLR missing verification_methods: {}", r.id));
         }
     }
@@ -605,7 +624,9 @@ pub fn validate_trace_links(
                     "LLR {} has no parent links. Must be marked 'derived = true'",
                     r.id
                 ));
-            } else if r.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+            } else if policy.require_derived_rationale
+                && r.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true)
+            {
                 errors.push(format!("Derived LLR {} missing 'rationale'", r.id));
             }
         } else if r.derived {
@@ -615,7 +636,7 @@ pub fn validate_trace_links(
             ));
         }
 
-        if r.verification_methods.is_empty() {
+        if policy.require_llr_verification_methods && r.verification_methods.is_empty() {
             errors.push(format!("LLR missing verification_methods: {}", r.id));
         }
 
@@ -641,14 +662,20 @@ pub fn validate_trace_links(
         }
     }
 
+    // Derived requirements validation
+    for d in derived {
+        if policy.require_derived_rationale
+            && d.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true)
+        {
+            errors.push(format!("Derived requirement {} missing 'rationale'", d.id));
+        }
+    }
+
     // Orphan test detection: tests with empty traces_to list
     let orphan_tests: Vec<&TestEntry> = tests.iter().filter(|t| t.traces_to.is_empty()).collect();
     if !orphan_tests.is_empty() {
         for t in &orphan_tests {
-            log::warn!(
-                "  WARNING: Orphan test '{}' is not linked to any LLR",
-                t.id
-            );
+            log::warn!("  WARNING: Orphan test '{}' is not linked to any LLR", t.id);
         }
         log::warn!(
             "  WARNING: {} orphan test(s) found (tests with no LLR link)",
@@ -689,6 +716,20 @@ pub fn generate_traceability_matrix(
     s.push_str("# Traceability Matrix\n\n");
     s.push_str("<!-- Source: cert/trace roots (see project.toml trace.roots) -->\n");
     s.push_str(&format!("**Document ID:** {}\n\n", doc_id));
+
+    s.push_str("## Schema & Provenance\n\n");
+    s.push_str(&format!(
+        "- **HLR:** schema={}, document={}, rev={}\n",
+        hlr.schema.version, hlr.meta.document_id, hlr.meta.revision
+    ));
+    s.push_str(&format!(
+        "- **LLR:** schema={}, document={}, rev={}\n",
+        llr.schema.version, llr.meta.document_id, llr.meta.revision
+    ));
+    s.push_str(&format!(
+        "- **Tests:** schema={}, document={}, rev={}\n\n",
+        tests.schema.version, tests.meta.document_id, tests.meta.revision
+    ));
 
     // Sort by sort_key, then by ID for determinism
     let mut hlrs = hlr.requirements.clone();
@@ -739,7 +780,10 @@ pub fn generate_traceability_matrix(
         } else {
             h.id.clone()
         };
-        s.push_str(&format!("| {} | {} | {} |\n", display_id, h.title, llr_cell));
+        s.push_str(&format!(
+            "| {} | {} | {} |\n",
+            display_id, h.title, llr_cell
+        ));
     }
 
     // LLR -> TEST table
@@ -765,7 +809,10 @@ pub fn generate_traceability_matrix(
         } else {
             l.id.clone()
         };
-        s.push_str(&format!("| {} | {} | {} |\n", display_id, l.title, test_cell));
+        s.push_str(&format!(
+            "| {} | {} | {} |\n",
+            display_id, l.title, test_cell
+        ));
     }
 
     // ================================================================
@@ -839,7 +886,63 @@ pub fn generate_traceability_matrix(
         } else {
             t.id.clone()
         };
-        s.push_str(&format!("| {} | {} | {} |\n", display_id, llr_cell, hlr_cell));
+        s.push_str(&format!(
+            "| {} | {} | {} |\n",
+            display_id, llr_cell, hlr_cell
+        ));
+    }
+
+    // ================================================================
+    // Annotations: scope/category/source/modules/test_selector
+    // (preserves DO-178C metadata that's not shown in the tables above)
+    // ================================================================
+
+    let mut annotations = String::new();
+    for h in &hlrs {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(ref v) = h.scope {
+            parts.push(format!("scope={}", v));
+        }
+        if let Some(ref v) = h.category {
+            parts.push(format!("category={}", v));
+        }
+        if let Some(ref v) = h.source {
+            parts.push(format!("source={}", v));
+        }
+        if !parts.is_empty() {
+            annotations.push_str(&format!("- HLR {}: {}\n", h.id, parts.join(", ")));
+        }
+    }
+    for l in &llrs {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(ref v) = l.source {
+            parts.push(format!("source={}", v));
+        }
+        if !l.modules.is_empty() {
+            parts.push(format!("modules=[{}]", l.modules.join(", ")));
+        }
+        if !parts.is_empty() {
+            annotations.push_str(&format!("- LLR {}: {}\n", l.id, parts.join(", ")));
+        }
+    }
+    for t in &ts {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(ref v) = t.category {
+            parts.push(format!("category={}", v));
+        }
+        if let Some(ref v) = t.test_selector {
+            parts.push(format!("selector={}", v));
+        }
+        if let Some(ref v) = t.source {
+            parts.push(format!("source={}", v));
+        }
+        if !parts.is_empty() {
+            annotations.push_str(&format!("- TEST {}: {}\n", t.id, parts.join(", ")));
+        }
+    }
+    if !annotations.is_empty() {
+        s.push_str("\n## Annotations\n\n");
+        s.push_str(&annotations);
     }
 
     // ================================================================
@@ -882,7 +985,10 @@ pub fn generate_traceability_matrix(
         } else {
             h.id.clone()
         };
-        s.push_str(&format!("| {} | {} | {} |\n", display_id, h.title, test_cell));
+        s.push_str(&format!(
+            "| {} | {} | {} |\n",
+            display_id, h.title, test_cell
+        ));
     }
 
     // ================================================================
@@ -917,7 +1023,10 @@ pub fn generate_traceability_matrix(
     s.push_str(&format!("- **Test count:** {}\n", ts.len()));
     s.push_str(&format!("- **HLR without LLR:** {}\n", hlr_without_llr));
     s.push_str(&format!("- **LLR without Test:** {}\n", llr_without_test));
-    s.push_str(&format!("- **Orphan tests (no LLR link):** {}\n", orphan_tests.len()));
+    s.push_str(&format!(
+        "- **Orphan tests (no LLR link):** {}\n",
+        orphan_tests.len()
+    ));
     s.push('\n');
 
     // Gap report
@@ -968,6 +1077,12 @@ pub fn generate_traceability_matrix(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
 mod tests {
     use super::*;
 
@@ -994,7 +1109,7 @@ mod tests {
     }
 
     #[test]
-    fn test_llr_entry_fields() {
+    fn test_llr_entry_fields() -> anyhow::Result<()> {
         let llr = LlrEntry {
             uid: Some("test-uuid".to_string()),
             ns: None,
@@ -1013,10 +1128,11 @@ mod tests {
         assert_eq!(llr.id, "LLR-001");
         assert!(!llr.derived);
         assert_eq!(llr.description.as_deref(), Some("An LLR description"));
+        Ok(())
     }
 
     #[test]
-    fn test_assign_missing_uuids_hlr() {
+    fn test_assign_missing_uuids_hlr() -> anyhow::Result<()> {
         let mut entries = vec![
             HlrEntry {
                 uid: None,
@@ -1050,15 +1166,18 @@ mod tests {
 
         let count = assign_missing_uuids_hlr(&mut entries);
         assert_eq!(count, 1);
-        assert!(entries[0].uid.is_some());
-        // Verify it's a valid UUID
-        assert!(uuid::Uuid::parse_str(entries[0].uid.as_ref().unwrap()).is_ok());
+        let assigned_uid = entries[0]
+            .uid
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("expected uid to be assigned"))?;
+        assert!(uuid::Uuid::parse_str(assigned_uid).is_ok());
         // The existing one should be untouched
         assert_eq!(entries[1].uid.as_deref(), Some("existing-uuid"));
+        Ok(())
     }
 
     #[test]
-    fn test_assign_missing_uuids_derived() {
+    fn test_assign_missing_uuids_derived() -> anyhow::Result<()> {
         let mut entries = vec![DerivedEntry {
             uid: None,
             id: "DER-001".to_string(),
@@ -1073,6 +1192,11 @@ mod tests {
 
         let count = assign_missing_uuids_derived(&mut entries);
         assert_eq!(count, 1);
-        assert!(uuid::Uuid::parse_str(entries[0].uid.as_ref().unwrap()).is_ok());
+        let assigned_uid = entries[0]
+            .uid
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("expected uid to be assigned"))?;
+        assert!(uuid::Uuid::parse_str(assigned_uid).is_ok());
+        Ok(())
     }
 }

@@ -3,7 +3,7 @@
 //! This module handles the creation and manipulation of evidence bundles
 //! that capture build artifacts, hashes, and metadata for certification compliance.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use hmac::{Hmac, Mac};
 use log;
 use serde::{Deserialize, Serialize};
@@ -13,8 +13,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::git::GitSnapshot;
+use crate::git::{GitSnapshot, RealGitProvider};
 use crate::hash::{hash_file_into, hash_file_relative_into, write_sha256sums};
+use crate::policy::{Dal, Profile};
+use crate::traits::GitProvider;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -51,20 +53,25 @@ pub struct TestSummary {
     pub filtered_out: u32,
 }
 
-/// Parse the standard cargo test result line into a `TestSummary`.
+/// Parse cargo test result lines into an accumulated `TestSummary`.
 ///
-/// Looks for a line matching:
-/// `test result: ok. N passed; N failed; N ignored; N measured; N filtered out`
-/// (or `FAILED` instead of `ok`).
+/// In a workspace, `cargo test` produces multiple `test result:` lines
+/// (one per crate). This function accumulates ALL of them to avoid
+/// silently discarding failures in later crates.
 ///
 /// Returns `None` if no matching line is found.
 pub fn parse_cargo_test_output(output: &str) -> Option<TestSummary> {
+    let mut total_passed = 0u64;
+    let mut total_failed = 0u64;
+    let mut total_ignored = 0u64;
+    let mut total_filtered_out = 0u64;
+    let mut found = false;
+
     for line in output.lines() {
         let line = line.trim();
         if !line.starts_with("test result:") {
             continue;
         }
-        // Extract the part after "test result: ok. " or "test result: FAILED. "
         let after_prefix = if let Some(rest) = line.strip_prefix("test result: ok. ") {
             rest
         } else if let Some(rest) = line.strip_prefix("test result: FAILED. ") {
@@ -73,10 +80,7 @@ pub fn parse_cargo_test_output(output: &str) -> Option<TestSummary> {
             continue;
         };
 
-        let mut passed = 0u32;
-        let mut failed = 0u32;
-        let mut ignored = 0u32;
-        let mut filtered_out = 0u32;
+        found = true;
 
         for segment in after_prefix.split(';') {
             let segment = segment.trim().trim_end_matches(';');
@@ -84,29 +88,36 @@ pub fn parse_cargo_test_output(output: &str) -> Option<TestSummary> {
             if parts.len() != 2 {
                 continue;
             }
-            let n: u32 = match parts[0].parse() {
+            let n: u64 = match parts[0].parse() {
                 Ok(v) => v,
                 Err(_) => continue,
             };
             match parts[1].trim() {
-                "passed" => passed = n,
-                "failed" => failed = n,
-                "ignored" => ignored = n,
-                "filtered out" => filtered_out = n,
+                "passed" => total_passed += n,
+                "failed" => total_failed += n,
+                "ignored" => total_ignored += n,
+                "filtered out" => total_filtered_out += n,
                 _ => {}
             }
         }
-
-        let total = passed + failed + ignored + filtered_out;
-        return Some(TestSummary {
-            total,
-            passed,
-            failed,
-            ignored,
-            filtered_out,
-        });
     }
-    None
+
+    if !found {
+        return None;
+    }
+
+    let total = total_passed
+        .saturating_add(total_failed)
+        .saturating_add(total_ignored)
+        .saturating_add(total_filtered_out);
+
+    Some(TestSummary {
+        total: total as u32,
+        passed: total_passed as u32,
+        failed: total_failed as u32,
+        ignored: total_ignored as u32,
+        filtered_out: total_filtered_out as u32,
+    })
 }
 
 // ============================================================================
@@ -137,12 +148,10 @@ pub fn verify_bundle_signature(bundle_dir: &Path, key: &[u8]) -> Result<bool> {
     let sig_path = bundle_dir.join("BUNDLE.sig");
 
     let content = fs::read(&sha256sums_path).context("reading SHA256SUMS for verification")?;
-    let sig_hex =
-        fs::read_to_string(&sig_path).context("reading BUNDLE.sig for verification")?;
+    let sig_hex = fs::read_to_string(&sig_path).context("reading BUNDLE.sig for verification")?;
     let sig_hex = sig_hex.trim();
 
-    let expected_bytes =
-        hex::decode(sig_hex).context("BUNDLE.sig contains invalid hex")?;
+    let expected_bytes = hex::decode(sig_hex).context("BUNDLE.sig contains invalid hex")?;
 
     let mut mac =
         HmacSha256::new_from_slice(key).map_err(|e| anyhow::anyhow!("HMAC key error: {}", e))?;
@@ -210,6 +219,10 @@ pub struct EvidenceIndex {
     /// Parsed test results summary, if cargo test was executed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub test_summary: Option<TestSummary>,
+    /// Per-crate DAL assignments. Key is crate name, value is DAL level string.
+    /// Empty map for bundles generated before DAL support was added.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub dal_map: BTreeMap<String, String>,
 }
 
 // ============================================================================
@@ -221,38 +234,53 @@ pub struct EvidenceIndex {
 pub struct EvidenceBuildConfig {
     /// Output directory for bundles
     pub output_root: PathBuf,
-    /// Active profile
-    pub profile: String,
+    /// Active profile (type-safe enum, not a free-form string)
+    pub profile: Profile,
     /// Crates in scope for certification
     pub in_scope_crates: Vec<String>,
     /// Trace roots to scan
     pub trace_roots: Vec<String>,
-    /// Whether to skip running tests
-    pub skip_tests: bool,
     /// Whether to require clean git
     pub require_clean_git: bool,
     /// Whether to fail on dirty git
     pub fail_on_dirty: bool,
+    /// Resolved per-crate DAL map (crate_name -> Dal).
+    pub dal_map: BTreeMap<String, Dal>,
 }
 
 /// Builder for creating evidence bundles.
 pub struct EvidenceBuilder {
     config: EvidenceBuildConfig,
     git_snapshot: GitSnapshot,
+    git_provider: Box<dyn GitProvider>,
     bundle_dir: PathBuf,
     commands: Vec<CommandRecord>,
     inputs: BTreeMap<String, String>,
     outputs: BTreeMap<String, String>,
+    test_summary: Option<TestSummary>,
 }
 
 impl EvidenceBuilder {
     /// Create a new evidence builder with the given configuration.
+    ///
+    /// Uses the real git provider. For testing, use [`new_with_provider`].
     pub fn new(config: EvidenceBuildConfig) -> Result<Self> {
+        Self::new_with_provider(config, RealGitProvider)
+    }
+
+    /// Create a new evidence builder with a custom git provider.
+    ///
+    /// The provider is used both for the initial git snapshot and for the
+    /// TOCTOU re-check at [`finalize`] time.
+    pub fn new_with_provider<G: GitProvider + 'static>(
+        config: EvidenceBuildConfig,
+        provider: G,
+    ) -> Result<Self> {
         // Determine strict mode from profile (cert and record require strictness)
-        let strict = matches!(config.profile.as_str(), "cert" | "record");
+        let strict = matches!(config.profile, Profile::Cert | Profile::Record);
 
         // Snapshot git state at the START (strict mode for cert/record)
-        let git_snapshot = GitSnapshot::capture(strict)?;
+        let git_snapshot = GitSnapshot::capture_with(&provider, strict)?;
 
         // Check for shallow clone
         if Path::new(".git/shallow").exists() {
@@ -264,7 +292,7 @@ impl EvidenceBuilder {
 
         // Check git clean requirements
         if (config.require_clean_git || config.fail_on_dirty) && git_snapshot.dirty {
-            let dirty_files = crate::git::git_dirty_files().unwrap_or_default();
+            let dirty_files = provider.dirty_files().unwrap_or_default();
             let file_list = if dirty_files.is_empty() {
                 String::new()
             } else {
@@ -316,10 +344,12 @@ impl EvidenceBuilder {
         Ok(Self {
             config,
             git_snapshot,
+            git_provider: Box::new(provider),
             bundle_dir,
             commands: Vec::new(),
             inputs: BTreeMap::new(),
             outputs: BTreeMap::new(),
+            test_summary: None,
         })
     }
 
@@ -433,6 +463,11 @@ impl EvidenceBuilder {
         Ok(path)
     }
 
+    /// Store test results for inclusion in the evidence index.
+    pub fn set_test_summary(&mut self, summary: TestSummary) {
+        self.test_summary = Some(summary);
+    }
+
     /// Finalize the bundle by writing SHA256SUMS (content layer) then index.json (metadata layer).
     ///
     /// The two-layer design ensures determinism:
@@ -448,6 +483,25 @@ impl EvidenceBuilder {
         trace_schema_version: &str,
         trace_outputs: Vec<PathBuf>,
     ) -> Result<PathBuf> {
+        // TOCTOU check: verify git HEAD hasn't changed since builder was created.
+        // A changed HEAD means source files may have been modified between the
+        // initial snapshot and finalize, invalidating the evidence chain.
+        if self.git_snapshot.sha != "unknown" {
+            if let Ok(current_sha) = self.git_provider.sha() {
+                let current_sha = current_sha.trim().to_string();
+                if current_sha != self.git_snapshot.sha {
+                    bail!(
+                        "TOCTOU: git HEAD changed during evidence generation.\n\
+                         Snapshot SHA: {}\n\
+                         Current SHA:  {}\n\
+                         Source files may have changed. Re-run evidence generation.",
+                        self.git_snapshot.sha,
+                        current_sha
+                    );
+                }
+            }
+        }
+
         let ts = utc_now_rfc3339()?;
         let sha256sums_path = self.bundle_dir.join("SHA256SUMS");
 
@@ -464,13 +518,13 @@ impl EvidenceBuilder {
             schema_version: "0.0.1".to_string(),
             boundary_schema_version: boundary_schema_version.to_string(),
             trace_schema_version: trace_schema_version.to_string(),
-            profile: self.config.profile.clone(),
+            profile: self.config.profile.to_string(),
             timestamp_rfc3339: ts,
             git_sha: self.git_snapshot.sha.clone(),
             git_branch: self.git_snapshot.branch.clone(),
             git_dirty: self.git_snapshot.dirty,
             engine_crate_version: env!("CARGO_PKG_VERSION").to_string(),
-            engine_git_sha: "n/a (use engine_crate_version)".to_string(),
+            engine_git_sha: env!("EVIDENCE_ENGINE_GIT_SHA").to_string(),
             inputs_hashes_file: "inputs_hashes.json".to_string(),
             outputs_hashes_file: "outputs_hashes.json".to_string(),
             commands_file: "commands.json".to_string(),
@@ -487,7 +541,13 @@ impl EvidenceBuilder {
                 .collect(),
             bundle_complete: true,
             content_hash,
-            test_summary: None,
+            test_summary: self.test_summary.clone(),
+            dal_map: self
+                .config
+                .dal_map
+                .iter()
+                .map(|(k, v)| (k.clone(), v.to_string()))
+                .collect(),
         };
 
         let index_path = self.bundle_dir.join("index.json");
@@ -514,6 +574,12 @@ pub fn utc_compact_stamp() -> Result<String> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
 mod tests {
     use super::*;
 
@@ -552,6 +618,7 @@ mod tests {
             bundle_complete: true,
             content_hash: "deadbeef".repeat(8),
             test_summary: None,
+            dal_map: BTreeMap::new(),
         };
         assert!(idx.bundle_complete);
         assert_eq!(idx.profile, "cert");
@@ -584,7 +651,8 @@ test result: ok. 20 passed; 0 failed; 1 ignored; 0 measured; 3 filtered out; fin
 
     #[test]
     fn test_parse_cargo_test_output_failed() {
-        let output = "test result: FAILED. 18 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out";
+        let output =
+            "test result: FAILED. 18 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out";
         let summary = parse_cargo_test_output(output).expect("should parse");
         assert_eq!(summary.passed, 18);
         assert_eq!(summary.failed, 2);
