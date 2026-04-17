@@ -81,17 +81,37 @@ cargo install cargo-evidence
 # Initialize evidence tracking in your project
 cargo evidence init
 
-# Generate an evidence bundle
-cargo evidence generate --out-dir ./evidence
+# Generate an evidence bundle — IMPORTANT: --out-dir must point
+# OUTSIDE the tracked git tree (see "Choosing --out-dir" below).
+cargo evidence generate --out-dir /tmp/evidence
 
 # Verify bundle integrity
-cargo evidence verify ./evidence/dev-20260207-*/
+cargo evidence verify /tmp/evidence/dev-20260207-*/
 ```
 
 That is it. The `init` command scaffolds a `cert/` directory with boundary
 configuration, profile templates, and example trace files. The `generate`
 command produces a complete evidence bundle. The `verify` command checks every
 SHA-256 hash in the bundle and confirms structural integrity.
+
+### Choosing `--out-dir`
+
+`--out-dir` should live **outside** your project's tracked git tree (e.g.
+`/tmp/evidence`, `$RUNNER_TEMP/evidence` in CI, or a sibling directory to
+your repo). Why: `env.json` records `git_dirty`, derived from
+`git status --porcelain`. If your bundle directory sits inside the repo
+root, the first `generate` leaves an untracked directory there, and every
+subsequent `generate` on the same commit observes the tree as dirty —
+flipping `git_dirty` from `false` to `true`, rotating `env.json`'s hash in
+`SHA256SUMS`, and rotating `content_hash`. Same-commit runs are then no
+longer byte-reproducible.
+
+If you need to place the bundle inside the repo (e.g. some CI workflows
+find it convenient), add the output directory to `.gitignore` *before*
+running `generate` for the first time. `git status --porcelain` respects
+`.gitignore`, so ignored directories do not flip `git_dirty`. This repo's
+own `.gitignore` already excludes `/evidence/` as a safety net for the
+Quick Start example path.
 
 ---
 
@@ -192,16 +212,16 @@ are hashed as-is — normalization would corrupt them and would not apply.
 Generate a new evidence bundle.
 
 ```bash
-cargo evidence generate --out-dir ./evidence
-cargo evidence generate --out-dir ./evidence --profile cert
-cargo evidence generate --out-dir ./evidence --boundary cert/boundary.toml
-cargo evidence generate --out-dir ./evidence --trace-roots cert/trace
-cargo evidence generate --out-dir ./evidence --json --quiet
+cargo evidence generate --out-dir /tmp/evidence
+cargo evidence generate --out-dir /tmp/evidence --profile cert
+cargo evidence generate --out-dir /tmp/evidence --boundary cert/boundary.toml
+cargo evidence generate --out-dir /tmp/evidence --trace-roots cert/trace
+cargo evidence generate --out-dir /tmp/evidence --json --quiet
 ```
 
 | Flag                | Description                                           |
 |---------------------|-------------------------------------------------------|
-| `--out-dir <DIR>`   | Output directory (required unless `--write-workspace`) |
+| `--out-dir <DIR>`   | Output directory — must be outside tracked tree (required unless `--write-workspace`) |
 | `--profile <PROF>`  | Override auto-detected profile (`dev`/`cert`/`record`) |
 | `--boundary <FILE>` | Path to `boundary.toml` (default: `cert/boundary.toml`)|
 | `--trace-roots <D>` | Comma-separated trace root directories                 |
@@ -214,9 +234,9 @@ cargo evidence generate --out-dir ./evidence --json --quiet
 Verify an existing evidence bundle.
 
 ```bash
-cargo evidence verify ./evidence/cert-20260207-143022Z-a1b2c3d4/
-cargo evidence verify ./evidence/cert-20260207-*/  --strict
-cargo evidence verify ./evidence/cert-20260207-*/  --json
+cargo evidence verify /tmp/evidence/cert-20260207-143022Z-a1b2c3d4/
+cargo evidence verify /tmp/evidence/cert-20260207-*/  --strict
+cargo evidence verify /tmp/evidence/cert-20260207-*/  --json
 ```
 
 Checks performed:
