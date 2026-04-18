@@ -20,6 +20,15 @@
 //! Do not bump `LIMIT` to pass the test. The point is to feel
 //! friction when a single file grows past the threshold, not to let
 //! the threshold drift upward one PR at a time.
+//!
+//! Each allowlist entry carries a **ceiling** (its line count at the
+//! time of exemption). The file is allowed to stay above `LIMIT`
+//! but must not creep above its own ceiling — otherwise the
+//! exemption would silently expand over time. When the file drops
+//! back under `LIMIT` the entry becomes stale and the existing
+//! staleness check fires; when it grows past its ceiling the new
+//! over-ceiling check fires. Both force a PR conversation rather
+//! than letting allowlist rot accumulate.
 
 #![allow(
     clippy::unwrap_used,
@@ -36,15 +45,18 @@ const LIMIT: usize = 500;
 
 /// Files exempted from the size limit with explicit justification.
 ///
-/// Paths are relative to the workspace root and use forward slashes.
-/// Every entry must have a comment naming the follow-up PR or
-/// reason; empty this list out as entries get resolved.
-const ALLOWLIST: &[(&str, &str)] = &[
-    // `policy.rs` (~554 lines) at ~10% over the limit. Profile /
-    // BoundaryConfig / Dal / EvidencePolicy / TracePolicy are clear
-    // split lines but belong in a separate PR.
-    ("crates/evidence/src/policy.rs", "pending split PR"),
-];
+/// Tuple is `(path, ceiling, reason)`:
+///
+/// - **path**: relative to the workspace root, forward slashes.
+/// - **ceiling**: the file's line count when the entry was added.
+///   The file is allowed to stay above [`LIMIT`] but must not grow
+///   past this value — a PR that pushes the file over its ceiling
+///   fails this test and has to either split the file or raise the
+///   ceiling explicitly (forcing the reviewer to see it).
+/// - **reason**: brief note on why the file can't be split right now
+///   and what the follow-up plan is. Empty this list out as entries
+///   get resolved.
+const ALLOWLIST: &[(&str, usize, &str)] = &[];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -55,11 +67,11 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn is_allowlisted(rel: &str) -> Option<&'static str> {
+fn allowlist_entry(rel: &str) -> Option<(usize, &'static str)> {
     ALLOWLIST
         .iter()
-        .find(|(path, _)| *path == rel)
-        .map(|(_, reason)| *reason)
+        .find(|(path, _, _)| *path == rel)
+        .map(|(_, ceiling, reason)| (*ceiling, *reason))
 }
 
 /// Recursively walk `dir`, returning every regular `.rs` file beneath it.
@@ -108,6 +120,7 @@ fn rs_files_under_line_limit() {
 
     let mut offenders: Vec<(String, usize)> = Vec::new();
     let mut stale_allowlist: Vec<String> = Vec::new();
+    let mut over_ceiling: Vec<(String, usize, usize)> = Vec::new();
 
     for path in &rs_files {
         let rel = path
@@ -117,12 +130,19 @@ fn rs_files_under_line_limit() {
             .replace('\\', "/");
         let lines = count_lines(path);
 
-        if is_allowlisted(&rel).is_some() {
+        if let Some((ceiling, _reason)) = allowlist_entry(&rel) {
             if lines <= LIMIT {
                 // Allowlist entry no longer needed — file is small
                 // enough to stand on its own. Flag it so the list
                 // doesn't silently grow stale.
                 stale_allowlist.push(rel);
+            } else if lines > ceiling {
+                // The file is allowlisted but has grown past the
+                // ceiling recorded at exemption time. The original
+                // weakness of this test was that an allowlisted
+                // file could creep upward indefinitely; this branch
+                // closes that gap.
+                over_ceiling.push((rel, lines, ceiling));
             }
             continue;
         }
@@ -149,6 +169,19 @@ fn rs_files_under_line_limit() {
              impractical — and document why in the comment next to the entry.\n",
         );
     }
+    if !over_ceiling.is_empty() {
+        msg.push_str(
+            "\nALLOWLIST entries whose files grew past their recorded ceiling \
+             (split the file, or raise the ceiling explicitly in \
+             `tests/file_size_limit.rs` so the increase is reviewed):\n",
+        );
+        for (rel, lines, ceiling) in &over_ceiling {
+            msg.push_str(&format!(
+                "  {}: {} lines (ceiling {})\n",
+                rel, lines, ceiling
+            ));
+        }
+    }
     if !stale_allowlist.is_empty() {
         msg.push_str(
             "\nStale ALLOWLIST entries (file is now under the limit, remove the \
@@ -169,7 +202,7 @@ fn allowlist_paths_exist() {
     // something we're not. Require every allowlisted path to
     // actually resolve.
     let root = workspace_root();
-    for (rel, _reason) in ALLOWLIST {
+    for (rel, _ceiling, _reason) in ALLOWLIST {
         let p = root.join(rel);
         assert!(
             p.exists(),
