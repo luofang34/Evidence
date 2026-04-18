@@ -250,11 +250,16 @@ fn cmd_verify_jsonl(
     strict: bool,
     verify_key: Option<PathBuf>,
 ) -> Result<i32> {
-    // Bundle-path existence failure is a runtime fault, not a finding.
-    // Emit the equivalent of VerifyRuntimeError::BundleNotFound and
-    // return exit 1 with no terminal event (Schema Rule 1).
+    // Bundle-path existence failure is a runtime fault: emit the
+    // VerifyRuntimeError::BundleNotFound finding first, then the
+    // `VERIFY_ERROR` terminal (Schema Rule 1 — every run emits
+    // exactly one terminal so truncation is detectable).
     if !bundle_path.exists() {
         emit_jsonl(&VerifyRuntimeError::BundleNotFound(bundle_path.clone()).to_diagnostic())?;
+        emit_jsonl(&terminal_error(&format!(
+            "bundle path does not exist: {}",
+            bundle_path.display()
+        )))?;
         return Ok(EXIT_ERROR);
     }
 
@@ -268,6 +273,7 @@ fn cmd_verify_jsonl(
             message: "strict mode: BUNDLE.sig not found and no --verify-key provided".to_string(),
             location: None,
             fix_hint: None,
+            subcommand: None,
         })?;
         emit_jsonl(&terminal_fail("bundle failed strict signature requirement"))?;
         return Ok(EXIT_VERIFICATION_FAILURE);
@@ -313,6 +319,7 @@ fn cmd_verify_jsonl(
                 message: reason.clone(),
                 location: None,
                 fix_hint: None,
+                subcommand: None,
             })?;
             if strict {
                 emit_jsonl(&terminal_fail(&format!(
@@ -326,9 +333,13 @@ fn cmd_verify_jsonl(
             }
         }
         Err(runtime) => {
-            // VerifyRuntimeError is a runtime fault: no terminal event,
-            // exit 1 (Schema Rule 1).
+            // Runtime fault: emit the underlying runtime diag first so
+            // the agent has the root cause, then the VERIFY_ERROR
+            // terminal so the stream has an unambiguous end marker.
+            // Exit 1 per Schema Rule 1.
+            let runtime_msg = runtime.to_string();
             emit_jsonl(&runtime.to_diagnostic())?;
+            emit_jsonl(&terminal_error(&runtime_msg))?;
             Ok(EXIT_ERROR)
         }
     }
@@ -341,6 +352,7 @@ fn terminal_ok(message: &str) -> Diagnostic {
         message: message.to_string(),
         location: None,
         fix_hint: None,
+        subcommand: None,
     }
 }
 
@@ -351,5 +363,17 @@ fn terminal_fail(message: &str) -> Diagnostic {
         message: message.to_string(),
         location: None,
         fix_hint: None,
+        subcommand: None,
+    }
+}
+
+fn terminal_error(message: &str) -> Diagnostic {
+    Diagnostic {
+        code: "VERIFY_ERROR".to_string(),
+        severity: Severity::Error,
+        message: message.to_string(),
+        location: None,
+        fix_hint: None,
+        subcommand: None,
     }
 }

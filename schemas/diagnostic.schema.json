@@ -10,7 +10,7 @@
     "code": {
       "type": "string",
       "pattern": "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$",
-      "description": "Stable UPPER_SNAKE_CASE identifier, domain-prefixed (VERIFY_*, BUNDLE_*, TRACE_*, BOUNDARY_*, GIT_*, HASH_*, SCHEMA_*, POLICY_*, ENV_*, SIGN_*, DIFF_*, INFO_*). Schema Rule 1: a `code` ending in `_OK` is a successful terminal event (exit 0); a `code` ending in `_FAIL` is a failure terminal event (exit 2). Agents key on this field, never on `message`. Schema Rule 3: codes are locked by `diagnostic_codes_locked` contract test (uniqueness + this regex)."
+      "description": "Stable UPPER_SNAKE_CASE identifier, domain-prefixed (VERIFY_*, BUNDLE_*, TRACE_*, BOUNDARY_*, GIT_*, HASH_*, SCHEMA_*, POLICY_*, ENV_*, SIGN_*, CMD_*, CLI_*). Schema Rule 1: every run emits exactly one terminal event as the last JSONL line. A `code` ending in `_OK` is a successful terminal event (exit 0); `_FAIL` is a failure terminal event (exit 2); `_ERROR` is a runtime-fault terminal event (exit 1), emitted after the runtime-error diagnostic so readers can detect stream truncation. Suffixes `_OK`, `_FAIL`, `_ERROR` are terminal-only — non-terminal findings MUST NOT end in these suffixes. Agents key on this field, never on `message`. Schema Rule 3: codes are locked by `diagnostic_codes_locked` contract test (uniqueness + this regex + reserved-suffix enforcement)."
     },
     "severity": {
       "type": "string",
@@ -77,13 +77,17 @@
           "description": "Placeholder value the human should replace (for `add_toml_key`)."
         }
       }
+    },
+    "subcommand": {
+      "type": "string",
+      "description": "Optional cargo-evidence subcommand name. Populated on terminals that span subcommands — currently only `CLI_SUBCOMMAND_ERROR`, the terminal emitted when `--format=jsonl` is used against a subcommand that doesn't yet stream JSONL natively. Absent on every other diagnostic. Agents routing errors by subcommand SHOULD read this field rather than parsing `message`."
     }
   },
   "x-exit-code-contract": {
-    "description": "Schema Rule 1 — exit-code ↔ terminal-event mapping. The last JSONL line on stdout carries the terminal event; the process exit code matches it.",
+    "description": "Schema Rule 1 — exit-code ↔ terminal-event mapping. Every run emits exactly one terminal event as the last JSONL line on stdout; the process exit code matches the terminal's suffix. Readers that see end-of-stream without a terminal know the stream was truncated by the transport (pipe close, reader bug), NOT by the tool.",
     "mapping": {
       "0": "last JSONL line's `code` ends in `_OK` (happy path)",
-      "1": "runtime error (I/O, parse, config); NO terminal event emitted on stdout; human-readable error text goes to stderr",
+      "1": "last JSONL line's `code` ends in `_ERROR` (runtime fault — I/O, parse, config, unsupported format); the runtime-error diagnostic is emitted first, followed by the `_ERROR` terminal",
       "2": "last JSONL line's `code` ends in `_FAIL` (verification or validation failed)"
     }
   },

@@ -2,10 +2,19 @@
 //!
 //! Walks every `crates/evidence/src/**/*.rs` file, finds `impl
 //! DiagnosticCode for …` blocks, and extracts the string literals
-//! returned from their `match` arms. Then enforces Schema Rule 3:
+//! returned from their `match` arms. Then enforces Schema Rule 3
+//! plus the terminal-suffix namespace rule from Schema Rule 1:
 //!
-//! - Every code matches `^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$`.
+//! - Every walked code matches `^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$`.
 //! - No two variants across the whole library return the same code.
+//! - [`TERMINAL_CODES`] is internally unique.
+//! - [`TERMINAL_CODES`] is disjoint from the walked registry (no code
+//!   is both hand-emitted and returned from a `DiagnosticCode` impl).
+//! - Every walked code ending in `_OK` / `_FAIL` / `_ERROR` is also in
+//!   [`TERMINAL_CODES`] — catches the foot-gun of a future
+//!   `TRACE_PARSE_ERROR` variant silently stealing a reserved suffix.
+//! - Every [`TERMINAL_CODES`] entry ends in one of the three reserved
+//!   terminal suffixes.
 //!
 //! The exhaustive `match self` in each `DiagnosticCode::code` impl is
 //! the compile-time half of Schema Rule 3 — a new variant without a
@@ -13,11 +22,25 @@
 //! a renamed or copy-pasted literal that slipped past review still
 //! fails here.
 //!
+//! # Out of scope: dead-code detection
+//!
+//! Schema Rule 3 does NOT promise detection of dead code strings: if a
+//! variant is later removed but its code literal lingers in a `_ =>`
+//! fallback arm or a stale comment, this test will not fire. The
+//! compile-time exhaustiveness check prevents the common case (adding
+//! a new variant without a code), but removed variants leave only a
+//! dead return-path that the compiler can't flag. A contributor who
+//! needs that guarantee must add a separate dead-code lint pass — this
+//! test stays focused on the two positive invariants (regex +
+//! uniqueness) plus the four terminal-namespace invariants above.
+//!
 //! This is deliberately a source-walking test rather than a reflection-
 //! based one: Rust has no runtime reflection over trait impls, and
 //! manually instantiating every error variant would require constructor
 //! arguments that aren't universally available. Walking the source is
 //! the pragmatic alternative, same shape as `schema_versions_locked`.
+//!
+//! [`TERMINAL_CODES`]: evidence::TERMINAL_CODES
 
 #![allow(
     clippy::unwrap_used,
@@ -267,6 +290,79 @@ fn diagnostic_codes_locked() {
             .collect::<Vec<_>>()
             .join("\n")
     );
+
+    // =================================================================
+    // Terminal-namespace invariants (Schema Rule 1 / reserved suffixes)
+    // =================================================================
+    //
+    // The four assertions below enforce the terminal-codes contract.
+    // `TERMINAL_CODES` is the single source of truth for hand-emitted
+    // terminals; every invariant below reads from it. If a future
+    // contributor adds a new hand-emitted terminal in the CLI without
+    // appending it to `TERMINAL_CODES`, the disjointness test won't
+    // fire (the CLI isn't walked) — but the test inside
+    // `crates/evidence/src/diagnostic.rs` (`terminal_codes_all_end_in
+    // _reserved_suffix`) anchors the slice's shape, and the CLI has
+    // integration tests that exercise the terminal by matching against
+    // the slice. That pair is sufficient.
+
+    let terminal_codes: std::collections::BTreeSet<&str> =
+        evidence::TERMINAL_CODES.iter().copied().collect();
+
+    // Invariant (1): `TERMINAL_CODES` internal uniqueness.
+    assert_eq!(
+        terminal_codes.len(),
+        evidence::TERMINAL_CODES.len(),
+        "TERMINAL_CODES contains duplicates: {:?}",
+        evidence::TERMINAL_CODES
+    );
+
+    // Invariant (4): every `TERMINAL_CODES` entry ends in a reserved
+    // terminal suffix. (Placed before (2)/(3) because it anchors the
+    // meaning of "reserved suffix" used in (3).)
+    let bad_suffix: Vec<&str> = evidence::TERMINAL_CODES
+        .iter()
+        .copied()
+        .filter(|c| !ends_in_terminal_suffix(c))
+        .collect();
+    assert!(
+        bad_suffix.is_empty(),
+        "TERMINAL_CODES entries must end in _OK / _FAIL / _ERROR; offenders: {:?}",
+        bad_suffix
+    );
+
+    // Invariant (2): `TERMINAL_CODES` is disjoint from the walked
+    // registry. A code can be walked-from-an-impl OR hand-emitted,
+    // never both.
+    let walked_as_terminal: Vec<&String> = seen
+        .keys()
+        .filter(|k| terminal_codes.contains(k.as_str()))
+        .collect();
+    assert!(
+        walked_as_terminal.is_empty(),
+        "codes in TERMINAL_CODES must not also be returned from DiagnosticCode impls; overlap: {:?}",
+        walked_as_terminal
+    );
+
+    // Invariant (3): every walked code ending in a reserved terminal
+    // suffix must be in `TERMINAL_CODES`. Catches the foot-gun of a
+    // future `TRACE_PARSE_ERROR` variant silently promoting itself
+    // into the terminal namespace without being registered.
+    let reserved_walked: Vec<&String> = seen
+        .keys()
+        .filter(|k| ends_in_terminal_suffix(k) && !terminal_codes.contains(k.as_str()))
+        .collect();
+    assert!(
+        reserved_walked.is_empty(),
+        "walked-registry codes end in a reserved terminal suffix but are not in TERMINAL_CODES \
+         (either the code should be moved to TERMINAL_CODES, or it should be renamed to drop the \
+         reserved suffix): {:?}",
+        reserved_walked
+    );
+}
+
+fn ends_in_terminal_suffix(code: &str) -> bool {
+    code.ends_with("_OK") || code.ends_with("_FAIL") || code.ends_with("_ERROR")
 }
 
 #[test]

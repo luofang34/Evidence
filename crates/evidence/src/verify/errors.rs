@@ -229,7 +229,7 @@ impl DiagnosticCode for VerifyError {
             VerifyError::MissingHashedFile(_) => "VERIFY_MISSING_HASHED_FILE",
             VerifyError::ContentHashMismatch { .. } => "VERIFY_CONTENT_HASH_MISMATCH",
             VerifyError::UnsafePath(_) => "VERIFY_UNSAFE_PATH",
-            VerifyError::FormatError { .. } => "VERIFY_FORMAT_ERROR",
+            VerifyError::FormatError { .. } => "VERIFY_INVALID_FORMAT",
             VerifyError::CrossFileInconsistency { .. } => "VERIFY_CROSS_FILE_INCONSISTENCY",
             VerifyError::DeterministicHashMismatch { .. } => "VERIFY_DETERMINISTIC_HASH_MISMATCH",
             VerifyError::ManifestProjectionDrift { .. } => "VERIFY_MANIFEST_PROJECTION_DRIFT",

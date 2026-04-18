@@ -6,9 +6,16 @@
 //!
 //! # Contract (10 Schema Rules, load-bearing — see `schemas/diagnostic.schema.json`)
 //!
-//! 1. **Exit code ↔ terminal event.** `exit 0` ⟺ last JSONL line's
-//!    code ends in `_OK`. `exit 2` ⟺ last line ends in `_FAIL`.
-//!    `exit 1` ⟺ runtime error, no terminal event.
+//! 1. **Exit code ↔ terminal event.** Every run emits exactly one
+//!    terminal event as the last JSONL line on stdout. `exit 0` ⟺
+//!    terminal ends in `_OK`. `exit 2` ⟺ terminal ends in `_FAIL`.
+//!    `exit 1` ⟺ terminal ends in `_ERROR` (runtime fault — the
+//!    finding diag is emitted first, followed by the terminal so
+//!    readers can detect stream truncation). Suffixes `_OK`, `_FAIL`,
+//!    `_ERROR` are terminal-only — non-terminal findings MUST NOT end
+//!    in these suffixes. [`TERMINAL_CODES`] is the single source of
+//!    truth for hand-emitted terminals, locked by the
+//!    `diagnostic_codes_locked` test.
 //! 2. **stdout strict.** In `--format=jsonl` mode, stdout is only
 //!    JSONL; human progress text stays on stderr.
 //! 3. **Codes locked by test.** Uniqueness + regex; exhaustive `match`
@@ -56,17 +63,38 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+/// Hand-emitted terminal codes — the single source of truth across the
+/// whole tool for codes that end a `--format=jsonl` stream.
+///
+/// Every entry here:
+///
+/// 1. Ends in one of the reserved terminal suffixes (`_OK`, `_FAIL`,
+///    `_ERROR`) per Schema Rule 1.
+/// 2. Is emitted directly by the CLI layer (never returned from any
+///    [`DiagnosticCode::code`] impl). That disjointness is asserted by
+///    the `diagnostic_codes_locked` integration test.
+///
+/// Adding a new hand-emitted terminal means: (a) append it here, (b)
+/// make sure it ends in a reserved suffix, (c) confirm the locked-codes
+/// test still passes (it will enforce the two invariants above).
+pub const TERMINAL_CODES: &[&str] = &[
+    "VERIFY_OK",
+    "VERIFY_FAIL",
+    "VERIFY_ERROR",
+    "CLI_SUBCOMMAND_ERROR",
+];
+
 /// One observation in the diagnostic stream.
 ///
-/// Wire shape: see `schemas/diagnostic.schema.json`. Bumping the
-/// schema version ([`crate::schema_versions::DIAGNOSTIC`]) is the only
-/// contract-breaking change — adding optional fields to a [`Location`]
-/// or a new [`FixHint`] variant is backwards-compatible per Schema
-/// Rules 6 and 8.
+/// Wire shape: see `schemas/diagnostic.schema.json`. Adding an optional
+/// field (like [`subcommand`](Self::subcommand)), a new [`FixHint`]
+/// variant, or extra fields on [`Location`] is backwards-compatible per
+/// Schema Rules 6 and 8. Changing an existing field's type or removing
+/// a required field is a contract break.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Stable UPPER_SNAKE_CASE identifier, domain-prefixed
-    /// (`VERIFY_*` / `BUNDLE_*` / `TRACE_*` / `BOUNDARY_*` / …).
+    /// (`VERIFY_*` / `BUNDLE_*` / `TRACE_*` / `BOUNDARY_*` / `CLI_*` / …).
     ///
     /// Matched by agents; never re-interpreted from `message`.
     pub code: String,
@@ -88,6 +116,16 @@ pub struct Diagnostic {
     /// unknown `kind` deserializes as [`FixHint::Other`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fix_hint: Option<FixHint>,
+
+    /// Optional cargo-evidence subcommand name. Populated on terminals
+    /// that span subcommands — currently only [`CLI_SUBCOMMAND_ERROR`]
+    /// (the terminal emitted when `--format=jsonl` is used against a
+    /// subcommand that doesn't yet stream JSONL natively). Absent on
+    /// every other diagnostic.
+    ///
+    /// [`CLI_SUBCOMMAND_ERROR`]: TERMINAL_CODES
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subcommand: Option<String>,
 }
 
 /// Closed severity enum — see Schema Rule 10. An unknown variant
@@ -210,6 +248,10 @@ pub trait DiagnosticCode: std::fmt::Display {
     /// Derive a [`Diagnostic`] by combining [`code`](Self::code),
     /// [`severity`](Self::severity), [`Display`](std::fmt::Display),
     /// [`location`](Self::location), [`fix_hint`](Self::fix_hint).
+    ///
+    /// The `subcommand` field is always `None` on trait-derived
+    /// diagnostics — it's reserved for CLI-layer terminals
+    /// (e.g. `CLI_SUBCOMMAND_ERROR`) that the library never emits.
     fn to_diagnostic(&self) -> Diagnostic {
         Diagnostic {
             code: self.code().to_string(),
@@ -217,6 +259,7 @@ pub trait DiagnosticCode: std::fmt::Display {
             message: self.to_string(),
             location: self.location(),
             fix_hint: self.fix_hint(),
+            subcommand: None,
         }
     }
 }
@@ -300,10 +343,12 @@ mod tests {
             message: "hi".to_string(),
             location: None,
             fix_hint: None,
+            subcommand: None,
         };
         let s = serde_json::to_string(&d).unwrap();
         assert!(!s.contains("location"), "got {}", s);
         assert!(!s.contains("fix_hint"), "got {}", s);
+        assert!(!s.contains("subcommand"), "got {}", s);
     }
 
     /// `Diagnostic` round-trips with all fields populated.
@@ -324,10 +369,54 @@ mod tests {
                 path: PathBuf::from("cert/trace/hlr.toml"),
                 toml_path: "requirements[0]".to_string(),
             }),
+            subcommand: None,
         };
         let s = serde_json::to_string(&d).unwrap();
         let back: Diagnostic = serde_json::from_str(&s).unwrap();
         assert_eq!(d, back);
+    }
+
+    /// `CLI_SUBCOMMAND_ERROR` terminal carries the subcommand name in
+    /// the `subcommand` field; the round-trip preserves it verbatim.
+    #[test]
+    fn diagnostic_subcommand_field_round_trips_when_set() {
+        let d = Diagnostic {
+            code: "CLI_SUBCOMMAND_ERROR".to_string(),
+            severity: Severity::Error,
+            message: "subcommand 'generate' does not support --format=jsonl".to_string(),
+            location: None,
+            fix_hint: None,
+            subcommand: Some("generate".to_string()),
+        };
+        let s = serde_json::to_string(&d).unwrap();
+        assert!(s.contains(r#""subcommand":"generate""#), "got {}", s);
+        let back: Diagnostic = serde_json::from_str(&s).unwrap();
+        assert_eq!(d, back);
+    }
+
+    /// [`TERMINAL_CODES`] invariants: every entry ends in a reserved
+    /// terminal suffix (`_OK` / `_FAIL` / `_ERROR`), and the slice has
+    /// no duplicates. The `diagnostic_codes_locked` integration test
+    /// re-checks both globally — this test pins the invariant at the
+    /// library crate's unit level so a local dev edit catches the
+    /// problem before integration-test time.
+    #[test]
+    fn terminal_codes_all_end_in_reserved_suffix() {
+        for code in TERMINAL_CODES {
+            assert!(
+                code.ends_with("_OK") || code.ends_with("_FAIL") || code.ends_with("_ERROR"),
+                "TERMINAL_CODES entry '{}' does not end in a reserved suffix",
+                code,
+            );
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for code in TERMINAL_CODES {
+            assert!(
+                seen.insert(*code),
+                "TERMINAL_CODES contains duplicate '{}'",
+                code
+            );
+        }
     }
 
     /// `Location` is always self-consistent: an all-None Location is

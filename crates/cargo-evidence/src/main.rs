@@ -19,6 +19,7 @@
 )]
 
 use clap::Parser;
+use evidence::diagnostic::{Diagnostic, Severity};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
@@ -28,6 +29,7 @@ use cli::args::{CargoCli, Commands, EXIT_ERROR, EvidenceArgs, OutputFormat, Sche
 use cli::diff::cmd_diff;
 use cli::generate::{GenerateArgs, cmd_generate};
 use cli::init::cmd_init;
+use cli::output::emit_jsonl;
 use cli::schema::{cmd_schema_show, cmd_schema_validate};
 use cli::trace::cmd_trace;
 use cli::verify::cmd_verify;
@@ -80,6 +82,32 @@ fn run() -> i32 {
 }
 
 fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
+    // Which subcommand is this, stripped to a stable lowercase name
+    // suitable for the `subcommand` field on a `CLI_SUBCOMMAND_ERROR`
+    // terminal. `None` on the implicit-generate path.
+    let subcommand_name: &str = match &args.command {
+        Some(Commands::Generate { .. }) | None => "generate",
+        Some(Commands::Verify { .. }) => "verify",
+        Some(Commands::Diff { .. }) => "diff",
+        Some(Commands::Init { .. }) => "init",
+        Some(Commands::Schema { .. }) => "schema",
+        Some(Commands::Trace { .. }) => "trace",
+    };
+
+    // Guard rail for unwired JSONL subcommands. Only `verify` streams
+    // JSONL natively today; any other subcommand under `--format=jsonl`
+    // would silently emit human / JSON text mixed on stdout, which
+    // violates Schema Rule 2. Hard-error instead: emit a
+    // `CLI_UNSUPPORTED_FORMAT` finding + `CLI_SUBCOMMAND_ERROR`
+    // terminal and return exit 1. When real wiring lands for one of
+    // these subcommands, remove its name from the guard set.
+    //
+    // TODO(jsonl): add subcommand names here as they gain JSONL
+    // support. Keep `verify` and `verify`-only for now.
+    if args.format == OutputFormat::Jsonl && subcommand_name != "verify" {
+        return emit_unsupported_jsonl_terminal(subcommand_name);
+    }
+
     match args.command {
         Some(Commands::Generate {
             sign_key,
@@ -137,4 +165,37 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             json_output: args.json,
         }),
     }
+}
+
+/// Stream the two-event JSONL envelope for an unwired `--format=jsonl`
+/// subcommand: a `CLI_UNSUPPORTED_FORMAT` finding explaining what
+/// happened, then a `CLI_SUBCOMMAND_ERROR` terminal carrying the
+/// subcommand name so agents can route by it.
+///
+/// Exit code is [`EXIT_ERROR`] (1) — matches the `_ERROR` terminal
+/// suffix per Schema Rule 1.
+fn emit_unsupported_jsonl_terminal(subcommand: &str) -> anyhow::Result<i32> {
+    emit_jsonl(&Diagnostic {
+        code: "CLI_UNSUPPORTED_FORMAT".to_string(),
+        severity: Severity::Error,
+        message: format!(
+            "subcommand '{}' does not support --format=jsonl yet; only 'verify' streams JSONL natively",
+            subcommand
+        ),
+        location: None,
+        fix_hint: None,
+        subcommand: Some(subcommand.to_string()),
+    })?;
+    emit_jsonl(&Diagnostic {
+        code: "CLI_SUBCOMMAND_ERROR".to_string(),
+        severity: Severity::Error,
+        message: format!(
+            "subcommand '{}' aborted: --format=jsonl not supported",
+            subcommand
+        ),
+        location: None,
+        fix_hint: None,
+        subcommand: Some(subcommand.to_string()),
+    })?;
+    Ok(EXIT_ERROR)
 }
