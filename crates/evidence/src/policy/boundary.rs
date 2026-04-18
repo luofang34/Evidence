@@ -8,7 +8,6 @@
 //! side-channel reader for the historical `scope.trace_roots` field
 //! that isn't on the typed `BoundaryScope` struct.
 
-use log;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -168,7 +167,7 @@ impl BoundaryConfig {
             path: path.to_path_buf(),
             source: Box::new(source),
         })?;
-        log::debug!(
+        tracing::debug!(
             "boundary policy rules enabled: {:?}",
             config.policy.enabled_rules()
         );

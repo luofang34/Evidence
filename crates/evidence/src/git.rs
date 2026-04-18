@@ -117,7 +117,7 @@ impl GitSnapshot {
             dirty: match dirty {
                 Ok(d) => d,
                 Err(_) => {
-                    log::warn!(
+                    tracing::warn!(
                         "Could not determine git dirty status; defaulting to dirty. \
                          Safety-critical default: assume worst case when status is unknown."
                     );

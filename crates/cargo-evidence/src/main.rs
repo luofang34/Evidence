@@ -19,6 +19,8 @@
 )]
 
 use clap::Parser;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::filter::LevelFilter;
 
 mod cli;
 
@@ -35,7 +37,38 @@ fn main() {
     std::process::exit(exit_code);
 }
 
+/// Install the `tracing` subscriber for the library's diagnostic
+/// events.
+///
+/// - Writes to **stderr**: stdout is reserved for primary command
+///   output (JSON envelopes, `schema show` emits, etc.). Mixing
+///   diagnostics into stdout would break `cargo evidence ... | jq`.
+/// - Default filter: `WARN`. Library `tracing::info!` calls (e.g.
+///   `"verify: checking bundle at …"`) stay silent on normal runs.
+///   Users who want verbose output set `RUST_LOG` (e.g.
+///   `RUST_LOG=evidence=info`).
+/// - `from_env_lossy` — **not** `try_from_default_env`. Nix's
+///   `buildRustPackage` exports `RUST_LOG=""` in the sandbox; the
+///   `try_*` path panics on empty, the `lossy` path degrades to
+///   the default directive. See memory
+///   `project_nix_rust_log_gotcha`.
+///
+/// Idempotent: installing a second subscriber is a no-op error that
+/// we deliberately swallow so test binaries don't collide.
+fn init_tracing() {
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::WARN.into())
+        .from_env_lossy();
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .with_target(false)
+        .try_init()
+        .ok();
+}
+
 fn run() -> i32 {
+    init_tracing();
     let CargoCli::Evidence(args) = CargoCli::parse();
     match dispatch(args) {
         Ok(code) => code,

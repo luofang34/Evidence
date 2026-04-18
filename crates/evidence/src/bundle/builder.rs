@@ -195,7 +195,7 @@ impl EvidenceBuilder {
             v
         };
 
-        log::info!("evidence: running {}...", display_name);
+        tracing::info!("evidence: running {}...", display_name);
         let output = cmd.output().map_err(|source| BuilderError::RunCommand {
             display_name: display_name.to_string(),
             source,
@@ -203,8 +203,8 @@ impl EvidenceBuilder {
         let exit_code = output.status.code().unwrap_or(-1);
 
         if !output.status.success() {
-            log::error!("{} failed with exit code {}", display_name, exit_code);
-            log::error!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+            tracing::error!("{} failed with exit code {}", display_name, exit_code);
+            tracing::error!("stderr: {}", String::from_utf8_lossy(&output.stderr));
         }
 
         let (stdout_path, stderr_path) = if rel_dir.is_empty() {

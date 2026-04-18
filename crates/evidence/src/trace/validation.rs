@@ -137,7 +137,7 @@ pub fn validate_trace_links_with_policy(
 
     if !errors.is_empty() {
         for e in &errors {
-            log::error!("  VALIDATION ERROR: {}", e);
+            tracing::error!("  VALIDATION ERROR: {}", e);
         }
         return Err(TraceValidationError::Register { errors });
     }
@@ -275,9 +275,9 @@ pub fn validate_trace_links_with_policy(
     let orphan_tests: Vec<&TestEntry> = tests.iter().filter(|t| t.traces_to.is_empty()).collect();
     if !orphan_tests.is_empty() {
         for t in &orphan_tests {
-            log::warn!("  WARNING: Orphan test '{}' is not linked to any LLR", t.id);
+            tracing::warn!("  WARNING: Orphan test '{}' is not linked to any LLR", t.id);
         }
-        log::warn!(
+        tracing::warn!(
             "  WARNING: {} orphan test(s) found (tests with no LLR link)",
             orphan_tests.len()
         );
@@ -285,7 +285,7 @@ pub fn validate_trace_links_with_policy(
 
     if !errors.is_empty() {
         for e in &errors {
-            log::error!("  LINK ERROR: {}", e);
+            tracing::error!("  LINK ERROR: {}", e);
         }
         return Err(TraceValidationError::Link { errors });
     }
