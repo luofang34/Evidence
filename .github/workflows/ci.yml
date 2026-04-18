@@ -532,6 +532,162 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  evidence-self-cert:
+    # Dogfood the **strict cert path** end-to-end. The three other
+    # dogfood jobs (evidence-self, evidence-cross-host, evidence-self-nix)
+    # all pass `--profile dev`, so the cert-only logic has unit-test
+    # coverage only:
+    #   - clean-git enforcement (cli/generate/phases.rs: preflight)
+    #   - strict env capture (env/capture.rs: StrictRustcRequired
+    #     / StrictCargoRequired)
+    #   - strict require_clean_git inside EvidenceBuilder
+    #
+    # This job wires them together on a real runner and asserts:
+    #   1. `--profile cert` succeeds on a clean tree, produces a
+    #      verifiable bundle, and env.json records profile="cert" /
+    #      git_dirty=false / rustc+cargo != "unknown".
+    #   2. `--profile cert` FAILS on a dirty tree with the expected
+    #      "requires clean git tree" message. An untracked file is
+    #      enough — `git status --porcelain` lists it and
+    #      `is_dirty_or_unknown` returns true.
+    #
+    # Linux-only keeps the matrix lean: the profile-gated logic is
+    # host-agnostic (already exercised on 3 OSes via --profile dev
+    # in the cross-host job). The strict-missing-tool branch stays
+    # unit-test-only — we can't unexercise rustc/cargo on PATH in CI
+    # without tearing down the toolchain.
+    #
+    # Not wired into determinism-compare: `deterministic_hash` includes
+    # `profile` in its projection, so cert and dev bundles hash
+    # differently by design. That job gates dev-only parity across
+    # native+Nix flavors.
+    name: Evidence (self, cert profile)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust 1.95
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95"
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          # Segregated key from other jobs so this job's target tree
+          # can't pick up artifacts built under a different profile.
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cert-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cert-cargo-
+
+      - name: Build release binary
+        run: cargo build --release -p cargo-evidence
+
+      - name: Assert tree is clean (preflight)
+        shell: bash
+        run: |
+          # Safety rail. If the checkout action or the cache restore
+          # dropped any file inside the tracked tree, cert generate
+          # would fail for the wrong reason and the job output would
+          # mis-attribute the cause to the tool.
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::working tree dirty before cert generate"
+            git status --porcelain
+            exit 1
+          fi
+
+      - name: Generate bundle with --profile cert
+        run: |
+          mkdir -p "$RUNNER_TEMP/cert-out"
+          ./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --out-dir "$RUNNER_TEMP/cert-out" \
+            --profile cert
+
+      - name: Locate bundle
+        id: bundle
+        run: |
+          path=$(ls -d "$RUNNER_TEMP"/cert-out/cert-*/ | head -n1)
+          path=${path%/}
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "Bundle: $path"
+
+      - name: Verify bundle
+        run: ./target/release/cargo-evidence evidence verify "${{ steps.bundle.outputs.path }}"
+
+      - name: Assert env.json recorded cert-mode invariants
+        shell: bash
+        run: |
+          profile=$(jq -r .profile    "${{ steps.bundle.outputs.path }}/env.json")
+          dirty=$(jq -r   .git_dirty  "${{ steps.bundle.outputs.path }}/env.json")
+          rustc=$(jq -r   .rustc      "${{ steps.bundle.outputs.path }}/env.json")
+          cargo=$(jq -r   .cargo      "${{ steps.bundle.outputs.path }}/env.json")
+          echo "profile=$profile  git_dirty=$dirty"
+          echo "rustc=$rustc"
+          echo "cargo=$cargo"
+          if [ "$profile" != "cert" ]; then
+            echo "::error::env.json.profile is '$profile'; expected 'cert'"
+            exit 1
+          fi
+          if [ "$dirty" != "false" ]; then
+            echo "::error::env.json.git_dirty is '$dirty'; expected 'false'"
+            exit 1
+          fi
+          # Strict env capture (StrictRustcRequired/StrictCargoRequired)
+          # would have bailed before env.json was written if either
+          # probe failed. Belt-and-braces: assert anyway so a future
+          # refactor that moved the strict gate past env.json emit
+          # would fail here instead of silently shipping a bundle
+          # that says "unknown".
+          if [ "$rustc" = "unknown" ] || [ "$cargo" = "unknown" ]; then
+            echo "::error::rustc/cargo recorded as 'unknown' under cert profile"
+            exit 1
+          fi
+
+      - name: Negative — dirty tree must be rejected under cert
+        shell: bash
+        run: |
+          # Introduce an untracked file; `git status --porcelain` lists
+          # it with `??` status and is_dirty_or_unknown returns true.
+          # cmd_generate's preflight phase (profile Cert|Record) then
+          # emits the "requires clean git tree" error and exits 1.
+          touch dirty-marker.txt
+          set +e
+          out=$(./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --out-dir "$RUNNER_TEMP/cert-dirty-out" \
+            --profile cert 2>&1)
+          code=$?
+          set -e
+          rm -f dirty-marker.txt
+          if [ "$code" -eq 0 ]; then
+            echo "::error::cert generate succeeded on dirty tree; expected failure"
+            echo "$out"
+            exit 1
+          fi
+          if ! printf '%s' "$out" | grep -q "requires clean git tree"; then
+            echo "::error::cert generate failed, but not with the expected 'requires clean git tree' message"
+            echo "$out"
+            exit 1
+          fi
+          echo "Cert dirty-tree rejection confirmed (exit=$code)."
+
+      - name: Upload cert bundle on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-self-cert-bundle
+          path: ${{ runner.temp }}/cert-out/
+          if-no-files-found: warn
+          retention-days: 14
+
   determinism-compare:
     # Downloads the FIVE expected artifacts — three native
     # (xhost-Linux / xhost-macOS / xhost-Windows) and two Nix
