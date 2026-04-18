@@ -59,7 +59,7 @@ pub use compliance::{
     ObjectiveStatusKind, generate_compliance_report,
 };
 pub use coverage::{CoverageLevel, CoverageSummary};
-pub use diagnostic::{Diagnostic, DiagnosticCode, FixHint, Location, Severity};
+pub use diagnostic::{Diagnostic, DiagnosticCode, FixHint, Location, Severity, TERMINAL_CODES};
 pub use env::{DeterministicManifest, EnvFingerprint, Host};
 pub use git::{GitSnapshot, RealGitProvider, check_shallow_clone, is_dirty_or_unknown};
 pub use hash::{sha256, sha256_file};
