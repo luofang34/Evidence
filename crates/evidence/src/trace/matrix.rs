@@ -11,7 +11,6 @@
 //! source, modules, test_selector) that doesn't fit the columnar
 //! tables, plus a coverage + gaps summary.
 
-use anyhow::Result;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::entries::{HlrFile, LlrEntry, LlrFile, TestEntry, TestsFile};
@@ -19,12 +18,15 @@ use super::entries::{HlrFile, LlrEntry, LlrFile, TestEntry, TestsFile};
 /// Generate a Markdown traceability matrix document.
 ///
 /// The output is deterministic (no timestamps) for reproducibility.
+/// All failure modes (I/O, TOML parse, …) happen *before* this function
+/// in the pipeline; the generation itself is infallible string
+/// concatenation.
 pub fn generate_traceability_matrix(
     hlr: &HlrFile,
     llr: &LlrFile,
     tests: &TestsFile,
     doc_id: &str,
-) -> Result<String> {
+) -> String {
     let mut s = String::new();
 
     // Header — NO TIMESTAMPS for determinism.
@@ -374,5 +376,5 @@ pub fn generate_traceability_matrix(
         }
     }
 
-    Ok(s)
+    s
 }

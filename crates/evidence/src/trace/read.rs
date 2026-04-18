@@ -5,17 +5,44 @@
 //! a readable `TraceFiles` rather than a bail. The `backfill_uuids`
 //! and validation passes handle the empty case gracefully.
 
-use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use thiserror::Error;
 
 use super::entries::{DerivedFile, HlrFile, LlrFile, Schema, TestsFile, TraceMeta};
 
+/// Errors returned by [`read_toml`] / [`read_all_trace_files`].
+#[derive(Debug, Error)]
+pub enum TraceReadError {
+    /// Failed to read the TOML file from disk.
+    #[error("reading {path}")]
+    Read {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    /// The file read but its contents didn't parse as TOML for the
+    /// requested target type.
+    #[error("parsing {path}")]
+    Parse {
+        path: PathBuf,
+        #[source]
+        source: toml::de::Error,
+    },
+}
+
 /// Parse a TOML file into the given type.
-pub fn read_toml<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
-    let txt = fs::read_to_string(path).with_context(|| format!("Reading {:?}", path))?;
-    let v = toml::from_str(&txt).with_context(|| format!("Parsing {:?}", path))?;
+pub fn read_toml<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, TraceReadError> {
+    let txt = fs::read_to_string(path).map_err(|source| TraceReadError::Read {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let v = toml::from_str(&txt).map_err(|source| TraceReadError::Parse {
+        path: path.to_path_buf(),
+        source,
+    })?;
     Ok(v)
 }
 
@@ -32,8 +59,11 @@ pub struct TraceFiles {
 ///
 /// Missing files are returned with empty requirement lists and a warning is logged.
 /// (`derived` returns `None` if absent.)
-pub fn read_all_trace_files(root: &str) -> Result<TraceFiles> {
-    fn read_or_default<T: for<'de> Deserialize<'de>>(path: &Path, default: T) -> Result<T> {
+pub fn read_all_trace_files(root: &str) -> Result<TraceFiles, TraceReadError> {
+    fn read_or_default<T: for<'de> Deserialize<'de>>(
+        path: &Path,
+        default: T,
+    ) -> Result<T, TraceReadError> {
         if path.exists() {
             read_toml(path)
         } else {

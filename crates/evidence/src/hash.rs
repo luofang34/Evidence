@@ -4,14 +4,54 @@
 //! computing digests of files and data. Uses BTreeMap for
 //! deterministic ordering in hash collections.
 
-use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use thiserror::Error;
 
 use crate::util::normalize_bundle_path;
+
+/// Errors returned by the hashing helpers in this module.
+#[derive(Debug, Error)]
+pub enum HashError {
+    /// Failed to open `path` for hashing.
+    #[error("opening {path:?}")]
+    Open {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    /// Failed to read bytes from `path` into the hasher.
+    #[error("reading {path:?}")]
+    Read {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    /// Failed to write `SHA256SUMS` at `path`.
+    #[error("writing {path:?}")]
+    Write {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    /// A file walked during `write_sha256sums` raised an error.
+    #[error("walking bundle tree")]
+    Walk(#[source] walkdir::Error),
+    /// `hash_file_relative_into` was given a path outside `base`, so
+    /// `strip_prefix` failed.
+    #[error("{path:?} is not under base {base:?}")]
+    NotUnderBase { path: PathBuf, base: PathBuf },
+    /// `hash_file_relative_into` was given a non-UTF-8 path; bundle
+    /// JSON (`SHA256SUMS`, `index.json.trace_outputs`) only carries
+    /// UTF-8 path strings, so non-UTF-8 is rejected up front instead
+    /// of silently `to_string_lossy`-mangling.
+    #[error("non-UTF-8 path: {path:?}")]
+    NonUtf8Path { path: PathBuf },
+}
 
 /// Compute the SHA-256 hash of the given data.
 pub fn sha256(data: &[u8]) -> String {
@@ -25,10 +65,16 @@ pub fn sha256(data: &[u8]) -> String {
 ///
 /// Uses buffered reads to avoid loading the entire file into memory,
 /// which is critical for large build artifacts (firmware images, FPGA bitstreams).
-pub fn sha256_file(path: &Path) -> Result<String> {
-    let mut file = fs::File::open(path).with_context(|| format!("Opening {:?}", path))?;
+pub fn sha256_file(path: &Path) -> Result<String, HashError> {
+    let mut file = fs::File::open(path).map_err(|source| HashError::Open {
+        path: path.to_path_buf(),
+        source,
+    })?;
     let mut hasher = Sha256::new();
-    io::copy(&mut file, &mut hasher).with_context(|| format!("Reading {:?}", path))?;
+    io::copy(&mut file, &mut hasher).map_err(|source| HashError::Read {
+        path: path.to_path_buf(),
+        source,
+    })?;
     Ok(hex::encode(hasher.finalize()))
 }
 
@@ -36,7 +82,7 @@ pub fn sha256_file(path: &Path) -> Result<String> {
 ///
 /// The path string is used as the key. Returns an error if the file
 /// cannot be read.
-pub fn hash_file_into(map: &mut BTreeMap<String, String>, path: &str) -> Result<()> {
+pub fn hash_file_into(map: &mut BTreeMap<String, String>, path: &str) -> Result<(), HashError> {
     let hash = sha256_file(std::path::Path::new(path))?;
     map.insert(path.to_string(), hash);
     Ok(())
@@ -51,15 +97,19 @@ pub fn hash_file_relative_into(
     map: &mut BTreeMap<String, String>,
     path: &Path,
     base: &Path,
-) -> Result<()> {
+) -> Result<(), HashError> {
     let hash = sha256_file(path)?;
     let rel = path
         .strip_prefix(base)
-        .with_context(|| format!("{:?} is not under base {:?}", path, base))?;
+        .map_err(|_| HashError::NotUnderBase {
+            path: path.to_path_buf(),
+            base: base.to_path_buf(),
+        })?;
     // Reject non-UTF-8 up-front; `normalize_bundle_path` would otherwise
     // use `to_string_lossy` and silently mangle the key.
-    rel.to_str()
-        .with_context(|| format!("Non-UTF-8 path: {:?}", rel))?;
+    rel.to_str().ok_or_else(|| HashError::NonUtf8Path {
+        path: rel.to_path_buf(),
+    })?;
     map.insert(normalize_bundle_path(rel), hash);
     Ok(())
 }
@@ -73,12 +123,12 @@ pub fn hash_file_relative_into(
 /// Files are sorted for deterministic output.
 /// Path separators are normalized to forward slashes for cross-platform
 /// reproducibility (ADR-001 Invariant 6).
-pub fn write_sha256sums(root: &Path, out_path: &Path) -> Result<()> {
+pub fn write_sha256sums(root: &Path, out_path: &Path) -> Result<(), HashError> {
     let index_path = root.join("index.json");
     let sig_path = root.join("BUNDLE.sig");
     let mut files: Vec<std::path::PathBuf> = Vec::new();
     for entry in walkdir::WalkDir::new(root) {
-        let entry = entry?;
+        let entry = entry.map_err(HashError::Walk)?;
         if entry.file_type().is_file() {
             // Skip metadata-layer files: these are excluded from the content hash
             // to maintain determinism and separation of concerns.
@@ -104,7 +154,10 @@ pub fn write_sha256sums(root: &Path, out_path: &Path) -> Result<()> {
         let hash = sha256_file(&f)?;
         lines.push(format!("{}  {}", hash, rel_path));
     }
-    fs::write(out_path, lines.join("\n") + "\n")?;
+    fs::write(out_path, lines.join("\n") + "\n").map_err(|source| HashError::Write {
+        path: out_path.to_path_buf(),
+        source,
+    })?;
     Ok(())
 }
 

@@ -88,8 +88,7 @@ fn test_traceability_bidirectional_matrix() {
     )
     .expect("trace links should validate successfully");
 
-    let matrix =
-        generate_traceability_matrix(&hlr_file, &llr_file, &tests_file, "DOC-001").unwrap();
+    let matrix = generate_traceability_matrix(&hlr_file, &llr_file, &tests_file, "DOC-001");
 
     assert!(
         matrix.contains("HLR to LLR Traceability"),
@@ -208,8 +207,7 @@ fn test_orphan_test_detection() {
         tests,
     };
 
-    let matrix =
-        generate_traceability_matrix(&hlr_file, &llr_file, &tests_file, "DOC-001").unwrap();
+    let matrix = generate_traceability_matrix(&hlr_file, &llr_file, &tests_file, "DOC-001");
 
     assert!(
         matrix.contains("Orphan tests (no LLR link)"),

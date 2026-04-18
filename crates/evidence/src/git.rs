@@ -3,14 +3,62 @@
 //! This module provides functionality for capturing git repository
 //! state including commit hashes, branch info, and dirty status.
 
-use anyhow::{Result, bail};
-use log;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
 
+use thiserror::Error;
+
 use crate::traits::GitProvider;
-use crate::util::cmd_stdout;
+use crate::util::{CmdError, cmd_stdout};
+
+/// Errors returned by this module's git-query helpers and by
+/// [`GitProvider`] implementations.
+#[derive(Debug, Error)]
+pub enum GitError {
+    /// A child `git` command failed to launch or ran to a non-zero
+    /// exit, or produced non-UTF-8 output. See [`CmdError`] for the
+    /// exact failure shape.
+    #[error(transparent)]
+    Cmd(#[from] CmdError),
+    /// `git status --porcelain` or `git ls-files` launched but exited
+    /// with a non-zero status, and the caller wants a specific label.
+    #[error("{cmd} failed")]
+    SubcommandFailed { cmd: String },
+    /// A cert/record profile requires valid git state, but the
+    /// provider returned no or unknown SHA.
+    #[error(
+        "cert/record profile requires valid git state. Not in a git repository or HEAD is detached."
+    )]
+    StrictStateRequired,
+    /// A cert/record profile requires a valid git branch, but the
+    /// provider returned no or unknown branch.
+    #[error(
+        "cert/record profile requires valid git branch. Not in a git repository or HEAD is detached."
+    )]
+    StrictBranchRequired,
+    /// A cert/record profile requires knowing whether the tree is
+    /// dirty, but the provider failed to determine it.
+    #[error(
+        "cert/record profile requires git dirty status. Failed to determine working directory state."
+    )]
+    StrictDirtyRequired,
+    /// `.git/shallow` exists — evidence generation needs full history.
+    #[error(
+        "Shallow clone detected. Evidence generation requires full repository history.\n\
+         Run: git fetch --unshallow"
+    )]
+    ShallowClone,
+    /// `git ls-files -z` returned bytes that are not valid UTF-8.
+    /// Bundle JSON only carries UTF-8 path strings, so this is a hard
+    /// failure rather than a lossy conversion.
+    #[error("git ls-files returned non-UTF8 path (evidence requires UTF8)")]
+    NonUtf8Path,
+    /// Ad-hoc error — primarily for test doubles. Real implementations
+    /// should prefer a more specific variant.
+    #[error("{0}")]
+    Other(String),
+}
 
 /// Git repository state snapshot.
 ///
@@ -32,7 +80,7 @@ impl GitSnapshot {
     /// When `strict` is true (cert/record profiles), any failure to read git
     /// state is a hard error instead of falling back to "unknown". This
     /// ensures strict error handling in certification profiles.
-    pub fn capture(strict: bool) -> Result<Self> {
+    pub fn capture(strict: bool) -> Result<Self, GitError> {
         let provider = RealGitProvider;
         Self::capture_with(&provider, strict)
     }
@@ -41,7 +89,7 @@ impl GitSnapshot {
     ///
     /// When `strict` is true, failures to obtain git SHA, branch, or dirty
     /// status are propagated as errors rather than silently defaulting.
-    pub fn capture_with<G: GitProvider>(provider: &G, strict: bool) -> Result<Self> {
+    pub fn capture_with<G: GitProvider>(provider: &G, strict: bool) -> Result<Self, GitError> {
         let sha = provider.sha();
         let branch = provider.branch();
         let dirty = provider.is_dirty();
@@ -49,23 +97,14 @@ impl GitSnapshot {
         if strict {
             let sha_val = sha.as_ref().map(|s| s.as_str()).unwrap_or("unknown");
             if sha.is_err() || sha_val == "unknown" {
-                bail!(
-                    "cert/record profile requires valid git state. \
-                     Not in a git repository or HEAD is detached."
-                );
+                return Err(GitError::StrictStateRequired);
             }
             let branch_val = branch.as_ref().map(|s| s.as_str()).unwrap_or("unknown");
             if branch.is_err() || branch_val == "unknown" {
-                bail!(
-                    "cert/record profile requires valid git branch. \
-                     Not in a git repository or HEAD is detached."
-                );
+                return Err(GitError::StrictBranchRequired);
             }
             if dirty.is_err() {
-                bail!(
-                    "cert/record profile requires git dirty status. \
-                     Failed to determine working directory state."
-                );
+                return Err(GitError::StrictDirtyRequired);
             }
         }
 
@@ -90,32 +129,32 @@ impl GitSnapshot {
 pub struct RealGitProvider;
 
 impl GitProvider for RealGitProvider {
-    fn sha(&self) -> Result<String> {
+    fn sha(&self) -> Result<String, GitError> {
         git_sha()
     }
 
-    fn branch(&self) -> Result<String> {
+    fn branch(&self) -> Result<String, GitError> {
         git_branch()
     }
 
-    fn is_dirty(&self) -> Result<bool> {
+    fn is_dirty(&self) -> Result<bool, GitError> {
         git_dirty()
     }
 
-    fn dirty_files(&self) -> Result<Vec<String>> {
+    fn dirty_files(&self) -> Result<Vec<String>, GitError> {
         git_dirty_files()
     }
 }
 
 /// Get the current git commit SHA.
-pub fn git_sha() -> Result<String> {
+pub fn git_sha() -> Result<String, GitError> {
     Ok(cmd_stdout("git", &["rev-parse", "HEAD"])?
         .trim()
         .to_string())
 }
 
 /// Get the current git branch name.
-pub fn git_branch() -> Result<String> {
+pub fn git_branch() -> Result<String, GitError> {
     Ok(cmd_stdout("git", &["rev-parse", "--abbrev-ref", "HEAD"])?
         .trim()
         .to_string())
@@ -142,34 +181,49 @@ pub fn is_dirty_or_unknown() -> bool {
 /// a shallow clone can silently produce bundles that cannot be
 /// verified against a full repository later. Returns `Err` if
 /// `.git/shallow` exists.
-pub fn check_shallow_clone() -> Result<()> {
+pub fn check_shallow_clone() -> Result<(), GitError> {
     if Path::new(".git/shallow").exists() {
-        bail!(
-            "Shallow clone detected. Evidence generation requires full repository history.\n\
-             Run: git fetch --unshallow"
-        );
+        return Err(GitError::ShallowClone);
     }
     Ok(())
 }
 
 /// Check if the git working directory is dirty.
-pub fn git_dirty() -> Result<bool> {
+pub fn git_dirty() -> Result<bool, GitError> {
     let out = Command::new("git")
         .args(["status", "--porcelain"])
-        .output()?;
+        .output()
+        .map_err(|source| {
+            GitError::Cmd(CmdError::Launch {
+                prog: "git".to_string(),
+                args: vec!["status".into(), "--porcelain".into()],
+                source,
+            })
+        })?;
     if !out.status.success() {
-        bail!("git status failed");
+        return Err(GitError::SubcommandFailed {
+            cmd: "git status".to_string(),
+        });
     }
     Ok(!out.stdout.is_empty())
 }
 
 /// Get list of dirty files (modified, untracked, etc.) for error reporting.
-pub fn git_dirty_files() -> Result<Vec<String>> {
+pub fn git_dirty_files() -> Result<Vec<String>, GitError> {
     let out = Command::new("git")
         .args(["status", "--porcelain"])
-        .output()?;
+        .output()
+        .map_err(|source| {
+            GitError::Cmd(CmdError::Launch {
+                prog: "git".to_string(),
+                args: vec!["status".into(), "--porcelain".into()],
+                source,
+            })
+        })?;
     if !out.status.success() {
-        bail!("git status failed");
+        return Err(GitError::SubcommandFailed {
+            cmd: "git status".to_string(),
+        });
     }
     let output = String::from_utf8_lossy(&out.stdout);
     Ok(output
@@ -183,29 +237,35 @@ pub fn git_dirty_files() -> Result<Vec<String>> {
 ///
 /// Uses null-separated output for robustness with special characters.
 /// Returns sorted list for determinism.
-pub fn git_ls_files(prefixes: &[&str]) -> Result<Vec<String>> {
-    let mut args = vec!["ls-files", "-z", "--"];
-    args.extend(prefixes.iter().copied());
+pub fn git_ls_files(prefixes: &[&str]) -> Result<Vec<String>, GitError> {
+    let mut args: Vec<String> = vec!["ls-files".into(), "-z".into(), "--".into()];
+    args.extend(prefixes.iter().map(|s| (*s).to_string()));
 
-    let output = Command::new("git").args(&args).output()?;
+    let output = Command::new("git").args(&args).output().map_err(|source| {
+        GitError::Cmd(CmdError::Launch {
+            prog: "git".to_string(),
+            args: args.clone(),
+            source,
+        })
+    })?;
     if !output.status.success() {
-        bail!("git ls-files failed");
+        return Err(GitError::SubcommandFailed {
+            cmd: "git ls-files".to_string(),
+        });
     }
 
-    // Parse null-separated output using bytes (safe for non-UTF8 paths)
-    // Split by NUL byte, then validate UTF-8 for each segment
+    // Parse null-separated output using bytes (safe for non-UTF8 paths).
+    // Split by NUL byte, then validate UTF-8 for each segment.
     let mut files: Vec<String> = Vec::new();
     for segment in output.stdout.split(|b| *b == 0) {
         if segment.is_empty() {
             continue;
         }
-        // Require valid UTF-8 paths for evidence integrity
-        let path = std::str::from_utf8(segment).map_err(|_| {
-            anyhow::anyhow!("git ls-files returned non-UTF8 path (evidence requires UTF8)")
-        })?;
+        // Require valid UTF-8 paths for evidence integrity.
+        let path = std::str::from_utf8(segment).map_err(|_| GitError::NonUtf8Path)?;
         files.push(path.to_string());
     }
-    // Re-sort for determinism (git output is usually sorted, but be explicit)
+    // Re-sort for determinism (git output is usually sorted, but be explicit).
     files.sort();
     Ok(files)
 }

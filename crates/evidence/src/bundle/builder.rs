@@ -8,7 +8,6 @@
 //! (content layer) and then `index.json` (metadata layer), with a
 //! TOCTOU re-check on `git_sha` so a mid-run repo mutation is caught.
 
-use anyhow::{Context, Result, bail};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,6 +15,7 @@ use std::process::Command;
 
 use super::capture::normalize_captured_text;
 use super::command::CommandRecord;
+use super::error::BuilderError;
 use super::index::EvidenceIndex;
 use super::test_summary::TestSummary;
 use super::time::{utc_compact_stamp, utc_now_rfc3339};
@@ -59,7 +59,7 @@ impl EvidenceBuilder {
     /// Create a new evidence builder with the given configuration.
     ///
     /// Uses the real git provider. For testing, use [`Self::new_with_provider`].
-    pub fn new(config: EvidenceBuildConfig) -> Result<Self> {
+    pub fn new(config: EvidenceBuildConfig) -> Result<Self, BuilderError> {
         Self::new_with_provider(config, RealGitProvider)
     }
 
@@ -70,7 +70,7 @@ impl EvidenceBuilder {
     pub fn new_with_provider<G: GitProvider + 'static>(
         config: EvidenceBuildConfig,
         provider: G,
-    ) -> Result<Self> {
+    ) -> Result<Self, BuilderError> {
         // Determine strict mode from profile (cert and record require strictness)
         let strict = matches!(config.profile, Profile::Cert | Profile::Record);
 
@@ -83,11 +83,11 @@ impl EvidenceBuilder {
         // Check git clean requirements
         if (config.require_clean_git || config.fail_on_dirty) && git_snapshot.dirty {
             let dirty_files = provider.dirty_files().unwrap_or_default();
-            let file_list = if dirty_files.is_empty() {
+            let suffix = if dirty_files.is_empty() {
                 String::new()
             } else {
                 let capped: Vec<_> = dirty_files.iter().take(10).cloned().collect();
-                let suffix = if dirty_files.len() > 10 {
+                let more = if dirty_files.len() > 10 {
                     format!("\n  ... and {} more", dirty_files.len() - 10)
                 } else {
                     String::new()
@@ -95,21 +95,20 @@ impl EvidenceBuilder {
                 format!(
                     "\n\nDirty files:\n  {}{}\n\nTo fix:\n  git add <files> && git commit -m \"...\"\n\nTo override (dev only):\n  cargo xtask evidence --profile dev",
                     capped.join("\n  "),
-                    suffix
+                    more
                 )
             };
-            bail!(
-                "profile '{}' requires clean git tree{}",
-                config.profile,
-                file_list
-            );
+            return Err(BuilderError::DirtyGitTree {
+                profile: config.profile,
+                suffix,
+            });
         }
 
         // Create bundle directory with profile prefix, timestamp, and SHA.
         // Format: <profile>-<YYYYMMDD-HHMMSSZ>-<sha8>
         // The profile prefix makes it visually obvious which profile generated
         // the bundle and prevents accidental submission of dev bundles as cert.
-        let ts = utc_compact_stamp()?;
+        let ts = utc_compact_stamp();
         let sha_short = if git_snapshot.sha.len() >= 8 {
             &git_snapshot.sha[..8]
         } else {
@@ -120,15 +119,26 @@ impl EvidenceBuilder {
             .join(format!("{}-{}-{}", config.profile, ts, sha_short));
 
         if bundle_dir.exists() {
-            bail!(
-                "Bundle directory {:?} already exists. Remove it first or use a different --out-dir.",
-                bundle_dir
-            );
+            return Err(BuilderError::BundleExists { path: bundle_dir });
         }
 
-        fs::create_dir_all(&bundle_dir).with_context(|| format!("Creating {:?}", bundle_dir))?;
-        fs::create_dir_all(bundle_dir.join("tests"))?;
-        fs::create_dir_all(bundle_dir.join("trace"))?;
+        fs::create_dir_all(&bundle_dir).map_err(|source| BuilderError::Io {
+            op: "creating",
+            path: bundle_dir.clone(),
+            source,
+        })?;
+        let tests_dir = bundle_dir.join("tests");
+        fs::create_dir_all(&tests_dir).map_err(|source| BuilderError::Io {
+            op: "creating",
+            path: tests_dir,
+            source,
+        })?;
+        let trace_dir = bundle_dir.join("trace");
+        fs::create_dir_all(&trace_dir).map_err(|source| BuilderError::Io {
+            op: "creating",
+            path: trace_dir,
+            source,
+        })?;
 
         Ok(Self {
             config,
@@ -148,13 +158,17 @@ impl EvidenceBuilder {
     }
 
     /// Hash a file and add to inputs.
-    pub fn hash_input(&mut self, path: &str) -> Result<()> {
-        hash_file_into(&mut self.inputs, path)
+    pub fn hash_input(&mut self, path: &str) -> Result<(), BuilderError> {
+        Ok(hash_file_into(&mut self.inputs, path)?)
     }
 
     /// Hash a file with relative path and add to outputs.
-    pub fn hash_output(&mut self, path: &Path) -> Result<()> {
-        hash_file_relative_into(&mut self.outputs, path, &self.bundle_dir)
+    pub fn hash_output(&mut self, path: &Path) -> Result<(), BuilderError> {
+        Ok(hash_file_relative_into(
+            &mut self.outputs,
+            path,
+            &self.bundle_dir,
+        )?)
     }
 
     /// Record a command execution.
@@ -169,8 +183,11 @@ impl EvidenceBuilder {
         rel_dir: &str,
         output_name_base: &str,
         display_name: &str,
-    ) -> Result<(Vec<u8>, Vec<u8>)> {
-        let cwd = std::env::current_dir()?.display().to_string();
+    ) -> Result<(Vec<u8>, Vec<u8>), BuilderError> {
+        let cwd = std::env::current_dir()
+            .map_err(BuilderError::CurrentDir)?
+            .display()
+            .to_string();
         let argv = {
             let mut v = Vec::new();
             v.push(cmd.get_program().to_string_lossy().to_string());
@@ -179,9 +196,10 @@ impl EvidenceBuilder {
         };
 
         log::info!("evidence: running {}...", display_name);
-        let output = cmd
-            .output()
-            .with_context(|| format!("Running {}", display_name))?;
+        let output = cmd.output().map_err(|source| BuilderError::RunCommand {
+            display_name: display_name.to_string(),
+            source,
+        })?;
         let exit_code = output.status.code().unwrap_or(-1);
 
         if !output.status.success() {
@@ -211,18 +229,32 @@ impl EvidenceBuilder {
         if let Some(ref sp) = stdout_path {
             let abs = self.bundle_dir.join(sp);
             if let Some(parent) = abs.parent() {
-                fs::create_dir_all(parent)?;
+                fs::create_dir_all(parent).map_err(|source| BuilderError::Io {
+                    op: "creating",
+                    path: parent.to_path_buf(),
+                    source,
+                })?;
             }
-            fs::write(&abs, &stdout_norm)
-                .with_context(|| format!("Writing stdout to {:?}", abs))?;
+            fs::write(&abs, &stdout_norm).map_err(|source| BuilderError::Io {
+                op: "writing stdout to",
+                path: abs.clone(),
+                source,
+            })?;
         }
         if let Some(ref ep) = stderr_path {
             let abs = self.bundle_dir.join(ep);
             if let Some(parent) = abs.parent() {
-                fs::create_dir_all(parent)?;
+                fs::create_dir_all(parent).map_err(|source| BuilderError::Io {
+                    op: "creating",
+                    path: parent.to_path_buf(),
+                    source,
+                })?;
             }
-            fs::write(&abs, &stderr_norm)
-                .with_context(|| format!("Writing stderr to {:?}", abs))?;
+            fs::write(&abs, &stderr_norm).map_err(|source| BuilderError::Io {
+                op: "writing stderr to",
+                path: abs.clone(),
+                source,
+            })?;
         }
 
         let rec = CommandRecord {
@@ -241,23 +273,51 @@ impl EvidenceBuilder {
     }
 
     /// Write the inputs hashes file.
-    pub fn write_inputs(&self) -> Result<PathBuf> {
+    pub fn write_inputs(&self) -> Result<PathBuf, BuilderError> {
         let path = self.bundle_dir.join("inputs_hashes.json");
-        fs::write(&path, serde_json::to_vec_pretty(&self.inputs)?)?;
+        let bytes =
+            serde_json::to_vec_pretty(&self.inputs).map_err(|source| BuilderError::Serialize {
+                kind: "inputs_hashes.json",
+                source,
+            })?;
+        fs::write(&path, bytes).map_err(|source| BuilderError::Io {
+            op: "writing",
+            path: path.clone(),
+            source,
+        })?;
         Ok(path)
     }
 
     /// Write the outputs hashes file.
-    pub fn write_outputs(&self) -> Result<PathBuf> {
+    pub fn write_outputs(&self) -> Result<PathBuf, BuilderError> {
         let path = self.bundle_dir.join("outputs_hashes.json");
-        fs::write(&path, serde_json::to_vec_pretty(&self.outputs)?)?;
+        let bytes =
+            serde_json::to_vec_pretty(&self.outputs).map_err(|source| BuilderError::Serialize {
+                kind: "outputs_hashes.json",
+                source,
+            })?;
+        fs::write(&path, bytes).map_err(|source| BuilderError::Io {
+            op: "writing",
+            path: path.clone(),
+            source,
+        })?;
         Ok(path)
     }
 
     /// Write the commands file.
-    pub fn write_commands(&self) -> Result<PathBuf> {
+    pub fn write_commands(&self) -> Result<PathBuf, BuilderError> {
         let path = self.bundle_dir.join("commands.json");
-        fs::write(&path, serde_json::to_vec_pretty(&self.commands)?)?;
+        let bytes = serde_json::to_vec_pretty(&self.commands).map_err(|source| {
+            BuilderError::Serialize {
+                kind: "commands.json",
+                source,
+            }
+        })?;
+        fs::write(&path, bytes).map_err(|source| BuilderError::Io {
+            op: "writing",
+            path: path.clone(),
+            source,
+        })?;
         Ok(path)
     }
 
@@ -291,7 +351,7 @@ impl EvidenceBuilder {
     /// 3. `index.json` is written last with `content_hash` embedded. Because
     ///    `index.json` is excluded from SHA256SUMS, timestamps do not affect
     ///    the content hash.
-    pub fn finalize(&self, trace_outputs: Vec<PathBuf>) -> Result<PathBuf> {
+    pub fn finalize(&self, trace_outputs: Vec<PathBuf>) -> Result<PathBuf, BuilderError> {
         // TOCTOU check: verify git HEAD hasn't changed since builder was created.
         // A changed HEAD means source files may have been modified between the
         // initial snapshot and finalize, invalidating the evidence chain.
@@ -299,19 +359,15 @@ impl EvidenceBuilder {
             if let Ok(current_sha) = self.git_provider.sha() {
                 let current_sha = current_sha.trim().to_string();
                 if current_sha != self.git_snapshot.sha {
-                    bail!(
-                        "TOCTOU: git HEAD changed during evidence generation.\n\
-                         Snapshot SHA: {}\n\
-                         Current SHA:  {}\n\
-                         Source files may have changed. Re-run evidence generation.",
-                        self.git_snapshot.sha,
-                        current_sha
-                    );
+                    return Err(BuilderError::Toctou {
+                        snapshot_sha: self.git_snapshot.sha.clone(),
+                        current_sha,
+                    });
                 }
             }
         }
 
-        let ts = utc_now_rfc3339()?;
+        let ts = utc_now_rfc3339();
         let sha256sums_path = self.bundle_dir.join("SHA256SUMS");
 
         // Step 1: Project env.json onto the cross-host-stable subset
@@ -322,13 +378,25 @@ impl EvidenceBuilder {
         // and the integrity chain binds it like any other content
         // file.
         let env_path = self.bundle_dir.join("env.json");
-        let env_bytes = fs::read(&env_path)
-            .with_context(|| format!("reading {:?} to build deterministic manifest", env_path))?;
-        let env_fp: crate::env::EnvFingerprint = serde_json::from_slice(&env_bytes)
-            .context("parsing env.json to derive deterministic manifest")?;
+        let env_bytes = fs::read(&env_path).map_err(|source| BuilderError::Io {
+            op: "reading",
+            path: env_path.clone(),
+            source,
+        })?;
+        let env_fp: crate::env::EnvFingerprint =
+            serde_json::from_slice(&env_bytes).map_err(BuilderError::ParseEnv)?;
         let manifest = env_fp.deterministic_manifest();
         let manifest_path = self.bundle_dir.join("deterministic-manifest.json");
-        fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
+        let manifest_bytes =
+            serde_json::to_vec_pretty(&manifest).map_err(|source| BuilderError::Serialize {
+                kind: "deterministic-manifest.json",
+                source,
+            })?;
+        fs::write(&manifest_path, manifest_bytes).map_err(|source| BuilderError::Io {
+            op: "writing",
+            path: manifest_path.clone(),
+            source,
+        })?;
 
         // Step 2: Write SHA256SUMS covering the content layer only.
         // index.json does not exist yet so it is naturally excluded.
@@ -336,10 +404,8 @@ impl EvidenceBuilder {
 
         // Step 3: Compute full content_hash and the narrower
         // deterministic_hash.
-        let content_hash =
-            crate::hash::sha256_file(&sha256sums_path).context("hashing SHA256SUMS")?;
-        let deterministic_hash = crate::hash::sha256_file(&manifest_path)
-            .context("hashing deterministic-manifest.json")?;
+        let content_hash = crate::hash::sha256_file(&sha256sums_path)?;
+        let deterministic_hash = crate::hash::sha256_file(&manifest_path)?;
 
         // Step 4: Build and write index.json (metadata layer).
         let idx = EvidenceIndex {
@@ -380,7 +446,16 @@ impl EvidenceBuilder {
         };
 
         let index_path = self.bundle_dir.join("index.json");
-        fs::write(&index_path, serde_json::to_vec_pretty(&idx)?)?;
+        let index_bytes =
+            serde_json::to_vec_pretty(&idx).map_err(|source| BuilderError::Serialize {
+                kind: "index.json",
+                source,
+            })?;
+        fs::write(&index_path, index_bytes).map_err(|source| BuilderError::Io {
+            op: "writing",
+            path: index_path.clone(),
+            source,
+        })?;
 
         Ok(self.bundle_dir.clone())
     }

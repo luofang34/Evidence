@@ -1,17 +1,16 @@
 //! UTC time helpers used by the bundle builder.
-
-use anyhow::Result;
+//!
+//! These wrap `chrono::Utc::now()`; formatting is infallible so the
+//! return type is `String`, not `Result<String, _>`.
 
 /// Get current UTC time in RFC3339 format.
-pub fn utc_now_rfc3339() -> Result<String> {
-    let now = chrono::Utc::now();
-    Ok(now.to_rfc3339())
+pub fn utc_now_rfc3339() -> String {
+    chrono::Utc::now().to_rfc3339()
 }
 
 /// Get current UTC time as compact timestamp (YYYYMMDD-HHMMSSZ).
-pub fn utc_compact_stamp() -> Result<String> {
-    let now = chrono::Utc::now();
-    Ok(now.format("%Y%m%d-%H%M%SZ").to_string())
+pub fn utc_compact_stamp() -> String {
+    chrono::Utc::now().format("%Y%m%d-%H%M%SZ").to_string()
 }
 
 #[cfg(test)]
@@ -26,7 +25,7 @@ mod tests {
 
     #[test]
     fn test_utc_compact_stamp_format() {
-        let stamp = utc_compact_stamp().unwrap();
+        let stamp = utc_compact_stamp();
         // Format: YYYYMMDD-HHMMSSZ
         assert!(stamp.ends_with('Z'));
         assert!(stamp.contains('-'));

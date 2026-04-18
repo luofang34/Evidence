@@ -1,12 +1,39 @@
 //! HMAC-SHA256 signing of a bundle's `SHA256SUMS` + `index.json` envelope.
 
-use anyhow::{Context, Result};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use thiserror::Error;
+
 type HmacSha256 = Hmac<Sha256>;
+
+/// Errors returned by [`sign_bundle`] / [`verify_bundle_signature`].
+#[derive(Debug, Error)]
+pub enum SigningError {
+    /// Failed to read one of the envelope inputs or the signature file.
+    #[error("reading {path}")]
+    Read {
+        /// Bundle-relative filename (`SHA256SUMS`, `index.json`, `BUNDLE.sig`).
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    /// Failed to write `BUNDLE.sig`.
+    #[error("writing {path}")]
+    Write {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    /// The provided HMAC key had an invalid length for SHA-256.
+    #[error("invalid HMAC key: {reason}")]
+    InvalidKey { reason: String },
+    /// `BUNDLE.sig` contained non-hex bytes.
+    #[error("BUNDLE.sig contains invalid hex")]
+    InvalidSignatureHex(#[source] hex::FromHexError),
+}
 
 /// HMAC envelope layout: length-prefixed concatenation of
 /// `SHA256SUMS` and `index.json` as they live on disk, no
@@ -42,19 +69,21 @@ fn hmac_envelope_into(mac: &mut HmacSha256, sha256sums: &[u8], index_json: &[u8]
 ///
 /// Must be called after `EvidenceBuilder::finalize()` — both files
 /// must be present on disk with their final contents.
-pub fn sign_bundle(bundle_dir: &Path, key: &[u8]) -> Result<PathBuf> {
-    let sha256sums =
-        fs::read(bundle_dir.join("SHA256SUMS")).context("reading SHA256SUMS for signing")?;
-    let index_json =
-        fs::read(bundle_dir.join("index.json")).context("reading index.json for signing")?;
+pub fn sign_bundle(bundle_dir: &Path, key: &[u8]) -> Result<PathBuf, SigningError> {
+    let sha256sums = read_envelope_input(bundle_dir, "SHA256SUMS")?;
+    let index_json = read_envelope_input(bundle_dir, "index.json")?;
 
-    let mut mac =
-        HmacSha256::new_from_slice(key).map_err(|e| anyhow::anyhow!("HMAC key error: {}", e))?;
+    let mut mac = HmacSha256::new_from_slice(key).map_err(|e| SigningError::InvalidKey {
+        reason: e.to_string(),
+    })?;
     hmac_envelope_into(&mut mac, &sha256sums, &index_json);
     let sig_hex = hex::encode(mac.finalize().into_bytes());
 
     let sig_path = bundle_dir.join("BUNDLE.sig");
-    fs::write(&sig_path, &sig_hex).context("writing BUNDLE.sig")?;
+    fs::write(&sig_path, &sig_hex).map_err(|source| SigningError::Write {
+        path: "BUNDLE.sig".to_string(),
+        source,
+    })?;
     Ok(sig_path)
 }
 
@@ -62,21 +91,30 @@ pub fn sign_bundle(bundle_dir: &Path, key: &[u8]) -> Result<PathBuf> {
 /// `SHA256SUMS` + `index.json` envelope.
 ///
 /// Returns `Ok(true)` if valid, `Ok(false)` if invalid, or an error on I/O failure.
-pub fn verify_bundle_signature(bundle_dir: &Path, key: &[u8]) -> Result<bool> {
-    let sha256sums =
-        fs::read(bundle_dir.join("SHA256SUMS")).context("reading SHA256SUMS for verification")?;
-    let index_json =
-        fs::read(bundle_dir.join("index.json")).context("reading index.json for verification")?;
+pub fn verify_bundle_signature(bundle_dir: &Path, key: &[u8]) -> Result<bool, SigningError> {
+    let sha256sums = read_envelope_input(bundle_dir, "SHA256SUMS")?;
+    let index_json = read_envelope_input(bundle_dir, "index.json")?;
 
-    let sig_hex = fs::read_to_string(bundle_dir.join("BUNDLE.sig"))
-        .context("reading BUNDLE.sig for verification")?;
-    let expected = hex::decode(sig_hex.trim()).context("BUNDLE.sig contains invalid hex")?;
+    let sig_hex =
+        fs::read_to_string(bundle_dir.join("BUNDLE.sig")).map_err(|source| SigningError::Read {
+            path: "BUNDLE.sig".to_string(),
+            source,
+        })?;
+    let expected = hex::decode(sig_hex.trim()).map_err(SigningError::InvalidSignatureHex)?;
 
-    let mut mac =
-        HmacSha256::new_from_slice(key).map_err(|e| anyhow::anyhow!("HMAC key error: {}", e))?;
+    let mut mac = HmacSha256::new_from_slice(key).map_err(|e| SigningError::InvalidKey {
+        reason: e.to_string(),
+    })?;
     hmac_envelope_into(&mut mac, &sha256sums, &index_json);
 
     Ok(mac.verify_slice(&expected).is_ok())
+}
+
+fn read_envelope_input(bundle_dir: &Path, filename: &str) -> Result<Vec<u8>, SigningError> {
+    fs::read(bundle_dir.join(filename)).map_err(|source| SigningError::Read {
+        path: filename.to_string(),
+        source,
+    })
 }
 
 #[cfg(test)]

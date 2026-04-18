@@ -19,6 +19,7 @@
 pub mod builder;
 pub mod capture;
 pub mod command;
+pub mod error;
 pub mod index;
 pub mod signing;
 pub mod test_summary;
@@ -26,7 +27,8 @@ pub mod time;
 
 pub use builder::{EvidenceBuildConfig, EvidenceBuilder};
 pub use command::CommandRecord;
+pub use error::BuilderError;
 pub use index::EvidenceIndex;
-pub use signing::{sign_bundle, verify_bundle_signature};
+pub use signing::{SigningError, sign_bundle, verify_bundle_signature};
 pub use test_summary::{TestSummary, parse_cargo_test_output};
 pub use time::{utc_compact_stamp, utc_now_rfc3339};

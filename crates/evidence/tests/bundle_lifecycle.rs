@@ -17,6 +17,7 @@ use std::fs;
 
 use evidence::Profile;
 use evidence::bundle::{EvidenceBuildConfig, EvidenceBuilder};
+use evidence::git::GitError;
 use evidence::hash::write_sha256sums;
 use evidence::traits::GitProvider;
 use evidence::verify::verify_bundle;
@@ -167,7 +168,7 @@ impl MutatingGitProvider {
 }
 
 impl GitProvider for MutatingGitProvider {
-    fn sha(&self) -> anyhow::Result<String> {
+    fn sha(&self) -> Result<String, GitError> {
         let n = self.call_count.get();
         self.call_count.set(n + 1);
         if n == 0 {
@@ -177,15 +178,15 @@ impl GitProvider for MutatingGitProvider {
         }
     }
 
-    fn branch(&self) -> anyhow::Result<String> {
+    fn branch(&self) -> Result<String, GitError> {
         Ok("main".to_string())
     }
 
-    fn is_dirty(&self) -> anyhow::Result<bool> {
+    fn is_dirty(&self) -> Result<bool, GitError> {
         Ok(false)
     }
 
-    fn dirty_files(&self) -> anyhow::Result<Vec<String>> {
+    fn dirty_files(&self) -> Result<Vec<String>, GitError> {
         Ok(vec![])
     }
 }

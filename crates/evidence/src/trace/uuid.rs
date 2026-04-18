@@ -7,14 +7,37 @@
 //! assigner, and writes the file back with `toml::to_string_pretty`
 //! only if any UUIDs were actually added.
 
-use anyhow::{Context, Result};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use thiserror::Error;
 
 use super::entries::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, TestEntry, TestsFile,
 };
-use super::read::read_toml;
+use super::read::{TraceReadError, read_toml};
+
+/// Errors returned by [`backfill_uuids`].
+#[derive(Debug, Error)]
+pub enum BackfillError {
+    /// Reading / parsing one of the trace TOML files failed.
+    #[error(transparent)]
+    Read(#[from] TraceReadError),
+    /// Writing the updated TOML file back to disk failed.
+    #[error("writing {path}")]
+    Write {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    /// `toml::to_string_pretty` round-trip serialization failed.
+    #[error("serializing {filename}")]
+    Serialize {
+        filename: &'static str,
+        #[source]
+        source: toml::ser::Error,
+    },
+}
 
 /// Assign UUIDs to any HLR entries that are missing them.
 /// Returns the number of UUIDs assigned.
@@ -70,7 +93,7 @@ pub fn assign_missing_uuids_derived(entries: &mut [DerivedEntry]) -> usize {
 
 /// Read trace files from a directory, assign missing UUIDs, and write back.
 /// Returns total number of UUIDs assigned.
-pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
+pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
     let root_path = Path::new(trace_root);
     let mut total = 0;
 
@@ -80,9 +103,15 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let mut hlr: HlrFile = read_toml(&hlr_path)?;
         let n = assign_missing_uuids_hlr(&mut hlr.requirements);
         if n > 0 {
-            let content = toml::to_string_pretty(&hlr).with_context(|| "serializing hlr.toml")?;
-            fs::write(&hlr_path, content)
-                .with_context(|| format!("writing {}", hlr_path.display()))?;
+            let content =
+                toml::to_string_pretty(&hlr).map_err(|source| BackfillError::Serialize {
+                    filename: "hlr.toml",
+                    source,
+                })?;
+            fs::write(&hlr_path, content).map_err(|source| BackfillError::Write {
+                path: hlr_path.clone(),
+                source,
+            })?;
             total += n;
         }
     }
@@ -93,9 +122,15 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let mut llr: LlrFile = read_toml(&llr_path)?;
         let n = assign_missing_uuids_llr(&mut llr.requirements);
         if n > 0 {
-            let content = toml::to_string_pretty(&llr).with_context(|| "serializing llr.toml")?;
-            fs::write(&llr_path, content)
-                .with_context(|| format!("writing {}", llr_path.display()))?;
+            let content =
+                toml::to_string_pretty(&llr).map_err(|source| BackfillError::Serialize {
+                    filename: "llr.toml",
+                    source,
+                })?;
+            fs::write(&llr_path, content).map_err(|source| BackfillError::Write {
+                path: llr_path.clone(),
+                source,
+            })?;
             total += n;
         }
     }
@@ -107,9 +142,14 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let n = assign_missing_uuids_test(&mut tests.tests);
         if n > 0 {
             let content =
-                toml::to_string_pretty(&tests).with_context(|| "serializing tests.toml")?;
-            fs::write(&tests_path, content)
-                .with_context(|| format!("writing {}", tests_path.display()))?;
+                toml::to_string_pretty(&tests).map_err(|source| BackfillError::Serialize {
+                    filename: "tests.toml",
+                    source,
+                })?;
+            fs::write(&tests_path, content).map_err(|source| BackfillError::Write {
+                path: tests_path.clone(),
+                source,
+            })?;
             total += n;
         }
     }
@@ -121,9 +161,14 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize> {
         let n = assign_missing_uuids_derived(&mut derived.requirements);
         if n > 0 {
             let content =
-                toml::to_string_pretty(&derived).with_context(|| "serializing derived.toml")?;
-            fs::write(&derived_path, content)
-                .with_context(|| format!("writing {}", derived_path.display()))?;
+                toml::to_string_pretty(&derived).map_err(|source| BackfillError::Serialize {
+                    filename: "derived.toml",
+                    source,
+                })?;
+            fs::write(&derived_path, content).map_err(|source| BackfillError::Write {
+                path: derived_path.clone(),
+                source,
+            })?;
             total += n;
         }
     }

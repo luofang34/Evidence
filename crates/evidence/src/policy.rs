@@ -3,12 +3,33 @@
 //! This module defines the configuration and policy types used
 //! to control evidence generation and boundary enforcement.
 
-use anyhow::{Context, Result};
 use log;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use thiserror::Error;
+
+/// Errors returned by [`BoundaryConfig::load`].
+#[derive(Debug, Error)]
+pub enum LoadBoundaryError {
+    /// Failed to read the boundary config file from disk.
+    #[error("reading boundary config from {path}")]
+    Read {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    /// The file read but wasn't valid TOML (or didn't match the
+    /// expected schema).
+    #[error("parsing boundary config from {path}")]
+    Parse {
+        path: PathBuf,
+        #[source]
+        source: toml::de::Error,
+    },
+}
 
 // ============================================================================
 // Profile Configuration
@@ -37,15 +58,28 @@ impl std::fmt::Display for Profile {
     }
 }
 
+/// Error type for parsing a [`Profile`] from a string.
+///
+/// Typed error (via `thiserror`) instead of `anyhow::Error` so library
+/// callers can match on the failure mode without string-grepping. The
+/// CLI layer can still `?` it into an `anyhow::Error` if that's what
+/// its error envelope wants.
+#[derive(Debug, thiserror::Error)]
+pub enum ParseProfileError {
+    /// Input didn't match any of `dev` / `cert` / `record` (case-insensitive).
+    #[error("unknown profile '{0}'; expected one of: dev, cert, record")]
+    Unknown(String),
+}
+
 impl std::str::FromStr for Profile {
-    type Err = anyhow::Error;
+    type Err = ParseProfileError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "dev" => Ok(Profile::Dev),
             "cert" => Ok(Profile::Cert),
             "record" => Ok(Profile::Record),
-            _ => anyhow::bail!("Unknown profile: {}", s),
+            _ => Err(ParseProfileError::Unknown(s.to_string())),
         }
     }
 }
@@ -123,11 +157,15 @@ impl BoundaryConfig {
     /// success; this used to happen inline in the CLI's hand-rolled
     /// loader and moved here when the typed loader became the single
     /// source of truth.
-    pub fn load(path: &Path) -> Result<Self> {
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("reading boundary config from {:?}", path))?;
-        let config: Self = toml::from_str(&content)
-            .with_context(|| format!("parsing boundary config from {:?}", path))?;
+    pub fn load(path: &Path) -> Result<Self, LoadBoundaryError> {
+        let content = fs::read_to_string(path).map_err(|source| LoadBoundaryError::Read {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        let config: Self = toml::from_str(&content).map_err(|source| LoadBoundaryError::Parse {
+            path: path.to_path_buf(),
+            source,
+        })?;
         log::debug!(
             "boundary policy rules enabled: {:?}",
             config.policy.enabled_rules()
@@ -266,15 +304,23 @@ impl std::fmt::Display for Dal {
     }
 }
 
+/// Error type for parsing a [`Dal`] from a string.
+#[derive(Debug, thiserror::Error)]
+pub enum ParseDalError {
+    /// Input didn't match any of `A` / `B` / `C` / `D` (case-insensitive).
+    #[error("unknown DAL '{0}'; expected one of: A, B, C, D")]
+    Unknown(String),
+}
+
 impl std::str::FromStr for Dal {
-    type Err = anyhow::Error;
+    type Err = ParseDalError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_uppercase().as_str() {
             "A" => Ok(Dal::A),
             "B" => Ok(Dal::B),
             "C" => Ok(Dal::C),
             "D" => Ok(Dal::D),
-            _ => anyhow::bail!("Unknown DAL: '{}'. Expected A, B, C, or D", s),
+            _ => Err(ParseDalError::Unknown(s.to_string())),
         }
     }
 }

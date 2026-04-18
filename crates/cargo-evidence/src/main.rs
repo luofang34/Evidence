@@ -3,6 +3,20 @@
 //! This binary is a thin parse-and-dispatch shell. Every subcommand
 //! lives in its own module under [`cli`]; output rendering — text vs
 //! JSON — is centralized in [`cli::output`]. Keep this file short.
+//!
+//! **anyhow usage**: the `disallowed-types = ["anyhow::Error"]`
+//! clippy rule in `clippy.toml` forbids `anyhow::Error` in *library*
+//! code (the `evidence` crate), which must return typed thiserror
+//! errors so callers can match on failure modes. This binary is the
+//! CLI / main-function layer where an untyped error envelope is the
+//! right tool — `?`-chaining typed library errors into a single
+//! user-facing diagnostic. The crate-level allow below documents
+//! that exemption explicitly; do not delete it without a plan to
+//! migrate the CLI to a typed top-level error enum.
+#![allow(
+    clippy::disallowed_types,
+    reason = "CLI is the anyhow/main-function layer; library code is typed via thiserror"
+)]
 
 use clap::Parser;
 
