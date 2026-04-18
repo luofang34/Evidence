@@ -6,7 +6,9 @@ use crate::policy::Dal;
 
 use super::applicability::Applicability;
 use super::objectives_table::OBJECTIVES;
-use super::report::{ComplianceReport, ComplianceSummary, CrateEvidence, ObjectiveStatus};
+use super::report::{
+    ComplianceReport, ComplianceSummary, CrateEvidence, ObjectiveStatus, ObjectiveStatusKind,
+};
 use super::status::determine_objective_status;
 
 /// Generate a compliance report for a single crate.
@@ -19,6 +21,7 @@ pub fn generate_compliance_report(
     let mut met = 0u32;
     let mut not_met = 0u32;
     let mut partial = 0u32;
+    let mut manual_review_required = 0u32;
     let mut applicable_count = 0u32;
 
     for obj in OBJECTIVES {
@@ -26,17 +29,21 @@ pub fn generate_compliance_report(
         let is_applicable = app != Applicability::NotApplicable;
 
         let (status, evidence_refs, note) = if !is_applicable {
-            ("not_applicable".to_string(), vec![], None)
+            (ObjectiveStatusKind::NotApplicable, vec![], None)
         } else {
             applicable_count += 1;
             determine_objective_status(obj, evidence)
         };
 
-        match status.as_str() {
-            "met" => met += 1,
-            "not_met" => not_met += 1,
-            "partial" => partial += 1,
-            _ => {}
+        // Exhaustive match — a new variant becomes a compile error
+        // here rather than silently falling into a `_ => {}` bucket
+        // and under-counting the summary.
+        match status {
+            ObjectiveStatusKind::Met => met += 1,
+            ObjectiveStatusKind::NotMet => not_met += 1,
+            ObjectiveStatusKind::Partial => partial += 1,
+            ObjectiveStatusKind::ManualReviewRequired => manual_review_required += 1,
+            ObjectiveStatusKind::NotApplicable => {}
         }
 
         let applicability_detail = match app {
@@ -68,6 +75,7 @@ pub fn generate_compliance_report(
             met,
             not_met,
             partial,
+            manual_review_required,
         },
     }
 }

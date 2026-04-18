@@ -2,6 +2,47 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Verdict for a single DO-178C objective.
+///
+/// Distinct variants for `NotMet` vs `ManualReviewRequired` matter on
+/// an audit surface: `NotMet` means the tool asserts the objective is
+/// *not* satisfied (evidence against it, or a negative capability
+/// gap like "tests failed"); `ManualReviewRequired` means the tool
+/// *cannot judge* and a human reviewer must look. Conflating the two
+/// — as the previous string-typed status did — inflated the `not_met`
+/// counter with ~20 objectives that were actually "needs review" and
+/// hid the real "tool says objective fails" cases.
+///
+/// Serialized as snake_case strings so the on-disk JSON stays
+/// ergonomic for reviewers: `"met"`, `"not_met"`, `"partial"`,
+/// `"not_applicable"`, `"manual_review_required"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ObjectiveStatusKind {
+    /// Evidence fully satisfies the objective.
+    Met,
+    /// The tool asserts the objective is not satisfied — evidence is
+    /// negative (e.g. tests failed) or a required capability (e.g.
+    /// MC/DC analysis) is explicitly unsupported. Reviewer should
+    /// treat this as a red flag.
+    NotMet,
+    /// Evidence partially supports the objective but completion
+    /// requires additional data or a mapping step the tool can't
+    /// generate automatically (e.g. aggregate tests exist but no
+    /// per-requirement mapping).
+    Partial,
+    /// Not required at this crate's DAL — carries no evidence and is
+    /// excluded from every summary denominator.
+    NotApplicable,
+    /// The tool has no automated way to judge satisfaction; a human
+    /// reviewer must inspect source / design docs / review records.
+    /// Most Table A-3 / A-4 / A-5 / A-6 objectives land here by
+    /// design — the tool can check traceability links but cannot
+    /// certify "the HLRs are complete" or "the architecture is
+    /// consistent".
+    ManualReviewRequired,
+}
+
 /// Status of a single objective for a specific crate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectiveStatus {
@@ -15,8 +56,8 @@ pub struct ObjectiveStatus {
     pub applicable: bool,
     /// Applicability detail (required, required_with_independence, not_applicable)
     pub applicability_detail: String,
-    /// Status: "met", "not_met", "partial", "not_applicable"
-    pub status: String,
+    /// Objective verdict.
+    pub status: ObjectiveStatusKind,
     /// Evidence reference(s) (file paths within the bundle)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence_refs: Vec<String>,
@@ -26,6 +67,10 @@ pub struct ObjectiveStatus {
 }
 
 /// Summary counts for a compliance report.
+///
+/// Every applicable objective lands in exactly one of
+/// {met, not_met, partial, manual_review_required}, so:
+/// `applicable == met + not_met + partial + manual_review_required`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplianceSummary {
     /// Total count of DO-178C objectives considered (always equals
@@ -33,12 +78,16 @@ pub struct ComplianceSummary {
     pub total_objectives: u32,
     /// Count of objectives applicable at this crate's DAL.
     pub applicable: u32,
-    /// Count of applicable objectives whose status is `"met"`.
+    /// Count of applicable objectives whose status is `Met`.
     pub met: u32,
-    /// Count of applicable objectives whose status is `"not_met"`.
+    /// Count of applicable objectives whose status is `NotMet`.
     pub not_met: u32,
-    /// Count of applicable objectives whose status is `"partial"`.
+    /// Count of applicable objectives whose status is `Partial`.
     pub partial: u32,
+    /// Count of applicable objectives whose status is
+    /// `ManualReviewRequired` — audit / review load that remains for
+    /// humans after the tool has finished.
+    pub manual_review_required: u32,
 }
 
 /// Per-crate compliance report.
@@ -100,5 +149,29 @@ mod tests {
         assert!(json.contains("\"dal\": \"C\""));
         // Should deserialize back
         let _: ComplianceReport = serde_json::from_str(&json).unwrap();
+    }
+
+    /// Pin the wire format: each variant must serialize to the
+    /// exact snake_case string documented in the struct-level rustdoc.
+    /// A breaking rename here is a wire-format break and needs a
+    /// COMPLIANCE schema version bump + golden fixture regen.
+    #[test]
+    fn objective_status_kind_serializes_to_expected_strings() {
+        let cases = [
+            (ObjectiveStatusKind::Met, r#""met""#),
+            (ObjectiveStatusKind::NotMet, r#""not_met""#),
+            (ObjectiveStatusKind::Partial, r#""partial""#),
+            (ObjectiveStatusKind::NotApplicable, r#""not_applicable""#),
+            (
+                ObjectiveStatusKind::ManualReviewRequired,
+                r#""manual_review_required""#,
+            ),
+        ];
+        for (variant, expected) in cases {
+            let got = serde_json::to_string(&variant).unwrap();
+            assert_eq!(got, expected, "serialization drift for {:?}", variant);
+            let round: ObjectiveStatusKind = serde_json::from_str(&got).unwrap();
+            assert_eq!(round, variant, "round-trip drift for {:?}", variant);
+        }
     }
 }

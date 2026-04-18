@@ -5,6 +5,12 @@
 # binary to disable text normalization, filter, and diff attributes.
 crates/cargo-evidence/tests/fixtures/golden-dev-bundle/** binary
 
+# Compliance-report fixture is byte-compared by
+# `tests/compliance_fixture.rs` — any EOL translation from
+# `core.autocrlf` on Windows CI would flip LF→CRLF and break the
+# comparison. Same binary treatment as the golden-bundle tree.
+crates/evidence/tests/fixtures/compliance/** binary
+
 # Source-tracked files whose bytes flow directly into the
 # `deterministic_hash` projection. `cargo_lock_hash` is SHA-256 of
 # `Cargo.lock`'s bytes; `rust_toolchain_toml` is the raw file
