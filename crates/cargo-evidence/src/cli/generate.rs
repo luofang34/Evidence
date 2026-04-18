@@ -161,13 +161,15 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     let boundary_path = boundary.unwrap_or_else(|| PathBuf::from("cert/boundary.toml"));
     let (config, derived) =
         phases::build_config(profile, output_root, &boundary_path, trace_roots_arg);
+    if let Some(code) = phases::assert_policy_implementable(&derived.policy, profile, json_output)?
+    {
+        return Ok(code);
+    }
     let strict = matches!(profile, Profile::Cert | Profile::Record);
-
     let mut builder = match phases::init_builder(config, profile, quiet, json_output)? {
         Ok(b) => b,
         Err(code) => return Ok(code),
     };
-
     let env_fp = phases::capture_and_write_env(&builder, profile)?;
     phases::hash_in_scope_sources(
         &mut builder,

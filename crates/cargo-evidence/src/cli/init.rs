@@ -36,13 +36,20 @@ trace_roots = ["cert/trace"]
 explicit_forbidden = []
 
 [policy]
-# Forbid dependencies on out-of-scope workspace crates
-no_out_of_scope_deps = true
+# NOTE: these three flags are reserved for upcoming real enforcement.
+# Until each one's cargo-metadata-backed check lands, enabling it
+# causes `cargo evidence generate` to refuse the run — the tool will
+# not silently produce a bundle stamped cert-ready under a rule it
+# never actually checked. Flip to `true` per rule once this release
+# notes that rule as enforced.
 
-# Forbid build.rs in boundary crates (DO-178C determinism)
+# Forbid dependencies on out-of-scope workspace crates (enforcement TBD)
+no_out_of_scope_deps = false
+
+# Forbid build.rs in boundary crates (enforcement TBD; DO-178C determinism)
 forbid_build_rs = false
 
-# Forbid proc-macros in boundary crates (DO-178C auditability)
+# Forbid proc-macros in boundary crates (enforcement TBD; DO-178C auditability)
 forbid_proc_macros = false
 
 [forbidden_external]

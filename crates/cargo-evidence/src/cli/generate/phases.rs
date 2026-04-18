@@ -21,8 +21,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use evidence::{
-    BoundaryConfig, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder, EvidencePolicy,
-    Profile,
+    BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
+    EvidencePolicy, Profile,
     git::{check_shallow_clone, git_ls_files, is_dirty_or_unknown},
     load_trace_roots, parse_cargo_test_output, sign_bundle,
     trace::{
@@ -41,6 +41,9 @@ pub(super) struct BoundaryDerived {
     pub(super) trace_roots: Vec<String>,
     pub(super) dal_map: BTreeMap<String, Dal>,
     pub(super) max_dal: Dal,
+    /// Raw policy flags, carried so the policy-implementability
+    /// check can fire before the builder is constructed.
+    pub(super) policy: BoundaryPolicy,
 }
 
 // ============================================================================
@@ -92,6 +95,7 @@ pub(super) fn build_config(
     let in_scope_crates = boundary_config.scope.in_scope.clone();
     let dal_map = boundary_config.dal_map();
     let max_dal = dal_map.values().copied().max().unwrap_or_default();
+    let policy = boundary_config.policy.clone();
     let strict = matches!(profile, Profile::Cert | Profile::Record);
     let config = EvidenceBuildConfig {
         output_root,
@@ -109,8 +113,45 @@ pub(super) fn build_config(
             trace_roots,
             dal_map,
             max_dal,
+            policy,
         },
     )
+}
+
+// ============================================================================
+// Phase 2.5 — refuse bundles with enabled-but-unimplemented policy rules
+// ============================================================================
+
+/// Close the "silent false-confidence" gap: a user who writes
+/// `forbid_build_rs = true` in `boundary.toml` today gets a bundle
+/// that is stamped cert-ready without the flag ever being checked.
+/// Until each rule's real enforcement lands, enabling it is
+/// presumed to be a certification claim the tool cannot back —
+/// fail the generate loudly instead of silently producing a bundle
+/// that overclaims what was checked.
+///
+/// Returns `Ok(Some(EXIT_ERROR))` when any enabled rule is
+/// unimplemented (emits the standard JSON/text failure envelope
+/// via [`fail`]); `Ok(None)` on success. When real enforcement
+/// lands for a rule, delete its branch in
+/// [`BoundaryPolicy::unimplemented_enabled_rules`] and this phase
+/// stops rejecting it without further changes here.
+pub(super) fn assert_policy_implementable(
+    policy: &BoundaryPolicy,
+    profile: Profile,
+    json_output: bool,
+) -> Result<Option<i32>> {
+    let unimpl = policy.unimplemented_enabled_rules();
+    if unimpl.is_empty() {
+        return Ok(None);
+    }
+    let list = unimpl.join(", ");
+    let msg = format!(
+        "boundary.toml enables policy rules that this release does not enforce: [{list}]. \
+         Set them to `false` (or remove the keys) until their enforcement lands, \
+         so bundles do not silently overclaim what was checked."
+    );
+    fail(json_output, profile, msg).map(Some)
 }
 
 // ============================================================================

@@ -346,3 +346,98 @@ fn test_generate_requires_out_dir() {
         .failure()
         .stderr(predicate::str::contains("--out-dir"));
 }
+
+// ============================================================================
+// Generate: policy-not-implemented gate
+// ============================================================================
+
+/// Enabling a boundary-policy rule whose enforcement is not wired up
+/// in this release must fail the generate preflight with a message
+/// that names the offending rule. Otherwise a user can write
+/// `forbid_build_rs = true` in boundary.toml, get a bundle stamped
+/// cert-ready, and the tool will have made a certification claim
+/// under a rule it never actually checked.
+///
+/// When real enforcement for a rule lands, this test needs a flag
+/// that stays unimplemented (or it should be rewritten around one of
+/// the remaining unimplemented rules).
+#[test]
+fn test_generate_refuses_unimplemented_policy_rule() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("cert")).unwrap();
+    fs::write(
+        tmp.path().join("cert/boundary.toml"),
+        format!(
+            r#"
+[schema]
+version = "{ver}"
+
+[scope]
+in_scope = []
+
+[policy]
+no_out_of_scope_deps = false
+forbid_build_rs = true
+forbid_proc_macros = false
+"#,
+            ver = evidence::schema_versions::BOUNDARY
+        ),
+    )
+    .unwrap();
+
+    let out = TempDir::new().unwrap();
+    cargo_evidence()
+        .arg("evidence")
+        .arg("generate")
+        .arg("--out-dir")
+        .arg(out.path())
+        .arg("--profile")
+        .arg("dev")
+        .current_dir(tmp.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("forbid_build_rs"))
+        .stderr(predicate::str::contains("does not enforce"));
+}
+
+/// Positive control: the `init`-scaffolded template must not trip
+/// the policy-not-implemented gate. If it does, `cargo evidence init
+/// && cargo evidence generate --out-dir …` would fail cold — a bad
+/// first-run experience. The template ships with all three flags
+/// `false` precisely to avoid that; this test fences that choice.
+///
+/// Scoped to a tempdir so we don't depend on repo git state. The
+/// generate may still fail downstream (no git env, etc.), but
+/// must not fail on the policy gate — we check stderr does **not**
+/// mention "does not enforce".
+#[test]
+fn test_init_template_does_not_trip_policy_gate() {
+    let tmp = TempDir::new().unwrap();
+    cargo_evidence()
+        .arg("evidence")
+        .arg("init")
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+
+    // Don't assert success of generate — the tempdir isn't a git
+    // repo and later phases will fail. We only assert that the
+    // specific policy-gate error string doesn't appear.
+    let out = TempDir::new().unwrap();
+    let result = cargo_evidence()
+        .arg("evidence")
+        .arg("generate")
+        .arg("--out-dir")
+        .arg(out.path())
+        .arg("--profile")
+        .arg("dev")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        !stderr.contains("does not enforce"),
+        "init template tripped the policy-not-implemented gate; stderr:\n{}",
+        stderr
+    );
+}

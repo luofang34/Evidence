@@ -91,6 +91,46 @@ impl BoundaryPolicy {
         }
         rules
     }
+
+    /// Every rule the user has *enabled* in `boundary.toml` but whose
+    /// enforcement is not wired up in this release.
+    ///
+    /// The whole point of this method is to turn a silent
+    /// false-confidence bug into a loud preflight error. The flags
+    /// on [`BoundaryPolicy`] are declarative config: a user writes
+    /// `forbid_build_rs = true` and expects the tool to reject a
+    /// bundle containing an in-scope crate with a `build.rs`.
+    /// Today nothing checks any of them — the bundle is produced,
+    /// verified, and stamped cert-ready regardless. A certifier
+    /// reading such a bundle has no way to know the flag was
+    /// inert, because the `BoundaryPolicy` struct is not recorded
+    /// anywhere in the bundle.
+    ///
+    /// The CLI's generate preflight calls this and refuses to
+    /// produce a bundle when the returned list is non-empty. As
+    /// each rule's real enforcement lands, that rule disappears
+    /// from this list and the preflight stops refusing it. This is
+    /// the single source of truth — do not hard-code the same names
+    /// at call sites.
+    ///
+    /// Order matches [`enabled_rules`](Self::enabled_rules) for
+    /// stable diagnostics.
+    pub fn unimplemented_enabled_rules(&self) -> Vec<&'static str> {
+        // When a rule gets real enforcement, delete its branch here
+        // and add a test covering the enforcement. `enabled_rules`
+        // stays untouched.
+        let mut rules = Vec::new();
+        if self.no_out_of_scope_deps {
+            rules.push("no_out_of_scope_deps");
+        }
+        if self.forbid_build_rs {
+            rules.push("forbid_build_rs");
+        }
+        if self.forbid_proc_macros {
+            rules.push("forbid_proc_macros");
+        }
+        rules
+    }
 }
 
 /// Complete boundary configuration (loaded from boundary.toml).
@@ -293,5 +333,63 @@ default_dal = "C"
         let config: BoundaryConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(config.dal.default_dal, Dal::C);
         assert_eq!(config.dal.crate_overrides["flight-core"], Dal::A);
+    }
+
+    fn policy_all(
+        no_out_of_scope_deps: bool,
+        forbid_build_rs: bool,
+        forbid_proc_macros: bool,
+    ) -> BoundaryPolicy {
+        BoundaryPolicy {
+            no_out_of_scope_deps,
+            forbid_build_rs,
+            forbid_proc_macros,
+        }
+    }
+
+    #[test]
+    fn unimplemented_enabled_rules_empty_when_all_disabled() {
+        let p = policy_all(false, false, false);
+        assert!(p.unimplemented_enabled_rules().is_empty());
+    }
+
+    #[test]
+    fn unimplemented_enabled_rules_reports_each_enabled_flag() {
+        // Today every flag is unimplemented; flipping one to `true`
+        // adds exactly that rule to the returned list.
+        assert_eq!(
+            policy_all(true, false, false).unimplemented_enabled_rules(),
+            vec!["no_out_of_scope_deps"]
+        );
+        assert_eq!(
+            policy_all(false, true, false).unimplemented_enabled_rules(),
+            vec!["forbid_build_rs"]
+        );
+        assert_eq!(
+            policy_all(false, false, true).unimplemented_enabled_rules(),
+            vec!["forbid_proc_macros"]
+        );
+    }
+
+    #[test]
+    fn unimplemented_enabled_rules_all_three_when_all_enabled() {
+        assert_eq!(
+            policy_all(true, true, true).unimplemented_enabled_rules(),
+            vec![
+                "no_out_of_scope_deps",
+                "forbid_build_rs",
+                "forbid_proc_macros"
+            ]
+        );
+    }
+
+    /// default_empty() must never trip the preflight — that would
+    /// mean `cargo evidence generate` fails cold on a workspace
+    /// without a `cert/boundary.toml`, which is exactly the path
+    /// `load_or_default` exists to support.
+    #[test]
+    fn unimplemented_enabled_rules_empty_for_default_empty_config() {
+        let cfg = BoundaryConfig::default_empty();
+        assert!(cfg.policy.unimplemented_enabled_rules().is_empty());
     }
 }
