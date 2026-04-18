@@ -77,23 +77,41 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          # PR diff mode: look only at lines the PR adds. Push mode: scan
-          # the whole tree so a direct-to-main push still fails fast.
+          # Gate intent: this change set must not *add* a new
+          # `#[allow(dead_code)]`. Pre-existing ones are grandfathered
+          # (e.g. `tests/helpers.rs` needs it because the shared
+          # `#[path = "helpers.rs"] mod helpers;` pattern makes the
+          # full module visible to each integration-test binary while
+          # each binary only uses a subset — real dead_code from the
+          # per-binary compile unit's view).
+          #
+          # PR mode: diff the PR head against its base.
+          # Push mode: diff HEAD against its first parent (the state
+          # before the merge), so the gate stays delta-based instead
+          # of tree-based. The prior tree-grep implementation caused
+          # a green PR to produce a red main build — same change set,
+          # different verdict — which broke the "PR green ⇒ main
+          # stays green" contract. A direct-to-main push with a new
+          # allow still fails: `HEAD^..HEAD` captures those lines too.
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             base="origin/${{ github.base_ref }}"
             git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
             diff=$(git diff "$base"...HEAD -- '*.rs')
-            added=$(printf '%s\n' "$diff" | grep -E '^\+[^+]' || true)
-            if printf '%s\n' "$added" | grep -qE '#\[allow\(dead_code\)\]'; then
-              echo "::error::This PR adds #[allow(dead_code)] — either use the field or delete it."
-              printf '%s\n' "$added" | grep -nE '#\[allow\(dead_code\)\]' || true
-              exit 1
-            fi
           else
-            if grep -rnE '#\[allow\(dead_code\)\]' crates/; then
-              echo "::error::tree contains #[allow(dead_code)] — either use the field or delete it."
-              exit 1
+            # On the initial repo commit HEAD^ doesn't exist; fall
+            # back to `git show` which treats the first commit as
+            # all-additions against the empty tree.
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              diff=$(git diff HEAD^..HEAD -- '*.rs')
+            else
+              diff=$(git show --format= HEAD -- '*.rs')
             fi
+          fi
+          added=$(printf '%s\n' "$diff" | grep -E '^\+[^+]' || true)
+          if printf '%s\n' "$added" | grep -qE '#\[allow\(dead_code\)\]'; then
+            echo "::error::This change adds #[allow(dead_code)] — either use the field or delete it."
+            printf '%s\n' "$added" | grep -nE '#\[allow\(dead_code\)\]' || true
+            exit 1
           fi
 
       - name: Test
