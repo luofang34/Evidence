@@ -1,16 +1,18 @@
-//! Bundle JSON Schemas and validation.
+//! JSON Schemas and validation.
 //!
-//! The four JSON Schema files under `schemas/*.schema.json` describe
-//! the on-disk shape of a bundle's metadata files. This module embeds
-//! them at compile time and exposes **real** Draft 2020-12 validation
-//! against them.
+//! The JSON Schema files under `schemas/*.schema.json` describe
+//! either (a) the on-disk shape of a bundle's metadata files or
+//! (b) the streaming wire format `cargo-evidence` emits on stdout
+//! in `--format=jsonl` mode. This module embeds every schema at
+//! compile time and exposes **real** Draft 2020-12 validation
+//! against the bundle-file group.
 //!
-//! Historically the CLI's `schema validate` subcommand only
-//! presence-checked required fields; regex patterns, enums, and
-//! min/max bounds declared in the schema files were never enforced.
-//! A reviewer reading the command name would reasonably assume full
-//! validation, so the gap was outright misleading. The `validate`
-//! function here closes it.
+//! The wire-format [`Schema::Diagnostic`] variant exists so
+//! `cargo evidence schema show diagnostic` can print the embedded
+//! source, but it is intentionally excluded from
+//! [`Schema::for_filename`] and [`Schema::for_content`] — diagnostic
+//! lines are streamed per-event, not committed to disk, so
+//! `cargo evidence schema validate <file>` has no file to match.
 //!
 //! All logic lives in the library so that downstream users of the
 //! `evidence` crate (and `cargo evidence schema validate` equally)
@@ -18,6 +20,8 @@
 
 use serde_json::Value;
 use thiserror::Error;
+
+use crate::diagnostic::{DiagnosticCode, Severity};
 
 /// Errors returned by [`validate`].
 #[derive(Debug, Error)]
@@ -49,6 +53,20 @@ pub enum SchemaError {
     InstanceInvalid(String),
 }
 
+impl DiagnosticCode for SchemaError {
+    fn code(&self) -> &'static str {
+        match self {
+            SchemaError::ParseSchema { .. } => "SCHEMA_PARSE_FAILED",
+            SchemaError::CompileSchema { .. } => "SCHEMA_COMPILE_FAILED",
+            SchemaError::InstanceInvalid(_) => "SCHEMA_INSTANCE_INVALID",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
+}
+
 /// Which bundle-file schema to validate against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Schema {
@@ -62,6 +80,10 @@ pub enum Schema {
     Hashes,
     /// `deterministic-manifest.json` — cross-host reproducibility contract.
     DeterministicManifest,
+    /// `diagnostic.schema.json` — wire-format schema for the `--format=jsonl`
+    /// streaming output. Not a bundle file; excluded from `for_filename`
+    /// and `for_content` on purpose.
+    Diagnostic,
 }
 
 impl Schema {
@@ -73,6 +95,7 @@ impl Schema {
             Schema::Commands => SCHEMA_COMMANDS,
             Schema::Hashes => SCHEMA_HASHES,
             Schema::DeterministicManifest => SCHEMA_DETERMINISTIC_MANIFEST,
+            Schema::Diagnostic => SCHEMA_DIAGNOSTIC,
         }
     }
 
@@ -85,6 +108,7 @@ impl Schema {
             Schema::Commands => "commands",
             Schema::Hashes => "hashes",
             Schema::DeterministicManifest => "deterministic-manifest",
+            Schema::Diagnostic => "diagnostic",
         }
     }
 
@@ -150,6 +174,7 @@ const SCHEMA_COMMANDS: &str = include_str!("../../../schemas/commands.schema.jso
 const SCHEMA_HASHES: &str = include_str!("../../../schemas/hashes.schema.json");
 const SCHEMA_DETERMINISTIC_MANIFEST: &str =
     include_str!("../../../schemas/deterministic-manifest.schema.json");
+const SCHEMA_DIAGNOSTIC: &str = include_str!("../../../schemas/diagnostic.schema.json");
 
 // ============================================================================
 // Validation
@@ -238,6 +263,7 @@ mod tests {
             Schema::Commands,
             Schema::Hashes,
             Schema::DeterministicManifest,
+            Schema::Diagnostic,
         ] {
             let value: Value = serde_json::from_str(s.source()).expect("parse");
             jsonschema::options()
@@ -245,6 +271,33 @@ mod tests {
                 .build(&value)
                 .unwrap_or_else(|e| panic!("{} schema does not compile: {}", s.name(), e));
         }
+    }
+
+    /// The diagnostic schema is deliberately excluded from
+    /// [`Schema::for_filename`] and [`Schema::for_content`] — it
+    /// describes a wire-format stream, not a bundle file. Pin the
+    /// exclusion here so a future "convenience" PR that tries to add
+    /// `diagnostic.json` recognition fails this test and forces the
+    /// reviewer to re-read the contract.
+    #[test]
+    fn diagnostic_schema_is_not_a_bundle_file_target() {
+        // Filename heuristic must not recognize diagnostic names.
+        assert_eq!(Schema::for_filename("diagnostic.json"), None);
+        assert_eq!(Schema::for_filename("diagnostic.schema.json"), None);
+
+        // Content heuristic must not route a realistic diagnostic
+        // event (carries a nested `location` object, so the
+        // "all-string values" Hashes shape doesn't swallow it) to
+        // any bundle-file schema. A hypothetical `schema validate
+        // some-diag.json` should fall through to "unknown type",
+        // not silently validate against the wrong schema.
+        let instance = json!({
+            "code": "TRACE_UID_MISSING",
+            "severity": "error",
+            "message": "HLR-001 missing UID",
+            "location": { "file": "cert/trace/hlr.toml", "line": 12 }
+        });
+        assert_eq!(Schema::for_content(&instance), None);
     }
 
     #[test]

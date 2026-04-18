@@ -12,6 +12,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+use crate::diagnostic::{DiagnosticCode, Severity};
+
 /// Design Assurance Level per DO-178C.
 /// A is most stringent, D is least. Default is D (safest: missing config
 /// never accidentally lowers requirements below what was intended).
@@ -49,6 +51,18 @@ pub enum ParseDalError {
     /// Input didn't match any of `A` / `B` / `C` / `D` (case-insensitive).
     #[error("unknown DAL '{0}'; expected one of: A, B, C, D")]
     Unknown(String),
+}
+
+impl DiagnosticCode for ParseDalError {
+    fn code(&self) -> &'static str {
+        match self {
+            ParseDalError::Unknown(_) => "POLICY_UNKNOWN_DAL",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
 }
 
 impl std::str::FromStr for Dal {

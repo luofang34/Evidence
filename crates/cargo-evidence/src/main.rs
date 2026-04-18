@@ -24,7 +24,7 @@ use tracing_subscriber::filter::LevelFilter;
 
 mod cli;
 
-use cli::args::{CargoCli, Commands, EXIT_ERROR, EvidenceArgs, SchemaCommands};
+use cli::args::{CargoCli, Commands, EXIT_ERROR, EvidenceArgs, OutputFormat, SchemaCommands};
 use cli::diff::cmd_diff;
 use cli::generate::{GenerateArgs, cmd_generate};
 use cli::init::cmd_init;
@@ -100,7 +100,15 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             strict,
             verify_key,
             json,
-        }) => cmd_verify(bundle_path, strict, verify_key, json),
+        }) => {
+            // Per-subcommand `--json` is kept for backward compat
+            // even though the global `--json` (on `EvidenceArgs`)
+            // already reaches this subcommand via `global = true`.
+            // Logical-OR both into the format resolver so either
+            // position works; an explicit `--format` always wins.
+            let format = OutputFormat::resolve(args.format, args.json || json);
+            cmd_verify(bundle_path, strict, verify_key, format)
+        }
         Some(Commands::Diff {
             bundle_a,
             bundle_b,

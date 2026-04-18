@@ -27,6 +27,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::diagnostic::{DiagnosticCode, Severity};
 use crate::util::{CmdError, cmd_stdout};
 
 /// A single boundary rule violation.
@@ -68,6 +69,21 @@ pub enum BoundaryCheckError {
         /// Count, materialized for the error message.
         count: usize,
     },
+}
+
+impl DiagnosticCode for BoundaryCheckError {
+    fn code(&self) -> &'static str {
+        match self {
+            BoundaryCheckError::CargoMetadata(_) => "BOUNDARY_CARGO_METADATA_FAILED",
+            BoundaryCheckError::ParseMetadata(_) => "BOUNDARY_PARSE_METADATA_FAILED",
+            BoundaryCheckError::UnknownInScopeCrate(_) => "BOUNDARY_UNKNOWN_IN_SCOPE_CRATE",
+            BoundaryCheckError::OutOfScopeDeps { .. } => "BOUNDARY_OUT_OF_SCOPE_DEPS",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
 }
 
 /// Enforce the `no_out_of_scope_deps` boundary rule.

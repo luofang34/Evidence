@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://navigate.dev/schema/evidence/diagnostic.schema.json",
+  "title": "Diagnostic",
+  "description": "One JSONL line emitted by cargo-evidence in `--format=jsonl` mode. This is a WIRE-FORMAT schema for streamed stdout, not a committed bundle file; `cargo evidence schema show diagnostic` prints it, but `cargo evidence schema validate` deliberately does not recognize diagnostic files by filename. The ten Schema Rules — exit codes, stdout/stderr split, locked codes, flush semantics, --json alias permanence, FixHint forward-compat, cascading independence, Location precedence, schema-show wiring, Severity closed — live in the `description` fields below.",
+  "type": "object",
+  "required": ["code", "severity", "message"],
+  "additionalProperties": true,
+  "properties": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$",
+      "description": "Stable UPPER_SNAKE_CASE identifier, domain-prefixed (VERIFY_*, BUNDLE_*, TRACE_*, BOUNDARY_*, GIT_*, HASH_*, SCHEMA_*, POLICY_*, ENV_*, SIGN_*, DIFF_*, INFO_*). Schema Rule 1: a `code` ending in `_OK` is a successful terminal event (exit 0); a `code` ending in `_FAIL` is a failure terminal event (exit 2). Agents key on this field, never on `message`. Schema Rule 3: codes are locked by `diagnostic_codes_locked` contract test (uniqueness + this regex)."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["error", "warning", "info"],
+      "description": "Schema Rule 10: closed enum. Unknown values fail deserialization — opposite policy from `fix_hint.kind` because severity drives exit-code decisions. Adding a variant is a schema-version bump."
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable one-liner. Stable across patch releases but not a match target. Agents SHOULD key on `code`; humans see this in logs."
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Schema Rule 8: when both `toml_path` and `entry_uid` are present, agents MUST prefer `toml_path` (structural, stable across renames) over `entry_uid` (semantic UUID). `file`/`line`/`col` are the last fallback for non-TOML sources. Any combination of fields may be omitted.",
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Workspace-relative file path when known."
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based line number into `file`."
+        },
+        "col": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based column number into `file`."
+        },
+        "toml_path": {
+          "type": "string",
+          "description": "Structural locator, JSON-pointer style (e.g. `requirements[2].uid`). Agent-preferred target for autofix."
+        },
+        "entry_uid": {
+          "type": "string",
+          "description": "Semantic UUID fallback. Stable across renames of the human-readable `id`."
+        }
+      }
+    },
+    "fix_hint": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": true,
+      "description": "Schema Rule 6: forward-compatible via `#[serde(other)]`. Agents MUST tolerate unknown `kind` values — future versions will add variants; consumers written against this schema MUST NOT panic or reject diagnostics carrying unknown hint kinds. Treat `kind: other` (and any unknown kind) as 'a hint exists but take no automated action'.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Discriminant for the hint variant. Known values in this schema version: `assign_uuid`, `add_toml_key`, `other`. Agents encountering an unknown `kind` MUST treat the hint as opaque."
+        },
+        "path": {
+          "type": "string",
+          "description": "File to edit (for variants that apply to a file)."
+        },
+        "toml_path": {
+          "type": "string",
+          "description": "Structural locator for the target entry or table."
+        },
+        "key": {
+          "type": "string",
+          "description": "TOML key to add (for `add_toml_key`)."
+        },
+        "value_stub": {
+          "type": "string",
+          "description": "Placeholder value the human should replace (for `add_toml_key`)."
+        }
+      }
+    }
+  },
+  "x-exit-code-contract": {
+    "description": "Schema Rule 1 — exit-code ↔ terminal-event mapping. The last JSONL line on stdout carries the terminal event; the process exit code matches it.",
+    "mapping": {
+      "0": "last JSONL line's `code` ends in `_OK` (happy path)",
+      "1": "runtime error (I/O, parse, config); NO terminal event emitted on stdout; human-readable error text goes to stderr",
+      "2": "last JSONL line's `code` ends in `_FAIL` (verification or validation failed)"
+    }
+  },
+  "x-stream-semantics": {
+    "description": "Schema Rule 2 — stdout/stderr split. In `--format=jsonl` mode, stdout contains ONLY JSONL (one JSON object per line, no prose, no banners, no null bytes). Human progress text, `tracing::*` output, and warnings continue to go to stderr, unchanged. Schema Rule 4 — flush per event: the CLI flushes stdout after every line so streaming agents get sub-pipe-buffer latency.",
+    "stdout": "strict JSONL",
+    "stderr": "human-readable progress + warnings (unvalidated)"
+  },
+  "x-cascading-semantics": {
+    "description": "Schema Rule 7 — events are independent observations. A single root cause MAY produce multiple downstream diagnostic events (e.g., a corrupted `SHA256SUMS` triggers one `VERIFY_HASH_MISMATCH` per file). Agents SHOULD deduplicate by severity-ranked code before proposing fixes; they MUST NOT assume each diagnostic is an independent root cause."
+  },
+  "x-json-alias": {
+    "description": "Schema Rule 5 — `--json` is a permanent synonym for `--format=json`. Both emit the single-terminal-object shape (pre-existing contract, not this schema). `--format=jsonl` is the streaming shape described in this file. No deprecation is planned for `--json`."
+  }
+}

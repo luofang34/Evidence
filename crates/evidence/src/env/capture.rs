@@ -8,6 +8,7 @@ use std::process::Command;
 
 use thiserror::Error;
 
+use crate::diagnostic::{DiagnosticCode, Severity};
 use crate::git::{git_branch, git_sha, is_dirty_or_unknown};
 use crate::policy::Profile;
 use crate::util::cmd_stdout;
@@ -28,6 +29,19 @@ pub enum EnvCaptureError {
         "cert/record profile requires cargo to be installed and on PATH. cargo --version failed."
     )]
     StrictCargoRequired,
+}
+
+impl DiagnosticCode for EnvCaptureError {
+    fn code(&self) -> &'static str {
+        match self {
+            EnvCaptureError::StrictRustcRequired => "ENV_STRICT_RUSTC_REQUIRED",
+            EnvCaptureError::StrictCargoRequired => "ENV_STRICT_CARGO_REQUIRED",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
 }
 
 /// Capture a complete environment fingerprint.

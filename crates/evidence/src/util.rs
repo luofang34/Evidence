@@ -5,6 +5,8 @@ use std::process::Command;
 
 use thiserror::Error;
 
+use crate::diagnostic::{DiagnosticCode, Severity};
+
 /// Errors returned by [`cmd_stdout`].
 #[derive(Debug, Error)]
 pub enum CmdError {
@@ -40,6 +42,20 @@ pub enum CmdError {
         #[source]
         source: std::string::FromUtf8Error,
     },
+}
+
+impl DiagnosticCode for CmdError {
+    fn code(&self) -> &'static str {
+        match self {
+            CmdError::Launch { .. } => "CMD_LAUNCH_FAILED",
+            CmdError::NonZeroExit { .. } => "CMD_NON_ZERO_EXIT",
+            CmdError::NonUtf8Output { .. } => "CMD_NON_UTF8_OUTPUT",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
 }
 
 /// Normalize a bundle-relative path for on-disk serialization.

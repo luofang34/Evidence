@@ -9,6 +9,7 @@
 //! - [`bundle`] - Evidence bundle creation and management
 //! - [`compliance`] - Per-crate DO-178C compliance reporting
 //! - [`coverage`] - Structural coverage data types
+//! - [`diagnostic`] - Agent-consumable diagnostic format + trait
 //! - [`mod@env`] - Build environment fingerprinting
 //! - [`git`] - Git repository state capture
 //! - [`hash`] - Cryptographic hashing utilities
@@ -35,6 +36,7 @@ pub mod boundary_check;
 pub mod bundle;
 pub mod compliance;
 pub mod coverage;
+pub mod diagnostic;
 pub mod env;
 pub mod git;
 pub mod hash;
@@ -57,6 +59,7 @@ pub use compliance::{
     ObjectiveStatusKind, generate_compliance_report,
 };
 pub use coverage::{CoverageLevel, CoverageSummary};
+pub use diagnostic::{Diagnostic, DiagnosticCode, FixHint, Location, Severity};
 pub use env::{DeterministicManifest, EnvFingerprint, Host};
 pub use git::{GitSnapshot, RealGitProvider, check_shallow_clone, is_dirty_or_unknown};
 pub use hash::{sha256, sha256_file};

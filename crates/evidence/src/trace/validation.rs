@@ -19,6 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
 
 use super::entries::{DerivedEntry, HlrEntry, LlrEntry, TestEntry};
+use crate::diagnostic::{DiagnosticCode, Severity};
 use crate::policy::TracePolicy;
 
 /// Errors returned by [`validate_trace_links`] / [`validate_trace_links_with_policy`].
@@ -40,6 +41,19 @@ pub enum TraceValidationError {
     /// missing rationales on derived LLRs, etc.
     #[error("Trace link validation failed with {} errors", errors.len())]
     Link { errors: Vec<String> },
+}
+
+impl DiagnosticCode for TraceValidationError {
+    fn code(&self) -> &'static str {
+        match self {
+            TraceValidationError::Register { .. } => "TRACE_REGISTER_FAILED",
+            TraceValidationError::Link { .. } => "TRACE_LINK_FAILED",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
 }
 
 /// Validate trace links between HLRs, LLRs, Tests, and optionally Derived requirements.

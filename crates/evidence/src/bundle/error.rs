@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
+use crate::diagnostic::{DiagnosticCode, Location, Severity};
 use crate::git::GitError;
 use crate::hash::HashError;
 use crate::policy::Profile;
@@ -97,4 +98,50 @@ pub enum BuilderError {
         /// SHA observed at `finalize()` time.
         current_sha: String,
     },
+}
+
+impl DiagnosticCode for BuilderError {
+    fn code(&self) -> &'static str {
+        // `Git(_)` and `Hash(_)` keep their own BUNDLE_* codes rather
+        // than forwarding to the inner error's code; wrapping them
+        // here preserves the "which phase of the builder surfaced
+        // this?" signal that agents care about. Inner detail is still
+        // reachable via `std::error::Error::source()`.
+        match self {
+            BuilderError::Git(_) => "BUNDLE_GIT_FAILED",
+            BuilderError::Hash(_) => "BUNDLE_HASH_FAILED",
+            BuilderError::DirtyGitTree { .. } => "BUNDLE_DIRTY_GIT_TREE",
+            BuilderError::BundleExists { .. } => "BUNDLE_ALREADY_EXISTS",
+            BuilderError::Io { .. } => "BUNDLE_IO_FAILED",
+            BuilderError::RunCommand { .. } => "BUNDLE_RUN_COMMAND_FAILED",
+            BuilderError::CurrentDir(_) => "BUNDLE_CURRENT_DIR_FAILED",
+            BuilderError::Serialize { .. } => "BUNDLE_SERIALIZE_FAILED",
+            BuilderError::ParseEnv(_) => "BUNDLE_PARSE_ENV_FAILED",
+            BuilderError::Toctou { .. } => "BUNDLE_TOCTOU",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
+
+    fn location(&self) -> Option<Location> {
+        let file = match self {
+            BuilderError::BundleExists { path } | BuilderError::Io { path, .. } => {
+                Some(path.clone())
+            }
+            BuilderError::Git(_)
+            | BuilderError::Hash(_)
+            | BuilderError::DirtyGitTree { .. }
+            | BuilderError::RunCommand { .. }
+            | BuilderError::CurrentDir(_)
+            | BuilderError::Serialize { .. }
+            | BuilderError::ParseEnv(_)
+            | BuilderError::Toctou { .. } => None,
+        };
+        file.map(|file| Location {
+            file: Some(file),
+            ..Location::default()
+        })
+    }
 }

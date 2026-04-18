@@ -9,6 +9,7 @@ use std::process::Command;
 
 use thiserror::Error;
 
+use crate::diagnostic::{DiagnosticCode, Severity};
 use crate::traits::GitProvider;
 use crate::util::{CmdError, cmd_stdout};
 
@@ -61,6 +62,25 @@ pub enum GitError {
     /// should prefer a more specific variant.
     #[error("{0}")]
     Other(String),
+}
+
+impl DiagnosticCode for GitError {
+    fn code(&self) -> &'static str {
+        match self {
+            GitError::Cmd(_) => "GIT_CMD_FAILED",
+            GitError::SubcommandFailed { .. } => "GIT_SUBCOMMAND_FAILED",
+            GitError::StrictStateRequired => "GIT_STRICT_STATE_REQUIRED",
+            GitError::StrictBranchRequired => "GIT_STRICT_BRANCH_REQUIRED",
+            GitError::StrictDirtyRequired => "GIT_STRICT_DIRTY_REQUIRED",
+            GitError::ShallowClone => "GIT_SHALLOW_CLONE",
+            GitError::NonUtf8Path => "GIT_NON_UTF8_PATH",
+            GitError::Other(_) => "GIT_OTHER",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
 }
 
 /// Git repository state snapshot.

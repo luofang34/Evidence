@@ -6,10 +6,12 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::Serialize;
 
+use evidence::diagnostic::{Diagnostic, DiagnosticCode, Severity};
+use evidence::verify::VerifyRuntimeError;
 use evidence::{VerifyResult, verify_bundle_with_key};
 
-use super::args::{EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
-use super::output::emit_json;
+use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFormat};
+use super::output::{emit_json, emit_jsonl};
 
 #[derive(Serialize)]
 struct VerifyOutput {
@@ -60,14 +62,22 @@ fn fail_verify(
 /// check on `bundle_path` and emit a per-check pass/fail report.
 /// Returns [`EXIT_VERIFICATION_FAILURE`]
 /// when any check fails (or when any warning fires in `--strict`
-/// mode), and [`EXIT_ERROR`](super::args::EXIT_ERROR) only when the
-/// tool itself can't run — e.g. the bundle directory is missing.
+/// mode), and [`EXIT_ERROR`] only when the tool itself can't run —
+/// e.g. the bundle directory is missing.
 pub fn cmd_verify(
     bundle_path: PathBuf,
     strict: bool,
     verify_key: Option<PathBuf>,
-    json_output: bool,
+    format: OutputFormat,
 ) -> Result<i32> {
+    // Jsonl takes a dedicated streaming path so each finding flushes
+    // per-line and a terminal `VERIFY_OK` / `VERIFY_FAIL` event lands
+    // last — Schema Rules 1, 2, 4. Human and Json both round up to
+    // the legacy single-envelope shape.
+    if format == OutputFormat::Jsonl {
+        return cmd_verify_jsonl(bundle_path, strict, verify_key);
+    }
+    let json_output = format == OutputFormat::Json;
     let mut checks = Vec::new();
 
     // Check bundle exists
@@ -223,5 +233,123 @@ pub fn cmd_verify(
             e.to_string(),
             EXIT_VERIFICATION_FAILURE,
         ),
+    }
+}
+
+/// Stdout-strict JSON-Lines path for `--format=jsonl`.
+///
+/// Each finding and the terminal event are serialized as a compact JSON
+/// object on their own line, flushed per-event (Schema Rule 4). The
+/// LAST line emitted is always the terminal event whose `code` ends in
+/// `_OK` or `_FAIL` — Schema Rule 1 makes that the contract for the
+/// matching exit code. Runtime errors (bundle-not-found, hash I/O,
+/// parse failures) emit a per-error diagnostic but NO terminal event,
+/// and the process returns exit 1 — also per Schema Rule 1.
+fn cmd_verify_jsonl(
+    bundle_path: PathBuf,
+    strict: bool,
+    verify_key: Option<PathBuf>,
+) -> Result<i32> {
+    // Bundle-path existence failure is a runtime fault, not a finding.
+    // Emit the equivalent of VerifyRuntimeError::BundleNotFound and
+    // return exit 1 with no terminal event (Schema Rule 1).
+    if !bundle_path.exists() {
+        emit_jsonl(&VerifyRuntimeError::BundleNotFound(bundle_path.clone()).to_diagnostic())?;
+        return Ok(EXIT_ERROR);
+    }
+
+    // Strict mode: missing signature is a *finding* (the bundle exists
+    // but doesn't meet the strict-mode contract), so it gets a terminal
+    // `_FAIL` and exit 2.
+    if strict && !bundle_path.join("BUNDLE.sig").exists() && verify_key.is_none() {
+        emit_jsonl(&Diagnostic {
+            code: "VERIFY_STRICT_SIGNATURE_MISSING".to_string(),
+            severity: Severity::Error,
+            message: "strict mode: BUNDLE.sig not found and no --verify-key provided".to_string(),
+            location: None,
+            fix_hint: None,
+        })?;
+        emit_jsonl(&terminal_fail("bundle failed strict signature requirement"))?;
+        return Ok(EXIT_VERIFICATION_FAILURE);
+    }
+
+    // Load verify key. `fs::read` failure here is a runtime fault (the
+    // caller's key file is missing / unreadable) — anyhow's `?` with
+    // `with_context` bubbles it up as an `Err(anyhow)`, which main's
+    // `run` prints to stderr and returns exit 1. No JSONL surfacing
+    // for key-file I/O is intentional: the error precedes verify, so
+    // there is no bundle-level diagnostic to correlate with.
+    let key_bytes = match &verify_key {
+        Some(path) => {
+            Some(fs::read(path).with_context(|| format!("reading verify key from {:?}", path))?)
+        }
+        None => None,
+    };
+
+    match verify_bundle_with_key(&bundle_path, key_bytes.as_deref()) {
+        Ok(VerifyResult::Pass) => {
+            emit_jsonl(&terminal_ok(&format!(
+                "bundle verified at {:?}",
+                bundle_path
+            )))?;
+            Ok(EXIT_SUCCESS)
+        }
+        Ok(VerifyResult::Fail(errors)) => {
+            // Schema Rule 7: each finding is an independent observation.
+            // Emit one per error, then the aggregate terminal event.
+            for err in &errors {
+                emit_jsonl(&err.to_diagnostic())?;
+            }
+            let reason = format!("{} finding(s)", errors.len());
+            emit_jsonl(&terminal_fail(&reason))?;
+            Ok(EXIT_VERIFICATION_FAILURE)
+        }
+        Ok(VerifyResult::Skipped(reason)) => {
+            // Advisory event before the terminal — agents can see why
+            // the bundle was skipped even when the outcome is OK.
+            emit_jsonl(&Diagnostic {
+                code: "VERIFY_SKIPPED".to_string(),
+                severity: Severity::Info,
+                message: reason.clone(),
+                location: None,
+                fix_hint: None,
+            })?;
+            if strict {
+                emit_jsonl(&terminal_fail(&format!(
+                    "strict mode: verification skipped: {}",
+                    reason
+                )))?;
+                Ok(EXIT_VERIFICATION_FAILURE)
+            } else {
+                emit_jsonl(&terminal_ok("verification skipped"))?;
+                Ok(EXIT_SUCCESS)
+            }
+        }
+        Err(runtime) => {
+            // VerifyRuntimeError is a runtime fault: no terminal event,
+            // exit 1 (Schema Rule 1).
+            emit_jsonl(&runtime.to_diagnostic())?;
+            Ok(EXIT_ERROR)
+        }
+    }
+}
+
+fn terminal_ok(message: &str) -> Diagnostic {
+    Diagnostic {
+        code: "VERIFY_OK".to_string(),
+        severity: Severity::Info,
+        message: message.to_string(),
+        location: None,
+        fix_hint: None,
+    }
+}
+
+fn terminal_fail(message: &str) -> Diagnostic {
+    Diagnostic {
+        code: "VERIFY_FAIL".to_string(),
+        severity: Severity::Error,
+        message: message.to_string(),
+        location: None,
+        fix_hint: None,
     }
 }

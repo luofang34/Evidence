@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use super::dal::{Dal, DalConfig};
+use crate::diagnostic::{DiagnosticCode, Location, Severity};
 
 /// Errors returned by [`BoundaryConfig::load`].
 #[derive(Debug, Error)]
@@ -42,6 +43,31 @@ pub enum LoadBoundaryError {
         #[source]
         source: Box<toml::de::Error>,
     },
+}
+
+impl DiagnosticCode for LoadBoundaryError {
+    fn code(&self) -> &'static str {
+        match self {
+            LoadBoundaryError::Read { .. } => "BOUNDARY_CONFIG_READ_FAILED",
+            LoadBoundaryError::Parse { .. } => "BOUNDARY_CONFIG_PARSE_FAILED",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
+
+    fn location(&self) -> Option<Location> {
+        let path = match self {
+            LoadBoundaryError::Read { path, .. } | LoadBoundaryError::Parse { path, .. } => {
+                path.clone()
+            }
+        };
+        Some(Location {
+            file: Some(path),
+            ..Location::default()
+        })
+    }
 }
 
 /// Schema version information.

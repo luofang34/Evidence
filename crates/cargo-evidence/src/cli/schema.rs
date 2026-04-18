@@ -23,6 +23,7 @@ pub fn cmd_schema_show(schema: SchemaName) -> Result<i32> {
         SchemaName::Commands => Schema::Commands,
         SchemaName::Hashes => Schema::Hashes,
         SchemaName::DeterministicManifest => Schema::DeterministicManifest,
+        SchemaName::Diagnostic => Schema::Diagnostic,
     }
     .source();
     println!("{}", source);

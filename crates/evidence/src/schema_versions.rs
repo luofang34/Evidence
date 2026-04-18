@@ -41,3 +41,13 @@ pub const COMPLIANCE: &str = "0.0.1";
 /// hashed projection of `env.json` whose hash is recorded as
 /// `index.json.deterministic_hash`.
 pub const DETERMINISTIC_MANIFEST: &str = "0.0.1";
+
+/// Schema version for the `--format=jsonl` diagnostic wire format.
+///
+/// Unlike the other constants here, this does **not** go into any
+/// on-disk bundle file — it's the version of the streaming JSON-Lines
+/// contract that the CLI emits on stdout for agent consumers.
+/// Committed under `schemas/diagnostic.schema.json`. Bumping means a
+/// breaking change to the 10 Schema Rules documented in
+/// [`crate::diagnostic`].
+pub const DIAGNOSTIC: &str = "0.0.1";
