@@ -88,8 +88,8 @@ pub fn cmd_diff(bundle_a: PathBuf, bundle_b: PathBuf, json_output: bool) -> Resu
 
     if index_a.profile != index_b.profile {
         metadata_diff.profile = Some(StringChange {
-            a: index_a.profile.clone(),
-            b: index_b.profile.clone(),
+            a: index_a.profile.to_string(),
+            b: index_b.profile.to_string(),
         });
     }
     if index_a.git_sha != index_b.git_sha {

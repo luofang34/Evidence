@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+use crate::policy::Profile;
+
 use super::test_summary::TestSummary;
 
 /// Default for `EvidenceIndex::engine_build_source` when deserializing
@@ -27,8 +29,14 @@ pub struct EvidenceIndex {
     pub boundary_schema_version: String,
     /// Trace schema version
     pub trace_schema_version: String,
-    /// Active profile name
-    pub profile: String,
+    /// Active profile.
+    ///
+    /// Typed [`Profile`] instead of `String` so a typo'd `"deb"`
+    /// cannot round-trip through serde at this boundary. `Profile`
+    /// serializes / deserializes as `"dev"` / `"cert"` / `"record"`
+    /// via `#[serde(rename_all = "lowercase")]`, matching the on-
+    /// disk schema byte-for-byte.
+    pub profile: Profile,
     /// Bundle creation timestamp (RFC3339)
     pub timestamp_rfc3339: String,
     /// Git commit SHA
@@ -117,7 +125,7 @@ mod tests {
             schema_version: crate::schema_versions::INDEX.to_string(),
             boundary_schema_version: crate::schema_versions::BOUNDARY.to_string(),
             trace_schema_version: crate::schema_versions::TRACE.to_string(),
-            profile: "cert".to_string(),
+            profile: Profile::Cert,
             timestamp_rfc3339: "2024-01-01T00:00:00Z".to_string(),
             git_sha: "abc123".to_string(),
             git_branch: "main".to_string(),
@@ -138,7 +146,7 @@ mod tests {
             dal_map: BTreeMap::new(),
         };
         assert!(idx.bundle_complete);
-        assert_eq!(idx.profile, "cert");
+        assert_eq!(idx.profile, Profile::Cert);
         assert_eq!(idx.content_hash.len(), 64);
     }
 }

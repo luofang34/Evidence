@@ -13,12 +13,13 @@ use thiserror::Error;
 
 use crate::bundle::{EvidenceIndex, SigningError};
 use crate::hash::{HashError, sha256_file};
+use crate::policy::Profile;
 
 use super::consistency::{check_dal_map, check_test_summary, check_trace_outputs_hashed};
 use super::cross_file::check_env_vs_index;
 use super::engine_source::check_engine_source;
 use super::errors::{VerifyError, VerifyResult};
-use super::paths::{KNOWN_META_FILES, REQUIRED_FILES, VALID_PROFILES, is_safe_bundle_path};
+use super::paths::{KNOWN_META_FILES, REQUIRED_FILES, is_safe_bundle_path};
 
 /// Catastrophic errors that abort verification before per-check
 /// accumulation begins.
@@ -240,15 +241,12 @@ pub fn verify_bundle_with_key(
 
 /// Step 3b — semantic field-format checks on a parsed `EvidenceIndex`.
 fn validate_index_fields(index: &EvidenceIndex, errors: &mut Vec<VerifyError>) {
-    if !VALID_PROFILES.contains(&index.profile.as_str()) {
-        errors.push(VerifyError::FormatError {
-            field: "profile".to_string(),
-            expected: "one of: dev, cert, record".to_string(),
-            actual: index.profile.clone(),
-        });
-    }
-    // git_sha must be 40-char hex for cert/record profiles; dev allows "unknown"
-    if index.profile != "dev"
+    // `profile` is typed `Profile`, so a bogus string would have
+    // failed serde deserialization before we got here; no runtime
+    // FormatError branch needed.
+    //
+    // git_sha must be 40-char hex for cert/record profiles; dev allows "unknown".
+    if !matches!(index.profile, Profile::Dev)
         && (index.git_sha.len() != 40 || !index.git_sha.chars().all(|c| c.is_ascii_hexdigit()))
     {
         errors.push(VerifyError::FormatError {
@@ -260,7 +258,7 @@ fn validate_index_fields(index: &EvidenceIndex, errors: &mut Vec<VerifyError>) {
     check_engine_source(
         &index.engine_build_source,
         &index.engine_git_sha,
-        &index.profile,
+        index.profile,
         errors,
     );
     if chrono::DateTime::parse_from_rfc3339(&index.timestamp_rfc3339).is_err() {

@@ -102,7 +102,7 @@ impl GitProvider for FailingGitProvider {
 
 /// Creates a minimal evidence bundle manually (without EvidenceBuilder::new,
 /// which calls real git). Returns (TempDir, bundle_dir_path).
-pub fn create_minimal_bundle(profile: &str) -> (TempDir, std::path::PathBuf) {
+pub fn create_minimal_bundle(profile: evidence::Profile) -> (TempDir, std::path::PathBuf) {
     let tmp = TempDir::new().expect("create tempdir");
     let bundle_dir = tmp
         .path()
@@ -114,7 +114,7 @@ pub fn create_minimal_bundle(profile: &str) -> (TempDir, std::path::PathBuf) {
     // because `verify_bundle` re-projects it and byte-compares against
     // the committed deterministic-manifest.json.
     let env_fp = evidence::EnvFingerprint {
-        profile: profile.to_string(),
+        profile,
         rustc: "rustc 1.85.0".to_string(),
         cargo: "cargo 1.85.0".to_string(),
         git_sha: "aabbccdd11223344aabbccdd11223344aabbccdd".to_string(),
@@ -175,7 +175,7 @@ pub fn create_minimal_bundle(profile: &str) -> (TempDir, std::path::PathBuf) {
         schema_version: evidence::schema_versions::INDEX.to_string(),
         boundary_schema_version: evidence::schema_versions::BOUNDARY.to_string(),
         trace_schema_version: evidence::schema_versions::TRACE.to_string(),
-        profile: profile.to_string(),
+        profile,
         timestamp_rfc3339: "2026-02-07T00:00:00Z".to_string(),
         git_sha: "aabbccdd11223344aabbccdd11223344aabbccdd".to_string(),
         git_branch: "main".to_string(),

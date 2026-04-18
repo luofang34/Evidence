@@ -28,7 +28,7 @@ use helpers::{MockGitProvider, create_minimal_bundle};
 
 #[test]
 fn test_bundle_roundtrip() {
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
     let result = verify_bundle(&bundle_dir).expect("verify_bundle should not error");
     assert!(
         result.is_pass(),
@@ -133,7 +133,11 @@ fn test_overwrite_protection() {
 
 #[test]
 fn test_profile_in_directory_name() {
-    for profile in &["cert", "dev", "record"] {
+    for profile in [
+        evidence::Profile::Cert,
+        evidence::Profile::Dev,
+        evidence::Profile::Record,
+    ] {
         let (_tmp, bundle_dir) = create_minimal_bundle(profile);
         let dir_name = bundle_dir
             .file_name()

@@ -26,7 +26,7 @@ use helpers::{create_minimal_bundle, replace_in_index};
 fn test_verify_rejects_git_source_with_nonhex_sha() {
     // source="git" but engine_git_sha is a release-style string —
     // exactly the drift we want the verifier to catch.
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
     replace_in_index(
         &bundle_dir,
         "eeff001122334455667788990011223344556677",
@@ -47,7 +47,7 @@ fn test_verify_rejects_git_source_with_nonhex_sha() {
 #[test]
 fn test_verify_accepts_release_source_on_dev_profile() {
     // source="release" with a legitimate release-v... string on dev.
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
     replace_in_index(
         &bundle_dir,
         "eeff001122334455667788990011223344556677",
@@ -70,7 +70,7 @@ fn test_verify_accepts_release_source_on_dev_profile() {
 fn test_verify_rejects_release_source_on_cert_profile() {
     // Same release shape on cert profile should be rejected: cert
     // bundles must be pinned to a commit.
-    let (_tmp, bundle_dir) = create_minimal_bundle("cert");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Cert);
     replace_in_index(
         &bundle_dir,
         "eeff001122334455667788990011223344556677",
@@ -95,7 +95,7 @@ fn test_verify_rejects_unknown_source_on_cert_profile() {
     // Legacy-shaped bundle (source="unknown") on cert profile must
     // fail: cert cannot accept a bundle whose engine provenance is
     // unlabeled.
-    let (_tmp, bundle_dir) = create_minimal_bundle("cert");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Cert);
     replace_in_index(
         &bundle_dir,
         "\"engine_build_source\": \"git\"",
@@ -120,7 +120,7 @@ fn test_verify_rejects_phantom_trace_output_not_in_sha256sums() {
     // that isn't listed in SHA256SUMS. This is the tampering path
     // the cross-check is designed to catch (an attacker overclaiming
     // coverage without having to forge any hashed content).
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
     replace_in_index(
         &bundle_dir,
         "\"trace_outputs\": []",
@@ -144,7 +144,7 @@ fn test_verify_rejects_phantom_trace_output_not_in_sha256sums() {
 
 #[test]
 fn test_verify_detects_env_index_profile_mismatch() {
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
 
     let env_path = bundle_dir.join("env.json");
     let content = fs::read_to_string(&env_path).unwrap();
@@ -163,7 +163,7 @@ fn test_verify_detects_env_index_profile_mismatch() {
 
 #[test]
 fn test_verify_detects_env_index_git_sha_mismatch() {
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
 
     let env_path = bundle_dir.join("env.json");
     let content = fs::read_to_string(&env_path).unwrap();

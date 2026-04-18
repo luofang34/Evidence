@@ -30,10 +30,13 @@ pub(super) fn check_env_vs_index(
     };
 
     if let Some(env_profile) = env_value.get("profile").and_then(|v| v.as_str()) {
-        if env_profile != index.profile {
+        // `index.profile` is typed `Profile`; compare via its
+        // canonical on-wire string (`"dev"` / `"cert"` / `"record"`).
+        let index_profile_str = index.profile.to_string();
+        if env_profile != index_profile_str {
             errors.push(VerifyError::CrossFileInconsistency {
                 field: "profile".to_string(),
-                index_value: index.profile.clone(),
+                index_value: index_profile_str,
                 env_value: env_profile.to_string(),
             });
         }

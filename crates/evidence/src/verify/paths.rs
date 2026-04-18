@@ -22,9 +22,6 @@ pub(super) fn is_safe_bundle_path(filename: &str) -> bool {
     !filename.starts_with('\\')
 }
 
-/// Valid profile values for index.json.
-pub(super) const VALID_PROFILES: &[&str] = &["dev", "cert", "record"];
-
 /// Required files that must exist in every evidence bundle.
 pub const REQUIRED_FILES: &[&str] = &[
     "index.json",
