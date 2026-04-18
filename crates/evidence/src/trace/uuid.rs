@@ -189,7 +189,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_assign_missing_uuids_hlr() -> anyhow::Result<()> {
+    fn test_assign_missing_uuids_hlr() {
         let mut entries = vec![
             HlrEntry {
                 uid: None,
@@ -223,18 +223,17 @@ mod tests {
 
         let count = assign_missing_uuids_hlr(&mut entries);
         assert_eq!(count, 1);
-        let assigned_uid = entries[0]
-            .uid
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("expected uid to be assigned"))?;
+        // `count == 1` above already guarantees entries[0].uid is
+        // Some(_); the unwrap here is informational, not a safety
+        // concern — clippy::unwrap_used is allowed in this test mod.
+        let assigned_uid = entries[0].uid.as_deref().unwrap();
         assert!(uuid::Uuid::parse_str(assigned_uid).is_ok());
         // The existing one should be untouched.
         assert_eq!(entries[1].uid.as_deref(), Some("existing-uuid"));
-        Ok(())
     }
 
     #[test]
-    fn test_assign_missing_uuids_derived() -> anyhow::Result<()> {
+    fn test_assign_missing_uuids_derived() {
         let mut entries = vec![DerivedEntry {
             uid: None,
             id: "DER-001".to_string(),
@@ -249,11 +248,8 @@ mod tests {
 
         let count = assign_missing_uuids_derived(&mut entries);
         assert_eq!(count, 1);
-        let assigned_uid = entries[0]
-            .uid
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("expected uid to be assigned"))?;
+        // `count == 1` above already guarantees entries[0].uid is Some(_).
+        let assigned_uid = entries[0].uid.as_deref().unwrap();
         assert!(uuid::Uuid::parse_str(assigned_uid).is_ok());
-        Ok(())
     }
 }

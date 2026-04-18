@@ -260,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn test_llr_entry_fields() -> anyhow::Result<()> {
+    fn test_llr_entry_fields() {
         let llr = LlrEntry {
             uid: Some("test-uuid".to_string()),
             ns: None,
@@ -279,6 +279,5 @@ mod tests {
         assert_eq!(llr.id, "LLR-001");
         assert!(!llr.derived);
         assert_eq!(llr.description.as_deref(), Some("An LLR description"));
-        Ok(())
     }
 }
