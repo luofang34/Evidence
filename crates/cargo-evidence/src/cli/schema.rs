@@ -14,6 +14,8 @@ use evidence::schema::{Schema, validate};
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, SchemaName};
 
+/// `cargo evidence schema show <name>` handler: print a bundle file's
+/// JSON Schema source to stdout.
 pub fn cmd_schema_show(schema: SchemaName) -> Result<i32> {
     let source = match schema {
         SchemaName::Index => Schema::Index,
@@ -27,6 +29,12 @@ pub fn cmd_schema_show(schema: SchemaName) -> Result<i32> {
     Ok(EXIT_SUCCESS)
 }
 
+/// `cargo evidence schema validate <file>` handler: validate a JSON
+/// file against the correct schema (picked by filename, with
+/// content-based fallback). Returns
+/// [`EXIT_VERIFICATION_FAILURE`]
+/// — not [`EXIT_ERROR`] — on a schema
+/// violation so CI can distinguish "tool broke" from "input bad".
 pub fn cmd_schema_validate(file: PathBuf) -> Result<i32> {
     // Read the file
     let content = fs::read_to_string(&file).with_context(|| format!("reading {:?}", file))?;

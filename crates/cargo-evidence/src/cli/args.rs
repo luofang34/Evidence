@@ -1,4 +1,25 @@
 //! CLI argument types, exit code constants, and environment detection.
+//!
+//! The clap-derive types in this module (`CargoCli`, `EvidenceArgs`,
+//! `Commands`, `SchemaCommands`, `SchemaName`) carry their user-facing
+//! documentation in `#[arg(help = ...)]` / `/// ...` on each field or
+//! variant — `--help` output is the real surface. A redundant layer of
+//! rustdoc `//!` prose on the struct header would restate the same
+//! text, which is why each type is tagged with a narrow
+//! `#[allow(missing_docs, …)]` rather than carrying an extra
+//! struct-level doc comment.
+//!
+//! **clap vs. hand-rolled parser**: clap is the workspace's CLI
+//! framework today. It fits the cargo-subcommand ergonomic sweet spot
+//! (derived `--help`, global args, subcommand nesting) and is the de
+//! facto Rust standard, so the qualification / review audience is
+//! already familiar with it. The cost — ~150KB binary overhead and a
+//! proc-macro chain in the tool-qualification (DO-330 TQL-5) audit
+//! surface — is acceptable while the tool is pre-1.0. If / when we
+//! approach formal tool qualification and the proc-macro surface
+//! becomes a load-bearing audit cost, the CLI shell is small enough
+//! that swapping in a minimal parser (`lexopt` or `pico-args`) would
+//! be a single-PR change. Not worth the churn now.
 
 use std::path::PathBuf;
 
@@ -9,8 +30,14 @@ use evidence::{Profile, env::in_nix_shell};
 // Exit Codes
 // ============================================================================
 
+/// Process exit code for a successful run.
 pub const EXIT_SUCCESS: i32 = 0;
+/// Process exit code for a CLI / generation / I/O error — anything
+/// that prevented the command from producing a result.
 pub const EXIT_ERROR: i32 = 1;
+/// Process exit code reserved for `verify` when the bundle parsed but
+/// failed integrity / policy checks. Kept distinct from [`EXIT_ERROR`]
+/// so CI can react differently to "tool crashed" vs "bundle broken".
 pub const EXIT_VERIFICATION_FAILURE: i32 = 2;
 
 // ============================================================================
@@ -20,6 +47,10 @@ pub const EXIT_VERIFICATION_FAILURE: i32 = 2;
 #[derive(Parser)]
 #[command(name = "cargo")]
 #[command(bin_name = "cargo")]
+#[allow(
+    missing_docs,
+    reason = "clap-derive: variant help is carried by `#[command]` / clap itself"
+)]
 pub enum CargoCli {
     /// Build evidence and reproducibility verification
     Evidence(EvidenceArgs),
@@ -27,6 +58,10 @@ pub enum CargoCli {
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
+#[allow(
+    missing_docs,
+    reason = "clap-derive: field help is carried by `#[arg(help = ...)]`"
+)]
 pub struct EvidenceArgs {
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -62,6 +97,10 @@ pub struct EvidenceArgs {
 }
 
 #[derive(Subcommand)]
+#[allow(
+    missing_docs,
+    reason = "clap-derive: variant help is carried by `///` doc comments already present on each variant"
+)]
 pub enum Commands {
     /// Generate a new evidence bundle for the current build (default command)
     Generate {
@@ -135,6 +174,10 @@ pub enum Commands {
 }
 
 #[derive(Subcommand)]
+#[allow(
+    missing_docs,
+    reason = "clap-derive: variant help is carried by `///` doc comments already present on each variant"
+)]
 pub enum SchemaCommands {
     /// Print schema to stdout
     Show {
@@ -150,6 +193,10 @@ pub enum SchemaCommands {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
+#[allow(
+    missing_docs,
+    reason = "clap-derive ValueEnum: variant names are themselves the `--schema <name>` surface"
+)]
 pub enum SchemaName {
     Index,
     Env,

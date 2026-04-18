@@ -63,6 +63,11 @@ struct BoolChange {
     b: bool,
 }
 
+/// `cargo evidence diff` handler: compare two bundles on-disk and
+/// print (or emit as JSON) the delta across inputs, outputs, metadata,
+/// and env. Returns [`EXIT_SUCCESS`] even
+/// when differences are found — the diff command reports differences,
+/// it doesn't judge them.
 pub fn cmd_diff(bundle_a: PathBuf, bundle_b: PathBuf, json_output: bool) -> Result<i32> {
     // Load both indexes
     let index_a = load_index(&bundle_a)?;

@@ -52,17 +52,35 @@ fn fail(json_output: bool, profile: Profile, msg: impl Into<String>) -> Result<i
 
 /// Arguments for the generate command, grouped to avoid clippy::too_many_arguments.
 pub struct GenerateArgs {
+    /// `--profile` override. `None` means auto-detect via
+    /// [`detect_profile`].
     pub profile_arg: Option<String>,
+    /// Destination directory for the generated bundle. Required unless
+    /// [`write_workspace`](Self::write_workspace) is true.
     pub out_dir: Option<PathBuf>,
+    /// Allow writing the bundle inside the tracked workspace tree
+    /// (dangerous — will make the tree dirty for the next run).
     pub write_workspace: bool,
+    /// Path to `boundary.toml`; `None` uses the workspace default.
     pub boundary: Option<PathBuf>,
+    /// Comma-separated trace root list (overrides boundary.toml).
     pub trace_roots_arg: Option<String>,
+    /// Path to the HMAC signing key (raw bytes). `None` means do not sign.
     pub sign_key: Option<PathBuf>,
+    /// Skip the `cargo test` invocation during generation.
     pub skip_tests: bool,
+    /// Suppress non-error stdout.
     pub quiet: bool,
+    /// Emit a JSON envelope on stdout instead of human-readable text.
     pub json_output: bool,
 }
 
+/// `cargo evidence generate` handler: the default subcommand. Runs
+/// preflight checks (profile, shallow clone, dirty tree, boundary
+/// config), collects env/git/test fingerprints, and writes the bundle
+/// to `args.out_dir`. Returns
+/// [`EXIT_SUCCESS`] or
+/// [`EXIT_ERROR`].
 pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     let GenerateArgs {
         profile_arg,

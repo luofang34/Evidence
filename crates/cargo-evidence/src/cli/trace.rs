@@ -11,6 +11,11 @@ use evidence::{
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS};
 
+/// `cargo evidence trace` handler: multiplexes the two tracing
+/// utilities — `--validate` (cross-check HLR/LLR/Test links) and
+/// `--backfill-uuids` (assign stable UUIDs to entries missing them).
+/// Either / both may be set; with neither the command is a no-op and
+/// exits with [`EXIT_ERROR`].
 pub fn cmd_trace(
     do_validate: bool,
     do_backfill: bool,
