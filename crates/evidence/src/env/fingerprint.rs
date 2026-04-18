@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+use crate::policy::Profile;
+
 use super::capture::{EnvCaptureError, env_fingerprint};
 use super::host::Host;
 use super::manifest::DeterministicManifest;
@@ -13,8 +15,10 @@ use super::manifest::DeterministicManifest;
 /// verification and evidence generation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvFingerprint {
-    /// Active profile name
-    pub profile: String,
+    /// Active profile. Typed [`Profile`] so a typo'd string can't
+    /// round-trip through serde; wire format is unchanged
+    /// (`"dev"` / `"cert"` / `"record"`).
+    pub profile: Profile,
     /// rustc version string
     pub rustc: String,
     /// cargo version string
@@ -59,7 +63,7 @@ impl EnvFingerprint {
     /// When `strict` is true (cert/record profiles), critical tools (rustc,
     /// cargo) must be detectable or an error is raised. This satisfies
     /// cert-mode strict error handling requirements.
-    pub fn capture(profile: &str, strict: bool) -> Result<Self, EnvCaptureError> {
+    pub fn capture(profile: Profile, strict: bool) -> Result<Self, EnvCaptureError> {
         env_fingerprint(profile, strict)
     }
 
@@ -89,7 +93,7 @@ impl EnvFingerprint {
     pub fn deterministic_manifest(&self) -> DeterministicManifest {
         DeterministicManifest {
             schema_version: crate::schema_versions::DETERMINISTIC_MANIFEST.to_string(),
-            profile: self.profile.clone(),
+            profile: self.profile,
             rustc: self.rustc.clone(),
             cargo: self.cargo.clone(),
             llvm_version: self.llvm_version.clone(),
@@ -116,7 +120,7 @@ mod tests {
     #[test]
     fn test_env_fingerprint_fields() {
         let fp = EnvFingerprint {
-            profile: "test".to_string(),
+            profile: Profile::Dev,
             rustc: "rustc 1.70.0".to_string(),
             cargo: "cargo 1.70.0".to_string(),
             git_sha: "abc123".to_string(),
@@ -136,7 +140,7 @@ mod tests {
             rustflags: None,
             target_triple: "x86_64-unknown-linux-gnu".to_string(),
         };
-        assert_eq!(fp.profile, "test");
+        assert_eq!(fp.profile, Profile::Dev);
         assert!(!fp.git_dirty);
         assert_eq!(fp.target_triple, "x86_64-unknown-linux-gnu");
         assert!(matches!(fp.host, Host::Linux { .. }));

@@ -9,6 +9,7 @@ use std::process::Command;
 use thiserror::Error;
 
 use crate::git::{git_branch, git_sha, is_dirty_or_unknown};
+use crate::policy::Profile;
 use crate::util::cmd_stdout;
 
 use super::fingerprint::EnvFingerprint;
@@ -34,7 +35,7 @@ pub enum EnvCaptureError {
 /// When `strict` is true (cert/record profiles), critical tools (rustc, cargo)
 /// must be found or the function returns an error. This prevents evidence
 /// bundles from being generated in an incomplete environment.
-pub fn env_fingerprint(profile: &str, strict: bool) -> Result<EnvFingerprint, EnvCaptureError> {
+pub fn env_fingerprint(profile: Profile, strict: bool) -> Result<EnvFingerprint, EnvCaptureError> {
     let rustc = cmd_stdout("rustc", &["--version"]);
     let cargo = cmd_stdout("cargo", &["--version"]);
 
@@ -85,7 +86,7 @@ pub fn env_fingerprint(profile: &str, strict: bool) -> Result<EnvFingerprint, En
     let rustflags = std::env::var("RUSTFLAGS").ok();
 
     Ok(EnvFingerprint {
-        profile: profile.to_string(),
+        profile,
         rustc: rustc_str.trim().to_string(),
         cargo: cargo_str.trim().to_string(),
         git_sha: git_sha().unwrap_or_else(|_| "unknown".to_string()),

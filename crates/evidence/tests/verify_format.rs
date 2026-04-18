@@ -19,7 +19,7 @@ use helpers::create_minimal_bundle;
 
 #[test]
 fn test_verify_rejects_path_traversal_in_sha256sums() {
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
 
     // Tamper SHA256SUMS to include a path-traversal entry.
     let sha256sums_path = bundle_dir.join("SHA256SUMS");
@@ -41,7 +41,7 @@ fn test_verify_rejects_path_traversal_in_sha256sums() {
 
 #[test]
 fn test_verify_rejects_absolute_path_in_sha256sums() {
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
 
     let sha256sums_path = bundle_dir.join("SHA256SUMS");
     let mut content = fs::read_to_string(&sha256sums_path).unwrap();
@@ -61,32 +61,38 @@ fn test_verify_rejects_absolute_path_in_sha256sums() {
 
 #[test]
 fn test_verify_rejects_invalid_profile() {
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    // Regression for the deferred "stringly-typed profile" concern:
+    // with `EvidenceIndex.profile: Profile`, a tampered `"yolo"`
+    // string can't even round-trip through serde. `verify_bundle`
+    // surfaces this as `VerifyRuntimeError::ParseIndex` (a run-time
+    // fault) rather than the legacy `VerifyResult::Fail([
+    // FormatError{field:"profile", ...}])` — the bug is caught one
+    // layer earlier, at deserialization, which also means library
+    // consumers who skip verify still can't construct an
+    // `EvidenceIndex` with a bogus profile.
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
 
-    // Tamper index.json to have an invalid profile.
     let index_path = bundle_dir.join("index.json");
     let content = fs::read_to_string(&index_path).unwrap();
     let tampered = content.replace("\"dev\"", "\"yolo\"");
     fs::write(&index_path, &tampered).unwrap();
 
-    // Also tamper env.json so the cross-file check doesn't confuse matters.
     let env_path = bundle_dir.join("env.json");
     let env_content = fs::read_to_string(&env_path).unwrap();
     let env_tampered = env_content.replace("\"dev\"", "\"yolo\"");
     fs::write(&env_path, &env_tampered).unwrap();
 
-    let result = verify_bundle(&bundle_dir).unwrap();
-    assert!(result.is_fail(), "Should fail with invalid profile");
+    let err = verify_bundle(&bundle_dir).expect_err("should fail to parse the tampered index");
+    let msg = err.to_string();
     assert!(
-        result.summary().contains("profile"),
-        "Should mention profile, got: {}",
-        result.summary()
+        msg.contains("index.json"),
+        "error should name index.json, got: {msg}"
     );
 }
 
 #[test]
 fn test_verify_rejects_bad_git_sha_in_cert_profile() {
-    let (_tmp, bundle_dir) = create_minimal_bundle("cert");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Cert);
 
     let index_path = bundle_dir.join("index.json");
     let content = fs::read_to_string(&index_path).unwrap();
@@ -117,7 +123,7 @@ fn test_verify_rejects_bad_git_sha_in_cert_profile() {
 #[test]
 fn test_verify_allows_unknown_git_sha_in_dev_profile() {
     // Dev profile allows "unknown" git_sha — should not trigger FormatError.
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
 
     // Set git_sha to "unknown" in both files.
     let index_path = bundle_dir.join("index.json");

@@ -4,6 +4,8 @@
 //! `engine_build_source = "release"` or `"unknown"`: it must be pinned
 //! to a specific engine commit. Dev bundles are permissive.
 
+use crate::policy::Profile;
+
 use super::errors::VerifyError;
 
 /// Cross-check `engine_build_source` against the shape of
@@ -12,9 +14,10 @@ use super::errors::VerifyError;
 pub(super) fn check_engine_source(
     source: &str,
     sha: &str,
-    profile: &str,
+    profile: Profile,
     errors: &mut Vec<VerifyError>,
 ) {
+    let is_dev = matches!(profile, Profile::Dev);
     match source {
         "git" => {
             if sha.len() != 40 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -45,7 +48,7 @@ pub(super) fn check_engine_source(
             }
             // cert/record bundles must be pinned to a commit, not a
             // release tag; reject "release" for those profiles.
-            if profile != "dev" {
+            if !is_dev {
                 errors.push(VerifyError::FormatError {
                     field: "engine_build_source".to_string(),
                     expected: "\"git\" (required for cert/record profiles)".to_string(),
@@ -58,7 +61,7 @@ pub(super) fn check_engine_source(
             // added (serde default fills it in on read). Dev tolerates
             // it for backward compatibility; cert/record cannot accept
             // a bundle whose engine provenance is unlabeled.
-            if profile != "dev" {
+            if !is_dev {
                 errors.push(VerifyError::FormatError {
                     field: "engine_build_source".to_string(),
                     expected: "\"git\" (cert/record cannot accept unlabeled engine provenance)"

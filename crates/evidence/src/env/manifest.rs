@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::policy::Profile;
+
 /// Cross-host reproducibility contract.
 ///
 /// A committed, SHA-256-hashed projection of `EnvFingerprint` that
@@ -28,8 +30,9 @@ use serde::{Deserialize, Serialize};
 pub struct DeterministicManifest {
     /// Schema version for this manifest.
     pub schema_version: String,
-    /// Active profile name (dev/cert/record).
-    pub profile: String,
+    /// Active profile (dev/cert/record). Typed [`Profile`] so a typo
+    /// can't survive serde at this boundary; wire format unchanged.
+    pub profile: Profile,
     /// rustc version string.
     pub rustc: String,
     /// cargo version string.

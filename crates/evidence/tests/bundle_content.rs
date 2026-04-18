@@ -25,7 +25,7 @@ use helpers::create_minimal_bundle;
 
 #[test]
 fn test_content_hash_integrity() {
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
 
     let index_content = fs::read_to_string(bundle_dir.join("index.json")).unwrap();
     let index: EvidenceIndex = serde_json::from_str(&index_content).unwrap();
@@ -40,7 +40,7 @@ fn test_content_hash_integrity() {
 
 #[test]
 fn test_tampering_detection() {
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
 
     let result = verify_bundle(&bundle_dir).unwrap();
     assert!(result.is_pass(), "Bundle should pass before tampering");
@@ -67,7 +67,7 @@ fn test_tampering_detection() {
 
 #[test]
 fn test_index_json_excluded_from_sha256sums() {
-    let (_tmp, bundle_dir) = create_minimal_bundle("dev");
+    let (_tmp, bundle_dir) = create_minimal_bundle(evidence::Profile::Dev);
 
     let sha256sums_content = fs::read_to_string(bundle_dir.join("SHA256SUMS")).unwrap();
 

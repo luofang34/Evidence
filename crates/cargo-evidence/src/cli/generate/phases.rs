@@ -158,7 +158,7 @@ pub(super) fn capture_and_write_env(
     profile: Profile,
 ) -> Result<EnvFingerprint> {
     let strict = matches!(profile, Profile::Cert | Profile::Record);
-    let env_fp = EnvFingerprint::capture(&profile.to_string(), strict)?;
+    let env_fp = EnvFingerprint::capture(profile, strict)?;
     let env_path = builder.bundle_dir().join("env.json");
     fs::write(&env_path, serde_json::to_vec_pretty(&env_fp)?)?;
     Ok(env_fp)

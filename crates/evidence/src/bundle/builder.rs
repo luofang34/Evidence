@@ -412,7 +412,7 @@ impl EvidenceBuilder {
             schema_version: crate::schema_versions::INDEX.to_string(),
             boundary_schema_version: crate::schema_versions::BOUNDARY.to_string(),
             trace_schema_version: crate::schema_versions::TRACE.to_string(),
-            profile: self.config.profile.to_string(),
+            profile: self.config.profile,
             timestamp_rfc3339: ts,
             git_sha: self.git_snapshot.sha.clone(),
             git_branch: self.git_snapshot.branch.clone(),
