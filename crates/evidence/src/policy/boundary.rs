@@ -144,8 +144,10 @@ impl BoundaryConfig {
     }
 
     /// A blank boundary config: empty scope, empty policy, DAL-D
-    /// default. Matches what the old hand-rolled CLI loader would
-    /// produce when the file was missing.
+    /// default. This is the shape `load_or_default` returns when the
+    /// file is absent or unparseable — every field at its lowest-
+    /// rigor value so a missing config cannot silently downgrade
+    /// cert requirements.
     pub fn default_empty() -> Self {
         Self {
             schema: Schema {
