@@ -23,11 +23,14 @@ pub enum LoadBoundaryError {
     },
     /// The file read but wasn't valid TOML (or didn't match the
     /// expected schema).
+    ///
+    /// `toml::de::Error` is large on Windows; box it so this enum
+    /// stays under clippy's `result_large_err` threshold.
     #[error("parsing boundary config from {path}")]
     Parse {
         path: PathBuf,
         #[source]
-        source: toml::de::Error,
+        source: Box<toml::de::Error>,
     },
 }
 
@@ -164,7 +167,7 @@ impl BoundaryConfig {
         })?;
         let config: Self = toml::from_str(&content).map_err(|source| LoadBoundaryError::Parse {
             path: path.to_path_buf(),
-            source,
+            source: Box::new(source),
         })?;
         log::debug!(
             "boundary policy rules enabled: {:?}",

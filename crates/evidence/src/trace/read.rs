@@ -25,11 +25,16 @@ pub enum TraceReadError {
     },
     /// The file read but its contents didn't parse as TOML for the
     /// requested target type.
+    ///
+    /// `toml::de::Error` is >128 bytes on Windows, which would push
+    /// the whole enum past clippy's `result_large_err` threshold and
+    /// force every `Result<_, TraceReadError>` to be heavier than
+    /// necessary. Box it so the error variant stays cheap to return.
     #[error("parsing {path}")]
     Parse {
         path: PathBuf,
         #[source]
-        source: toml::de::Error,
+        source: Box<toml::de::Error>,
     },
 }
 
@@ -41,7 +46,7 @@ pub fn read_toml<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, TraceRe
     })?;
     let v = toml::from_str(&txt).map_err(|source| TraceReadError::Parse {
         path: path.to_path_buf(),
-        source,
+        source: Box::new(source),
     })?;
     Ok(v)
 }

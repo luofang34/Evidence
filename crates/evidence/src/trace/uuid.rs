@@ -31,11 +31,13 @@ pub enum BackfillError {
         source: std::io::Error,
     },
     /// `toml::to_string_pretty` round-trip serialization failed.
+    /// Boxed to keep the enum under clippy's `result_large_err`
+    /// threshold on Windows.
     #[error("serializing {filename}")]
     Serialize {
         filename: &'static str,
         #[source]
-        source: toml::ser::Error,
+        source: Box<toml::ser::Error>,
     },
 }
 
@@ -106,7 +108,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
             let content =
                 toml::to_string_pretty(&hlr).map_err(|source| BackfillError::Serialize {
                     filename: "hlr.toml",
-                    source,
+                    source: Box::new(source),
                 })?;
             fs::write(&hlr_path, content).map_err(|source| BackfillError::Write {
                 path: hlr_path.clone(),
@@ -125,7 +127,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
             let content =
                 toml::to_string_pretty(&llr).map_err(|source| BackfillError::Serialize {
                     filename: "llr.toml",
-                    source,
+                    source: Box::new(source),
                 })?;
             fs::write(&llr_path, content).map_err(|source| BackfillError::Write {
                 path: llr_path.clone(),
@@ -144,7 +146,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
             let content =
                 toml::to_string_pretty(&tests).map_err(|source| BackfillError::Serialize {
                     filename: "tests.toml",
-                    source,
+                    source: Box::new(source),
                 })?;
             fs::write(&tests_path, content).map_err(|source| BackfillError::Write {
                 path: tests_path.clone(),
@@ -163,7 +165,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
             let content =
                 toml::to_string_pretty(&derived).map_err(|source| BackfillError::Serialize {
                     filename: "derived.toml",
-                    source,
+                    source: Box::new(source),
                 })?;
             fs::write(&derived_path, content).map_err(|source| BackfillError::Write {
                 path: derived_path.clone(),
