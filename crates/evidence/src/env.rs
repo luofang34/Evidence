@@ -37,7 +37,7 @@ pub enum EnvCaptureError {
 /// `libc_version`) with one tagged enum that forces each platform to
 /// name the shape of its evidence. DO-178C / DO-330 audit wants the
 /// schema to be unambiguous about what "libc" even means on Windows;
-/// this enum answers that structurally rather than with Option<String>
+/// this enum answers that structurally rather than with `Option<String>`
 /// sentinels.
 ///
 /// Serialized as `{"os": "linux" | "macos" | "windows", …variant fields…}`.

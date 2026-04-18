@@ -20,21 +20,27 @@ pub enum HashError {
     /// Failed to open `path` for hashing.
     #[error("opening {path:?}")]
     Open {
+        /// File whose open failed.
         path: PathBuf,
+        /// Underlying OS error.
         #[source]
         source: io::Error,
     },
     /// Failed to read bytes from `path` into the hasher.
     #[error("reading {path:?}")]
     Read {
+        /// File whose streaming read failed.
         path: PathBuf,
+        /// Underlying OS error.
         #[source]
         source: io::Error,
     },
     /// Failed to write `SHA256SUMS` at `path`.
     #[error("writing {path:?}")]
     Write {
+        /// Output file whose write failed.
         path: PathBuf,
+        /// Underlying OS error.
         #[source]
         source: io::Error,
     },
@@ -44,13 +50,21 @@ pub enum HashError {
     /// `hash_file_relative_into` was given a path outside `base`, so
     /// `strip_prefix` failed.
     #[error("{path:?} is not under base {base:?}")]
-    NotUnderBase { path: PathBuf, base: PathBuf },
+    NotUnderBase {
+        /// Path given by the caller.
+        path: PathBuf,
+        /// Base the path was expected to live under.
+        base: PathBuf,
+    },
     /// `hash_file_relative_into` was given a non-UTF-8 path; bundle
     /// JSON (`SHA256SUMS`, `index.json.trace_outputs`) only carries
     /// UTF-8 path strings, so non-UTF-8 is rejected up front instead
     /// of silently `to_string_lossy`-mangling.
     #[error("non-UTF-8 path: {path:?}")]
-    NonUtf8Path { path: PathBuf },
+    NonUtf8Path {
+        /// Offending non-UTF-8 path.
+        path: PathBuf,
+    },
 }
 
 /// Compute the SHA-256 hash of the given data.

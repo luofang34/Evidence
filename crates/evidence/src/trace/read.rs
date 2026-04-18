@@ -19,7 +19,9 @@ pub enum TraceReadError {
     /// Failed to read the TOML file from disk.
     #[error("reading {path}")]
     Read {
+        /// Path whose read failed.
         path: PathBuf,
+        /// Underlying OS error.
         #[source]
         source: std::io::Error,
     },
@@ -32,7 +34,9 @@ pub enum TraceReadError {
     /// necessary. Box it so the error variant stays cheap to return.
     #[error("parsing {path}")]
     Parse {
+        /// Path whose TOML failed to parse into the target type.
         path: PathBuf,
+        /// Underlying TOML error (boxed to keep the enum small).
         #[source]
         source: Box<toml::de::Error>,
     },
@@ -54,9 +58,13 @@ pub fn read_toml<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, TraceRe
 /// Parsed trace files from a single trace root.
 #[derive(Debug)]
 pub struct TraceFiles {
+    /// Parsed `hlr.toml` (empty-defaulted if missing).
     pub hlr: HlrFile,
+    /// Parsed `llr.toml` (empty-defaulted if missing).
     pub llr: LlrFile,
+    /// Parsed `tests.toml` (empty-defaulted if missing).
     pub tests: TestsFile,
+    /// Parsed `derived.toml`, or `None` if the file is absent.
     pub derived: Option<DerivedFile>,
 }
 

@@ -1,15 +1,15 @@
 //! Evidence bundle verification.
 //!
-//! Split across sibling files under `verify/`:
+//! Split across private sibling files under `verify/`:
 //!
-//! | Sub-module          | Concern                                             |
-//! |---------------------|-----------------------------------------------------|
-//! | [`errors`]          | `VerifyError` + `VerifyResult` structured types     |
-//! | [`paths`]           | `is_safe_bundle_path` + `REQUIRED_FILES` constants  |
-//! | [`engine_source`]   | `check_engine_source` cross-shape                   |
-//! | [`cross_file`]      | env.json ↔ index.json field consistency             |
-//! | [`consistency`]     | trace_outputs / test_summary / dal_map cross-checks |
-//! | [`bundle`]          | orchestrator: `verify_bundle[_with_key]`            |
+//! | Sub-module      | Concern                                             |
+//! |-----------------|-----------------------------------------------------|
+//! | `errors`        | `VerifyError` + `VerifyResult` structured types     |
+//! | `paths`         | `is_safe_bundle_path` + `REQUIRED_FILES` constants  |
+//! | `engine_source` | `check_engine_source` cross-shape                   |
+//! | `cross_file`    | env.json ↔ index.json field consistency             |
+//! | `consistency`   | trace_outputs / test_summary / dal_map cross-checks |
+//! | `bundle`        | orchestrator: `verify_bundle[_with_key]`            |
 //!
 //! Re-exports below keep the crate's public API flat — consumers
 //! continue to `use evidence::verify::{verify_bundle, VerifyError, …}`

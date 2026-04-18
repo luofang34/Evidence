@@ -28,10 +28,16 @@ pub struct ObjectiveStatus {
 /// Summary counts for a compliance report.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplianceSummary {
+    /// Total count of DO-178C objectives considered (always equals
+    /// `OBJECTIVES.len()`).
     pub total_objectives: u32,
+    /// Count of objectives applicable at this crate's DAL.
     pub applicable: u32,
+    /// Count of applicable objectives whose status is `"met"`.
     pub met: u32,
+    /// Count of applicable objectives whose status is `"not_met"`.
     pub not_met: u32,
+    /// Count of applicable objectives whose status is `"partial"`.
     pub partial: u32,
 }
 

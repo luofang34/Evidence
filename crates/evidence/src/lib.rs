@@ -9,7 +9,7 @@
 //! - [`bundle`] - Evidence bundle creation and management
 //! - [`compliance`] - Per-crate DO-178C compliance reporting
 //! - [`coverage`] - Structural coverage data types
-//! - [`env`] - Build environment fingerprinting
+//! - [`mod@env`] - Build environment fingerprinting
 //! - [`git`] - Git repository state capture
 //! - [`hash`] - Cryptographic hashing utilities
 //! - [`policy`] - Configuration and policy types

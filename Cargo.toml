@@ -35,6 +35,22 @@ evidence = { version = "0.1.0", path = "crates/evidence" }
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
+# Every public item in a library crate must carry a doc comment. CI's
+# doc gate (`ci.yml: cargo doc`) runs with `-D warnings`, so a missing
+# doc on a public API fails the build, not just a lint nag.
+#
+# `warn` at lint level so local `cargo build` stays friendly; CI
+# elevates via `-D warnings`. The CLI binary (`cargo-evidence`) has
+# a crate-root `#![allow(missing_docs)]` because its internal `cli::*`
+# modules are implementation detail, not public API.
+missing_docs = "warn"
+
+[workspace.lints.rustdoc]
+# Broken intra-doc links (e.g. `[`NonexistentType`]`) are silent by
+# default — rustdoc renders them as plain text and the reader never
+# notices. Warn so `-D warnings` in the doc gate catches dead refs.
+broken_intra_doc_links = "warn"
+
 # These are set to `deny` (not `forbid`) because the `clap` derive macros
 # emit blanket `#[allow(clippy::restriction)]` in their expansion, which
 # `forbid` at workspace level would reject with E0453. `deny` + CI's

@@ -17,19 +17,25 @@ pub enum SigningError {
     Read {
         /// Bundle-relative filename (`SHA256SUMS`, `index.json`, `BUNDLE.sig`).
         path: String,
+        /// Underlying OS error.
         #[source]
         source: std::io::Error,
     },
     /// Failed to write `BUNDLE.sig`.
     #[error("writing {path}")]
     Write {
+        /// Bundle-relative filename being written (always `BUNDLE.sig`).
         path: String,
+        /// Underlying OS error.
         #[source]
         source: std::io::Error,
     },
     /// The provided HMAC key had an invalid length for SHA-256.
     #[error("invalid HMAC key: {reason}")]
-    InvalidKey { reason: String },
+    InvalidKey {
+        /// Human-readable reason from the `hmac` crate.
+        reason: String,
+    },
     /// `BUNDLE.sig` contained non-hex bytes.
     #[error("BUNDLE.sig contains invalid hex")]
     InvalidSignatureHex(#[source] hex::FromHexError),
