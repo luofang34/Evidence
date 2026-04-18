@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::bundle::{EvidenceIndex, SigningError};
+use crate::diagnostic::{DiagnosticCode, Location, Severity};
 use crate::hash::{HashError, sha256_file};
 use crate::policy::Profile;
 
@@ -36,7 +37,9 @@ pub enum VerifyRuntimeError {
     /// I/O failure reading a bundle file.
     #[error("reading {path}")]
     ReadFile {
+        /// Bundle-relative path whose read failed.
         path: PathBuf,
+        /// Underlying OS error.
         #[source]
         source: std::io::Error,
     },
@@ -55,6 +58,47 @@ pub enum VerifyRuntimeError {
     /// [`VerifyError::HmacFailure`]).
     #[error(transparent)]
     Signing(#[from] SigningError),
+}
+
+impl DiagnosticCode for VerifyRuntimeError {
+    fn code(&self) -> &'static str {
+        // Runtime faults that abort verify before it can make any
+        // findings. These map to exit code 1 (not 2), per the
+        // Schema Rule 1 contract.
+        match self {
+            VerifyRuntimeError::BundleNotFound(_) => "VERIFY_RUNTIME_BUNDLE_NOT_FOUND",
+            VerifyRuntimeError::ReadFile { .. } => "VERIFY_RUNTIME_READ_FILE",
+            VerifyRuntimeError::ParseIndex(_) => "VERIFY_RUNTIME_PARSE_INDEX",
+            VerifyRuntimeError::Walk(_) => "VERIFY_RUNTIME_WALK",
+            VerifyRuntimeError::Hash(_) => "VERIFY_RUNTIME_HASH",
+            VerifyRuntimeError::Signing(_) => "VERIFY_RUNTIME_SIGNING",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
+
+    fn location(&self) -> Option<Location> {
+        match self {
+            VerifyRuntimeError::BundleNotFound(p) => Some(Location {
+                file: Some(p.clone()),
+                ..Location::default()
+            }),
+            VerifyRuntimeError::ReadFile { path, .. } => Some(Location {
+                file: Some(path.clone()),
+                ..Location::default()
+            }),
+            // Remaining variants wrap inner errors without surfacing
+            // a path at this layer. `Hash(HashError)` and friends
+            // will grow their own `DiagnosticCode` impls in PR #1b
+            // and the wrapper can forward via `source()` then.
+            VerifyRuntimeError::ParseIndex(_)
+            | VerifyRuntimeError::Walk(_)
+            | VerifyRuntimeError::Hash(_)
+            | VerifyRuntimeError::Signing(_) => None,
+        }
+    }
 }
 
 /// Verify an evidence bundle at the given path.

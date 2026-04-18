@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::diagnostic::{DiagnosticCode, Severity};
+
 /// Build/certification profile (e.g., dev, cert, record).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -40,6 +42,18 @@ pub enum ParseProfileError {
     /// Input didn't match any of `dev` / `cert` / `record` (case-insensitive).
     #[error("unknown profile '{0}'; expected one of: dev, cert, record")]
     Unknown(String),
+}
+
+impl DiagnosticCode for ParseProfileError {
+    fn code(&self) -> &'static str {
+        match self {
+            ParseProfileError::Unknown(_) => "POLICY_UNKNOWN_PROFILE",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
 }
 
 impl std::str::FromStr for Profile {

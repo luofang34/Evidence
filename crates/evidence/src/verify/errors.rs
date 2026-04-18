@@ -1,7 +1,11 @@
 //! `VerifyError` + `VerifyResult` — the structured result types
 //! returned by every verification pass.
 
+use std::path::PathBuf;
+
 use serde::Serialize;
+
+use crate::diagnostic::{DiagnosticCode, Location, Severity};
 
 /// Structured verification error codes for programmatic handling.
 #[derive(Debug, Clone, Serialize)]
@@ -211,6 +215,72 @@ impl std::fmt::Display for VerifyError {
                 write!(f, "dal_map orphan for '{}': {}", crate_name, detail)
             }
         }
+    }
+}
+
+impl DiagnosticCode for VerifyError {
+    fn code(&self) -> &'static str {
+        // Exhaustive match: adding a new `VerifyError` variant without
+        // a stable code here fails compilation — Schema Rule 3.
+        match self {
+            VerifyError::UnexpectedFile(_) => "VERIFY_UNEXPECTED_FILE",
+            VerifyError::HmacFailure => "VERIFY_HMAC_FAILURE",
+            VerifyError::HashMismatch { .. } => "VERIFY_HASH_MISMATCH",
+            VerifyError::MissingHashedFile(_) => "VERIFY_MISSING_HASHED_FILE",
+            VerifyError::ContentHashMismatch { .. } => "VERIFY_CONTENT_HASH_MISMATCH",
+            VerifyError::UnsafePath(_) => "VERIFY_UNSAFE_PATH",
+            VerifyError::FormatError { .. } => "VERIFY_FORMAT_ERROR",
+            VerifyError::CrossFileInconsistency { .. } => "VERIFY_CROSS_FILE_INCONSISTENCY",
+            VerifyError::DeterministicHashMismatch { .. } => "VERIFY_DETERMINISTIC_HASH_MISMATCH",
+            VerifyError::ManifestProjectionDrift { .. } => "VERIFY_MANIFEST_PROJECTION_DRIFT",
+            VerifyError::TraceOutputNotHashed(_) => "VERIFY_TRACE_OUTPUT_NOT_HASHED",
+            VerifyError::TestSummaryMismatch { .. } => "VERIFY_TEST_SUMMARY_MISMATCH",
+            VerifyError::DalMapMismatch { .. } => "VERIFY_DAL_MAP_MISMATCH",
+            VerifyError::DalMapOrphan { .. } => "VERIFY_DAL_MAP_ORPHAN",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        // Every VerifyError is a finding, not a progress event.
+        Severity::Error
+    }
+
+    fn location(&self) -> Option<Location> {
+        // Populate Location.file from bundle-relative paths the error
+        // already carries. Agents can match on toml_path when the
+        // underlying emitter has enough structure, but VerifyError
+        // lives one layer above TOML — bundle-file paths are the
+        // strongest locators available. `line`/`col` stay None
+        // because verify operates on binary/JSON content, not
+        // human-edited source.
+        let file_path = match self {
+            VerifyError::UnexpectedFile(p)
+            | VerifyError::MissingHashedFile(p)
+            | VerifyError::UnsafePath(p)
+            | VerifyError::TraceOutputNotHashed(p) => Some(PathBuf::from(p)),
+            VerifyError::HashMismatch { file, .. } => Some(PathBuf::from(file)),
+            VerifyError::DalMapMismatch { crate_name, .. }
+            | VerifyError::DalMapOrphan { crate_name, .. } => {
+                // The DAL-map mismatches point at a compliance file
+                // keyed by crate name. Surface that path so an agent
+                // can jump straight to the offending report.
+                Some(PathBuf::from(format!("compliance/{}.json", crate_name)))
+            }
+            // The remaining variants are bundle-wide invariants; no
+            // single file "owns" the failure.
+            VerifyError::HmacFailure
+            | VerifyError::ContentHashMismatch { .. }
+            | VerifyError::FormatError { .. }
+            | VerifyError::CrossFileInconsistency { .. }
+            | VerifyError::DeterministicHashMismatch { .. }
+            | VerifyError::ManifestProjectionDrift { .. }
+            | VerifyError::TestSummaryMismatch { .. } => None,
+        };
+
+        file_path.map(|file| Location {
+            file: Some(file),
+            ..Location::default()
+        })
     }
 }
 

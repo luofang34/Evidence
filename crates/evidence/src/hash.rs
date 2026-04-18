@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
+use crate::diagnostic::{DiagnosticCode, Location, Severity};
 use crate::util::normalize_bundle_path;
 
 /// Errors returned by the hashing helpers in this module.
@@ -65,6 +66,40 @@ pub enum HashError {
         /// Offending non-UTF-8 path.
         path: PathBuf,
     },
+}
+
+impl DiagnosticCode for HashError {
+    fn code(&self) -> &'static str {
+        // Exhaustive match: adding a new HashError variant without a
+        // stable code here fails compilation — Schema Rule 3.
+        match self {
+            HashError::Open { .. } => "HASH_OPEN_FAILED",
+            HashError::Read { .. } => "HASH_READ_FAILED",
+            HashError::Write { .. } => "HASH_WRITE_FAILED",
+            HashError::Walk(_) => "HASH_WALK_FAILED",
+            HashError::NotUnderBase { .. } => "HASH_NOT_UNDER_BASE",
+            HashError::NonUtf8Path { .. } => "HASH_NON_UTF8_PATH",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
+
+    fn location(&self) -> Option<Location> {
+        let file = match self {
+            HashError::Open { path, .. }
+            | HashError::Read { path, .. }
+            | HashError::Write { path, .. }
+            | HashError::NotUnderBase { path, .. }
+            | HashError::NonUtf8Path { path } => Some(path.clone()),
+            HashError::Walk(_) => None,
+        };
+        file.map(|file| Location {
+            file: Some(file),
+            ..Location::default()
+        })
+    }
 }
 
 /// Compute the SHA-256 hash of the given data.

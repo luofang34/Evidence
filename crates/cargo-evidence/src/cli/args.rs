@@ -92,8 +92,57 @@ pub struct EvidenceArgs {
     pub quiet: bool,
 
     /// Output results as JSON
+    ///
+    /// Permanent alias for `--format=json`; not deprecated. When both
+    /// `--json` and `--format` are given, `--format` wins.
     #[arg(long, global = true)]
     pub json: bool,
+
+    /// Output format for machine consumers.
+    ///
+    /// - `human` (default): human-readable text on stdout + stderr.
+    /// - `json`: single terminal JSON object on stdout (same as `--json`).
+    /// - `jsonl`: streaming JSON-Lines on stdout, one diagnostic per
+    ///   line, flushed per event. stderr keeps human progress text.
+    ///
+    /// The streaming `jsonl` shape is defined by
+    /// `schemas/diagnostic.schema.json`
+    /// (print with `cargo evidence schema show diagnostic`).
+    #[arg(long, value_enum, global = true, default_value_t = OutputFormat::Human)]
+    pub format: OutputFormat,
+}
+
+/// Global `--format` choice. See [`EvidenceArgs::format`].
+#[derive(Clone, Copy, Default, PartialEq, Eq, ValueEnum, Debug)]
+pub enum OutputFormat {
+    /// Human-readable text (default).
+    #[default]
+    Human,
+    /// Single pretty-printed JSON document on stdout.
+    Json,
+    /// Streaming JSON-Lines on stdout, flushed per event.
+    Jsonl,
+}
+
+impl OutputFormat {
+    /// Resolve the effective output format from the possibly-multiple
+    /// knobs the user may have set.
+    ///
+    /// Precedence:
+    /// 1. If `--format` is anything other than its default (`Human`),
+    ///    honor it (the user was explicit).
+    /// 2. Otherwise, if the legacy `--json` boolean is set, treat as
+    ///    `Json` (Schema Rule 5: permanent alias).
+    /// 3. Otherwise `Human`.
+    pub fn resolve(format_flag: OutputFormat, json_flag: bool) -> OutputFormat {
+        if format_flag != OutputFormat::Human {
+            return format_flag;
+        }
+        if json_flag {
+            return OutputFormat::Json;
+        }
+        OutputFormat::Human
+    }
 }
 
 #[derive(Subcommand)]
@@ -205,6 +254,10 @@ pub enum SchemaName {
     /// Alias for deterministic-manifest.json.
     #[value(name = "deterministic-manifest", alias = "manifest")]
     DeterministicManifest,
+    /// Wire-format schema for `--format=jsonl` output. Not a bundle
+    /// file — `schema validate` will not match it by filename; use
+    /// `schema show diagnostic` to read the source.
+    Diagnostic,
 }
 
 // ============================================================================

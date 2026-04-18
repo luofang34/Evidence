@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
+use crate::diagnostic::{DiagnosticCode, Location, Severity};
+
 type HmacSha256 = Hmac<Sha256>;
 
 /// Errors returned by [`sign_bundle`] / [`verify_bundle_signature`].
@@ -39,6 +41,34 @@ pub enum SigningError {
     /// `BUNDLE.sig` contained non-hex bytes.
     #[error("BUNDLE.sig contains invalid hex")]
     InvalidSignatureHex(#[source] hex::FromHexError),
+}
+
+impl DiagnosticCode for SigningError {
+    fn code(&self) -> &'static str {
+        match self {
+            SigningError::Read { .. } => "SIGN_READ_FAILED",
+            SigningError::Write { .. } => "SIGN_WRITE_FAILED",
+            SigningError::InvalidKey { .. } => "SIGN_INVALID_KEY",
+            SigningError::InvalidSignatureHex(_) => "SIGN_INVALID_SIGNATURE_HEX",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
+
+    fn location(&self) -> Option<Location> {
+        let file = match self {
+            SigningError::Read { path, .. } | SigningError::Write { path, .. } => {
+                Some(PathBuf::from(path))
+            }
+            SigningError::InvalidKey { .. } | SigningError::InvalidSignatureHex(_) => None,
+        };
+        file.map(|file| Location {
+            file: Some(file),
+            ..Location::default()
+        })
+    }
 }
 
 /// HMAC envelope layout: length-prefixed concatenation of

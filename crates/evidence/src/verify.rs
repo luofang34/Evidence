@@ -22,6 +22,6 @@ mod engine_source;
 mod errors;
 mod paths;
 
-pub use bundle::{verify_bundle, verify_bundle_with_key};
+pub use bundle::{VerifyRuntimeError, verify_bundle, verify_bundle_with_key};
 pub use errors::{VerifyError, VerifyResult};
 pub use paths::REQUIRED_FILES;

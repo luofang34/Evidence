@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use super::entries::{DerivedFile, HlrFile, LlrFile, Schema, TestsFile, TraceMeta};
+use crate::diagnostic::{DiagnosticCode, Location, Severity};
 
 /// Errors returned by [`read_toml`] / [`read_all_trace_files`].
 #[derive(Debug, Error)]
@@ -40,6 +41,29 @@ pub enum TraceReadError {
         #[source]
         source: Box<toml::de::Error>,
     },
+}
+
+impl DiagnosticCode for TraceReadError {
+    fn code(&self) -> &'static str {
+        match self {
+            TraceReadError::Read { .. } => "TRACE_READ_FAILED",
+            TraceReadError::Parse { .. } => "TRACE_PARSE_FAILED",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
+
+    fn location(&self) -> Option<Location> {
+        let path = match self {
+            TraceReadError::Read { path, .. } | TraceReadError::Parse { path, .. } => path.clone(),
+        };
+        Some(Location {
+            file: Some(path),
+            ..Location::default()
+        })
+    }
 }
 
 /// Parse a TOML file into the given type.

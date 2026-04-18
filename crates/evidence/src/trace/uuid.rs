@@ -16,6 +16,7 @@ use super::entries::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, TestEntry, TestsFile,
 };
 use super::read::{TraceReadError, read_toml};
+use crate::diagnostic::{DiagnosticCode, Location, Severity};
 
 /// Errors returned by [`backfill_uuids`].
 #[derive(Debug, Error)]
@@ -39,6 +40,39 @@ pub enum BackfillError {
         #[source]
         source: Box<toml::ser::Error>,
     },
+}
+
+impl DiagnosticCode for BackfillError {
+    fn code(&self) -> &'static str {
+        // `Read(_)` wraps TraceReadError but keeps its own BACKFILL_*
+        // code; the caller surfacing a backfill failure is a different
+        // operational signal than a plain trace-read — distinguishing
+        // them lets an agent route the diagnostic to the right
+        // remediation.
+        match self {
+            BackfillError::Read(_) => "TRACE_BACKFILL_READ_FAILED",
+            BackfillError::Write { .. } => "TRACE_BACKFILL_WRITE_FAILED",
+            BackfillError::Serialize { .. } => "TRACE_BACKFILL_SERIALIZE_FAILED",
+        }
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Error
+    }
+
+    fn location(&self) -> Option<Location> {
+        match self {
+            BackfillError::Write { path, .. } => Some(Location {
+                file: Some(path.clone()),
+                ..Location::default()
+            }),
+            BackfillError::Serialize { filename, .. } => Some(Location {
+                file: Some(PathBuf::from(filename)),
+                ..Location::default()
+            }),
+            BackfillError::Read(inner) => inner.location(),
+        }
+    }
 }
 
 /// Assign UUIDs to any HLR entries that are missing them.
