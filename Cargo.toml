@@ -64,6 +64,20 @@ panic = "deny"
 todo = "deny"
 dbg_macro = "deny"
 
+# `let _ = <Result>` silently swallows errors; the two let_underscore
+# lints promote the pattern to a compile-time deny. When a discard is
+# intentional use `.ok()` so the intent is legible at the call site.
+# Matches the project CLAUDE.md "Error Handling" rule.
+let_underscore_must_use = "deny"
+let_underscore_future = "deny"
+
+# Holding a synchronous lock across `.await` is a recipe for
+# deadlocks the moment someone else touches the same lock from an
+# async context. The workspace is sync today but the deny is a
+# forward-looking guardrail — cheaper to keep green now than to
+# debug after the first async task sneaks in.
+await_holding_lock = "deny"
+
 # `collapsible_if` / `collapsible_match` are style lints promoted to
 # warn-by-default in recent clippy versions. We routinely keep nested
 # `if let … { if … { … } }` blocks when the outer binding and inner
