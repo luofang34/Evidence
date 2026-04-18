@@ -23,7 +23,8 @@ sha2 = "0.10"
 hmac = "0.12"
 hex = "0.4"
 jsonschema = { version = "0.35", default-features = false }
-log = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }
 toml = "0.8"
 walkdir = "2"
 chrono = { version = "0.4", features = ["serde"] }

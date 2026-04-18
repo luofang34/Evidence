@@ -80,7 +80,7 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles, TraceReadError> {
         if path.exists() {
             read_toml(path)
         } else {
-            log::warn!(
+            tracing::warn!(
                 "Trace file not found: {} — using empty defaults. \
                  Check trace root path if this is unexpected.",
                 path.display()
@@ -92,7 +92,7 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles, TraceReadError> {
     let root_path = Path::new(root);
 
     if !root_path.exists() {
-        log::warn!(
+        tracing::warn!(
             "Trace root directory does not exist: {} — all trace files will be empty.",
             root_path.display()
         );

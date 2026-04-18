@@ -60,7 +60,7 @@ pub(super) fn check_test_summary(
     let captured = match fs::read_to_string(&stdout_path) {
         Ok(c) => c,
         Err(e) => {
-            log::warn!("verify: cannot re-parse {}: {}", stdout_rel, e);
+            tracing::warn!("verify: cannot re-parse {}: {}", stdout_rel, e);
             return;
         }
     };
