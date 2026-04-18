@@ -10,6 +10,7 @@
 //! the `cargo-evidence evidence generate` integration tests.
 
 mod phases;
+mod policy;
 
 use std::path::PathBuf;
 
@@ -161,8 +162,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     let boundary_path = boundary.unwrap_or_else(|| PathBuf::from("cert/boundary.toml"));
     let (config, derived) =
         phases::build_config(profile, output_root, &boundary_path, trace_roots_arg);
-    if let Some(code) = phases::assert_policy_implementable(&derived.policy, profile, json_output)?
-    {
+    if let Some(code) = policy::enforce_boundary_policy(&derived, profile, json_output)? {
         return Ok(code);
     }
     let strict = matches!(profile, Profile::Cert | Profile::Record);
