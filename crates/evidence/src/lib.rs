@@ -52,7 +52,7 @@ pub use bundle::{
 };
 pub use compliance::{
     Applicability, ComplianceReport, ComplianceSummary, CrateEvidence, OBJECTIVES, ObjectiveStatus,
-    generate_compliance_report,
+    ObjectiveStatusKind, generate_compliance_report,
 };
 pub use coverage::{CoverageLevel, CoverageSummary};
 pub use env::{DeterministicManifest, EnvFingerprint, Host};

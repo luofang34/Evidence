@@ -1,0 +1,360 @@
+{
+  "crate_name": "fixture-crate",
+  "dal": "B",
+  "schema_version": "0.0.1",
+  "objectives": [
+    {
+      "objective_id": "A3-1",
+      "table": "Table A-3",
+      "title": "HLR comply with system requirements",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm HLR correctness / completeness"
+    },
+    {
+      "objective_id": "A3-2",
+      "table": "Table A-3",
+      "title": "HLR are accurate and consistent",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm HLR correctness / completeness"
+    },
+    {
+      "objective_id": "A3-3",
+      "table": "Table A-3",
+      "title": "HLR are compatible with target computer",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm HLR correctness / completeness"
+    },
+    {
+      "objective_id": "A3-4",
+      "table": "Table A-3",
+      "title": "HLR are verifiable",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm HLR correctness / completeness"
+    },
+    {
+      "objective_id": "A3-5",
+      "table": "Table A-3",
+      "title": "HLR conform to standards",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm HLR correctness / completeness"
+    },
+    {
+      "objective_id": "A3-6",
+      "table": "Table A-3",
+      "title": "HLR are traceable to system requirements",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "met",
+      "evidence_refs": [
+        "trace/hlr.toml",
+        "trace/matrix.md"
+      ]
+    },
+    {
+      "objective_id": "A3-7",
+      "table": "Table A-3",
+      "title": "Algorithms are accurate",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm HLR correctness / completeness"
+    },
+    {
+      "objective_id": "A4-1",
+      "table": "Table A-4",
+      "title": "LLR comply with HLR",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm LLR correctness / completeness"
+    },
+    {
+      "objective_id": "A4-2",
+      "table": "Table A-4",
+      "title": "LLR are accurate and consistent",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm LLR correctness / completeness"
+    },
+    {
+      "objective_id": "A4-3",
+      "table": "Table A-4",
+      "title": "LLR are compatible with target computer",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm LLR correctness / completeness"
+    },
+    {
+      "objective_id": "A4-4",
+      "table": "Table A-4",
+      "title": "LLR are verifiable",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm LLR correctness / completeness"
+    },
+    {
+      "objective_id": "A4-5",
+      "table": "Table A-4",
+      "title": "LLR conform to standards",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm LLR correctness / completeness"
+    },
+    {
+      "objective_id": "A4-6",
+      "table": "Table A-4",
+      "title": "LLR are traceable to HLR",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "met",
+      "evidence_refs": [
+        "trace/llr.toml",
+        "trace/matrix.md"
+      ]
+    },
+    {
+      "objective_id": "A4-7",
+      "table": "Table A-4",
+      "title": "LLR algorithms are accurate",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm LLR correctness / completeness"
+    },
+    {
+      "objective_id": "A4-8",
+      "table": "Table A-4",
+      "title": "LLR are compatible with target",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm LLR correctness / completeness"
+    },
+    {
+      "objective_id": "A5-1",
+      "table": "Table A-5",
+      "title": "Architecture is compatible with HLR",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm architecture consistency"
+    },
+    {
+      "objective_id": "A5-2",
+      "table": "Table A-5",
+      "title": "Architecture is consistent",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm architecture consistency"
+    },
+    {
+      "objective_id": "A5-3",
+      "table": "Table A-5",
+      "title": "Architecture is compatible with target",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm architecture consistency"
+    },
+    {
+      "objective_id": "A5-4",
+      "table": "Table A-5",
+      "title": "Architecture is verifiable",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm architecture consistency"
+    },
+    {
+      "objective_id": "A5-5",
+      "table": "Table A-5",
+      "title": "Architecture conforms to standards",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer must confirm architecture consistency"
+    },
+    {
+      "objective_id": "A6-1",
+      "table": "Table A-6",
+      "title": "Source code complies with LLR",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer or static-analysis tool must judge source compliance"
+    },
+    {
+      "objective_id": "A6-2",
+      "table": "Table A-6",
+      "title": "Source code complies with architecture",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer or static-analysis tool must judge source compliance"
+    },
+    {
+      "objective_id": "A6-3",
+      "table": "Table A-6",
+      "title": "Source code is verifiable",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer or static-analysis tool must judge source compliance"
+    },
+    {
+      "objective_id": "A6-4",
+      "table": "Table A-6",
+      "title": "Source code conforms to standards",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "manual_review_required",
+      "note": "reviewer or static-analysis tool must judge source compliance"
+    },
+    {
+      "objective_id": "A6-5",
+      "table": "Table A-6",
+      "title": "Source code is traceable to LLR",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "partial",
+      "evidence_refs": [
+        "trace/llr.toml"
+      ],
+      "note": "trace links exist but source-level mapping requires test_selector"
+    },
+    {
+      "objective_id": "A7-1",
+      "table": "Table A-7",
+      "title": "Executable object code complies with HLR",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "partial",
+      "evidence_refs": [
+        "tests/cargo_test_stdout.txt"
+      ],
+      "note": "aggregate test results available; per-requirement mapping requires test_selector"
+    },
+    {
+      "objective_id": "A7-2",
+      "table": "Table A-7",
+      "title": "Executable object code is robust with HLR",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "partial",
+      "evidence_refs": [
+        "tests/cargo_test_stdout.txt"
+      ],
+      "note": "aggregate test results available; per-requirement mapping requires test_selector"
+    },
+    {
+      "objective_id": "A7-3",
+      "table": "Table A-7",
+      "title": "Executable object code complies with LLR",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "partial",
+      "evidence_refs": [
+        "tests/cargo_test_stdout.txt"
+      ],
+      "note": "aggregate test results available; per-LLR mapping requires test_selector"
+    },
+    {
+      "objective_id": "A7-4",
+      "table": "Table A-7",
+      "title": "Executable object code is robust with LLR",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "partial",
+      "evidence_refs": [
+        "tests/cargo_test_stdout.txt"
+      ],
+      "note": "aggregate test results available; per-LLR mapping requires test_selector"
+    },
+    {
+      "objective_id": "A7-5",
+      "table": "Table A-7",
+      "title": "Executable object code is compatible with target",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "met",
+      "evidence_refs": [
+        "tests/cargo_test_stdout.txt",
+        "env.json"
+      ]
+    },
+    {
+      "objective_id": "A7-6",
+      "table": "Table A-7",
+      "title": "Test coverage of HLR is achieved",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "partial",
+      "evidence_refs": [
+        "trace/matrix.md",
+        "tests/cargo_test_stdout.txt"
+      ],
+      "note": "traceability matrix shows HLR-to-test links; completeness requires manual review"
+    },
+    {
+      "objective_id": "A7-7",
+      "table": "Table A-7",
+      "title": "Test coverage of LLR is achieved",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "partial",
+      "evidence_refs": [
+        "trace/matrix.md"
+      ],
+      "note": "traceability matrix shows LLR-to-test links; completeness requires manual review"
+    },
+    {
+      "objective_id": "A7-8",
+      "table": "Table A-7",
+      "title": "Test coverage of software structure (statement) is achieved",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "not_met",
+      "note": "no structural coverage data"
+    },
+    {
+      "objective_id": "A7-9",
+      "table": "Table A-7",
+      "title": "Test coverage of software structure (decision) is achieved",
+      "applicable": true,
+      "applicability_detail": "required_with_independence",
+      "status": "not_met",
+      "note": "no structural coverage data"
+    },
+    {
+      "objective_id": "A7-10",
+      "table": "Table A-7",
+      "title": "Test coverage of software structure (MC/DC) is achieved",
+      "applicable": false,
+      "applicability_detail": "not_applicable",
+      "status": "not_applicable"
+    }
+  ],
+  "summary": {
+    "total_objectives": 35,
+    "applicable": 34,
+    "met": 3,
+    "not_met": 2,
+    "partial": 7,
+    "manual_review_required": 22
+  }
+}

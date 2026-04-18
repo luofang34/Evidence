@@ -26,4 +26,6 @@ pub use applicability::Applicability;
 pub use generator::generate_compliance_report;
 pub use objective::Objective;
 pub use objectives_table::OBJECTIVES;
-pub use report::{ComplianceReport, ComplianceSummary, CrateEvidence, ObjectiveStatus};
+pub use report::{
+    ComplianceReport, ComplianceSummary, CrateEvidence, ObjectiveStatus, ObjectiveStatusKind,
+};
