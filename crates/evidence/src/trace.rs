@@ -1,25 +1,25 @@
 //! Traceability types and functions for DO-178C-style requirements
 //! linkage: HLR → LLR → Test, plus optional Derived requirements.
 //!
-//! The module is split across sibling files under `trace/`:
+//! The module is split across private sibling files under `trace/`:
 //!
-//! | Sub-module       | Concern                                                   |
-//! |------------------|-----------------------------------------------------------|
-//! | [`entries`]      | TOML data types (`HlrEntry`, `LlrEntry`, `TestEntry`, …)  |
-//! | [`read`]         | Reading TOML files into those types                       |
-//! | [`uuid`]         | Assigning + back-filling UUIDs on entries                 |
-//! | [`validation`]   | Cross-tier link validation with policy gates              |
-//! | [`matrix`]       | Deterministic Markdown traceability matrix generation     |
+//! | Sub-module   | Concern                                                   |
+//! |--------------|-----------------------------------------------------------|
+//! | `entries`    | TOML data types (`HlrEntry`, `LlrEntry`, `TestEntry`, …)  |
+//! | `read`       | Reading TOML files into those types                       |
+//! | `uuid`       | Assigning + back-filling UUIDs on entries                 |
+//! | `validation` | Cross-tier link validation with policy gates              |
+//! | `matrix`     | Deterministic Markdown traceability matrix generation     |
 //!
 //! Re-exports below keep the crate's public API flat — every
 //! consumer can continue to `use evidence::trace::HlrEntry` without
 //! caring about the split.
 
-pub mod entries;
-pub mod matrix;
-pub mod read;
-pub mod uuid;
-pub mod validation;
+mod entries;
+mod matrix;
+mod read;
+mod uuid;
+mod validation;
 
 pub use entries::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile,

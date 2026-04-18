@@ -13,15 +13,20 @@ pub enum VerifyError {
     HmacFailure,
     /// A hash in SHA256SUMS does not match the actual file hash
     HashMismatch {
+        /// Bundle-relative path whose hash disagreed.
         file: String,
+        /// Hash recorded in `SHA256SUMS`.
         expected: String,
+        /// Hash computed at verify time.
         actual: String,
     },
     /// A file listed in SHA256SUMS is missing from the bundle
     MissingHashedFile(String),
     /// content_hash in index.json doesn't match SHA256SUMS hash
     ContentHashMismatch {
+        /// Value recorded in `index.json.content_hash`.
         index_hash: String,
+        /// `SHA-256(SHA256SUMS)` computed at verify time.
         actual_hash: String,
     },
     /// A path in SHA256SUMS or trace_outputs contains path traversal
@@ -29,27 +34,39 @@ pub enum VerifyError {
     UnsafePath(String),
     /// A field in index.json has an invalid format
     FormatError {
+        /// Field name that failed the format check.
         field: String,
+        /// Description of the expected shape.
         expected: String,
+        /// Actual value found in the bundle.
         actual: String,
     },
     /// A field in env.json is inconsistent with the same field in index.json
     CrossFileInconsistency {
+        /// Field name that disagreed between `env.json` and `index.json`.
         field: String,
+        /// Value read from `index.json`.
         index_value: String,
+        /// Value read from `env.json`.
         env_value: String,
     },
     /// `deterministic_hash` in `index.json` does not match the actual
     /// SHA-256 of `deterministic-manifest.json`.
     DeterministicHashMismatch {
+        /// Value recorded in `index.json.deterministic_hash`.
         index_hash: String,
+        /// `SHA-256(deterministic-manifest.json)` computed at verify time.
         actual_hash: String,
     },
     /// Re-projecting `env.json`'s `DeterministicManifest` subset
     /// does not byte-equal the committed `deterministic-manifest.json`.
     /// Indicates tampering or a CLI bug that let the two drift apart
     /// at generation time.
-    ManifestProjectionDrift { detail: String },
+    ManifestProjectionDrift {
+        /// Short description — byte lengths, parse failure, or
+        /// serialization failure.
+        detail: String,
+    },
     /// A trace output path in `index.json.trace_outputs` is not
     /// listed in `SHA256SUMS`. Every generated trace matrix must be
     /// in the content layer; an index-only reference overclaims
@@ -61,21 +78,33 @@ pub enum VerifyError {
     /// was tampered or the generator's parser drifted from the
     /// verifier's.
     TestSummaryMismatch {
+        /// Which counter disagreed (`total` / `passed` / `failed` /
+        /// `ignored` / `filtered_out` / `parse`).
         field: &'static str,
+        /// Value recorded in `index.json.test_summary`.
         index_value: String,
+        /// Value obtained by re-parsing captured stdout.
         parsed_value: String,
     },
     /// `index.json.dal_map[crate]` disagrees with
     /// `compliance/<crate>.json.dal` for the same crate.
     DalMapMismatch {
+        /// Crate whose DAL differs across the two files.
         crate_name: String,
+        /// DAL level recorded in `index.json.dal_map`.
         index_value: String,
+        /// DAL level recorded in the compliance report.
         compliance_value: String,
     },
     /// `compliance/<crate>.json` is present in the bundle but its
     /// crate name is not referenced in `index.json.dal_map`, or
     /// vice versa.
-    DalMapOrphan { crate_name: String, detail: String },
+    DalMapOrphan {
+        /// Crate whose references don't match.
+        crate_name: String,
+        /// Which direction of the mismatch fired.
+        detail: String,
+    },
 }
 
 impl std::fmt::Display for VerifyError {

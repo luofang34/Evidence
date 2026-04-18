@@ -99,6 +99,23 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      # Doc gate: missing_docs is set to `warn` at workspace level; this
+      # step elevates it (via RUSTFLAGS=-D warnings) so any public item
+      # without a doc comment fails CI. RUSTDOCFLAGS also escalates
+      # rustdoc's own lints (broken_intra_doc_links, HTML tag errors,
+      # invalid code blocks) to hard errors.
+      #
+      # Why Linux-only: docs are platform-independent; running this on
+      # macOS/Windows burns runner minutes without adding signal. If
+      # future docs start using `#[cfg(target_os = "…")]`-gated items,
+      # revisit.
+      - name: Doc gate (missing_docs + broken intra-doc links)
+        if: runner.os == 'Linux'
+        env:
+          RUSTFLAGS: "-D warnings"
+          RUSTDOCFLAGS: "-D rustdoc::broken_intra_doc_links -D warnings"
+        run: cargo doc --workspace --no-deps
+
       - name: Build (release)
         run: cargo build --workspace --release
 

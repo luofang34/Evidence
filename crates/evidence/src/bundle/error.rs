@@ -26,27 +26,42 @@ pub enum BuilderError {
     Hash(#[from] HashError),
     /// A cert/record profile run started against a dirty working tree.
     #[error("profile '{profile}' requires clean git tree{suffix}")]
-    DirtyGitTree { profile: Profile, suffix: String },
+    DirtyGitTree {
+        /// Profile that required a clean tree.
+        profile: Profile,
+        /// Dirty-files listing + remediation recipe. Empty when
+        /// `git status` couldn't enumerate files.
+        suffix: String,
+    },
     /// A previous evidence run left a bundle directory at the same
     /// path. Overwriting is deliberately refused so no prior bundle
     /// is silently clobbered.
     #[error(
         "Bundle directory {path} already exists. Remove it first or use a different --out-dir."
     )]
-    BundleExists { path: PathBuf },
+    BundleExists {
+        /// Path that already exists.
+        path: PathBuf,
+    },
     /// `fs::create_dir_all` / `fs::write` / `fs::read` failed on a
     /// bundle-internal path.
     #[error("{op} {path}")]
     Io {
+        /// Verb describing the I/O step (`creating`, `writing`, `reading`).
         op: &'static str,
+        /// Path the I/O step was targeting.
         path: PathBuf,
+        /// Underlying OS error.
         #[source]
         source: std::io::Error,
     },
     /// `Command::output()` failed to launch a sub-process.
     #[error("running {display_name}")]
     RunCommand {
+        /// Short name the builder uses for the subprocess
+        /// (e.g. `"cargo test --workspace"`).
         display_name: String,
+        /// Underlying spawn error.
         #[source]
         source: std::io::Error,
     },
@@ -58,7 +73,9 @@ pub enum BuilderError {
     /// JSON file.
     #[error("serializing {kind} JSON")]
     Serialize {
+        /// Label of the file being (de)serialized.
         kind: &'static str,
+        /// Underlying serde_json error.
         #[source]
         source: serde_json::Error,
     },
@@ -75,7 +92,9 @@ pub enum BuilderError {
          Source files may have changed. Re-run evidence generation."
     )]
     Toctou {
+        /// SHA captured at `EvidenceBuilder::new` time.
         snapshot_sha: String,
+        /// SHA observed at `finalize()` time.
         current_sha: String,
     },
 }

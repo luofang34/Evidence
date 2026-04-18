@@ -1,26 +1,26 @@
 //! Per-crate DO-178C compliance reporting.
 //!
-//! Split across sibling files under `compliance/`:
+//! Split across private sibling files under `compliance/`:
 //!
-//! | Sub-module           | Concern                                              |
-//! |----------------------|------------------------------------------------------|
-//! | [`applicability`]    | `Applicability` enum (NotApplicable / Required / RI) |
-//! | [`objective`]        | `Objective` struct + `applicability_for`             |
-//! | [`objectives_table`] | `OBJECTIVES` — DO-178C Annex A Tables A-3..A-7       |
-//! | [`report`]           | `ObjectiveStatus`, `ComplianceSummary`, `ComplianceReport`, `CrateEvidence` |
-//! | [`status`]           | `determine_objective_status` + Table A-7 helper      |
-//! | [`generator`]        | `generate_compliance_report` — top-level entry point |
+//! | Sub-module         | Concern                                              |
+//! |--------------------|------------------------------------------------------|
+//! | `applicability`    | `Applicability` enum (NotApplicable / Required / RI) |
+//! | `objective`        | `Objective` struct + `applicability_for`             |
+//! | `objectives_table` | `OBJECTIVES` — DO-178C Annex A Tables A-3..A-7       |
+//! | `report`           | `ObjectiveStatus`, `ComplianceSummary`, `ComplianceReport`, `CrateEvidence` |
+//! | `status`           | `determine_objective_status` + Table A-7 helper      |
+//! | `generator`        | `generate_compliance_report` — top-level entry point |
 //!
 //! Re-exports below keep the crate's public API flat — consumers
 //! continue to `use evidence::compliance::{ComplianceReport, …}`
 //! without caring about the split.
 
-pub mod applicability;
-pub mod generator;
-pub mod objective;
-pub mod objectives_table;
-pub mod report;
-pub mod status;
+mod applicability;
+mod generator;
+mod objective;
+mod objectives_table;
+mod report;
+mod status;
 
 pub use applicability::Applicability;
 pub use generator::generate_compliance_report;

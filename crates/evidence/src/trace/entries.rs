@@ -16,7 +16,9 @@ pub use crate::policy::Schema;
 /// Trace document metadata (shared by every `*File` wrapper).
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TraceMeta {
+    /// Stable identifier for the document (e.g. `"NAV-HLR-001"`).
     pub document_id: String,
+    /// Revision label carried in the header (e.g. `"1.0"`).
     pub revision: String,
 }
 
@@ -27,8 +29,11 @@ pub struct TraceMeta {
 /// HLR TOML file structure.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HlrFile {
+    /// Schema version label for the file.
     pub schema: Schema,
+    /// Document-level metadata (id + revision).
     pub meta: TraceMeta,
+    /// Requirement entries in this file.
     pub requirements: Vec<HlrEntry>,
 }
 
@@ -78,8 +83,11 @@ pub struct HlrEntry {
 /// LLR TOML file structure.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LlrFile {
+    /// Schema version label for the file.
     pub schema: Schema,
+    /// Document-level metadata (id + revision).
     pub meta: TraceMeta,
+    /// Requirement entries in this file.
     pub requirements: Vec<LlrEntry>,
 }
 
@@ -131,8 +139,11 @@ pub struct LlrEntry {
 /// Tests TOML file structure.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TestsFile {
+    /// Schema version label for the file.
     pub schema: Schema,
+    /// Document-level metadata (id + revision).
     pub meta: TraceMeta,
+    /// Test-case entries in this file.
     pub tests: Vec<TestEntry>,
 }
 
@@ -178,8 +189,11 @@ pub struct TestEntry {
 /// Derived requirements TOML file structure.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DerivedFile {
+    /// Schema version label for the file.
     pub schema: Schema,
+    /// Document-level metadata (id + revision).
     pub meta: TraceMeta,
+    /// Derived-requirement entries in this file.
     pub requirements: Vec<DerivedEntry>,
 }
 

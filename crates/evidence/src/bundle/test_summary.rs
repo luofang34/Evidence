@@ -11,10 +11,16 @@ use serde::{Deserialize, Serialize};
 /// Parsed summary of `cargo test` output.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TestSummary {
+    /// Sum of `passed + failed + ignored + filtered_out` across every
+    /// `test result:` line emitted by the run.
     pub total: u32,
+    /// Count of tests that passed across the whole run.
     pub passed: u32,
+    /// Count of tests that failed across the whole run.
     pub failed: u32,
+    /// Count of tests skipped via `#[ignore]`.
     pub ignored: u32,
+    /// Count of tests filtered out by a name/module filter.
     pub filtered_out: u32,
 }
 

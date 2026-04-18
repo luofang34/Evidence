@@ -24,7 +24,10 @@ pub enum GitError {
     /// `git status --porcelain` or `git ls-files` launched but exited
     /// with a non-zero status, and the caller wants a specific label.
     #[error("{cmd} failed")]
-    SubcommandFailed { cmd: String },
+    SubcommandFailed {
+        /// Short label of the git subcommand (e.g. `"git status"`).
+        cmd: String,
+    },
     /// A cert/record profile requires valid git state, but the
     /// provider returned no or unknown SHA.
     #[error(

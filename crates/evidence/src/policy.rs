@@ -17,7 +17,9 @@ pub enum LoadBoundaryError {
     /// Failed to read the boundary config file from disk.
     #[error("reading boundary config from {path}")]
     Read {
+        /// Path whose read failed.
         path: PathBuf,
+        /// Underlying OS error.
         #[source]
         source: std::io::Error,
     },
@@ -28,7 +30,9 @@ pub enum LoadBoundaryError {
     /// stays under clippy's `result_large_err` threshold.
     #[error("parsing boundary config from {path}")]
     Parse {
+        /// Path whose TOML failed to parse.
         path: PathBuf,
+        /// Underlying TOML error (boxed to keep the enum small).
         #[source]
         source: Box<toml::de::Error>,
     },
@@ -94,6 +98,7 @@ impl std::str::FromStr for Profile {
 /// Schema version information.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Schema {
+    /// Semver-shaped version string for the on-disk schema.
     pub version: String,
 }
 
@@ -141,8 +146,12 @@ impl BoundaryPolicy {
 /// Complete boundary configuration (loaded from boundary.toml).
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct BoundaryConfig {
+    /// Schema version for this boundary config file.
     pub schema: Schema,
+    /// Crate scope — which workspace crates are in and which are
+    /// explicitly forbidden as dependencies.
     pub scope: BoundaryScope,
+    /// Boundary-enforcement rules.
     pub policy: BoundaryPolicy,
     /// Forbidden external crates with reasons
     #[serde(default)]
@@ -289,10 +298,16 @@ pub fn load_trace_roots(path: &Path) -> Vec<String> {
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 pub enum Dal {
+    /// Lowest-rigor DO-178C level; default when no boundary config
+    /// is present so an empty config never downgrades cert requirements.
     #[default]
     D,
+    /// DO-178C Level C.
     C,
+    /// DO-178C Level B.
     B,
+    /// Highest-rigor DO-178C level — most objectives required with
+    /// independence.
     A,
 }
 

@@ -27,7 +27,9 @@ pub enum SchemaError {
     /// test asserts every bundled schema parses.
     #[error("parsing embedded {schema} schema")]
     ParseSchema {
+        /// Name of the schema that failed to parse.
         schema: &'static str,
+        /// Underlying serde_json error.
         #[source]
         source: serde_json::Error,
     },
@@ -35,7 +37,9 @@ pub enum SchemaError {
     /// 2020-12 JSON Schema. Also a library bug.
     #[error("compiling {schema} schema: {reason}")]
     CompileSchema {
+        /// Name of the schema that failed to compile.
         schema: &'static str,
+        /// Human-readable reason from the `jsonschema` crate.
         reason: String,
     },
     /// The instance violates one or more schema constraints. The
@@ -48,10 +52,15 @@ pub enum SchemaError {
 /// Which bundle-file schema to validate against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Schema {
+    /// `index.json` — the per-bundle manifest (metadata layer).
     Index,
+    /// `env.json` — captured build-environment fingerprint.
     Env,
+    /// `commands.json` — the per-bundle command-execution log.
     Commands,
+    /// `inputs_hashes.json` / `outputs_hashes.json` — path → hash maps.
     Hashes,
+    /// `deterministic-manifest.json` — cross-host reproducibility contract.
     DeterministicManifest,
 }
 

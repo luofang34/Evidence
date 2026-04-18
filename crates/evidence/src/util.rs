@@ -11,23 +11,32 @@ pub enum CmdError {
     /// The child process failed to launch (e.g. binary not found).
     #[error("failed to launch {prog} {args:?}")]
     Launch {
+        /// Program name passed to `Command::new`.
         prog: String,
+        /// Arguments passed to the program.
         args: Vec<String>,
+        /// Underlying spawn error.
         #[source]
         source: std::io::Error,
     },
     /// The child process ran but exited with a non-zero status.
     #[error("{prog} {args:?} failed with {status}")]
     NonZeroExit {
+        /// Program name passed to `Command::new`.
         prog: String,
+        /// Arguments passed to the program.
         args: Vec<String>,
+        /// Non-zero exit status observed.
         status: std::process::ExitStatus,
     },
     /// Stdout contained bytes that are not valid UTF-8.
     #[error("{prog} {args:?} produced non-UTF-8 output")]
     NonUtf8Output {
+        /// Program name passed to `Command::new`.
         prog: String,
+        /// Arguments passed to the program.
         args: Vec<String>,
+        /// Underlying UTF-8 decode error.
         #[source]
         source: std::string::FromUtf8Error,
     },
