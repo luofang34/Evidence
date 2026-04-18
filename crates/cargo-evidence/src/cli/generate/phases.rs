@@ -118,41 +118,9 @@ pub(super) fn build_config(
     )
 }
 
-// ============================================================================
-// Phase 2.5 — refuse bundles with enabled-but-unimplemented policy rules
-// ============================================================================
-
-/// Close the "silent false-confidence" gap: a user who writes
-/// `forbid_build_rs = true` in `boundary.toml` today gets a bundle
-/// that is stamped cert-ready without the flag ever being checked.
-/// Until each rule's real enforcement lands, enabling it is
-/// presumed to be a certification claim the tool cannot back —
-/// fail the generate loudly instead of silently producing a bundle
-/// that overclaims what was checked.
-///
-/// Returns `Ok(Some(EXIT_ERROR))` when any enabled rule is
-/// unimplemented (emits the standard JSON/text failure envelope
-/// via [`fail`]); `Ok(None)` on success. When real enforcement
-/// lands for a rule, delete its branch in
-/// [`BoundaryPolicy::unimplemented_enabled_rules`] and this phase
-/// stops rejecting it without further changes here.
-pub(super) fn assert_policy_implementable(
-    policy: &BoundaryPolicy,
-    profile: Profile,
-    json_output: bool,
-) -> Result<Option<i32>> {
-    let unimpl = policy.unimplemented_enabled_rules();
-    if unimpl.is_empty() {
-        return Ok(None);
-    }
-    let list = unimpl.join(", ");
-    let msg = format!(
-        "boundary.toml enables policy rules that this release does not enforce: [{list}]. \
-         Set them to `false` (or remove the keys) until their enforcement lands, \
-         so bundles do not silently overclaim what was checked."
-    );
-    fail(json_output, profile, msg).map(Some)
-}
+// Phase 2.5 / 2a — boundary policy gates (implementability + real
+// enforcement) live in the sibling `policy` module and are reached
+// via `phases::enforce_boundary_policy` from the orchestrator.
 
 // ============================================================================
 // Phase 2b — initialize the builder (wraps error in the failure envelope)

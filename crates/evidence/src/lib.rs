@@ -31,6 +31,7 @@
 //! let result = verify_bundle(Path::new("evidence/bundle-20240101"))?;
 //! ```
 
+pub mod boundary_check;
 pub mod bundle;
 pub mod compliance;
 pub mod coverage;
@@ -46,6 +47,7 @@ pub mod util;
 pub mod verify;
 
 // Re-export key types for convenience
+pub use boundary_check::{BoundaryCheckError, BoundaryViolation, check_no_out_of_scope_deps};
 pub use bundle::{
     CommandRecord, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, TestSummary,
     parse_cargo_test_output, sign_bundle, verify_bundle_signature,

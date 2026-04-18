@@ -216,6 +216,48 @@ jobs:
       - name: Verify bundle A
         run: ./target/release/cargo-evidence evidence verify "${{ steps.bundle_a.outputs.path }}"
 
+      - name: Negative — no_out_of_scope_deps rejects a bad scope
+        shell: bash
+        run: |
+          # The dogfood `cert/boundary.toml` lists both workspace
+          # crates as in-scope, so run A above implicitly proves the
+          # positive path. This step proves the enforcement *actually
+          # fires* when the config is wrong — writes a temp boundary
+          # that omits `evidence` from the in-scope list and asserts
+          # generate refuses with the expected error. Uses
+          # `--boundary` to avoid dirtying the tracked tree.
+          cat > "$RUNNER_TEMP/bad-boundary.toml" <<'EOF'
+          [schema]
+          version = "0.0.1"
+          [scope]
+          in_scope = ["cargo-evidence"]
+          [policy]
+          no_out_of_scope_deps = true
+          forbid_build_rs = false
+          forbid_proc_macros = false
+          [dal]
+          default_dal = "D"
+          EOF
+          set +e
+          out=$(./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --out-dir "$RUNNER_TEMP/out-bad" \
+            --profile dev \
+            --boundary "$RUNNER_TEMP/bad-boundary.toml" 2>&1)
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "::error::boundary-policy enforcement did not fire on a bad in-scope list"
+            echo "$out"
+            exit 1
+          fi
+          if ! printf '%s' "$out" | grep -q "no_out_of_scope_deps"; then
+            echo "::error::generate failed but not with the expected no_out_of_scope_deps message"
+            echo "$out"
+            exit 1
+          fi
+          echo "Boundary-policy enforcement rejected bad scope (exit=$code)."
+
       - name: Assert engine provenance captured honestly
         shell: bash
         run: |

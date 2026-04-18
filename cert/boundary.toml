@@ -1,0 +1,35 @@
+# Boundary configuration for this workspace.
+#
+# This is the dogfood config used by the `evidence-self-*` CI jobs.
+# Every workspace member is in scope because the tool needs to hash
+# both crates when it generates a bundle of itself.
+#
+# `no_out_of_scope_deps = true` enables the `check_no_out_of_scope_deps`
+# rule end-to-end on every PR: any new workspace crate that a listed
+# crate reaches has to be listed here or the generate fails loudly.
+#
+# `forbid_build_rs` / `forbid_proc_macros` stay false — enforcement
+# for those rules is not wired up yet (the generate preflight would
+# refuse the run, see cli/generate/policy.rs).
+
+[schema]
+version = "0.0.1"
+
+[scope]
+in_scope = ["evidence", "cargo-evidence"]
+
+# Trace root directories (relative to workspace root)
+trace_roots = ["cert/trace"]
+
+# Workspace crates explicitly forbidden as dependencies
+explicit_forbidden = []
+
+[policy]
+no_out_of_scope_deps = true
+forbid_build_rs = false
+forbid_proc_macros = false
+
+[forbidden_external]
+
+[dal]
+default_dal = "D"
