@@ -228,9 +228,3 @@ pub fn detect_profile() -> Profile {
 pub fn is_ci() -> bool {
     std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok()
 }
-
-// `check_shallow_clone` and `is_git_dirty` used to live here. They
-// moved to `evidence::git::{check_shallow_clone, is_dirty_or_unknown}`
-// so the library, the CLI, and env.json capture all share one source
-// of truth. Import them directly from `evidence::git::*` in command
-// modules.

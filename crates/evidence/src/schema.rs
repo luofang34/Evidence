@@ -249,9 +249,10 @@ mod tests {
 
     #[test]
     fn hashes_schema_rejects_non_hex() {
-        // hashes.schema.json declares a `^[a-f0-9]{64}$` pattern; the
-        // old presence-only validator would have accepted "notahash"
-        // as long as it was a string. Real validation catches this.
+        // Pins the `^[a-f0-9]{64}$` pattern from hashes.schema.json.
+        // A presence-only validator accepts "notahash" as long as it's
+        // a string; the pattern constraint must fire to catch typos
+        // and truncated digests before they're sealed into SHA256SUMS.
         let instance = json!({ "file.txt": "notahash" });
         let err = validate(Schema::Hashes, &instance).expect_err("should reject");
         let msg = err.to_string();

@@ -11,8 +11,8 @@
 //! | `flake.nix`                   | (reads `rust-toolchain.toml`, no hardcode) |
 //!
 //! Drift between any of the three non-derived sources is a silent
-//! foot-gun: a contributor bumps one, CI still runs on the old pin,
-//! and the `rust-version` floor declared to downstream crates-io
+//! foot-gun: a contributor bumps one, CI still runs on the unbumped
+//! pin, and the `rust-version` floor declared to downstream crates-io
 //! consumers ends up lower than what the code actually requires.
 //!
 //! This test parses all three and fails if they disagree, or if the
