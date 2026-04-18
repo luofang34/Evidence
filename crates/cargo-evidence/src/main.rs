@@ -17,15 +17,6 @@
     clippy::disallowed_types,
     reason = "CLI is the anyhow/main-function layer; library code is typed via thiserror"
 )]
-// The `cli::*` modules are binary-internal implementation detail,
-// not a public API. Per-item doc comments on every CLI arg struct
-// and subcommand handler would be boilerplate without a consumer to
-// serve. Doc enforcement stays on the `evidence` library crate via
-// workspace lints.
-#![allow(
-    missing_docs,
-    reason = "CLI internals; docs are enforced on the `evidence` library"
-)]
 
 use clap::Parser;
 

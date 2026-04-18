@@ -120,6 +120,9 @@ strict_hash_validation = false
 fail_on_dirty = true
 "#;
 
+/// `cargo evidence init` handler: scaffold a `cert/` layout
+/// (boundary.toml + per-profile stubs) for a fresh project. Refuses
+/// to overwrite an existing `cert/` tree unless `force` is set.
 pub fn cmd_init(force: bool) -> Result<i32> {
     let cert_dir = PathBuf::from("cert");
     let profiles_dir = cert_dir.join("profiles");

@@ -56,6 +56,12 @@ fn fail_verify(
     Ok(exit_code)
 }
 
+/// `cargo evidence verify` handler: run every integrity + policy
+/// check on `bundle_path` and emit a per-check pass/fail report.
+/// Returns [`EXIT_VERIFICATION_FAILURE`]
+/// when any check fails (or when any warning fires in `--strict`
+/// mode), and [`EXIT_ERROR`](super::args::EXIT_ERROR) only when the
+/// tool itself can't run — e.g. the bundle directory is missing.
 pub fn cmd_verify(
     bundle_path: PathBuf,
     strict: bool,
