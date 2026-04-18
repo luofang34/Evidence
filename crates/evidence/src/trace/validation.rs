@@ -14,11 +14,33 @@
 //! failing validation — a program with in-progress test work can
 //! still ship a bundle, but the gap is visible to reviewers.
 
-use anyhow::{Result, bail};
 use std::collections::{BTreeMap, BTreeSet};
+
+use thiserror::Error;
 
 use super::entries::{DerivedEntry, HlrEntry, LlrEntry, TestEntry};
 use crate::policy::TracePolicy;
+
+/// Errors returned by [`validate_trace_links`] / [`validate_trace_links_with_policy`].
+///
+/// Validation collects every problem in a single pass and returns a
+/// single error with a list of issues. Two distinct phases, because
+/// the link-validation phase assumes the UID index built by the
+/// register phase is consistent — if any register-phase errors fired,
+/// link checks would produce noise.
+#[derive(Debug, Error)]
+pub enum TraceValidationError {
+    /// Register-phase failures (missing UIDs/owners, duplicate UIDs
+    /// or `(kind, owner, id)` triples, malformed UUID strings). One
+    /// variant per violation in the `errors` vector.
+    #[error("Validation failed with {} errors (fix before linking check)", errors.len())]
+    Register { errors: Vec<String> },
+    /// Link-phase failures: dangling trace refs, cross-owner links
+    /// that violate ownership rules, missing verification methods,
+    /// missing rationales on derived LLRs, etc.
+    #[error("Trace link validation failed with {} errors", errors.len())]
+    Link { errors: Vec<String> },
+}
 
 /// Validate trace links between HLRs, LLRs, Tests, and optionally Derived requirements.
 ///
@@ -28,7 +50,7 @@ pub fn validate_trace_links(
     hlrs: &[HlrEntry],
     llrs: &[LlrEntry],
     tests: &[TestEntry],
-) -> Result<()> {
+) -> Result<(), TraceValidationError> {
     validate_trace_links_with_policy(hlrs, llrs, tests, &[], &TracePolicy::default())
 }
 
@@ -46,7 +68,7 @@ pub fn validate_trace_links_with_policy(
     tests: &[TestEntry],
     derived: &[DerivedEntry],
     policy: &TracePolicy,
-) -> Result<()> {
+) -> Result<(), TraceValidationError> {
     let mut errors: Vec<String> = Vec::new();
 
     // Index: uid -> (kind, owner, id)
@@ -117,10 +139,7 @@ pub fn validate_trace_links_with_policy(
         for e in &errors {
             log::error!("  VALIDATION ERROR: {}", e);
         }
-        bail!(
-            "Validation failed with {} errors (fix before linking check)",
-            errors.len()
-        );
+        return Err(TraceValidationError::Register { errors });
     }
 
     // Link Validation
@@ -268,7 +287,7 @@ pub fn validate_trace_links_with_policy(
         for e in &errors {
             log::error!("  LINK ERROR: {}", e);
         }
-        bail!("Trace link validation failed with {} errors", errors.len());
+        return Err(TraceValidationError::Link { errors });
     }
 
     Ok(())

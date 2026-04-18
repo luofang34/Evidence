@@ -5,19 +5,56 @@
 //! only I/O errors and parse failures bail early. Everything else
 //! accumulates so one run surfaces every problem.
 
-use anyhow::{Context, Result, bail};
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use crate::bundle::EvidenceIndex;
-use crate::hash::sha256_file;
+use thiserror::Error;
+
+use crate::bundle::{EvidenceIndex, SigningError};
+use crate::hash::{HashError, sha256_file};
 
 use super::consistency::{check_dal_map, check_test_summary, check_trace_outputs_hashed};
 use super::cross_file::check_env_vs_index;
 use super::engine_source::check_engine_source;
 use super::errors::{VerifyError, VerifyResult};
 use super::paths::{KNOWN_META_FILES, REQUIRED_FILES, VALID_PROFILES, is_safe_bundle_path};
+
+/// Catastrophic errors that abort verification before per-check
+/// accumulation begins.
+///
+/// Distinct from [`VerifyError`]: `VerifyError` records a *validation
+/// finding* (a bundle field or hash disagrees); `VerifyRuntimeError`
+/// records an *I/O or parsing fault* where the verifier can't even
+/// get far enough to make a finding.
+#[derive(Debug, Error)]
+pub enum VerifyRuntimeError {
+    /// Bundle path does not exist or is not a directory.
+    #[error("Bundle path does not exist or is not a directory: {0}")]
+    BundleNotFound(PathBuf),
+    /// I/O failure reading a bundle file.
+    #[error("reading {path}")]
+    ReadFile {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    /// `index.json` failed to parse as JSON.
+    #[error("parsing index.json")]
+    ParseIndex(#[source] serde_json::Error),
+    /// File tree walk raised an error (bundle contained an
+    /// unreadable directory or symlink).
+    #[error("walking bundle tree")]
+    Walk(#[source] walkdir::Error),
+    /// A file hash couldn't be computed.
+    #[error(transparent)]
+    Hash(#[from] HashError),
+    /// HMAC signature verification had an I/O or envelope error
+    /// (distinct from the signature being invalid, which is a
+    /// [`VerifyError::HmacFailure`]).
+    #[error(transparent)]
+    Signing(#[from] SigningError),
+}
 
 /// Verify an evidence bundle at the given path.
 ///
@@ -30,25 +67,25 @@ use super::paths::{KNOWN_META_FILES, REQUIRED_FILES, VALID_PROFILES, is_safe_bun
 /// 6. content_hash matches actual SHA256SUMS hash
 /// 7. No unexpected files exist outside SHA256SUMS and known metadata
 /// 8. If `verify_key` is provided, verify BUNDLE.sig HMAC
-pub fn verify_bundle(bundle: &Path) -> Result<VerifyResult> {
+pub fn verify_bundle(bundle: &Path) -> Result<VerifyResult, VerifyRuntimeError> {
     verify_bundle_with_key(bundle, None)
 }
 
 /// Verify an evidence bundle, optionally checking HMAC signature.
-pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Result<VerifyResult> {
+pub fn verify_bundle_with_key(
+    bundle: &Path,
+    verify_key: Option<&[u8]>,
+) -> Result<VerifyResult, VerifyRuntimeError> {
     log::info!("verify: checking bundle at {:?}", bundle);
 
     // Collect all verification errors rather than bailing on first failure.
-    // bail!() is reserved for I/O errors and parse failures (runtime faults).
-    // VerifyResult::Fail is used for all verification-level failures.
+    // VerifyRuntimeError is reserved for I/O errors and parse failures.
+    // VerifyResult::Fail is used for all verification-level findings.
     let mut verify_errors: Vec<VerifyError> = Vec::new();
 
     // 1. Check bundle directory exists (runtime fault — bail)
     if !bundle.is_dir() {
-        bail!(
-            "Bundle path does not exist or is not a directory: {:?}",
-            bundle
-        );
+        return Err(VerifyRuntimeError::BundleNotFound(bundle.to_path_buf()));
     }
 
     // 2. Check required files exist
@@ -64,9 +101,12 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
     // 3. Load and validate index.json structure (parse failure — bail)
     let index_path = bundle.join("index.json");
     let index_content =
-        fs::read_to_string(&index_path).with_context(|| format!("Reading {:?}", index_path))?;
+        fs::read_to_string(&index_path).map_err(|source| VerifyRuntimeError::ReadFile {
+            path: index_path.clone(),
+            source,
+        })?;
     let index: EvidenceIndex =
-        serde_json::from_str(&index_content).with_context(|| "Parsing index.json")?;
+        serde_json::from_str(&index_content).map_err(VerifyRuntimeError::ParseIndex)?;
 
     if !index.bundle_complete {
         verify_errors.push(VerifyError::ContentHashMismatch {
@@ -99,7 +139,11 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
 
     // 5. Verify SHA256SUMS integrity
     let sha256sums_path = bundle.join("SHA256SUMS");
-    let sha256sums_content = fs::read_to_string(&sha256sums_path)?;
+    let sha256sums_content =
+        fs::read_to_string(&sha256sums_path).map_err(|source| VerifyRuntimeError::ReadFile {
+            path: sha256sums_path.clone(),
+            source,
+        })?;
     let listed_files = hash_sha256sums_entries(bundle, &sha256sums_content, &mut verify_errors)?;
 
     // index.json is in the metadata layer and excluded from SHA256SUMS.
@@ -131,7 +175,7 @@ pub fn verify_bundle_with_key(bundle: &Path, verify_key: Option<&[u8]>) -> Resul
 
     // 7. Extra-file detection: walk all files in bundle and flag unexpected ones
     for entry in walkdir::WalkDir::new(bundle) {
-        let entry = entry?;
+        let entry = entry.map_err(VerifyRuntimeError::Walk)?;
         if !entry.file_type().is_file() {
             continue;
         }
@@ -257,7 +301,7 @@ fn hash_sha256sums_entries(
     bundle: &Path,
     sha256sums_content: &str,
     errors: &mut Vec<VerifyError>,
-) -> Result<BTreeSet<String>> {
+) -> Result<BTreeSet<String>, VerifyRuntimeError> {
     let mut listed_files: BTreeSet<String> = BTreeSet::new();
 
     for line in sha256sums_content.lines() {
@@ -327,7 +371,7 @@ fn check_deterministic_manifest(
     bundle: &Path,
     index: &EvidenceIndex,
     errors: &mut Vec<VerifyError>,
-) -> Result<()> {
+) -> Result<(), VerifyRuntimeError> {
     let manifest_path = bundle.join("deterministic-manifest.json");
     if !manifest_path.exists() {
         return Ok(());

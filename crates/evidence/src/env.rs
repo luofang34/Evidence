@@ -3,13 +3,29 @@
 //! This module provides functionality to capture the build environment
 //! including toolchain versions, environment variables, and system info.
 
-use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::process::Command;
 
+use thiserror::Error;
+
 use crate::git::{git_branch, git_sha, is_dirty_or_unknown};
 use crate::util::cmd_stdout;
+
+/// Errors returned by [`env_fingerprint`].
+#[derive(Debug, Error)]
+pub enum EnvCaptureError {
+    /// A cert/record profile was requested but `rustc --version` failed.
+    #[error(
+        "cert/record profile requires rustc to be installed and on PATH. rustc --version failed."
+    )]
+    StrictRustcRequired,
+    /// A cert/record profile was requested but `cargo --version` failed.
+    #[error(
+        "cert/record profile requires cargo to be installed and on PATH. cargo --version failed."
+    )]
+    StrictCargoRequired,
+}
 
 // ============================================================================
 // Host Platform Info
@@ -161,7 +177,7 @@ impl EnvFingerprint {
     /// When `strict` is true (cert/record profiles), critical tools (rustc,
     /// cargo) must be detectable or an error is raised. This satisfies
     /// cert-mode strict error handling requirements.
-    pub fn capture(profile: &str, strict: bool) -> Result<Self> {
+    pub fn capture(profile: &str, strict: bool) -> Result<Self, EnvCaptureError> {
         env_fingerprint(profile, strict)
     }
 
@@ -262,22 +278,16 @@ pub struct DeterministicManifest {
 /// When `strict` is true (cert/record profiles), critical tools (rustc, cargo)
 /// must be found or the function returns an error. This prevents evidence
 /// bundles from being generated in an incomplete environment.
-pub fn env_fingerprint(profile: &str, strict: bool) -> Result<EnvFingerprint> {
+pub fn env_fingerprint(profile: &str, strict: bool) -> Result<EnvFingerprint, EnvCaptureError> {
     let rustc = cmd_stdout("rustc", &["--version"]);
     let cargo = cmd_stdout("cargo", &["--version"]);
 
     if strict {
         if rustc.is_err() {
-            bail!(
-                "cert/record profile requires rustc to be installed and on PATH. \
-                 rustc --version failed."
-            );
+            return Err(EnvCaptureError::StrictRustcRequired);
         }
         if cargo.is_err() {
-            bail!(
-                "cert/record profile requires cargo to be installed and on PATH. \
-                 cargo --version failed."
-            );
+            return Err(EnvCaptureError::StrictCargoRequired);
         }
     }
 

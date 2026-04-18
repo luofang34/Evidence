@@ -21,6 +21,7 @@ use std::fs;
 use std::path::Path;
 
 use evidence::bundle::EvidenceIndex;
+use evidence::git::GitError;
 use evidence::hash::{sha256_file, write_sha256sums};
 use evidence::traits::GitProvider;
 
@@ -56,19 +57,19 @@ impl MockGitProvider {
 }
 
 impl GitProvider for MockGitProvider {
-    fn sha(&self) -> anyhow::Result<String> {
+    fn sha(&self) -> Result<String, GitError> {
         Ok(self.sha.clone())
     }
 
-    fn branch(&self) -> anyhow::Result<String> {
+    fn branch(&self) -> Result<String, GitError> {
         Ok(self.branch.clone())
     }
 
-    fn is_dirty(&self) -> anyhow::Result<bool> {
+    fn is_dirty(&self) -> Result<bool, GitError> {
         Ok(self.dirty)
     }
 
-    fn dirty_files(&self) -> anyhow::Result<Vec<String>> {
+    fn dirty_files(&self) -> Result<Vec<String>, GitError> {
         Ok(vec![])
     }
 }
@@ -77,20 +78,20 @@ impl GitProvider for MockGitProvider {
 pub struct FailingGitProvider;
 
 impl GitProvider for FailingGitProvider {
-    fn sha(&self) -> anyhow::Result<String> {
-        anyhow::bail!("not a git repository")
+    fn sha(&self) -> Result<String, GitError> {
+        Err(GitError::Other("not a git repository".to_string()))
     }
 
-    fn branch(&self) -> anyhow::Result<String> {
-        anyhow::bail!("not a git repository")
+    fn branch(&self) -> Result<String, GitError> {
+        Err(GitError::Other("not a git repository".to_string()))
     }
 
-    fn is_dirty(&self) -> anyhow::Result<bool> {
-        anyhow::bail!("not a git repository")
+    fn is_dirty(&self) -> Result<bool, GitError> {
+        Err(GitError::Other("not a git repository".to_string()))
     }
 
-    fn dirty_files(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::bail!("not a git repository")
+    fn dirty_files(&self) -> Result<Vec<String>, GitError> {
+        Err(GitError::Other("not a git repository".to_string()))
     }
 }
 

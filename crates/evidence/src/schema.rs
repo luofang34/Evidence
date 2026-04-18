@@ -16,8 +16,34 @@
 //! `evidence` crate (and `cargo evidence schema validate` equally)
 //! share one implementation — no duplication.
 
-use anyhow::{Context, Result, anyhow};
 use serde_json::Value;
+use thiserror::Error;
+
+/// Errors returned by [`validate`].
+#[derive(Debug, Error)]
+pub enum SchemaError {
+    /// The embedded JSON-Schema source for this enum variant failed to
+    /// parse. Always a library bug — the `embedded_schemas_compile`
+    /// test asserts every bundled schema parses.
+    #[error("parsing embedded {schema} schema")]
+    ParseSchema {
+        schema: &'static str,
+        #[source]
+        source: serde_json::Error,
+    },
+    /// The embedded schema parsed as JSON but isn't a valid Draft
+    /// 2020-12 JSON Schema. Also a library bug.
+    #[error("compiling {schema} schema: {reason}")]
+    CompileSchema {
+        schema: &'static str,
+        reason: String,
+    },
+    /// The instance violates one or more schema constraints. The
+    /// string aggregates up to the first eight violations with their
+    /// JSON pointers.
+    #[error("{0}")]
+    InstanceInvalid(String),
+}
 
 /// Which bundle-file schema to validate against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,13 +155,19 @@ const SCHEMA_DETERMINISTIC_MANIFEST: &str =
 /// branches, additional-property rules — is satisfied. On failure the
 /// error collects up to the first eight violations with their JSON
 /// pointers so the caller can present an actionable diagnosis.
-pub fn validate(schema: Schema, instance: &Value) -> Result<()> {
-    let schema_value: Value = serde_json::from_str(schema.source())
-        .with_context(|| format!("parsing embedded {} schema", schema.name()))?;
+pub fn validate(schema: Schema, instance: &Value) -> Result<(), SchemaError> {
+    let schema_value: Value =
+        serde_json::from_str(schema.source()).map_err(|source| SchemaError::ParseSchema {
+            schema: schema.name(),
+            source,
+        })?;
     let validator = jsonschema::options()
         .with_draft(jsonschema::Draft::Draft202012)
         .build(&schema_value)
-        .map_err(|e| anyhow!("compiling {} schema: {}", schema.name(), e))?;
+        .map_err(|e| SchemaError::CompileSchema {
+            schema: schema.name(),
+            reason: e.to_string(),
+        })?;
 
     let errors: Vec<_> = validator.iter_errors(instance).take(8).collect();
     if errors.is_empty() {
@@ -150,7 +182,7 @@ pub fn validate(schema: Schema, instance: &Value) -> Result<()> {
     for err in &errors {
         msg.push_str(&format!("\n  at {}: {}", err.instance_path, err));
     }
-    Err(anyhow!("{}", msg))
+    Err(SchemaError::InstanceInvalid(msg))
 }
 
 #[cfg(test)]

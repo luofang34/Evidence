@@ -1,0 +1,14 @@
+# Library code must use typed errors (thiserror). anyhow belongs in
+# the CLI / binary `main()` layer where an untyped catch-all is
+# appropriate; it should not leak back into library APIs because it
+# erases the error taxonomy callers need to make decisions on.
+#
+# This rule WILL fire on existing library code. Each file that still
+# uses `anyhow::Error` / `anyhow::Result` carries a file-level
+# `#![allow(clippy::disallowed_types)]` + `// TODO(typed-errors): …`
+# comment so CI stays green while the migration chips away in
+# subsequent PRs. The allow is deliberately visible and ugly — that's
+# the friction. New files without the allow will fire clean.
+disallowed-types = [
+    { path = "anyhow::Error", reason = "library code must return typed (thiserror) errors; anyhow::Error belongs in CLI/main() only" },
+]

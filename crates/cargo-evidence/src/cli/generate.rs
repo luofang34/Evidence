@@ -169,7 +169,8 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                 for f in &files {
                     if let Err(e) = builder.hash_input(f) {
                         if strict {
-                            return Err(e.context(format!("hashing source file: {}", f)));
+                            return Err(anyhow::Error::new(e)
+                                .context(format!("hashing source file: {}", f)));
                         }
                         eprintln!("warning: could not hash {}: {}", f, e);
                     }
@@ -180,7 +181,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
             }
             Err(e) => {
                 if strict {
-                    return Err(e.context("listing in-scope source files"));
+                    return Err(anyhow::Error::new(e).context("listing in-scope source files"));
                 }
                 eprintln!("warning: could not list source files: {}", e);
             }
@@ -215,7 +216,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
             }
             Err(e) => {
                 if strict {
-                    return Err(e.context("running cargo test"));
+                    return Err(anyhow::Error::new(e).context("running cargo test"));
                 }
                 eprintln!("warning: cargo test failed: {}", e);
             }
@@ -265,7 +266,8 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
             }
             Err(e) => {
                 if strict {
-                    return Err(e.context(format!("reading trace files from '{}'", root)));
+                    return Err(anyhow::Error::new(e)
+                        .context(format!("reading trace files from '{}'", root)));
                 }
                 eprintln!("warning: could not read trace files from '{}': {}", root, e);
             }
@@ -288,28 +290,19 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
                     fs::copy(&src, bundle_trace_dir.join(filename))?;
                 }
             }
-            // Generate traceability matrix
+            // Generate traceability matrix (infallible: deterministic string concat)
             let doc_id = &trace_files.hlr.meta.document_id;
-            match generate_traceability_matrix(
+            let matrix_md = generate_traceability_matrix(
                 &trace_files.hlr,
                 &trace_files.llr,
                 &trace_files.tests,
                 doc_id,
-            ) {
-                Ok(matrix_md) => {
-                    let matrix_path = bundle_trace_dir.join("matrix.md");
-                    fs::write(&matrix_path, matrix_md)?;
-                    trace_outputs.push(matrix_path);
-                    if !quiet && !json_output {
-                        println!("evidence: trace data copied from '{}'", root);
-                    }
-                }
-                Err(e) => {
-                    eprintln!(
-                        "warning: could not generate traceability matrix for '{}': {}",
-                        root, e
-                    );
-                }
+            );
+            let matrix_path = bundle_trace_dir.join("matrix.md");
+            fs::write(&matrix_path, matrix_md)?;
+            trace_outputs.push(matrix_path);
+            if !quiet && !json_output {
+                println!("evidence: trace data copied from '{}'", root);
             }
         }
     }
