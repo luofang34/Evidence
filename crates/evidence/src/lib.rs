@@ -41,6 +41,7 @@ pub mod env;
 pub mod git;
 pub mod hash;
 pub mod policy;
+pub mod rules;
 pub mod schema;
 pub mod schema_versions;
 pub mod trace;
@@ -67,6 +68,7 @@ pub use policy::{
     BoundaryConfig, BoundaryPolicy, Dal, DalConfig, EvidencePolicy, Profile, TracePolicy,
     load_trace_roots,
 };
+pub use rules::{Domain, HAND_EMITTED_CLI_CODES, RESERVED_UNCLAIMED_CODES, RULES, RuleEntry, rules_json};
 pub use trace::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile,
     TraceFiles, TraceMeta, assign_missing_uuids_derived, assign_missing_uuids_hlr,
