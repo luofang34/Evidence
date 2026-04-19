@@ -244,6 +244,18 @@ pub enum Commands {
         path: Option<PathBuf>,
     },
 
+    /// List every diagnostic code the tool can emit (self-describe).
+    ///
+    /// Agents use this to bootstrap their knowledge of the tool's
+    /// observable surface without triggering each code. The JSON
+    /// mode is what MCP (PR #50) wraps.
+    Rules {
+        /// Emit the manifest as a JSON array to stdout. Without
+        /// this flag, a human-readable table is printed instead.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Trace management utilities
     Trace {
         /// Validate trace links between HLR, LLR, and Tests
