@@ -95,7 +95,15 @@ jobs:
           # allow still fails: `HEAD^..HEAD` captures those lines too.
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             base="origin/${{ github.base_ref }}"
-            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+            # No extra fetch: the job's `actions/checkout@v4` step
+            # already ran with `fetch-depth: 0`, which populated
+            # `origin/${{ github.base_ref }}` at full history. A
+            # secondary `git fetch --depth=1` would create a
+            # `.git/shallow` marker — the cargo-evidence shallow-clone
+            # guard in `preflight` then refuses to run under
+            # `cargo test` (the `self_compliance_baseline` test spawns
+            # `generate` as a subprocess). Leaving the original-
+            # checkout state intact keeps both gates working.
             diff=$(git diff "$base"...HEAD -- '*.rs')
           else
             # On the initial repo commit HEAD^ doesn't exist; fall
