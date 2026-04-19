@@ -31,7 +31,11 @@ use std::path::Path;
 
 use crate::trace::read_all_trace_files;
 
-pub use walker::{needle_is_outside_string_literal, strip_cfg_test_modules, walk_rs_files};
+// Walker helpers are private to this module — no stable-API
+// promise, no crate-wide visibility. Callers outside the crate go
+// through `current_measurements` / `per_crate_measurements`; callers
+// elsewhere in the crate have no need for these primitives.
+use walker::{needle_is_outside_string_literal, strip_cfg_test_modules, walk_rs_files};
 
 /// Current schema version for `cert/floors.toml`. Additive field
 /// changes stay at `1`; a break in the shape (removed field,
@@ -201,7 +205,7 @@ pub fn per_crate_measurements(workspace_root: &Path) -> BTreeMap<String, BTreeMa
         };
         let mut per = BTreeMap::new();
         per.insert("test_count".into(), count_tests(&path));
-        per.insert("library_panics".into(), count_library_panics_in(&path));
+        per.insert("library_panics".into(), count_library_panics(&path));
         out.insert(name.to_string(), per);
     }
     out
@@ -292,10 +296,6 @@ pub fn count_tests(root: &Path) -> u64 {
 /// A hand-curated allowlist at the file level is the escape hatch
 /// if any of these produces a false positive in practice.
 pub fn count_library_panics(root: &Path) -> u64 {
-    count_library_panics_in(root)
-}
-
-fn count_library_panics_in(root: &Path) -> u64 {
     let mut files = Vec::new();
     walk_rs_files(root, &mut files);
     let mut total: u64 = 0;

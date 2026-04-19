@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 /// Walk `root` recursively; push every `.rs` path into `out`. Skips
 /// `target/` trees so a stale `cargo doc` output can't taint the
 /// measurement.
-pub fn walk_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
+pub(super) fn walk_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
     let entries = match fs::read_dir(root) {
         Ok(r) => r,
         Err(_) => return,
@@ -33,11 +33,27 @@ pub fn walk_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
 
 /// Strip top-level `#[cfg(test)]\nmod … { … }` blocks from a Rust
 /// source. Conservative: matches blocks at indent 0 by brace-depth
-/// tracking; nested `#[cfg(test)]` sub-modules aren't detected and
-/// their content survives the strip. Miss-rate is acceptable for a
-/// floor that starts at 0 and catches any *new* library panic, even
-/// one that would sit inside a nested test module.
-pub fn strip_cfg_test_modules(text: &str) -> String {
+/// tracking.
+///
+/// **Implicit assumption — `#[cfg(test)]` gates only `mod …`.**
+/// The walker's brace-tracker starts at the next `{` after a
+/// `#[cfg(test)]` line and consumes through the matching `}`. If
+/// `#[cfg(test)]` instead gated a single `pub fn foo() { … }` or a
+/// `const X: … = { … };` expression, the walker would still strip
+/// that item's body. The project-wide convention is
+/// `#[cfg(test)]\nmod tests { … }`, so the walker is correct
+/// against our own source; downstream projects that use
+/// `#[cfg(test)] pub fn` would over-strip and silently mask real
+/// panics.
+///
+/// **Other known limitations:**
+/// - Nested `#[cfg(test)]` sub-modules inside a production module
+///   aren't detected; their content survives the strip (rare;
+///   miss-rate acceptable for a floor that starts at 0 and catches
+///   any *new* library panic).
+/// - `#[cfg(all(test, …))]` and `#[cfg(any(test, …))]` aren't
+///   recognized — only the exact byte sequence `#[cfg(test)]`.
+pub(super) fn strip_cfg_test_modules(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
@@ -95,15 +111,15 @@ pub fn strip_cfg_test_modules(text: &str) -> String {
 /// cases are vanishingly rare in the library code this walker
 /// targets; the regression tests in the parent module pin the
 /// expected behavior for the cases that actually occur.
-pub fn needle_is_outside_string_literal(line: &str, needle: &str) -> bool {
+pub(super) fn needle_is_outside_string_literal(line: &str, needle: &str) -> bool {
     let Some(pos) = line.find(needle) else {
         return false;
     };
     let before = &line[..pos];
     // Guard 2 first: if a raw-string opener (`r"` or `r#…"`) appears
-    // before the needle and the matching closer comes AFTER, the
-    // needle is inside a raw string.
-    if raw_string_covers(before, &line[pos..]) {
+    // in `before` without a matching closer, the needle at `pos` is
+    // inside a live raw string.
+    if raw_string_covers(before) {
         return false;
     }
     // Guard 1: odd number of `"` before the needle means mid-string.
@@ -115,15 +131,19 @@ pub fn needle_is_outside_string_literal(line: &str, needle: &str) -> bool {
 }
 
 /// Does a raw-string literal opened somewhere in `before` still cover
-/// the position at the start of `after`?
+/// the needle position (which sits immediately after `before`)?
 ///
-/// Pattern scanned: `r"…"`, `r#"…"#`, `r##"…"##`, … up to a sensible
-/// hash count. We walk `before` looking for `r` followed by any
-/// number of `#`s followed by `"`, and if we find one, check whether
-/// its matching close (`"` + same hash count) appears in `before`
-/// after the opener. If the opener isn't closed inside `before`, the
-/// needle at `after[0]` is inside the raw string.
-fn raw_string_covers(before: &str, _after: &str) -> bool {
+/// Pattern scanned: `r"…"`, `r#"…"#`, `r##"…"##`, … up to any hash
+/// count. Walk `before` looking for an `r` (not preceded by an
+/// identifier char — would be part of another identifier like `for`)
+/// followed by any number of `#` followed by `"`. If such an opener
+/// has no matching close (`"` + same hash count) inside `before`, the
+/// needle is inside a live raw string and the caller should skip it.
+///
+/// Note: only `before` is needed — once we establish an unmatched
+/// raw-string opener on the left, the needle being on the right is
+/// by definition inside the literal. No need to scan `after`.
+fn raw_string_covers(before: &str) -> bool {
     // Simplified: find the last `r#*"` token in `before`. If no
     // matching close (`"#*`) appears between its position and the
     // end of `before`, the needle is inside a live raw string.
