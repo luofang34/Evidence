@@ -218,6 +218,15 @@ jobs:
           fi
           printf '%s\n' "$out"
 
+      - name: Self-compliance baseline gate (PR #47 / LLR-034)
+        # Generates a bundle on the tool's own workspace and diffs
+        # the produced compliance/*.json against
+        # cert/baselines/self_compliance.json. Any (crate, objective)
+        # pair that drifts fails with a targeted message. Upgrading a
+        # status is a PR that edits the baseline with written
+        # justification in the body.
+        run: cargo test --release --test self_compliance_baseline -p cargo-evidence
+
   nix:
     # Exercises the cert-ship path: `nix build` of `packages.default`
     # via `makeRustPlatform`. Linux-only because the README is explicit
