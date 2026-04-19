@@ -12,6 +12,7 @@
 //! without reaching into the CLI.
 
 pub mod args;
+pub mod check;
 pub mod diff;
 pub mod generate;
 pub mod init;

@@ -26,6 +26,7 @@ use tracing_subscriber::filter::LevelFilter;
 mod cli;
 
 use cli::args::{CargoCli, Commands, EXIT_ERROR, EvidenceArgs, OutputFormat, SchemaCommands};
+use cli::check::cmd_check;
 use cli::diff::cmd_diff;
 use cli::generate::{GenerateArgs, cmd_generate};
 use cli::init::cmd_init;
@@ -88,23 +89,23 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
     let subcommand_name: &str = match &args.command {
         Some(Commands::Generate { .. }) | None => "generate",
         Some(Commands::Verify { .. }) => "verify",
+        Some(Commands::Check { .. }) => "check",
         Some(Commands::Diff { .. }) => "diff",
         Some(Commands::Init { .. }) => "init",
         Some(Commands::Schema { .. }) => "schema",
         Some(Commands::Trace { .. }) => "trace",
     };
 
-    // Guard rail for unwired JSONL subcommands. Only `verify` streams
-    // JSONL natively today; any other subcommand under `--format=jsonl`
-    // would silently emit human / JSON text mixed on stdout, which
-    // violates Schema Rule 2. Hard-error instead: emit a
-    // `CLI_UNSUPPORTED_FORMAT` finding + `CLI_SUBCOMMAND_ERROR`
-    // terminal and return exit 1. When real wiring lands for one of
-    // these subcommands, remove its name from the guard set.
+    // Guard rail for subcommands that don't yet stream JSONL natively.
+    // `verify` and `check` both emit JSONL directly; every other
+    // subcommand under `--format=jsonl` would silently mix human /
+    // JSON text on stdout (Schema Rule 2 violation). Hard-error
+    // instead: emit a `CLI_UNSUPPORTED_FORMAT` finding +
+    // `CLI_SUBCOMMAND_ERROR` terminal and return exit 1.
     //
     // TODO(jsonl): add subcommand names here as they gain JSONL
-    // support. Keep `verify` and `verify`-only for now.
-    if args.format == OutputFormat::Jsonl && subcommand_name != "verify" {
+    // support.
+    if args.format == OutputFormat::Jsonl && !matches!(subcommand_name, "verify" | "check") {
         return emit_unsupported_jsonl_terminal(subcommand_name);
     }
 
@@ -137,6 +138,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             let format = OutputFormat::resolve(args.format, args.json || json);
             cmd_verify(bundle_path, strict, verify_key, format)
         }
+        Some(Commands::Check { mode, path }) => cmd_check(mode, path),
         Some(Commands::Diff {
             bundle_a,
             bundle_b,
