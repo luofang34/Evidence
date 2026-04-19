@@ -179,3 +179,58 @@ fn parser_is_robust_to_stdout_then_stderr_concatenation() {
         Some(TestOutcome::Failed),
     );
 }
+
+/// ANSI-color regression. GitHub Actions' default workflow env sets
+/// `CARGO_TERM_COLOR=always`, which wraps cargo's `Running
+/// target/debug/deps/<binary>` headers in ANSI escape sequences. The
+/// parser matches `starts_with("Running ")` on raw bytes and therefore
+/// misses every binary name once ANSI wrapping is present — which is
+/// exactly the silent-all-REQ_GAP bug seen on CI. The parser's
+/// contract is *colorless input*; the CLI is responsible for forcing
+/// `CARGO_TERM_COLOR=never` on the `cargo test` subprocess it spawns
+/// (see `cli::check::run_cargo_test`). This test pins both halves:
+///
+/// 1. Raw ANSI-wrapped input → binaries not harvested, attribution
+///    falls back to `__unknown_binary__` (documents the limitation).
+/// 2. Same input with ANSI stripped → attribution recovers.
+#[test]
+fn parser_contract_requires_colorless_input() {
+    const ESC: &str = "\x1b";
+    // Minimal realistic capture: cargo 1.75+ emits the `Running` header
+    // with bold-green color around the "Running" keyword only; the path
+    // is uncolored. We wrap the whole line to exercise the
+    // worst-case — if this case works, lighter wrappings do too.
+    let ansi = format!(
+        "{ESC}[1m{ESC}[32m     Running{ESC}[0m unittests src/lib.rs (target/debug/deps/evidence-3f4a2c7d9e12b8f1)\n\
+         \n\
+         running 1 test\n\
+         test diagnostic::tests::works ... ok\n\
+         \n\
+         test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n",
+    );
+    let (_summary, outcomes) =
+        parse_cargo_test_output_with_outcomes(&ansi).expect("counters still parse");
+    // Limitation: raw ANSI input does NOT produce a correctly-keyed
+    // outcome. If this assertion ever flips to produce the qualified
+    // key, the parser has gained ANSI-awareness and the CLI's
+    // subprocess-env workaround can be simplified.
+    assert!(
+        outcomes.contains_key("__unknown_binary__::diagnostic::tests::works"),
+        "parser must NOT silently succeed on ANSI input — got keys {:?}",
+        outcomes.keys().collect::<Vec<_>>()
+    );
+
+    // Sanity: the same stream with ANSI stripped parses correctly.
+    // This is what a well-behaved caller like `cmd_check_source`
+    // passes in after forcing `CARGO_TERM_COLOR=never`.
+    let stripped = ansi
+        .replace(&format!("{ESC}[1m"), "")
+        .replace(&format!("{ESC}[32m"), "")
+        .replace(&format!("{ESC}[0m"), "");
+    let (_summary, outcomes) =
+        parse_cargo_test_output_with_outcomes(&stripped).expect("stripped parses");
+    assert_eq!(
+        outcomes.get("evidence::diagnostic::tests::works").copied(),
+        Some(TestOutcome::Passed),
+    );
+}

@@ -193,10 +193,21 @@ fn run_cargo_test(workspace_root: &Path) -> Result<String> {
     // invocation context; the integration tests of `check` itself
     // call `build_requirement_report` directly rather than spawning
     // cargo. See commit 4's tests.
+    //
+    // Force colorless output: GitHub Actions sets
+    // `CARGO_TERM_COLOR=always` at the workflow level, which wraps
+    // cargo's `Running target/debug/deps/<binary>` headers in ANSI
+    // escape codes. The parser's `starts_with("Running ")` filter then
+    // misses every binary name, keys every test under
+    // `__unknown_binary__::<fn>`, and every requirement silently
+    // reports `REQ_GAP`. Setting both `CARGO_TERM_COLOR=never` and
+    // `NO_COLOR=1` neutralizes cargo's and libtest's color paths.
     let out = Command::new("cargo")
         .arg("test")
         .arg("--workspace")
         .arg("--no-fail-fast")
+        .env("CARGO_TERM_COLOR", "never")
+        .env("NO_COLOR", "1")
         .current_dir(workspace_root)
         .output()
         .with_context(|| format!("spawning `cargo test` in {}", workspace_root.display()))?;
