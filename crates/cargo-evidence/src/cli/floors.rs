@@ -14,6 +14,8 @@
 //! single JSON array per run, not a stream. The existing
 //! `CLI_UNSUPPORTED_FORMAT` dispatch guard rejects it.
 
+use std::path::PathBuf;
+
 use anyhow::Result;
 use serde::Serialize;
 
@@ -33,9 +35,9 @@ struct FloorRow {
 }
 
 /// Entrypoint for `cargo evidence floors`.
-pub fn cmd_floors(json: bool) -> Result<i32> {
+pub fn cmd_floors(json: bool, config: Option<PathBuf>) -> Result<i32> {
     let workspace = std::env::current_dir()?;
-    let floors_path = workspace.join("cert").join("floors.toml");
+    let floors_path = config.unwrap_or_else(|| workspace.join("cert").join("floors.toml"));
     let config = match FloorsConfig::load(&floors_path) {
         Ok(c) => c,
         Err(e) => {

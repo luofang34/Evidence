@@ -268,6 +268,13 @@ pub enum Commands {
         /// flag, a human-readable table is printed.
         #[arg(long)]
         json: bool,
+
+        /// Path to the floors config. Defaults to
+        /// `cert/floors.toml` under the current directory. Used by
+        /// integration tests that exercise tampered floor values
+        /// without clobbering the committed file.
+        #[arg(long)]
+        config: Option<PathBuf>,
     },
 
     /// Trace management utilities

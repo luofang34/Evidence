@@ -174,9 +174,9 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             // `--json` flag, or the global `--json` (via `args.json`).
             cmd_rules(json || args.json)
         }
-        Some(Commands::Floors { json }) => {
+        Some(Commands::Floors { json, config }) => {
             // Same blob-not-stream shape as `rules`.
-            cmd_floors(json || args.json)
+            cmd_floors(json || args.json, config)
         }
         // No subcommand given — default to generate with global args.
         None => cmd_generate(GenerateArgs {
