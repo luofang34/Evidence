@@ -134,3 +134,52 @@ fn parse_returns_none_on_empty_or_non_test_input() {
     assert!(parse_cargo_test_output_with_outcomes("").is_none());
     assert!(parse_cargo_test_output_with_outcomes("hello world").is_none());
 }
+
+/// Real-world regression: `Command::output()` captures stdout and
+/// stderr as separate buffers; a caller that concatenates
+/// stdout-then-stderr pushes every `Running target/debug/deps/<binary>`
+/// header (stderr) to the *end* of the merged stream. A single-pass
+/// parser would never see a binary name before the test lines it
+/// describes and would key every test under `__unknown_binary__::…` —
+/// which silently breaks `cargo evidence check` selector matching.
+///
+/// This test synthesizes that exact shape by splitting the fixture
+/// into the two streams and concatenating stdout-first, asserting the
+/// parser still attributes each test to the correct binary.
+#[test]
+fn parser_is_robust_to_stdout_then_stderr_concatenation() {
+    let (stderr_lines, stdout_lines): (Vec<&str>, Vec<&str>) = FIXTURE
+        .lines()
+        .partition(|line| line.trim_start().starts_with("Running "));
+    let stdout_first = format!(
+        "{}\n{}\n",
+        stdout_lines.join("\n"),
+        stderr_lines.join("\n")
+    );
+    let (summary, outcomes) = parse_cargo_test_output_with_outcomes(&stdout_first)
+        .expect("stdout-then-stderr concat should still parse");
+
+    // Counters are unaffected by ordering.
+    assert_eq!(summary.passed, 9);
+    assert_eq!(summary.failed, 1);
+
+    // Binary attribution must still work — the key regression.
+    assert_eq!(
+        outcomes
+            .get("verify_jsonl::verify_ok_terminates_with_verify_ok_and_exit_zero")
+            .copied(),
+        Some(TestOutcome::Passed),
+    );
+    assert_eq!(
+        outcomes
+            .get("trace_sys_layer::sys_hlr_llr_test_chain_validates")
+            .copied(),
+        Some(TestOutcome::Passed),
+    );
+    assert_eq!(
+        outcomes
+            .get("evidence::trace::entries::tests::test_hlr_entry_fields")
+            .copied(),
+        Some(TestOutcome::Failed),
+    );
+}

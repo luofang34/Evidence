@@ -13,6 +13,17 @@
 //! fully-qualified key `binary_name::<name>`. That map is what PR #46's
 //! `cargo evidence check` uses to answer "did the test for this
 //! requirement pass in this run?"
+//!
+//! **Interleaving gotcha.** Cargo emits `Running …` to stderr and the
+//! `test <name> … ok` lines to stdout. When callers capture the two
+//! streams and concatenate (stdout-then-stderr), the binary headers
+//! appear at the *end* of the merged buffer — so a single-pass tracker
+//! never sees the header before the tests it describes. The parser is
+//! therefore two-pass: first it harvests every `Running` binary name in
+//! order of appearance, then it walks the stream and bumps through that
+//! list at every `running N tests` (stdout-side start-of-binary
+//! marker). That makes the parser robust to either order — merged via
+//! a shell `2>&1`, or concatenated from separate captures.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -89,27 +100,48 @@ pub fn parse_cargo_test_output_with_outcomes(
 ) -> Option<(TestSummary, BTreeMap<String, TestOutcome>)> {
     let output = output.replace("\r\n", "\n");
 
+    // Pass 1: harvest binary names in order of appearance. Cargo emits
+    // these on stderr; callers that concatenate stdout-then-stderr push
+    // them to the end of the merged buffer, so a single-pass tracker
+    // would see every test line before any binary name. By collecting
+    // first, we can attribute tests correctly regardless of stream
+    // ordering.
+    let binaries: Vec<String> = output
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with("Running "))
+        .filter_map(extract_binary_name)
+        .collect();
+
     let mut total_passed = 0u64;
     let mut total_failed = 0u64;
     let mut total_ignored = 0u64;
     let mut total_filtered_out = 0u64;
     let mut found = false;
 
-    let mut current_binary: Option<String> = None;
+    // Pass 2: advance `binary_idx` on every `running N tests` marker
+    // (stdout-side start-of-binary). The idx starts at -1 so the first
+    // marker bumps us to 0, matching `binaries[0]`.
+    let mut binary_idx: isize = -1;
     let mut outcomes: BTreeMap<String, TestOutcome> = BTreeMap::new();
 
     for line in output.lines() {
         let line = line.trim();
 
-        // Binary header: cargo emits lines like
-        //   Running unittests src/lib.rs (target/debug/deps/evidence-3f4a2c)
-        //   Running tests/verify_jsonl.rs (target/debug/deps/verify_jsonl-8e91)
-        // Extract the segment inside the last parens, take the basename
-        // of the path, strip `-<hash>`.
+        // Start-of-binary marker on stdout. `running 0 tests` also
+        // counts — an empty test binary still occupies a slot.
+        if line.starts_with("running ")
+            && line
+                .split_whitespace()
+                .nth(2)
+                .is_some_and(|w| w == "tests" || w == "test")
+        {
+            binary_idx += 1;
+            continue;
+        }
+
+        // Skip the stderr-side binary header lines harvested in pass 1.
         if line.starts_with("Running ") {
-            if let Some(bin) = extract_binary_name(line) {
-                current_binary = Some(bin);
-            }
             continue;
         }
 
@@ -131,7 +163,14 @@ pub fn parse_cargo_test_output_with_outcomes(
                     _ => None, // e.g. "bench" from `cargo bench`, ignore
                 };
                 if let Some(o) = outcome {
-                    let bin = current_binary.as_deref().unwrap_or("__unknown_binary__");
+                    let bin = if binary_idx >= 0 {
+                        binaries
+                            .get(binary_idx as usize)
+                            .map(String::as_str)
+                            .unwrap_or("__unknown_binary__")
+                    } else {
+                        "__unknown_binary__"
+                    };
                     let key = format!("{}::{}", bin, name);
                     // If a key appears twice (shouldn't, but guard),
                     // Failed wins over Passed wins over Ignored.
