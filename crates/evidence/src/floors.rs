@@ -176,8 +176,12 @@ pub fn count_library_panics(workspace_root: &Path) -> u64 {
     walk_rs_files(&crates, &mut files);
     let mut total: u64 = 0;
     for file in &files {
-        // Exclude tests/ dirs (integration tests).
-        if file.to_string_lossy().contains("/tests/") {
+        // Exclude tests/ dirs (integration tests). Windows paths use
+        // `\` natively, so normalize before substring-matching — a
+        // naive `contains("/tests/")` silently misses on Windows CI
+        // and over-counts every integration-test file's panics.
+        let normalized = file.to_string_lossy().replace('\\', "/");
+        if normalized.contains("/tests/") {
             continue;
         }
         // Exclude the CLI main.rs (anyhow envelope layer).
