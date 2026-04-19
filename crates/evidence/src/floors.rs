@@ -281,11 +281,11 @@ pub fn count_tests(root: &Path) -> u64 {
 ///
 /// 1. Skips `crates/*/tests/` (integration tests).
 /// 2. Skips `main.rs` files (the CLI's anyhow envelope layer).
-/// 3. Strips top-level `#[cfg(test)]` module blocks via
-///    [`strip_cfg_test_modules`].
+/// 3. Strips top-level `#[cfg(test)]` module blocks via the
+///    internal `strip_cfg_test_modules` walker.
 /// 4. Skips `//`, `///`, and `//!` comment lines.
-/// 5. Uses [`needle_is_outside_string_literal`] to reject
-///    occurrences inside plain or raw string literals.
+/// 5. Uses the internal `needle_is_outside_string_literal` helper
+///    to reject occurrences inside plain or raw string literals.
 ///
 /// Remaining edge cases (tracked, not currently blocking):
 ///
