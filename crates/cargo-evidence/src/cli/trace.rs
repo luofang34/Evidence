@@ -22,6 +22,7 @@ pub fn cmd_trace(
     do_validate: bool,
     do_backfill: bool,
     require_hlr_sys_trace: bool,
+    require_hlr_surface_bijection: bool,
     check_test_selectors: bool,
     trace_roots_arg: Option<String>,
     json_output: bool,
@@ -58,6 +59,9 @@ pub fn cmd_trace(
         // load-bearing for itself.
         if require_hlr_sys_trace {
             evidence_policy.trace.require_hlr_sys_trace = true;
+        }
+        if require_hlr_surface_bijection {
+            evidence_policy.trace.require_hlr_surface_bijection = true;
         }
 
         let mut all_valid = true;

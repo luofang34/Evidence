@@ -19,6 +19,7 @@ stream truncation.
 """
 verification_methods = ["test"]
 traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
+surfaces = ["VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR terminal contract"]
 
 [[requirements]]
 uid = "da30287c-8223-448b-ad94-7a09cc981347"
@@ -34,6 +35,7 @@ reading both streams don't see duplicate error data.
 """
 verification_methods = ["test"]
 traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
+surfaces = ["jsonl stream per Schema Rule 2"]
 
 [[requirements]]
 uid = "9296020e-761f-4d47-9081-7858c699e3f8"
@@ -49,6 +51,7 @@ without a code fails to compile).
 """
 verification_methods = ["test"]
 traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
+surfaces = ["diagnostic code namespace (regex + reserved suffixes)"]
 
 [[requirements]]
 uid = "3181e08a-934f-4031-99ec-d55e609399c7"
@@ -65,6 +68,7 @@ containment in both directions).
 """
 verification_methods = ["test"]
 traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
+surfaces = ["CLI_SUBCOMMAND_ERROR terminal", "diagnostic code namespace (regex + reserved suffixes)"]
 
 [[requirements]]
 uid = "ba4d711e-f3e9-4af5-951c-682755799f18"
@@ -95,6 +99,7 @@ HEAD move mid-run cannot create a bundle that mixes two commits.
 """
 verification_methods = ["test"]
 traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
+surfaces = ["generate"]
 
 [[requirements]]
 uid = "2e3840ff-7803-4ba0-b88d-9cc6ec8b6062"
@@ -110,6 +115,7 @@ abort with a strict error rather than recording 'unknown'.
 """
 verification_methods = ["test"]
 traces_to = ["ee75dd4a-972d-44e1-96dd-1bc08c8f8726"]
+surfaces = ["generate"]
 
 [[requirements]]
 uid = "48f569e5-6671-4fb6-b36f-b04b446bd6c1"
@@ -125,6 +131,7 @@ order; no HashMap-driven nondeterminism is allowed.
 """
 verification_methods = ["test"]
 traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
+surfaces = ["generate"]
 
 [[requirements]]
 uid = "6947e635-4f6b-4833-a101-f896b8ae59c9"
@@ -140,6 +147,7 @@ asserted in CI via determinism-compare.
 """
 verification_methods = ["test"]
 traces_to = ["ee75dd4a-972d-44e1-96dd-1bc08c8f8726"]
+surfaces = ["generate"]
 
 [[requirements]]
 uid = "f08c9da9-627c-471e-90af-0c286332a41f"
@@ -155,6 +163,7 @@ start' while referencing a different HEAD state.
 """
 verification_methods = ["test"]
 traces_to = ["31ad3334-3d64-4fff-9f7a-fe7d5c709288"]
+surfaces = ["generate"]
 
 [[requirements]]
 uid = "6cabc09d-8556-48f9-800b-7c1111fc0877"
@@ -171,6 +180,7 @@ triggers VERIFY_MISSING_HASHED_FILE.
 """
 verification_methods = ["test"]
 traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
+surfaces = ["verify"]
 
 [[requirements]]
 uid = "2e7d1836-c8b0-461f-8704-45ddefce31a5"
@@ -186,6 +196,7 @@ reviewer can root-cause the divergence.
 """
 verification_methods = ["test"]
 traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
+surfaces = ["verify"]
 
 [[requirements]]
 uid = "214ab4da-5328-4ace-9626-326dd95894a6"
@@ -201,6 +212,7 @@ VERIFY_DAL_MAP_ORPHAN.
 """
 verification_methods = ["test"]
 traces_to = ["5af6e706-6aef-411d-811d-747633876695"]
+surfaces = ["verify"]
 
 [[requirements]]
 uid = "fd304d26-ba40-4beb-9ab8-18f2185abbf3"
@@ -216,6 +228,7 @@ as VERIFY_TRACE_OUTPUT_NOT_HASHED.
 """
 verification_methods = ["test"]
 traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
+surfaces = ["verify"]
 
 [[requirements]]
 uid = "904ad11d-7b76-4707-8a08-cab8224b64c9"
@@ -230,6 +243,7 @@ VERIFY_STRICT_SIGNATURE_MISSING + VERIFY_FAIL terminal, exit 2.
 """
 verification_methods = ["test"]
 traces_to = ["31ad3334-3d64-4fff-9f7a-fe7d5c709288"]
+surfaces = ["verify"]
 
 [[requirements]]
 uid = "f11c7b59-7dea-490f-a355-bb07459bb49b"
@@ -258,6 +272,7 @@ OutputFormat::resolve honors an explicit --format over the legacy
 """
 verification_methods = ["test"]
 traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
+surfaces = ["verify"]
 
 [[requirements]]
 uid = "9ea226b0-852f-4047-a953-2ab0f4778da1"
@@ -289,6 +304,7 @@ violations fail.
 """
 verification_methods = ["test"]
 traces_to = ["5af6e706-6aef-411d-811d-747633876695"]
+surfaces = ["trace"]
 
 [[requirements]]
 uid = "62498de7-e6b9-4805-8b6c-afead78b33ac"
@@ -305,6 +321,7 @@ stdout.
 """
 verification_methods = ["test"]
 traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
+surfaces = ["trace"]
 
 [[requirements]]
 uid = "3aec2a02-644b-4e58-a718-17ed879372ba"
@@ -320,6 +337,7 @@ building. The tool's own CI run enables the flag.
 """
 verification_methods = ["test"]
 traces_to = ["daf04641-ce24-4426-9c39-9f02b6c511cf"]
+surfaces = ["trace"]
 
 [[requirements]]
 uid = "2c6f5903-b666-4f72-97d9-877e9b1ee787"
@@ -336,6 +354,7 @@ produce a TRACE_SELECTOR_UNRESOLVED error. Off by default so
 '''
 verification_methods = ["test"]
 traces_to = ["daf04641-ce24-4426-9c39-9f02b6c511cf"]
+surfaces = ["trace"]
 
 [[requirements]]
 uid = "911fe168-04d7-49ee-99f4-d7a5a7a6fb1c"
@@ -351,6 +370,7 @@ The chosen root is logged via tracing::info!.
 """
 verification_methods = ["test"]
 traces_to = ["daf04641-ce24-4426-9c39-9f02b6c511cf"]
+surfaces = ["trace"]
 
 [[requirements]]
 uid = "a86e0c73-4ffd-4f46-8733-ce5cd0abba76"
@@ -366,6 +386,7 @@ either flag, the test fires before the change merges.
 """
 verification_methods = ["test"]
 traces_to = ["daf04641-ce24-4426-9c39-9f02b6c511cf"]
+surfaces = ["trace"]
 
 [[requirements]]
 uid = "6c6eeac3-d491-42da-940f-97714e78e351"
@@ -384,6 +405,7 @@ case without silent mis-dispatch.
 """
 verification_methods = ["test"]
 traces_to = ["aa13d9a6-042e-4bc9-9d9e-c191128fb857"]
+surfaces = ["check"]
 
 [[requirements]]
 uid = "9766fba0-eac5-4678-a548-b04c799ee527"
@@ -402,6 +424,7 @@ and no cascade is suppressed.
 """
 verification_methods = ["test"]
 traces_to = ["aa13d9a6-042e-4bc9-9d9e-c191128fb857"]
+surfaces = ["check", "root_cause_uid grouping per Schema Rule 7"]
 
 [[requirements]]
 uid = "7c6672c3-5a20-42b6-bf73-04aa6c00a914"
@@ -421,6 +444,7 @@ logging; with them, MCP (PR #50) can wrap autofix agents directly.
 """
 verification_methods = ["test"]
 traces_to = ["aa13d9a6-042e-4bc9-9d9e-c191128fb857"]
+surfaces = ["check"]
 
 [[requirements]]
 uid = "c50517f8-23e6-4d1e-814e-c3b0938c3cb8"
@@ -439,6 +463,7 @@ libtest ever changes output format.
 """
 verification_methods = ["test"]
 traces_to = ["aa13d9a6-042e-4bc9-9d9e-c191128fb857"]
+surfaces = ["check"]
 
 [[requirements]]
 uid = "17cd860a-cf97-4eba-b54f-1f7d2563e74b"
@@ -456,6 +481,7 @@ generated) so adding a new code requires a reviewer-visible edit.
 """
 verification_methods = ["test"]
 traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
+surfaces = ["rules"]
 
 [[requirements]]
 uid = "93a4a758-4e77-47c0-8c16-1b8e77be05f1"
@@ -473,6 +499,7 @@ and documentation disagree about what the tool can say.
 """
 verification_methods = ["test"]
 traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
+surfaces = ["rules"]
 
 [[requirements]]
 uid = "460e5ca4-901f-4086-b660-2e2490dfecdc"
@@ -492,6 +519,7 @@ CI, and an LLR claiming a dead code also fails CI.
 """
 verification_methods = ["test"]
 traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
+surfaces = ["rules"]
 
 [[requirements]]
 uid = "163796eb-0063-4b24-8012-96b167e54e20"
@@ -509,6 +537,7 @@ versa.
 """
 verification_methods = ["test"]
 traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
+surfaces = ["rules"]
 
 [[requirements]]
 uid = "4834b99c-bc1c-4061-bbbd-ab05feb3330c"
@@ -563,6 +592,7 @@ reviewer reading the PR diff sees numeric changes directly.
 """
 verification_methods = ["test"]
 traces_to = ["a289fe83-d842-4708-b920-39cbcebd1aa1"]
+surfaces = ["floors"]
 
 [[requirements]]
 uid = "a3073b5a-ee61-4bdd-bdfe-c3154274e5ea"
@@ -581,6 +611,7 @@ entry.
 """
 verification_methods = ["test"]
 traces_to = ["a289fe83-d842-4708-b920-39cbcebd1aa1"]
+surfaces = ["floors"]
 
 [[requirements]]
 uid = "410a3c64-c5d5-4619-832e-5415c1fdc090"
@@ -598,6 +629,7 @@ the deterministic-baseline override pattern sketched in PR #49.
 """
 verification_methods = ["test"]
 traces_to = ["a289fe83-d842-4708-b920-39cbcebd1aa1"]
+surfaces = ["floors"]
 
 [[requirements]]
 uid = "80461fe3-aa78-4f86-8320-b298a188f51a"
@@ -617,6 +649,7 @@ single hop.
 """
 verification_methods = ["test"]
 traces_to = ["731cb43a-a9d1-43f8-8678-fc97db81162e"]
+surfaces = ["trace"]
 
 [[requirements]]
 uid = "b6d5e15c-ce52-4a32-9f6a-8891e9f76022"
@@ -637,6 +670,7 @@ likewise.
 """
 verification_methods = ["test"]
 traces_to = ["731cb43a-a9d1-43f8-8678-fc97db81162e"]
+surfaces = ["trace"]
 
 [[requirements]]
 uid = "a9b74c2e-0644-4f77-a709-63fe66f53cf8"
@@ -657,3 +691,4 @@ policy.
 """
 verification_methods = ["test"]
 traces_to = ["731cb43a-a9d1-43f8-8678-fc97db81162e"]
+surfaces = ["trace"]

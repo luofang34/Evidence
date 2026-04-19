@@ -245,11 +245,7 @@ pub const RULES: &[RuleEntry] = &[
         Severity::Error,
         Domain::Trace,
     ),
-    r(
-        "TRACE_HLR_SURFACE_UNKNOWN",
-        Severity::Error,
-        Domain::Trace,
-    ),
+    r("TRACE_HLR_SURFACE_UNKNOWN", Severity::Error, Domain::Trace),
     r("TRACE_LINK_FAILED", Severity::Error, Domain::Trace),
     r("TRACE_PARSE_FAILED", Severity::Error, Domain::Trace),
     r("TRACE_READ_FAILED", Severity::Error, Domain::Trace),

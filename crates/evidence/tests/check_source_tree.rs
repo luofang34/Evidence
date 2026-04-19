@@ -124,6 +124,7 @@ fn stub_entry(id: &str, uid: &str, traces_to: Vec<String>) -> HlrEntry {
         rationale: None,
         verification_methods: vec![],
         traces_to,
+        surfaces: vec![],
     }
 }
 
@@ -158,6 +159,7 @@ fn stub_test(id: &str, uid: &str, traces_to: Vec<String>, selector: &str) -> Tes
         description: None,
         category: None,
         test_selector: Some(selector.into()),
+        test_selectors: vec![],
         source: None,
     }
 }

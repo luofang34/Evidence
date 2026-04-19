@@ -261,6 +261,7 @@ mod tests {
                 rationale: None,
                 verification_methods: vec![],
                 traces_to: vec![],
+                surfaces: vec![],
             },
             HlrEntry {
                 uid: Some("existing-uuid".to_string()),
@@ -276,6 +277,7 @@ mod tests {
                 rationale: None,
                 verification_methods: vec![],
                 traces_to: vec![],
+                surfaces: vec![],
             },
         ];
 

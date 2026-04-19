@@ -183,10 +183,9 @@ fn test_detector_recognizes_versionish_strings() {
 /// and rewire `cargo semver-checks` or equivalent.
 #[test]
 fn schema_constants_pinned_at_001() {
-    let path = workspace_root()
-        .join("crates/evidence/src/schema_versions.rs");
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("reading {}: {}", path.display(), e));
+    let path = workspace_root().join("crates/evidence/src/schema_versions.rs");
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {}: {}", path.display(), e));
 
     // Simple byte-level scan: find every `pub const <NAME>: &str = "<value>";`
     // line; assert the value equals "0.0.1".

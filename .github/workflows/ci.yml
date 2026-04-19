@@ -198,6 +198,7 @@ jobs:
           ./target/release/cargo-evidence evidence trace \
             --validate \
             --require-hlr-sys-trace \
+            --require-hlr-surface-bijection \
             --check-test-selectors
 
       - name: Self-check via `cargo evidence check .`

@@ -296,6 +296,17 @@ pub enum Commands {
         #[arg(long)]
         require_hlr_sys_trace: bool,
 
+        /// Enforce the `HlrEntry.surfaces` ⇔ `KNOWN_SURFACES`
+        /// bijection (PR #49 / HLR-038).
+        ///
+        /// When set, every `surfaces` claim must be in
+        /// `KNOWN_SURFACES`, and every `KNOWN_SURFACES` entry must
+        /// be claimed by at least one HLR. Off by default; external
+        /// projects without surface catalog coverage keep validating
+        /// cleanly. The tool's own CI enables this flag.
+        #[arg(long)]
+        require_hlr_surface_bijection: bool,
+
         /// Resolve each test's `test_selector` against a real
         /// `#[test] fn` in the workspace source.
         ///

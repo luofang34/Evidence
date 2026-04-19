@@ -87,6 +87,13 @@ pub struct HlrEntry {
     /// (loaded from `sys.toml`).
     #[serde(default)]
     pub traces_to: Vec<String>,
+    /// CLI verbs / named observable contracts this HLR governs. Must
+    /// be subset of [`KNOWN_SURFACES`](crate::trace::KNOWN_SURFACES);
+    /// the complementary constraint (every `KNOWN_SURFACES` entry is
+    /// claimed by ≥1 HLR) is enforced in the Link-phase validator.
+    /// PR #49 / LLR-038.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub surfaces: Vec<String>,
 }
 
 // ============================================================================
@@ -204,11 +211,36 @@ pub struct TestEntry {
     #[serde(default)]
     pub category: Option<String>,
     /// Test selector (test function path for CI execution).
+    ///
+    /// **Legacy shape**: kept for back-compat with the 1:1 TEST-to-fn
+    /// convention. New code paths should prefer `test_selectors` for
+    /// the N:M case. PR #49 / LLR-039.
     #[serde(default)]
     pub test_selector: Option<String>,
+    /// Additional selectors — enables one TEST entry to verify
+    /// multiple `#[test] fn`s, or one fn to verify multiple TESTs.
+    /// PR #49 / LLR-039. Used as the additive extension to
+    /// `test_selector`; the resolver walks both as a union.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub test_selectors: Vec<String>,
     /// Source reference.
     #[serde(default)]
     pub source: Option<String>,
+}
+
+impl TestEntry {
+    /// All selectors for this test entry — the legacy singular
+    /// `test_selector` merged with the plural `test_selectors`.
+    /// Deduped via `BTreeSet` and returned sorted for deterministic
+    /// iteration. PR #49 / LLR-039.
+    pub fn all_selectors(&self) -> Vec<String> {
+        let mut set: std::collections::BTreeSet<String> =
+            self.test_selectors.iter().cloned().collect();
+        if let Some(s) = &self.test_selector {
+            set.insert(s.clone());
+        }
+        set.into_iter().collect()
+    }
 }
 
 // ============================================================================
@@ -282,6 +314,7 @@ mod tests {
             rationale: Some("Because we need it".to_string()),
             verification_methods: vec!["test".to_string()],
             traces_to: vec!["sys-parent-uuid".to_string()],
+            surfaces: vec![],
         };
         assert_eq!(hlr.id, "HLR-001");
         assert!(hlr.uid.is_some());

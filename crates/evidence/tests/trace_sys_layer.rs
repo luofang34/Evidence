@@ -35,6 +35,7 @@ fn stub_hlr(uid: &str, id: &str, owner: &str, traces_to: Vec<String>) -> HlrEntr
         rationale: None,
         verification_methods: vec![],
         traces_to,
+        surfaces: vec![],
     }
 }
 
@@ -69,6 +70,7 @@ fn stub_test(uid: &str, id: &str, owner: &str, traces_to: Vec<String>) -> TestEn
         description: None,
         category: None,
         test_selector: None,
+        test_selectors: vec![],
         source: None,
     }
 }
@@ -226,6 +228,7 @@ fn selector_check_flags_dangling_selector() {
     // above.
     let live_test = TestEntry {
         test_selector: Some("sys_hlr_llr_test_chain_validates".to_string()),
+        test_selectors: vec![],
         ..live_test
     };
     let dangling_test = stub_test(
@@ -236,6 +239,7 @@ fn selector_check_flags_dangling_selector() {
     );
     let dangling_test = TestEntry {
         test_selector: Some("this_fn_definitely_does_not_exist_anywhere".to_string()),
+        test_selectors: vec![],
         ..dangling_test
     };
 
@@ -274,6 +278,7 @@ fn selector_check_resolves_real_test() {
     );
     let live_test = TestEntry {
         test_selector: Some("require_hlr_sys_trace_allows_populated_hlr".to_string()),
+        test_selectors: vec![],
         ..live_test
     };
 

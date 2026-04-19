@@ -257,6 +257,40 @@ pub fn validate_trace_links_with_policy(
     // Policy-gated checks
 
     // HLR policy + HLR→SYS link validation.
+    // PR #49 / HLR-038 / LLR-038: HLR.surfaces ⇔ KNOWN_SURFACES
+    // bijection. Every HLR.surfaces string must be in KNOWN_SURFACES;
+    // every KNOWN_SURFACES entry must be claimed by ≥1 HLR. Policy-
+    // gated so external traces (e.g. the test-harness tempdirs and
+    // any downstream project that hasn't authored surfaces) stay
+    // validating.
+    if policy.require_hlr_surface_bijection {
+        let known: BTreeSet<&str> = super::surfaces::KNOWN_SURFACES.iter().copied().collect();
+        let mut claimed: BTreeSet<String> = BTreeSet::new();
+        for r in hlrs {
+            for s in &r.surfaces {
+                if !known.contains(s.as_str()) {
+                    errors.push(format!(
+                        "TRACE_HLR_SURFACE_UNKNOWN: HLR {} claims surface '{}' which is not in \
+                         KNOWN_SURFACES — either fix the spelling or add the surface to \
+                         crates/evidence/src/trace/surfaces.rs",
+                        r.id, s
+                    ));
+                }
+                claimed.insert(s.clone());
+            }
+        }
+        for k in super::surfaces::KNOWN_SURFACES {
+            if !claimed.contains(*k) {
+                errors.push(format!(
+                    "TRACE_HLR_SURFACE_UNCLAIMED: KNOWN_SURFACES entry '{}' is not claimed by \
+                     any HLR — add `surfaces = [\"{}\"]` to the governing HLR in \
+                     tool/trace/hlr.toml",
+                    k, k
+                ));
+            }
+        }
+    }
+
     for r in hlrs {
         if policy.require_hlr_verification_methods && r.verification_methods.is_empty() {
             errors.push(format!("HLR missing verification_methods: {}", r.id));
@@ -297,10 +331,20 @@ pub fn validate_trace_links_with_policy(
                     "LLR {} has no parent links. Must be marked 'derived = true'",
                     r.id
                 ));
-            } else if policy.require_derived_rationale
-                && r.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true)
-            {
-                errors.push(format!("Derived LLR {} missing 'rationale'", r.id));
+            } else if r.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+                // PR #49 / HLR-040 / LLR-040: unconditional rule.
+                // DO-178C §5.2.2 requires derived requirements to be
+                // explicitly justified. The previous policy gate
+                // (`require_derived_rationale`) is now a no-op —
+                // stricter behavior wins across downstream projects.
+                // TRACE_DERIVED_MISSING_RATIONALE is the code; the
+                // current Link-phase envelope surfaces all such
+                // violations under TRACE_LINK_FAILED until typed
+                // variants land (C6 follow-up).
+                errors.push(format!(
+                    "TRACE_DERIVED_MISSING_RATIONALE: derived LLR {} missing non-empty rationale",
+                    r.id
+                ));
             }
         } else if r.derived {
             errors.push(format!(
