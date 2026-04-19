@@ -1,0 +1,50 @@
+# Ratcheting floors for cargo-evidence itself (PR #48 / principle 2).
+#
+# Each entry is a current measurement taken at commit time; the CI
+# floors-gate fails any change where `current < committed_floor`.
+# Raising a floor is a PR that edits the number — reviewer-visible.
+# Lowering a floor in this file triggers the `floors-only-up-lint`
+# unless the PR body (or direct-to-main commit message) contains a
+# line matching:
+#
+#     Lower-Floor: <dimension> <reason>
+#
+# The convention is strict: rigor only goes up. Every dimension below
+# is a measurement the tool ratchets — deleting a requirement,
+# dropping a test, or removing a diagnostic code is load-bearing
+# enough that mechanical enforcement is worth the friction.
+#
+# Adding a new entry: land it in the same PR as the feature that
+# makes the dimension measurable, set the floor to the commit-time
+# value, and document the dimension's meaning in evidence::floors.
+
+[floors]
+# evidence::RULES length — every diagnostic code the tool can emit,
+# hand-curated.
+diagnostic_codes = 82
+
+# evidence::TERMINAL_CODES length — hand-emitted terminals
+# (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR).
+terminal_codes = 4
+
+# tool/trace/sys.toml — System Requirements.
+trace_sys = 9
+# tool/trace/hlr.toml — High-Level Requirements.
+trace_hlr = 37
+# tool/trace/llr.toml — Low-Level Requirements.
+trace_llr = 37
+# tool/trace/tests.toml — Test Cases.
+trace_test = 37
+
+# Total `#[test]` attribute count across crates/**/*.rs. This floor
+# is coarse — it doesn't tell you if a test is useful, only that
+# tests aren't silently disappearing. PR #51 (coverage capture)
+# adds the semantic check.
+test_count = 245
+
+# Total library panics: panic! / unimplemented!() / todo!() in
+# crates/*/src/** outside #[cfg(test)] blocks, doc comments, string
+# literals, and main.rs. Target and current value: 0. A rise in
+# this count is a ratchet violation even if the floor were a
+# non-zero committed number.
+library_panics = 0
