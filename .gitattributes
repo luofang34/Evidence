@@ -20,3 +20,7 @@ crates/evidence/tests/fixtures/compliance/** binary
 # runners and any dev workstation see the same bytes.
 Cargo.lock            text eol=lf
 rust-toolchain.toml   text eol=lf
+
+# PR #47 — golden wire-shape fixture. Keep literal bytes so cross-OS
+# checkouts don't mangle line endings and trip the byte-diff test.
+crates/cargo-evidence/tests/fixtures/golden_rules.json binary

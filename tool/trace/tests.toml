@@ -243,7 +243,7 @@ id = "TEST-030"
 title = "Bijection fires when a code is added without a RULES entry"
 owner = "tool"
 traces_to = ["1e35264b-eda4-43ae-b991-fc325e8a2a79"]
-test_selector = "evidence::rules::tests::rules_contains_every_code_and_vice_versa"
+test_selector = "diagnostic_codes_locked::rules_contains_every_code"
 
 [[tests]]
 uid = "ea8a269b-ca43-4532-8d17-1958d1d68a30"
@@ -267,7 +267,7 @@ id = "TEST-033"
 title = "Committed golden JSONL fixtures byte-match current tool output"
 owner = "tool"
 traces_to = ["673ee175-fc1c-4720-919c-4beb915f3eea"]
-test_selector = "golden_fixtures::verify_golden_matches"
+test_selector = "golden_fixtures::golden_rules_json_byte_diff"
 
 [[tests]]
 uid = "7c07f263-3e23-4ace-b668-ba54165f8ab0"
