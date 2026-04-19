@@ -6,7 +6,9 @@ use anyhow::Result;
 
 use evidence::{
     BoundaryConfig, EvidencePolicy, backfill_uuids, load_trace_roots,
-    trace::{TraceFiles, read_all_trace_files, validate_trace_links_with_policy},
+    trace::{
+        TraceFiles, read_all_trace_files, resolve_test_selectors, validate_trace_links_with_policy,
+    },
 };
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS};
@@ -20,6 +22,7 @@ pub fn cmd_trace(
     do_validate: bool,
     do_backfill: bool,
     require_hlr_sys_trace: bool,
+    check_test_selectors: bool,
     trace_roots_arg: Option<String>,
     json_output: bool,
 ) -> Result<i32> {
@@ -80,15 +83,43 @@ pub fn cmd_trace(
                 tests,
                 ..
             } = read_all_trace_files(root)?;
-            match validate_trace_links_with_policy(
+            let link_result = validate_trace_links_with_policy(
                 &sys.requirements,
                 &hlr.requirements,
                 &llr.requirements,
                 &tests.tests,
                 &[], // derived entries (TODO: wire from derived.toml)
                 &evidence_policy.trace,
-            ) {
-                Ok(()) => {
+            );
+
+            // Selector resolution is opt-in and runs only when the
+            // UID-level validation passes. The two checks are
+            // independent — selector rot does not imply a broken
+            // link structure — but a broken link structure usually
+            // means selectors are also wrong, so deferring keeps the
+            // error messages focused.
+            let selector_result = if check_test_selectors && link_result.is_ok() {
+                let unresolved = resolve_test_selectors(&tests.tests, std::path::Path::new("."));
+                if unresolved.is_empty() {
+                    Ok(())
+                } else {
+                    let lines: Vec<String> = unresolved
+                        .iter()
+                        .map(|u| format!("  {}: selector '{}' did not resolve", u.id, u.selector))
+                        .collect();
+                    Err(format!(
+                        "TRACE_SELECTOR_UNRESOLVED: {} selector(s) did not \
+                         resolve to a real #[test] fn:\n{}",
+                        unresolved.len(),
+                        lines.join("\n")
+                    ))
+                }
+            } else {
+                Ok(())
+            };
+
+            match (link_result, selector_result) {
+                (Ok(()), Ok(())) => {
                     if json_output {
                         results.push(serde_json::json!({
                             "root": root,
@@ -98,7 +129,7 @@ pub fn cmd_trace(
                         println!("trace: validation passed for '{}'", root);
                     }
                 }
-                Err(e) => {
+                (Err(e), _) => {
                     if json_output {
                         results.push(serde_json::json!({
                             "root": root,
@@ -107,6 +138,18 @@ pub fn cmd_trace(
                         }));
                     } else {
                         eprintln!("trace: validation FAILED for '{}': {}", root, e);
+                    }
+                    all_valid = false;
+                }
+                (Ok(()), Err(msg)) => {
+                    if json_output {
+                        results.push(serde_json::json!({
+                            "root": root,
+                            "status": "fail",
+                            "message": msg,
+                        }));
+                    } else {
+                        eprintln!("trace: validation FAILED for '{}': {}", root, msg);
                     }
                     all_valid = false;
                 }

@@ -151,11 +151,13 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             validate,
             backfill_uuids,
             require_hlr_sys_trace,
+            check_test_selectors,
             json,
         }) => cmd_trace(
             validate,
             backfill_uuids,
             require_hlr_sys_trace,
+            check_test_selectors,
             args.trace_roots,
             json,
         ),
