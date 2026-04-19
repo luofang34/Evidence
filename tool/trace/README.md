@@ -4,12 +4,12 @@ This directory dogfoods the tool's own traceability format against
 the tool itself, across the full DO-178C §5.1 chain:
 
 ```
-System Requirements  (sys.toml)   ─▶  6 entries
-High-Level Reqs      (hlr.toml)   ─▶ 24 entries  traces_to SYS
-Low-Level Reqs       (llr.toml)   ─▶ 24 entries  traces_to HLR
-Test Cases           (tests.toml) ─▶ 24 entries  traces_to LLR
+System Requirements  (sys.toml)   ─▶  7 entries
+High-Level Reqs      (hlr.toml)   ─▶ 28 entries  traces_to SYS
+Low-Level Reqs       (llr.toml)   ─▶ 28 entries  traces_to HLR
+Test Cases           (tests.toml) ─▶ 28 entries  traces_to LLR
                                      ───────────
-                                     78 entries total
+                                     91 entries total
 ```
 
 The CI job `trace-self-validate` runs
@@ -59,6 +59,7 @@ SYS groups cluster by load-bearing property:
 | SYS-004 | Policy-gated evidence emission                  | HLR-013, 019                       |
 | SYS-005 | Refusal when integrity guarantees unmet         | HLR-010, 015                       |
 | SYS-006 | Self-enforcement of the trace contract          | HLR-021, 022, 023, 024             |
+| SYS-007 | Single agent-facing command reports pass/gap    | HLR-025, 026, 027, 028             |
 
 Every HLR has at least one LLR; every LLR has at least one Test; every
 Test points at a real `#[test] fn` via `test_selector` (enforced by
@@ -73,6 +74,26 @@ change. The journal's existence is the guarantee that we discover
 format gaps before another project hits them.
 
 ### Journal entries
+
+#### [2026-04 · PR #46 · open] `verify` vs `check` sibling commands
+
+PR #46 introduces `cargo evidence check`, a higher-level entry point
+that dispatches to `verify` under the hood in bundle mode. Both
+commands can validate a bundle; they are not the same command. Rule
+(documented in `--help` and `README.md`):
+
+- **Agents and humans call `check`.** Auto-detects mode, emits
+  `REQ_PASS` / `REQ_GAP` diagnostics keyed on requirement UIDs,
+  plumbs `FixHint` variants for mechanical fixes.
+- **CI scripts and debugging call `verify`.** Thin shell over
+  `verify_bundle_with_key`. No argument-shape inference, no
+  source-mode code paths. Predictable for bash pipelines.
+- **MCP (PR #50) wraps `check`, not `verify`.** One agent verb, one
+  MCP tool. Exposing both would let agents pick differently each
+  release.
+
+Deprecating `verify --format=jsonl` is out of scope for PR #46 —
+tracked only if the sibling confusion proves real in practice.
 
 #### [2026-04 · PR #44b · open] Backfill strips TOML comments
 
@@ -147,9 +168,9 @@ live test pointer and a stale one.
 
 ## Ratchet ties
 
-Once `cert/floors.toml` lands (PR #47), the self-trace's minimum
-entry count pins at `min_trace_entries = 78` (6 SYS + 24 HLR + 24
-LLR + 24 Test). Removing an entry then requires a PR that both edits
+Once `cert/floors.toml` lands (PR #48), the self-trace's minimum
+entry count pins at `min_trace_entries = 91` (7 SYS + 28 HLR + 28
+LLR + 28 Test). Removing an entry then requires a PR that both edits
 the TOML and lowers the floor, with an explicit justification. The
 intent is that self-trace coverage only grows.
 

@@ -1,5 +1,3 @@
-# tool/trace/llr.toml — Low-Level Requirements (see ../README.md)
-
 [schema]
 version = "0.0.3"
 
@@ -411,5 +409,84 @@ An integration test reads .github/workflows/ci.yml verbatim, locates
 the trace-self-validate job's run: block, asserts both
 --require-hlr-sys-trace and --check-test-selectors appear in it.
 Fires if a future edit strips either flag.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "7df3b426-c9ea-426b-8fb9-64ce247312a0"
+id = "LLR-025"
+title = "cmd_check dispatches on --mode and argument shape"
+owner = "tool"
+traces_to = ["6c6eeac3-d491-42da-940f-97714e78e351"]
+modules = [
+    "cargo_evidence::cli::args::CheckMode",
+    "cargo_evidence::cli::check::cmd_check",
+]
+derived = false
+description = """
+cmd_check reads --mode (Auto/Source/Bundle, default Auto) and the
+optional path arg (default "."). Auto precedence: SHA256SUMS at
+PATH → bundle mode; else Cargo.toml at PATH → source mode; else
+CLI_INVALID_ARGUMENT + VERIFY_FAIL terminal. Explicit mode always
+wins; mismatch between mode and shape also errors cleanly.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "03795ca7-d5d3-48bc-9774-490cd6d4c2e0"
+id = "LLR-026"
+title = "build_requirement_report emits one diag per entry"
+owner = "tool"
+traces_to = ["9766fba0-eac5-4678-a548-b04c799ee527"]
+modules = [
+    "evidence::trace::requirement_report::build_requirement_report",
+    "evidence::trace::requirement_report::RequirementStatus",
+]
+derived = false
+description = """
+build_requirement_report walks sys/hlr/llr/tests, looks each entry's
+test_selector up in the outcome map, and emits REQ_PASS / REQ_GAP /
+REQ_SKIP. REQ_GAP events that trace to a root cause carry
+root_cause_uid (propagating upstream from a failing TEST through
+LLR → HLR → SYS). Rule 7 compliance without event-suppression.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "8738fc8e-353a-47d8-a6d4-e256673061d0"
+id = "LLR-027"
+title = "fix_hint_for_gap picks the right FixHint variant per sub-case"
+owner = "tool"
+traces_to = ["7c6672c3-5a20-42b6-bf73-04aa6c00a914"]
+modules = ["evidence::trace::requirement_report::fix_hint_for_gap"]
+derived = false
+description = """
+Internal helper returning Option<FixHint> for a given GAP sub-case:
+missing-uid → AssignUuid; empty traces_to under policy → AddTomlKey
+with traces_to key + SYS-UUID stub; unresolvable selector →
+AddTomlKey with test_selector key + suggested resolved form; real
+test failure → None (the fix lives in source, not the trace). Unit-
+tested per sub-case to prove hints match the claimed shape.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "b0569bd5-c609-440b-9389-a7996fffddad"
+id = "LLR-028"
+title = "parse_cargo_test_output builds a per-test outcome map"
+owner = "tool"
+traces_to = ["c50517f8-23e6-4d1e-814e-c3b0938c3cb8"]
+modules = [
+    "evidence::bundle::testing::parse_cargo_test_output",
+    "evidence::bundle::testing::TestOutcome",
+]
+derived = false
+description = """
+Extends the counters-only parser to also produce BTreeMap<String,
+TestOutcome>. Tracks the `Running target/debug/deps/<binary>-<hash>`
+header so integration-test fn-only lines get their binary_name
+prefix at parse time; unit-test lines keep cargo's printed module
+path verbatim. Pinned libtest_output_sample.txt fixture is the
+format-stability canary.
 """
 verification_methods = ["test"]

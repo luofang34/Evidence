@@ -1,5 +1,3 @@
-# tool/trace/sys.toml — System Requirements (see ../README.md)
-
 [schema]
 version = "0.0.3"
 
@@ -96,6 +94,23 @@ pipeline: (a) every HLR in the tool's self-trace must trace up to a
 System Requirement; (b) every Test entry's test_selector must resolve
 to a real #[test] function; (c) the CI gate that enforces the above
 must itself be asserted against regression.
+"""
+verification_methods = ["test"]
+traces_to = []
+
+[[requirements]]
+uid = "aa13d9a6-042e-4bc9-9d9e-c191128fb857"
+id = "SYS-007"
+title = "Single agent-facing command reports pass/gap coverage"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall provide a single command (`cargo evidence check`) that
+agents invoke to receive a structured pass/gap view of a workspace or
+bundle. The command auto-detects argument shape (source tree vs
+bundle), runs the appropriate validation pipeline, and streams one
+diagnostic per advertised requirement so agents can pattern-match on
+a stable `code` rather than parse prose.
 """
 verification_methods = ["test"]
 traces_to = []
