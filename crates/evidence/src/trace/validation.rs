@@ -352,4 +352,3 @@ pub fn validate_trace_links_with_policy(
 
     Ok(())
 }
-

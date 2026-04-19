@@ -13,10 +13,8 @@
     reason = "test setup failures should panic immediately"
 )]
 
-use evidence::trace::{
-    HlrEntry, LlrEntry, TestEntry, validate_trace_links_with_policy,
-};
 use evidence::TracePolicy;
+use evidence::trace::{HlrEntry, LlrEntry, TestEntry, validate_trace_links_with_policy};
 
 /// Minimal `HlrEntry` stub. Shared by SYS (same struct) and HLR.
 fn stub_hlr(uid: &str, id: &str, owner: &str, traces_to: Vec<String>) -> HlrEntry {
@@ -81,18 +79,27 @@ fn sys_hlr_llr_test_chain_validates() {
     let test_uuid = uuid::Uuid::new_v4().to_string();
 
     let sys = vec![stub_hlr(&sys_uuid, "SYS-001", "soi", vec![])];
-    let hlrs = vec![stub_hlr(&hlr_uuid, "HLR-001", "tool", vec![sys_uuid.clone()])];
-    let llrs = vec![stub_llr(&llr_uuid, "LLR-001", "tool", vec![hlr_uuid.clone()])];
-    let tests = vec![stub_test(&test_uuid, "TEST-001", "tool", vec![llr_uuid.clone()])];
+    let hlrs = vec![stub_hlr(
+        &hlr_uuid,
+        "HLR-001",
+        "tool",
+        vec![sys_uuid.clone()],
+    )];
+    let llrs = vec![stub_llr(
+        &llr_uuid,
+        "LLR-001",
+        "tool",
+        vec![hlr_uuid.clone()],
+    )];
+    let tests = vec![stub_test(
+        &test_uuid,
+        "TEST-001",
+        "tool",
+        vec![llr_uuid.clone()],
+    )];
 
-    let result = validate_trace_links_with_policy(
-        &sys,
-        &hlrs,
-        &llrs,
-        &tests,
-        &[],
-        &TracePolicy::default(),
-    );
+    let result =
+        validate_trace_links_with_policy(&sys, &hlrs, &llrs, &tests, &[], &TracePolicy::default());
     assert!(
         result.is_ok(),
         "SYS→HLR→LLR→Test chain should validate: {:?}",
