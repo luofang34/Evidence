@@ -151,11 +151,7 @@ fn parser_is_robust_to_stdout_then_stderr_concatenation() {
     let (stderr_lines, stdout_lines): (Vec<&str>, Vec<&str>) = FIXTURE
         .lines()
         .partition(|line| line.trim_start().starts_with("Running "));
-    let stdout_first = format!(
-        "{}\n{}\n",
-        stdout_lines.join("\n"),
-        stderr_lines.join("\n")
-    );
+    let stdout_first = format!("{}\n{}\n", stdout_lines.join("\n"), stderr_lines.join("\n"));
     let (summary, outcomes) = parse_cargo_test_output_with_outcomes(&stdout_first)
         .expect("stdout-then-stderr concat should still parse");
 
