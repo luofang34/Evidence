@@ -194,6 +194,7 @@ fn emit_unsupported_jsonl_terminal(subcommand: &str) -> anyhow::Result<i32> {
         location: None,
         fix_hint: None,
         subcommand: Some(subcommand.to_string()),
+        root_cause_uid: None,
     })?;
     emit_jsonl(&Diagnostic {
         code: "CLI_SUBCOMMAND_ERROR".to_string(),
@@ -205,6 +206,7 @@ fn emit_unsupported_jsonl_terminal(subcommand: &str) -> anyhow::Result<i32> {
         location: None,
         fix_hint: None,
         subcommand: Some(subcommand.to_string()),
+        root_cause_uid: None,
     })?;
     Ok(EXIT_ERROR)
 }

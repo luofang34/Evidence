@@ -274,6 +274,7 @@ fn cmd_verify_jsonl(
             location: None,
             fix_hint: None,
             subcommand: None,
+            root_cause_uid: None,
         })?;
         emit_jsonl(&terminal_fail("bundle failed strict signature requirement"))?;
         return Ok(EXIT_VERIFICATION_FAILURE);
@@ -320,6 +321,7 @@ fn cmd_verify_jsonl(
                 location: None,
                 fix_hint: None,
                 subcommand: None,
+                root_cause_uid: None,
             })?;
             if strict {
                 emit_jsonl(&terminal_fail(&format!(
@@ -353,6 +355,7 @@ fn terminal_ok(message: &str) -> Diagnostic {
         location: None,
         fix_hint: None,
         subcommand: None,
+        root_cause_uid: None,
     }
 }
 
@@ -364,6 +367,7 @@ fn terminal_fail(message: &str) -> Diagnostic {
         location: None,
         fix_hint: None,
         subcommand: None,
+        root_cause_uid: None,
     }
 }
 
@@ -375,5 +379,6 @@ fn terminal_error(message: &str) -> Diagnostic {
         location: None,
         fix_hint: None,
         subcommand: None,
+        root_cause_uid: None,
     }
 }

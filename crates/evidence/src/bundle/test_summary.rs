@@ -1,12 +1,21 @@
-//! Parsed `cargo test` stdout as a serializable summary.
+//! Parsed `cargo test` stdout as a serializable summary plus optional
+//! per-test outcome map.
 //!
 //! `parse_cargo_test_output` normalizes CRLF→LF on entry so a Windows-
 //! captured stdout parses identically to Linux/macOS; every `test result:`
 //! line in the stream is accumulated so workspace-wide test runs (which
 //! emit one `test result:` line per crate) don't silently lose failures
 //! in later crates.
+//!
+//! `parse_cargo_test_output_with_outcomes` additionally tracks the
+//! `Running target/debug/deps/<binary>-<hash>` header so per-test result
+//! lines (`test <name> ... ok|FAILED|ignored`) can be mapped to a
+//! fully-qualified key `binary_name::<name>`. That map is what PR #46's
+//! `cargo evidence check` uses to answer "did the test for this
+//! requirement pass in this run?"
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Parsed summary of `cargo test` output.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -24,6 +33,20 @@ pub struct TestSummary {
     pub filtered_out: u32,
 }
 
+/// Outcome of a single named test from `cargo test` stdout.
+///
+/// `Ignored` covers `#[ignore]`-annotated tests; `Filtered` is not
+/// represented because filtered tests don't emit `test <name> ...` lines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TestOutcome {
+    /// Test ran and passed.
+    Passed,
+    /// Test ran and failed.
+    Failed,
+    /// Test was marked `#[ignore]` and did not run.
+    Ignored,
+}
+
 /// Parse cargo test result lines into an accumulated `TestSummary`.
 ///
 /// In a workspace, `cargo test` produces multiple `test result:` lines
@@ -38,6 +61,32 @@ pub struct TestSummary {
 ///
 /// Returns `None` if no matching line is found.
 pub fn parse_cargo_test_output(output: &str) -> Option<TestSummary> {
+    parse_cargo_test_output_with_outcomes(output).map(|(summary, _)| summary)
+}
+
+/// Parse cargo test stdout into both the aggregate `TestSummary` AND a
+/// per-test outcome map keyed by `binary_name::<test_path>`.
+///
+/// The outcome map is what `cargo evidence check` uses to resolve each
+/// requirement's `test_selector` to a concrete pass/fail. Keys follow
+/// cargo's own selector convention — agents and humans can copy a key
+/// into `cargo test <key>` and run that test directly.
+///
+/// Binary-name tracking: whenever the parser sees a header line like
+/// `Running unittests /path/src/lib.rs (target/debug/deps/<binary>-<hash>)`
+/// or `Running tests/foo.rs (target/debug/deps/<foo>-<hash>)`, it
+/// records `<binary>` (with the trailing hash stripped). Subsequent
+/// `test <name> ... <outcome>` lines are attributed to that binary.
+/// If the parser never saw a Running header before a test line
+/// (shouldn't happen in practice for a real `cargo test` run), the
+/// test is keyed under `__unknown_binary__::<name>` so it remains
+/// addressable for debugging.
+///
+/// Returns `None` if no `test result:` line is found in the input
+/// (empty or non-test output).
+pub fn parse_cargo_test_output_with_outcomes(
+    output: &str,
+) -> Option<(TestSummary, BTreeMap<String, TestOutcome>)> {
     let output = output.replace("\r\n", "\n");
 
     let mut total_passed = 0u64;
@@ -46,9 +95,62 @@ pub fn parse_cargo_test_output(output: &str) -> Option<TestSummary> {
     let mut total_filtered_out = 0u64;
     let mut found = false;
 
+    let mut current_binary: Option<String> = None;
+    let mut outcomes: BTreeMap<String, TestOutcome> = BTreeMap::new();
+
     for line in output.lines() {
         let line = line.trim();
-        if !line.starts_with("test result:") {
+
+        // Binary header: cargo emits lines like
+        //   Running unittests src/lib.rs (target/debug/deps/evidence-3f4a2c)
+        //   Running tests/verify_jsonl.rs (target/debug/deps/verify_jsonl-8e91)
+        // Extract the segment inside the last parens, take the basename
+        // of the path, strip `-<hash>`.
+        if line.starts_with("Running ") {
+            if let Some(bin) = extract_binary_name(line) {
+                current_binary = Some(bin);
+            }
+            continue;
+        }
+
+        // Aggregate `test result:` line — check before the per-test
+        // "test <name> ..." shape because both prefixes start with
+        // `"test "`.
+        let is_aggregate = line.starts_with("test result:");
+
+        // Per-test result line: "test <name> ... ok" / "... FAILED" /
+        // "... ignored". `<name>` may be a bare fn (integration test)
+        // or a module-qualified path (unit test inside the binary).
+        if !is_aggregate && let Some(rest) = line.strip_prefix("test ") {
+            // Shape: "<name> ... <outcome>" — tokenize by " ... ".
+            if let Some((name, outcome_tail)) = rest.split_once(" ... ") {
+                let outcome = match outcome_tail.split_whitespace().next() {
+                    Some("ok") => Some(TestOutcome::Passed),
+                    Some("FAILED") => Some(TestOutcome::Failed),
+                    Some("ignored") => Some(TestOutcome::Ignored),
+                    _ => None, // e.g. "bench" from `cargo bench`, ignore
+                };
+                if let Some(o) = outcome {
+                    let bin = current_binary.as_deref().unwrap_or("__unknown_binary__");
+                    let key = format!("{}::{}", bin, name);
+                    // If a key appears twice (shouldn't, but guard),
+                    // Failed wins over Passed wins over Ignored.
+                    match (outcomes.get(&key).copied(), o) {
+                        (Some(TestOutcome::Failed), _) => {}
+                        (_, TestOutcome::Failed) => {
+                            outcomes.insert(key, TestOutcome::Failed);
+                        }
+                        (Some(TestOutcome::Passed), _) => {}
+                        _ => {
+                            outcomes.insert(key, o);
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
+        if !is_aggregate {
             continue;
         }
         let after_prefix = if let Some(rest) = line.strip_prefix("test result: ok. ") {
@@ -90,13 +192,40 @@ pub fn parse_cargo_test_output(output: &str) -> Option<TestSummary> {
         .saturating_add(total_ignored)
         .saturating_add(total_filtered_out);
 
-    Some(TestSummary {
-        total: total as u32,
-        passed: total_passed as u32,
-        failed: total_failed as u32,
-        ignored: total_ignored as u32,
-        filtered_out: total_filtered_out as u32,
-    })
+    Some((
+        TestSummary {
+            total: total as u32,
+            passed: total_passed as u32,
+            failed: total_failed as u32,
+            ignored: total_ignored as u32,
+            filtered_out: total_filtered_out as u32,
+        },
+        outcomes,
+    ))
+}
+
+/// Extract the binary name from a `Running … (target/debug/deps/<name>-<hash>)`
+/// header line. Returns `None` if the line doesn't match the expected
+/// cargo-emitted shape.
+fn extract_binary_name(line: &str) -> Option<String> {
+    // Find the parenthesized path and keep the content between the last
+    // `/` and the final `-<hash>` suffix.
+    let open = line.rfind('(')?;
+    let close = line.rfind(')')?;
+    if close <= open + 1 {
+        return None;
+    }
+    let path = &line[open + 1..close];
+    let basename = path.rsplit('/').next()?;
+    // Strip the trailing `-<hex>` that cargo appends. Hex segment is
+    // typically 16 chars on Linux/macOS but length varies by host;
+    // match by taking everything before the LAST `-`.
+    let cut = basename.rfind('-')?;
+    let bin = &basename[..cut];
+    if bin.is_empty() {
+        return None;
+    }
+    Some(bin.to_string())
 }
 
 #[cfg(test)]

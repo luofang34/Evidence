@@ -126,6 +126,22 @@ pub struct Diagnostic {
     /// [`CLI_SUBCOMMAND_ERROR`]: TERMINAL_CODES
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subcommand: Option<String>,
+
+    /// Optional upstream requirement UID this event is derived from.
+    ///
+    /// Populated on `REQ_GAP` events whose underlying failure lives
+    /// elsewhere — e.g. an HLR that fails *because* a TEST traced to
+    /// it failed. Schema Rule 7 semantics: events are independent
+    /// observations, so all N levels each get their own `REQ_GAP`,
+    /// but upstream layers carry this field pointing at the root-
+    /// cause UID. Agents group client-side by `root_cause_uid` to
+    /// produce a single human-friendly message per failure without
+    /// losing per-requirement visibility.
+    ///
+    /// Reserved-but-unused on every other diagnostic today; future
+    /// PRs can populate it in other domains without a schema bump.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_cause_uid: Option<String>,
 }
 
 /// Closed severity enum — see Schema Rule 10. An unknown variant
@@ -260,6 +276,7 @@ pub trait DiagnosticCode: std::fmt::Display {
             location: self.location(),
             fix_hint: self.fix_hint(),
             subcommand: None,
+            root_cause_uid: None,
         }
     }
 }
@@ -344,6 +361,7 @@ mod tests {
             location: None,
             fix_hint: None,
             subcommand: None,
+            root_cause_uid: None,
         };
         let s = serde_json::to_string(&d).unwrap();
         assert!(!s.contains("location"), "got {}", s);
@@ -370,6 +388,7 @@ mod tests {
                 toml_path: "requirements[0]".to_string(),
             }),
             subcommand: None,
+            root_cause_uid: None,
         };
         let s = serde_json::to_string(&d).unwrap();
         let back: Diagnostic = serde_json::from_str(&s).unwrap();
@@ -387,6 +406,7 @@ mod tests {
             location: None,
             fix_hint: None,
             subcommand: Some("generate".to_string()),
+            root_cause_uid: None,
         };
         let s = serde_json::to_string(&d).unwrap();
         assert!(s.contains(r#""subcommand":"generate""#), "got {}", s);
