@@ -84,6 +84,26 @@ fn rs_files(root: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// Strip `//` single-line comments from `text`, preserving newlines
+/// so line numbers stay accurate. Sufficient for Rust source because
+/// doc-comment code literals (`//! impl DiagnosticCode for …`) would
+/// otherwise pollute the walked set with examples like
+/// `MY_BAD_CHECKSUM` that aren't real impls. `//` inside a string
+/// literal would be a corner case; the walked targets are all
+/// UPPER_SNAKE_CASE codes so the conservative stripper is safe.
+fn strip_line_comments(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for line in text.lines() {
+        if let Some(cut) = line.find("//") {
+            out.push_str(&line[..cut]);
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    out
+}
+
 /// Extract (code, source-location) for every `"X" =>` arm inside every
 /// `impl DiagnosticCode for … { fn code(&self) … }` block in `text`.
 ///
@@ -239,7 +259,8 @@ fn diagnostic_codes_locked() {
             Ok(c) => c,
             Err(_) => continue,
         };
-        for (code, line) in extract_codes(&content) {
+        let stripped = strip_line_comments(&content);
+        for (code, line) in extract_codes(&stripped) {
             if !code_is_valid(&code) {
                 invalid.push((code.clone(), file.clone(), line));
             }
@@ -363,6 +384,170 @@ fn diagnostic_codes_locked() {
 
 fn ends_in_terminal_suffix(code: &str) -> bool {
     code.ends_with("_OK") || code.ends_with("_FAIL") || code.ends_with("_ERROR")
+}
+
+// ============================================================================
+// PR #47 bijection invariants — source ↔ RULES ↔ LLR.emits closed loop.
+// ============================================================================
+//
+// Four new invariants tighten the "what can the tool say" contract to
+// match what the RULES manifest advertises and what the trace
+// requirements claim. Together with the existing walk-level regex +
+// uniqueness checks above and PR #43's terminal-namespace set, these
+// close the code↔test↔requirement loop: adding a code without an
+// RULES entry, an LLR without a test, or a test without a selector
+// all fail CI with targeted messages.
+//
+// The walking logic is shared with `diagnostic_codes_locked` above —
+// `walked_codes()` re-runs the same extraction on the library source
+// tree so a parser change in `extract_codes` is reflected in both.
+
+fn walked_codes() -> std::collections::BTreeSet<String> {
+    let crate_root = workspace_root().join("crates").join("evidence").join("src");
+    let mut files = Vec::new();
+    rs_files(&crate_root, &mut files);
+    files.sort();
+    let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for file in &files {
+        let content = match fs::read_to_string(file) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let stripped = strip_line_comments(&content);
+        for (code, _line) in extract_codes(&stripped) {
+            out.insert(code);
+        }
+    }
+    out
+}
+
+/// PR #47 invariant (1): every code returned from a library
+/// `DiagnosticCode::code()` impl is declared in [`RULES`]. Adding a
+/// variant without updating `RULES` fires here with the orphan name.
+#[test]
+fn rules_contains_every_code() {
+    let walked = walked_codes();
+    let rules: std::collections::BTreeSet<&str> =
+        evidence::RULES.iter().map(|r| r.code).collect();
+    let missing: Vec<&String> = walked.iter().filter(|c| !rules.contains(c.as_str())).collect();
+    assert!(
+        missing.is_empty(),
+        "codes returned from DiagnosticCode::code() but missing from RULES \
+         (add a `RuleEntry` in crates/evidence/src/rules.rs): {:?}",
+        missing
+    );
+}
+
+/// PR #47 invariant (2): every non-terminal, non-hand-emitted
+/// `RULES` entry is backed by a real `DiagnosticCode::code()` impl in
+/// the library. Terminal codes live in `TERMINAL_CODES` (CLI-emitted,
+/// not walked); hand-emitted non-terminal CLI codes live in
+/// `HAND_EMITTED_CLI_CODES`. Everything else must be a library impl.
+/// A stale `RULES` entry naming a code no impl returns fires here.
+#[test]
+fn every_rules_entry_is_implemented() {
+    let walked = walked_codes();
+    let terminals: std::collections::BTreeSet<&str> =
+        evidence::TERMINAL_CODES.iter().copied().collect();
+    let hand_emitted: std::collections::BTreeSet<&str> =
+        evidence::HAND_EMITTED_CLI_CODES.iter().copied().collect();
+
+    let orphans: Vec<&str> = evidence::RULES
+        .iter()
+        .filter(|r| !terminals.contains(r.code) && !hand_emitted.contains(r.code))
+        .map(|r| r.code)
+        .filter(|c| !walked.contains(*c))
+        .collect();
+
+    assert!(
+        orphans.is_empty(),
+        "RULES entries name codes with no DiagnosticCode impl, TERMINAL_CODES \
+         entry, or HAND_EMITTED_CLI_CODES entry (delete the stale RULES row \
+         or restore its backing): {:?}",
+        orphans
+    );
+}
+
+/// PR #47 invariant (3): the set of `RULES` entries with `terminal =
+/// true` equals `TERMINAL_CODES` exactly. Promoting a code to a
+/// terminal without updating both lists, or vice versa, fires here.
+#[test]
+fn rules_terminal_set_matches_terminal_codes() {
+    let rules_terminals: std::collections::BTreeSet<&str> = evidence::RULES
+        .iter()
+        .filter(|r| r.terminal)
+        .map(|r| r.code)
+        .collect();
+    let global_terminals: std::collections::BTreeSet<&str> =
+        evidence::TERMINAL_CODES.iter().copied().collect();
+
+    let only_in_rules: Vec<&&str> = rules_terminals.difference(&global_terminals).collect();
+    let only_in_terminals: Vec<&&str> = global_terminals.difference(&rules_terminals).collect();
+
+    assert!(
+        only_in_rules.is_empty() && only_in_terminals.is_empty(),
+        "RULES.terminal set != TERMINAL_CODES\n\
+         only in RULES.terminal: {:?}\n\
+         only in TERMINAL_CODES: {:?}",
+        only_in_rules,
+        only_in_terminals
+    );
+}
+
+/// PR #47 invariant (4) — THE sync check. Every code in `RULES`
+/// (minus `RESERVED_UNCLAIMED_CODES`) is claimed by at least one
+/// `LLR.emits` list in `tool/trace/llr.toml`, and every
+/// `LLR.emits` string names a real `RULES` code. Adding a code
+/// without writing an owning LLR fails here; an LLR claiming a dead
+/// code also fails here.
+///
+/// Loads the trace via `read_all_trace_files` so the test exercises
+/// the production parsing path — a future change in the loader can't
+/// silently make this check pass on a malformed input.
+#[test]
+fn every_code_is_claimed_by_an_llr() {
+    let trace = evidence::read_all_trace_files(
+        workspace_root()
+            .join("tool")
+            .join("trace")
+            .to_str()
+            .expect("workspace path is UTF-8"),
+    )
+    .expect("tool/trace must load");
+
+    let rules: std::collections::BTreeSet<&str> =
+        evidence::RULES.iter().map(|r| r.code).collect();
+    let reserved: std::collections::BTreeSet<&str> =
+        evidence::RESERVED_UNCLAIMED_CODES.iter().copied().collect();
+    let claimed: std::collections::BTreeSet<String> = trace
+        .llr
+        .requirements
+        .iter()
+        .flat_map(|l| l.emits.iter().cloned())
+        .collect();
+
+    // 4a: every LLR.emits entry is a real RULES code.
+    let dead: Vec<&String> = claimed.iter().filter(|c| !rules.contains(c.as_str())).collect();
+    assert!(
+        dead.is_empty(),
+        "LLR.emits refers to code(s) not in RULES (typo, stale reference, or \
+         the code was deleted and the LLR wasn't updated): {:?}",
+        dead
+    );
+
+    // 4b: every RULES code (minus explicit reserved set) is claimed.
+    let unclaimed: Vec<&str> = evidence::RULES
+        .iter()
+        .map(|r| r.code)
+        .filter(|c| !reserved.contains(*c) && !claimed.contains(*c))
+        .collect();
+    assert!(
+        unclaimed.is_empty(),
+        "RULES code(s) not claimed by any LLR.emits in tool/trace/llr.toml \
+         (add the code to an LLR that owns its emit path, or add an \
+         RESERVED_UNCLAIMED_CODES entry with written justification): {:?}",
+        unclaimed
+    );
 }
 
 #[test]
