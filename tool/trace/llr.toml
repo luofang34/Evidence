@@ -20,7 +20,7 @@ strict-signature-missing) emits exactly one hand-built terminal
 before returning the matching exit code.
 """
 verification_methods = ["test"]
-
+emits = ["VERIFY_OK", "VERIFY_FAIL", "VERIFY_ERROR"]
 [[requirements]]
 uid = "36491f32-293f-4f39-a2f5-cdb7e746330c"
 id = "LLR-002"
@@ -73,7 +73,7 @@ walked code ending in a reserved suffix is also in TERMINAL_CODES,
 (d) every TERMINAL_CODES entry ends in a reserved suffix.
 """
 verification_methods = ["test"]
-
+emits = ["CLI_SUBCOMMAND_ERROR"]
 [[requirements]]
 uid = "f0d8f7ed-60fa-4c56-8d71-7145d2bd85dd"
 id = "LLR-005"
@@ -105,7 +105,7 @@ atomic set. Subsequent pipeline steps read the snapshot; they do not
 re-query git. The snapshot is owned by EvidenceBuilder.
 """
 verification_methods = ["test"]
-
+emits = ["GIT_CMD_FAILED", "GIT_NON_UTF8_PATH", "GIT_OTHER", "GIT_SHALLOW_CLONE", "GIT_STRICT_BRANCH_REQUIRED", "GIT_STRICT_DIRTY_REQUIRED", "GIT_STRICT_STATE_REQUIRED", "GIT_SUBCOMMAND_FAILED"]
 [[requirements]]
 uid = "59e86206-9a09-4bb9-bf41-ccd6e4bd0022"
 id = "LLR-007"
@@ -121,7 +121,7 @@ env vars, and builds a Host struct. Under strict mode, missing
 rustc or cargo raises EnvCaptureError::Strict{Rustc,Cargo}Required.
 """
 verification_methods = ["test"]
-
+emits = ["ENV_STRICT_CARGO_REQUIRED", "ENV_STRICT_RUSTC_REQUIRED", "CMD_LAUNCH_FAILED", "CMD_NON_UTF8_OUTPUT", "CMD_NON_ZERO_EXIT", "POLICY_UNKNOWN_DAL", "POLICY_UNKNOWN_PROFILE"]
 [[requirements]]
 uid = "37164358-b015-4bf7-b66a-aebe442533b7"
 id = "LLR-008"
@@ -137,7 +137,7 @@ them, normalizes backslashes to forward slashes, and writes
 BUNDLE.sig so the content layer is stable.
 """
 verification_methods = ["test"]
-
+emits = ["HASH_NON_UTF8_PATH", "HASH_NOT_UNDER_BASE", "HASH_OPEN_FAILED", "HASH_READ_FAILED", "HASH_WALK_FAILED", "HASH_WRITE_FAILED"]
 [[requirements]]
 uid = "c5b6d67a-603c-4e74-9197-10419a5495c0"
 id = "LLR-009"
@@ -154,7 +154,7 @@ rust_toolchain_toml, rustflags. Its SHA-256 lands in
 index.json.deterministic_hash.
 """
 verification_methods = ["test"]
-
+emits = ["VERIFY_MANIFEST_PROJECTION_DRIFT", "VERIFY_DETERMINISTIC_HASH_MISMATCH"]
 [[requirements]]
 uid = "65bf54da-9f0e-49a0-876e-ada775d65f0a"
 id = "LLR-010"
@@ -170,7 +170,7 @@ with both SHAs so the operator can see the drift. This closes the
 time-of-check / time-of-use gap for the bundle's git provenance.
 """
 verification_methods = ["test"]
-
+emits = ["BUNDLE_ALREADY_EXISTS", "BUNDLE_CURRENT_DIR_FAILED", "BUNDLE_DIRTY_GIT_TREE", "BUNDLE_GIT_FAILED", "BUNDLE_HASH_FAILED", "BUNDLE_IO_FAILED", "BUNDLE_PARSE_ENV_FAILED", "BUNDLE_RUN_COMMAND_FAILED", "BUNDLE_SERIALIZE_FAILED", "BUNDLE_TOCTOU", "BOUNDARY_CARGO_METADATA_FAILED", "BOUNDARY_CONFIG_PARSE_FAILED", "BOUNDARY_CONFIG_READ_FAILED", "BOUNDARY_OUT_OF_SCOPE_DEPS", "BOUNDARY_PARSE_METADATA_FAILED", "BOUNDARY_UNKNOWN_IN_SCOPE_CRATE"]
 [[requirements]]
 uid = "723bc544-3db6-4140-9708-4c003454bd05"
 id = "LLR-011"
@@ -187,7 +187,7 @@ unexpected-but-unlisted files. All findings accumulate (no early
 bail).
 """
 verification_methods = ["test"]
-
+emits = ["VERIFY_HASH_MISMATCH", "VERIFY_UNEXPECTED_FILE", "VERIFY_MISSING_HASHED_FILE", "VERIFY_CONTENT_HASH_MISMATCH", "VERIFY_UNSAFE_PATH", "VERIFY_RUNTIME_BUNDLE_NOT_FOUND", "VERIFY_RUNTIME_HASH", "VERIFY_RUNTIME_PARSE_INDEX", "VERIFY_RUNTIME_READ_FILE", "VERIFY_RUNTIME_SIGNING", "VERIFY_RUNTIME_WALK"]
 [[requirements]]
 uid = "240aad6f-3111-4087-a3e2-8f59972b55d4"
 id = "LLR-012"
@@ -203,7 +203,7 @@ against index.json, and emits VerifyError::CrossFileInconsistency
 per disagreement.
 """
 verification_methods = ["test"]
-
+emits = ["VERIFY_CROSS_FILE_INCONSISTENCY"]
 [[requirements]]
 uid = "f00c60a2-f4e2-4d6a-a107-5a6a81489e6f"
 id = "LLR-013"
@@ -219,7 +219,7 @@ Orphans in either direction emit VerifyError::DalMapOrphan with the
 offending crate name.
 """
 verification_methods = ["test"]
-
+emits = ["VERIFY_DAL_MAP_MISMATCH", "VERIFY_DAL_MAP_ORPHAN"]
 [[requirements]]
 uid = "699b17f9-3e28-4af1-8949-b3d94c75ba8c"
 id = "LLR-014"
@@ -234,7 +234,7 @@ asserts each path is present in the SHA256SUMS key set. Missing
 entries emit VerifyError::TraceOutputNotHashed.
 """
 verification_methods = ["test"]
-
+emits = ["VERIFY_TRACE_OUTPUT_NOT_HASHED"]
 [[requirements]]
 uid = "bb176fd9-7859-4ec1-bbc0-088d2518dc54"
 id = "LLR-015"
@@ -250,7 +250,7 @@ finding followed by VERIFY_FAIL terminal, returning
 EXIT_VERIFICATION_FAILURE (2).
 """
 verification_methods = ["test"]
-
+emits = ["VERIFY_HMAC_FAILURE", "SIGN_INVALID_KEY", "SIGN_INVALID_SIGNATURE_HEX", "SIGN_READ_FAILED", "SIGN_WRITE_FAILED"]
 [[requirements]]
 uid = "77b0a3dc-2b31-4d25-a375-2bc51f5f6497"
 id = "LLR-016"
@@ -286,7 +286,7 @@ it returns Json when json_flag is true, else Human. Explicit
 --format always wins over the legacy --json bool.
 """
 verification_methods = ["test"]
-
+emits = ["VERIFY_INVALID_FORMAT"]
 [[requirements]]
 uid = "dfc19912-4b1f-4a0c-8e18-a66d6e0738c3"
 id = "LLR-018"
@@ -305,7 +305,7 @@ deliberately returns None for diagnostic.schema.json so schema
 validate never matches it by filename.
 """
 verification_methods = ["test"]
-
+emits = ["SCHEMA_COMPILE_FAILED", "SCHEMA_INSTANCE_INVALID", "SCHEMA_PARSE_FAILED"]
 [[requirements]]
 uid = "7a74ec14-14e1-4876-914b-66c898028d56"
 id = "LLR-019"
@@ -323,7 +323,7 @@ which enforces the expected target kind and ownership rules for
 HLR→SYS, LLR→HLR, and TEST→LLR.
 """
 verification_methods = ["test"]
-
+emits = ["TRACE_LINK_FAILED", "TRACE_PARSE_FAILED", "TRACE_READ_FAILED", "TRACE_REGISTER_FAILED", "TRACE_BACKFILL_READ_FAILED", "TRACE_BACKFILL_SERIALIZE_FAILED", "TRACE_BACKFILL_WRITE_FAILED"]
 [[requirements]]
 uid = "00578a4a-d6fe-420a-92c3-3cf4cb3387d6"
 id = "LLR-020"
@@ -340,7 +340,7 @@ CLI_UNSUPPORTED_FORMAT (finding) then CLI_SUBCOMMAND_ERROR
 stays silent.
 """
 verification_methods = ["test"]
-
+emits = ["CLI_UNSUPPORTED_FORMAT"]
 [[requirements]]
 uid = "c4492c70-fa65-4e61-a201-9cd2d07c489a"
 id = "LLR-021"
@@ -431,7 +431,7 @@ CLI_INVALID_ARGUMENT + VERIFY_FAIL terminal. Explicit mode always
 wins; mismatch between mode and shape also errors cleanly.
 """
 verification_methods = ["test"]
-
+emits = ["CLI_INVALID_ARGUMENT"]
 [[requirements]]
 uid = "03795ca7-d5d3-48bc-9774-490cd6d4c2e0"
 id = "LLR-026"
@@ -451,7 +451,7 @@ root_cause_uid (propagating upstream from a failing TEST through
 LLR → HLR → SYS). Rule 7 compliance without event-suppression.
 """
 verification_methods = ["test"]
-
+emits = ["REQ_PASS", "REQ_GAP", "REQ_SKIP"]
 [[requirements]]
 uid = "8738fc8e-353a-47d8-a6d4-e256673061d0"
 id = "LLR-027"
@@ -488,5 +488,133 @@ header so integration-test fn-only lines get their binary_name
 prefix at parse time; unit-test lines keep cargo's printed module
 path verbatim. Pinned libtest_output_sample.txt fixture is the
 format-stability canary.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_TEST_SUMMARY_MISMATCH"]
+[[requirements]]
+uid = "0835d2e8-3a84-4a4a-97e0-46985be02892"
+id = "LLR-029"
+title = "RULES const + rules subcommand + rules_json()"
+owner = "tool"
+traces_to = ["17cd860a-cf97-4eba-b54f-1f7d2563e74b"]
+modules = [
+    "evidence::rules::RULES",
+    "evidence::rules::RuleEntry",
+    "evidence::rules::Domain",
+    "evidence::rules::rules_json",
+    "cargo_evidence::cli::rules::cmd_rules",
+]
+derived = false
+description = """
+`evidence::rules` defines `RuleEntry { code, severity, domain,
+has_fix_hint, terminal }`, the `Domain` enum (closed over code
+prefixes), and `pub const RULES: &[RuleEntry]` exhaustively listing
+every emittable code. `rules_json()` returns a deterministic
+serialized form sorted by code. `cargo_evidence::cli::rules::cmd_rules`
+renders either the JSON array (`--json`) or a human-readable table.
+`--format=jsonl` is not supported (single JSON blob, not a stream)
+and falls through to the existing `CLI_UNSUPPORTED_FORMAT` guard.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "1e35264b-eda4-43ae-b991-fc325e8a2a79"
+id = "LLR-030"
+title = "Locked-codes invariant: RULES <-> source DiagnosticCode walk"
+owner = "tool"
+traces_to = ["93a4a758-4e77-47c0-8c16-1b8e77be05f1"]
+modules = [
+    "diagnostic_codes_locked::rules_contains_every_code",
+    "diagnostic_codes_locked::every_rules_entry_is_implemented",
+]
+derived = false
+description = """
+Two new invariants in the existing `diagnostic_codes_locked` test
+module: (a) the set of source-walked `DiagnosticCode::code()`
+return strings is a subset of `RULES.code`; (b) `RULES.code` is a
+subset of the source-walked set. Together they form a bijection.
+Uses the existing source-walk helper so the walk side of the check
+is never skipped.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "04d734bc-d8c5-4a1a-9fd4-4511abdc1476"
+id = "LLR-031"
+title = "Locked-codes invariant: every code is claimed by >=1 LLR.emits"
+owner = "tool"
+traces_to = ["460e5ca4-901f-4086-b660-2e2490dfecdc"]
+modules = [
+    "evidence::trace::entries::LlrEntry::emits",
+    "diagnostic_codes_locked::every_code_is_claimed_by_an_llr",
+]
+derived = false
+description = """
+`LlrEntry` gains `emits: Vec<String>` with `#[serde(default,
+skip_serializing_if = "Vec::is_empty")]`. A locked-codes invariant
+loads `tool/trace/llr.toml` via `read_all_trace_files`, collects
+the union of `emits` across all LLRs, and asserts that union
+equals `RULES.code` minus an explicit `reserved_unclaimed` set. The
+invariant also asserts every `emits` string is a real code in
+RULES. `reserved_unclaimed` lives next to RULES with a doc comment
+enumerating each reserved code and its justification.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "92fe3e5e-8a56-4f35-b01d-31d8607dc094"
+id = "LLR-032"
+title = "Locked-codes invariant: RULES.terminal matches TERMINAL_CODES"
+owner = "tool"
+traces_to = ["163796eb-0063-4b24-8012-96b167e54e20"]
+modules = ["diagnostic_codes_locked::rules_terminal_set_matches_terminal_codes"]
+derived = false
+description = """
+New invariant asserts `{ r.code | r in RULES where r.terminal }`
+equals `TERMINAL_CODES` as a set. A new terminal added to
+TERMINAL_CODES without a RULES entry where `terminal = true` fails,
+and a RULES entry with `terminal = true` not in TERMINAL_CODES also
+fails.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "673ee175-fc1c-4720-919c-4beb915f3eea"
+id = "LLR-033"
+title = "Byte-diff test pins verify + check wire fixtures"
+owner = "tool"
+traces_to = ["4834b99c-bc1c-4061-bbbd-ab05feb3330c"]
+modules = [
+    "golden_fixtures::verify_golden_matches",
+    "golden_fixtures::check_source_golden_matches",
+]
+derived = false
+description = """
+Two integration tests under `crates/cargo-evidence/tests/` run
+`verify --format=jsonl` on a committed golden bundle and `check .`
+on a committed synthetic source tree, normalize known-
+nondeterministic fields (timestamps; libtest `finished in`
+durations), and byte-diff against committed fixture files. The
+synthetic source tree is independent of `tool/trace/` so the
+fixture doesn't drift when the tool's own self-trace grows.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "d091f446-f196-49cd-8360-fccc139d19d9"
+id = "LLR-034"
+title = "Self-compliance baseline diff test"
+owner = "tool"
+traces_to = ["a3593224-76e3-4928-a67f-833f7961e10d"]
+modules = ["self_compliance_baseline::baseline_matches_current_generation"]
+derived = false
+description = """
+Integration test runs `cargo evidence generate` against the tool's
+own workspace into a tempdir, parses every `compliance/*.json`
+produced, serializes the tuples `(crate, objective_id, status)`,
+and asserts the set equals the committed
+`cert/baselines/self_compliance.json`. A diff fires with the exact
+tuple that changed, naming both old and new statuses. The CI job
+`self-compliance` runs this test.
 """
 verification_methods = ["test"]

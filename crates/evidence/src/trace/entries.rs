@@ -143,6 +143,22 @@ pub struct LlrEntry {
     /// Verification methods.
     #[serde(default)]
     pub verification_methods: Vec<String>,
+    /// Diagnostic codes this LLR is responsible for — the "this LLR
+    /// owns those codes" declaration that closes the
+    /// code↔requirement loop (PR #47 / LLR-031). Every entry must
+    /// appear in [`evidence::RULES`](crate::RULES); every entry in
+    /// `RULES` (minus
+    /// [`RESERVED_UNCLAIMED_CODES`](crate::RESERVED_UNCLAIMED_CODES))
+    /// must appear in at least one LLR's `emits`. Bijection enforced
+    /// by `diagnostic_codes_locked::every_code_is_claimed_by_an_llr`.
+    ///
+    /// LLRs describing pure structure (schema shapes, config
+    /// loaders) that don't emit diagnostic codes may leave this
+    /// empty. Default empty + `skip_serializing_if = "Vec::is_empty"`
+    /// so existing external LLR files and fixtures deserialize and
+    /// serialize unchanged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub emits: Vec<String>,
 }
 
 // ============================================================================
@@ -304,9 +320,11 @@ mod tests {
             description: Some("An LLR description".to_string()),
             rationale: None,
             verification_methods: vec!["test".to_string()],
+            emits: vec!["VERIFY_HASH_MISMATCH".to_string()],
         };
         assert_eq!(llr.id, "LLR-001");
         assert!(!llr.derived);
         assert_eq!(llr.description.as_deref(), Some("An LLR description"));
+        assert_eq!(llr.emits, vec!["VERIFY_HASH_MISMATCH".to_string()]);
     }
 }

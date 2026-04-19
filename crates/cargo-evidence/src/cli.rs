@@ -17,6 +17,7 @@ pub mod diff;
 pub mod generate;
 pub mod init;
 pub mod output;
+pub mod rules;
 pub mod schema;
 pub mod trace;
 pub mod verify;

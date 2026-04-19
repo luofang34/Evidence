@@ -228,3 +228,51 @@ title = "check bundle mode byte-matches verify --format=jsonl"
 owner = "tool"
 traces_to = ["7df3b426-c9ea-426b-8fb9-64ce247312a0"]
 test_selector = "check_bundle_mode::check_bundle_mode_matches_verify"
+
+[[tests]]
+uid = "ad68d844-d00a-4c4d-8963-0bfcb20f4e3b"
+id = "TEST-029"
+title = "rules --json emits stable JSON and --format=jsonl is rejected"
+owner = "tool"
+traces_to = ["0835d2e8-3a84-4a4a-97e0-46985be02892"]
+test_selector = "rules_cmd::rules_json_matches_rules_json_helper"
+
+[[tests]]
+uid = "06f559d1-7d02-4c7e-82ac-ef58aeb4bf53"
+id = "TEST-030"
+title = "Bijection fires when a code is added without a RULES entry"
+owner = "tool"
+traces_to = ["1e35264b-eda4-43ae-b991-fc325e8a2a79"]
+test_selector = "diagnostic_codes_locked::rules_contains_every_code"
+
+[[tests]]
+uid = "ea8a269b-ca43-4532-8d17-1958d1d68a30"
+id = "TEST-031"
+title = "Bijection fires when a code is not claimed by any LLR.emits"
+owner = "tool"
+traces_to = ["04d734bc-d8c5-4a1a-9fd4-4511abdc1476"]
+test_selector = "diagnostic_codes_locked::every_code_is_claimed_by_an_llr"
+
+[[tests]]
+uid = "350f209b-a63b-433b-8c66-fd3f46f4aeb2"
+id = "TEST-032"
+title = "RULES.terminal set equals TERMINAL_CODES"
+owner = "tool"
+traces_to = ["92fe3e5e-8a56-4f35-b01d-31d8607dc094"]
+test_selector = "diagnostic_codes_locked::rules_terminal_set_matches_terminal_codes"
+
+[[tests]]
+uid = "0ba72ddf-2264-43a6-9539-80b099f3e9a0"
+id = "TEST-033"
+title = "Committed golden JSONL fixtures byte-match current tool output"
+owner = "tool"
+traces_to = ["673ee175-fc1c-4720-919c-4beb915f3eea"]
+test_selector = "golden_fixtures::golden_rules_json_byte_diff"
+
+[[tests]]
+uid = "7c07f263-3e23-4ace-b668-ba54165f8ab0"
+id = "TEST-034"
+title = "Self-compliance baseline matches current generation"
+owner = "tool"
+traces_to = ["d091f446-f196-49cd-8360-fccc139d19d9"]
+test_selector = "self_compliance_baseline::baseline_matches_current_generation"

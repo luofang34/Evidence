@@ -31,6 +31,7 @@ use cli::diff::cmd_diff;
 use cli::generate::{GenerateArgs, cmd_generate};
 use cli::init::cmd_init;
 use cli::output::emit_jsonl;
+use cli::rules::cmd_rules;
 use cli::schema::{cmd_schema_show, cmd_schema_validate};
 use cli::trace::cmd_trace;
 use cli::verify::cmd_verify;
@@ -94,6 +95,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
         Some(Commands::Init { .. }) => "init",
         Some(Commands::Schema { .. }) => "schema",
         Some(Commands::Trace { .. }) => "trace",
+        Some(Commands::Rules { .. }) => "rules",
     };
 
     // Guard rail for subcommands that don't yet stream JSONL natively.
@@ -163,6 +165,13 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             args.trace_roots,
             json,
         ),
+        Some(Commands::Rules { json }) => {
+            // `rules` emits a single blob (JSON array or human table),
+            // not a JSONL stream, so it's already filtered out of the
+            // JSONL dispatch guard above. Honour the per-subcommand
+            // `--json` flag, or the global `--json` (via `args.json`).
+            cmd_rules(json || args.json)
+        }
         // No subcommand given — default to generate with global args.
         None => cmd_generate(GenerateArgs {
             profile_arg: args.profile,

@@ -61,6 +61,7 @@ fn test_traceability_bidirectional_matrix() {
             description: None,
             rationale: None,
             verification_methods: vec!["test".to_string()],
+            emits: vec![],
         }],
     };
 
@@ -154,6 +155,7 @@ fn test_orphan_test_detection() {
         description: None,
         rationale: None,
         verification_methods: vec!["test".to_string()],
+        emits: vec![],
     }];
 
     let tests = vec![
