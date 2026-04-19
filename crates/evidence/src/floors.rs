@@ -171,7 +171,20 @@ pub fn current_measurements(workspace_root: &Path) -> BTreeMap<String, u64> {
     out.insert("trace_hlr".into(), hlr);
     out.insert("trace_llr".into(), llr);
     out.insert("trace_test".into(), test);
+
+    out.insert("known_surfaces".into(), count_known_surfaces());
     out
+}
+
+/// Count entries in `evidence::trace::surfaces::KNOWN_SURFACES`.
+///
+/// The surface catalog is hand-curated — shrinking it without a
+/// corresponding HLR update would relax the
+/// `require_hlr_surface_bijection` check silently. The floor is the
+/// guardrail: removing a surface requires raising or lowering the
+/// floor in the same PR.
+pub fn count_known_surfaces() -> u64 {
+    crate::trace::KNOWN_SURFACES.len() as u64
 }
 
 /// Per-crate absolute measurements. Outer key = crate name (directory
