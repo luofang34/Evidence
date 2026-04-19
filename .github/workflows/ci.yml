@@ -235,6 +235,35 @@ jobs:
         # justification in the body.
         run: cargo test --release --test self_compliance_baseline -p cargo-evidence
 
+      - name: Ratcheting floors gate (PR #48 / LLR-036)
+        # Reads cert/floors.toml and asserts every current
+        # measurement is ≥ its committed floor. A regression (dropped
+        # code, deleted test, lowered trace entry count) fires here
+        # with FLOORS_BELOW_MIN naming the dimension. Raising a floor
+        # is a PR that edits the TOML; lowering it requires a
+        # `Lower-Floor:` body line (enforced by the next step).
+        run: ./target/release/cargo-evidence evidence floors
+
+      - name: Floors-only-up lint (PR #48 / LLR-037)
+        # Refuses silent lowering of any `cert/floors.toml` floor.
+        # A numeric decrease must be accompanied by a
+        # `Lower-Floor: <dimension> <reason>` line in the PR body
+        # (or the direct-push commit message). Without it, fails
+        # with FLOORS_LOWERED_WITHOUT_JUSTIFICATION.
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ./scripts/floors-lower-lint.sh "origin/${{ github.base_ref }}"
+          else
+            # Direct-to-main push: compare against HEAD^.
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              ./scripts/floors-lower-lint.sh "HEAD^"
+            else
+              echo "initial commit — no base to diff against; skipping."
+            fi
+          fi
+
   nix:
     # Exercises the cert-ship path: `nix build` of `packages.default`
     # via `makeRustPlatform`. Linux-only because the README is explicit

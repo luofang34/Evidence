@@ -28,6 +28,7 @@ mod cli;
 use cli::args::{CargoCli, Commands, EXIT_ERROR, EvidenceArgs, OutputFormat, SchemaCommands};
 use cli::check::cmd_check;
 use cli::diff::cmd_diff;
+use cli::floors::cmd_floors;
 use cli::generate::{GenerateArgs, cmd_generate};
 use cli::init::cmd_init;
 use cli::output::emit_jsonl;
@@ -96,6 +97,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
         Some(Commands::Schema { .. }) => "schema",
         Some(Commands::Trace { .. }) => "trace",
         Some(Commands::Rules { .. }) => "rules",
+        Some(Commands::Floors { .. }) => "floors",
     };
 
     // Guard rail for subcommands that don't yet stream JSONL natively.
@@ -171,6 +173,10 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             // JSONL dispatch guard above. Honour the per-subcommand
             // `--json` flag, or the global `--json` (via `args.json`).
             cmd_rules(json || args.json)
+        }
+        Some(Commands::Floors { json, config }) => {
+            // Same blob-not-stream shape as `rules`.
+            cmd_floors(json || args.json, config)
         }
         // No subcommand given — default to generate with global args.
         None => cmd_generate(GenerateArgs {

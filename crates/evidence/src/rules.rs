@@ -42,6 +42,8 @@ pub enum Domain {
     Cmd,
     /// `ENV_*` — environment probe (rustc / cargo / toolchain).
     Env,
+    /// `FLOORS_*` — ratcheting-floors gate (PR #48).
+    Floors,
     /// `GIT_*` — git snapshot.
     Git,
     /// `HASH_*` — content-hashing subsystem.
@@ -74,6 +76,7 @@ impl Domain {
             "CLI" => Self::Cli,
             "CMD" => Self::Cmd,
             "ENV" => Self::Env,
+            "FLOORS" => Self::Floors,
             "GIT" => Self::Git,
             "HASH" => Self::Hash,
             "POLICY" => Self::Policy,
@@ -116,7 +119,12 @@ pub struct RuleEntry {
 /// `CLI_SUBCOMMAND_ERROR`) live in
 /// [`TERMINAL_CODES`](crate::TERMINAL_CODES) — keep these two lists
 /// disjoint.
-pub const HAND_EMITTED_CLI_CODES: &[&str] = &["CLI_INVALID_ARGUMENT", "CLI_UNSUPPORTED_FORMAT"];
+pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
+    "CLI_INVALID_ARGUMENT",
+    "CLI_UNSUPPORTED_FORMAT",
+    "FLOORS_BELOW_MIN",
+    "FLOORS_LOWERED_WITHOUT_JUSTIFICATION",
+];
 
 /// Codes declared in `RULES` that are intentionally NOT claimed by any
 /// LLR's `emits` list. Must stay empty or be justified here in
@@ -179,6 +187,8 @@ pub const RULES: &[RuleEntry] = &[
     r("CMD_NON_ZERO_EXIT", Severity::Error, Domain::Cmd),
     r("ENV_STRICT_CARGO_REQUIRED", Severity::Error, Domain::Env),
     r("ENV_STRICT_RUSTC_REQUIRED", Severity::Error, Domain::Env),
+    floors("FLOORS_BELOW_MIN", Severity::Error),
+    floors("FLOORS_LOWERED_WITHOUT_JUSTIFICATION", Severity::Error),
     r("GIT_CMD_FAILED", Severity::Error, Domain::Git),
     r("GIT_NON_UTF8_PATH", Severity::Error, Domain::Git),
     r("GIT_OTHER", Severity::Error, Domain::Git),
@@ -323,6 +333,16 @@ const fn cli(code: &'static str, severity: Severity) -> RuleEntry {
     }
 }
 
+const fn floors(code: &'static str, severity: Severity) -> RuleEntry {
+    RuleEntry {
+        code,
+        severity,
+        domain: Domain::Floors,
+        has_fix_hint: false,
+        terminal: false,
+    }
+}
+
 const fn terminal(code: &'static str, severity: Severity) -> RuleEntry {
     RuleEntry {
         code,
@@ -357,6 +377,7 @@ impl Domain {
             b"CLI" => Some(Self::Cli),
             b"CMD" => Some(Self::Cmd),
             b"ENV" => Some(Self::Env),
+            b"FLOORS" => Some(Self::Floors),
             b"GIT" => Some(Self::Git),
             b"HASH" => Some(Self::Hash),
             b"POLICY" => Some(Self::Policy),

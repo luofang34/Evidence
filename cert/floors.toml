@@ -1,0 +1,76 @@
+# Ratcheting floors for cargo-evidence itself (PR #48 / principle 2).
+#
+# Each entry is a current measurement taken at commit time; the CI
+# floors-gate fails any change where `current < committed_floor`.
+# Raising a floor is a PR that edits the number — reviewer-visible.
+# Lowering a floor in this file triggers the `floors-only-up-lint`
+# unless the PR body (or direct-to-main commit message) contains a
+# line matching:
+#
+#     Lower-Floor: <dimension> <reason>
+#
+# The convention is strict: rigor only goes up. Every dimension below
+# is a measurement the tool ratchets — deleting a requirement,
+# dropping a test, or removing a diagnostic code is load-bearing
+# enough that mechanical enforcement is worth the friction.
+#
+# Adding a new entry: land it in the same PR as the feature that
+# makes the dimension measurable, set the floor to the commit-time
+# value, and document the dimension's meaning in evidence::floors.
+#
+# `schema_version` pins the shape. A break in the shape (removed
+# field, renamed table, incompatible type change) bumps this; an
+# older tool reading a newer config refuses to proceed rather than
+# silently skip unknown fields.
+#
+# This file is partitioned into workspace-true dimensions (one
+# global value, `[floors]`) and per-crate-true dimensions (`[per_
+# crate.<crate>]`). The per-crate split defends against a
+# compensation mask — evidence adding a `panic!` while cargo-
+# evidence removes one would leave a workspace-aggregate untouched
+# but is a real rigor regression. The `per_crate.<crate>` key set
+# must equal `cert/boundary.toml`'s `scope.in_scope`; CI enforces
+# the bijection.
+
+schema_version = 1
+
+# --------------------------------------------------------------------
+# Workspace-true dimensions: single global value.
+# --------------------------------------------------------------------
+
+[floors]
+
+# evidence::RULES length — every diagnostic code the tool can emit,
+# hand-curated. Lives in a single crate, so workspace-wide.
+diagnostic_codes = 82
+
+# evidence::TERMINAL_CODES length — hand-emitted terminals
+# (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR).
+terminal_codes = 4
+
+# tool/trace/sys.toml — System Requirements.
+trace_sys = 9
+# tool/trace/hlr.toml — High-Level Requirements.
+trace_hlr = 37
+# tool/trace/llr.toml — Low-Level Requirements.
+trace_llr = 37
+# tool/trace/tests.toml — Test Cases.
+trace_test = 37
+
+# --------------------------------------------------------------------
+# Per-crate-true dimensions: one `[per_crate.<crate>]` table per
+# in-scope crate. Adding a crate to cert/boundary.toml requires
+# adding its row here too or the bijection check fires.
+# --------------------------------------------------------------------
+
+[per_crate.evidence]
+# `#[test]` attribute count inside crates/evidence/**/*.rs.
+test_count = 193
+# panic! / unimplemented!() / todo!() in crates/evidence/src/**
+# outside #[cfg(test)] blocks, doc comments, string literals, and
+# main.rs. Target and current value: 0.
+library_panics = 0
+
+[per_crate.cargo-evidence]
+test_count = 73
+library_panics = 0

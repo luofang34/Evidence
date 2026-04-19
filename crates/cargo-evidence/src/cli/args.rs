@@ -256,6 +256,27 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Run the ratcheting-floors gate (PR #48 / principle 2).
+    ///
+    /// Reads `cert/floors.toml`, measures every dimension listed in
+    /// `[floors]`, and fails with `FLOORS_BELOW_MIN` if any current
+    /// measurement is below its committed floor. Exit 0 on pass,
+    /// exit 2 on gate failure. Delta ceilings (new-additions-in-diff
+    /// checks) land with the CI-wiring commit.
+    Floors {
+        /// Emit a deterministic JSON array to stdout. Without this
+        /// flag, a human-readable table is printed.
+        #[arg(long)]
+        json: bool,
+
+        /// Path to the floors config. Defaults to
+        /// `cert/floors.toml` under the current directory. Used by
+        /// integration tests that exercise tampered floor values
+        /// without clobbering the committed file.
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
+
     /// Trace management utilities
     Trace {
         /// Validate trace links between HLR, LLR, and Tests

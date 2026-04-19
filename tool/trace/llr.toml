@@ -20,7 +20,12 @@ strict-signature-missing) emits exactly one hand-built terminal
 before returning the matching exit code.
 """
 verification_methods = ["test"]
-emits = ["VERIFY_OK", "VERIFY_FAIL", "VERIFY_ERROR"]
+emits = [
+    "VERIFY_OK",
+    "VERIFY_FAIL",
+    "VERIFY_ERROR",
+]
+
 [[requirements]]
 uid = "36491f32-293f-4f39-a2f5-cdb7e746330c"
 id = "LLR-002"
@@ -74,6 +79,7 @@ walked code ending in a reserved suffix is also in TERMINAL_CODES,
 """
 verification_methods = ["test"]
 emits = ["CLI_SUBCOMMAND_ERROR"]
+
 [[requirements]]
 uid = "f0d8f7ed-60fa-4c56-8d71-7145d2bd85dd"
 id = "LLR-005"
@@ -105,7 +111,17 @@ atomic set. Subsequent pipeline steps read the snapshot; they do not
 re-query git. The snapshot is owned by EvidenceBuilder.
 """
 verification_methods = ["test"]
-emits = ["GIT_CMD_FAILED", "GIT_NON_UTF8_PATH", "GIT_OTHER", "GIT_SHALLOW_CLONE", "GIT_STRICT_BRANCH_REQUIRED", "GIT_STRICT_DIRTY_REQUIRED", "GIT_STRICT_STATE_REQUIRED", "GIT_SUBCOMMAND_FAILED"]
+emits = [
+    "GIT_CMD_FAILED",
+    "GIT_NON_UTF8_PATH",
+    "GIT_OTHER",
+    "GIT_SHALLOW_CLONE",
+    "GIT_STRICT_BRANCH_REQUIRED",
+    "GIT_STRICT_DIRTY_REQUIRED",
+    "GIT_STRICT_STATE_REQUIRED",
+    "GIT_SUBCOMMAND_FAILED",
+]
+
 [[requirements]]
 uid = "59e86206-9a09-4bb9-bf41-ccd6e4bd0022"
 id = "LLR-007"
@@ -121,7 +137,16 @@ env vars, and builds a Host struct. Under strict mode, missing
 rustc or cargo raises EnvCaptureError::Strict{Rustc,Cargo}Required.
 """
 verification_methods = ["test"]
-emits = ["ENV_STRICT_CARGO_REQUIRED", "ENV_STRICT_RUSTC_REQUIRED", "CMD_LAUNCH_FAILED", "CMD_NON_UTF8_OUTPUT", "CMD_NON_ZERO_EXIT", "POLICY_UNKNOWN_DAL", "POLICY_UNKNOWN_PROFILE"]
+emits = [
+    "ENV_STRICT_CARGO_REQUIRED",
+    "ENV_STRICT_RUSTC_REQUIRED",
+    "CMD_LAUNCH_FAILED",
+    "CMD_NON_UTF8_OUTPUT",
+    "CMD_NON_ZERO_EXIT",
+    "POLICY_UNKNOWN_DAL",
+    "POLICY_UNKNOWN_PROFILE",
+]
+
 [[requirements]]
 uid = "37164358-b015-4bf7-b66a-aebe442533b7"
 id = "LLR-008"
@@ -137,7 +162,15 @@ them, normalizes backslashes to forward slashes, and writes
 BUNDLE.sig so the content layer is stable.
 """
 verification_methods = ["test"]
-emits = ["HASH_NON_UTF8_PATH", "HASH_NOT_UNDER_BASE", "HASH_OPEN_FAILED", "HASH_READ_FAILED", "HASH_WALK_FAILED", "HASH_WRITE_FAILED"]
+emits = [
+    "HASH_NON_UTF8_PATH",
+    "HASH_NOT_UNDER_BASE",
+    "HASH_OPEN_FAILED",
+    "HASH_READ_FAILED",
+    "HASH_WALK_FAILED",
+    "HASH_WRITE_FAILED",
+]
+
 [[requirements]]
 uid = "c5b6d67a-603c-4e74-9197-10419a5495c0"
 id = "LLR-009"
@@ -154,7 +187,11 @@ rust_toolchain_toml, rustflags. Its SHA-256 lands in
 index.json.deterministic_hash.
 """
 verification_methods = ["test"]
-emits = ["VERIFY_MANIFEST_PROJECTION_DRIFT", "VERIFY_DETERMINISTIC_HASH_MISMATCH"]
+emits = [
+    "VERIFY_MANIFEST_PROJECTION_DRIFT",
+    "VERIFY_DETERMINISTIC_HASH_MISMATCH",
+]
+
 [[requirements]]
 uid = "65bf54da-9f0e-49a0-876e-ada775d65f0a"
 id = "LLR-010"
@@ -170,7 +207,25 @@ with both SHAs so the operator can see the drift. This closes the
 time-of-check / time-of-use gap for the bundle's git provenance.
 """
 verification_methods = ["test"]
-emits = ["BUNDLE_ALREADY_EXISTS", "BUNDLE_CURRENT_DIR_FAILED", "BUNDLE_DIRTY_GIT_TREE", "BUNDLE_GIT_FAILED", "BUNDLE_HASH_FAILED", "BUNDLE_IO_FAILED", "BUNDLE_PARSE_ENV_FAILED", "BUNDLE_RUN_COMMAND_FAILED", "BUNDLE_SERIALIZE_FAILED", "BUNDLE_TOCTOU", "BOUNDARY_CARGO_METADATA_FAILED", "BOUNDARY_CONFIG_PARSE_FAILED", "BOUNDARY_CONFIG_READ_FAILED", "BOUNDARY_OUT_OF_SCOPE_DEPS", "BOUNDARY_PARSE_METADATA_FAILED", "BOUNDARY_UNKNOWN_IN_SCOPE_CRATE"]
+emits = [
+    "BUNDLE_ALREADY_EXISTS",
+    "BUNDLE_CURRENT_DIR_FAILED",
+    "BUNDLE_DIRTY_GIT_TREE",
+    "BUNDLE_GIT_FAILED",
+    "BUNDLE_HASH_FAILED",
+    "BUNDLE_IO_FAILED",
+    "BUNDLE_PARSE_ENV_FAILED",
+    "BUNDLE_RUN_COMMAND_FAILED",
+    "BUNDLE_SERIALIZE_FAILED",
+    "BUNDLE_TOCTOU",
+    "BOUNDARY_CARGO_METADATA_FAILED",
+    "BOUNDARY_CONFIG_PARSE_FAILED",
+    "BOUNDARY_CONFIG_READ_FAILED",
+    "BOUNDARY_OUT_OF_SCOPE_DEPS",
+    "BOUNDARY_PARSE_METADATA_FAILED",
+    "BOUNDARY_UNKNOWN_IN_SCOPE_CRATE",
+]
+
 [[requirements]]
 uid = "723bc544-3db6-4140-9708-4c003454bd05"
 id = "LLR-011"
@@ -187,7 +242,20 @@ unexpected-but-unlisted files. All findings accumulate (no early
 bail).
 """
 verification_methods = ["test"]
-emits = ["VERIFY_HASH_MISMATCH", "VERIFY_UNEXPECTED_FILE", "VERIFY_MISSING_HASHED_FILE", "VERIFY_CONTENT_HASH_MISMATCH", "VERIFY_UNSAFE_PATH", "VERIFY_RUNTIME_BUNDLE_NOT_FOUND", "VERIFY_RUNTIME_HASH", "VERIFY_RUNTIME_PARSE_INDEX", "VERIFY_RUNTIME_READ_FILE", "VERIFY_RUNTIME_SIGNING", "VERIFY_RUNTIME_WALK"]
+emits = [
+    "VERIFY_HASH_MISMATCH",
+    "VERIFY_UNEXPECTED_FILE",
+    "VERIFY_MISSING_HASHED_FILE",
+    "VERIFY_CONTENT_HASH_MISMATCH",
+    "VERIFY_UNSAFE_PATH",
+    "VERIFY_RUNTIME_BUNDLE_NOT_FOUND",
+    "VERIFY_RUNTIME_HASH",
+    "VERIFY_RUNTIME_PARSE_INDEX",
+    "VERIFY_RUNTIME_READ_FILE",
+    "VERIFY_RUNTIME_SIGNING",
+    "VERIFY_RUNTIME_WALK",
+]
+
 [[requirements]]
 uid = "240aad6f-3111-4087-a3e2-8f59972b55d4"
 id = "LLR-012"
@@ -204,6 +272,7 @@ per disagreement.
 """
 verification_methods = ["test"]
 emits = ["VERIFY_CROSS_FILE_INCONSISTENCY"]
+
 [[requirements]]
 uid = "f00c60a2-f4e2-4d6a-a107-5a6a81489e6f"
 id = "LLR-013"
@@ -219,7 +288,11 @@ Orphans in either direction emit VerifyError::DalMapOrphan with the
 offending crate name.
 """
 verification_methods = ["test"]
-emits = ["VERIFY_DAL_MAP_MISMATCH", "VERIFY_DAL_MAP_ORPHAN"]
+emits = [
+    "VERIFY_DAL_MAP_MISMATCH",
+    "VERIFY_DAL_MAP_ORPHAN",
+]
+
 [[requirements]]
 uid = "699b17f9-3e28-4af1-8949-b3d94c75ba8c"
 id = "LLR-014"
@@ -235,6 +308,7 @@ entries emit VerifyError::TraceOutputNotHashed.
 """
 verification_methods = ["test"]
 emits = ["VERIFY_TRACE_OUTPUT_NOT_HASHED"]
+
 [[requirements]]
 uid = "bb176fd9-7859-4ec1-bbc0-088d2518dc54"
 id = "LLR-015"
@@ -250,7 +324,14 @@ finding followed by VERIFY_FAIL terminal, returning
 EXIT_VERIFICATION_FAILURE (2).
 """
 verification_methods = ["test"]
-emits = ["VERIFY_HMAC_FAILURE", "SIGN_INVALID_KEY", "SIGN_INVALID_SIGNATURE_HEX", "SIGN_READ_FAILED", "SIGN_WRITE_FAILED"]
+emits = [
+    "VERIFY_HMAC_FAILURE",
+    "SIGN_INVALID_KEY",
+    "SIGN_INVALID_SIGNATURE_HEX",
+    "SIGN_READ_FAILED",
+    "SIGN_WRITE_FAILED",
+]
+
 [[requirements]]
 uid = "77b0a3dc-2b31-4d25-a375-2bc51f5f6497"
 id = "LLR-016"
@@ -287,6 +368,7 @@ it returns Json when json_flag is true, else Human. Explicit
 """
 verification_methods = ["test"]
 emits = ["VERIFY_INVALID_FORMAT"]
+
 [[requirements]]
 uid = "dfc19912-4b1f-4a0c-8e18-a66d6e0738c3"
 id = "LLR-018"
@@ -305,7 +387,12 @@ deliberately returns None for diagnostic.schema.json so schema
 validate never matches it by filename.
 """
 verification_methods = ["test"]
-emits = ["SCHEMA_COMPILE_FAILED", "SCHEMA_INSTANCE_INVALID", "SCHEMA_PARSE_FAILED"]
+emits = [
+    "SCHEMA_COMPILE_FAILED",
+    "SCHEMA_INSTANCE_INVALID",
+    "SCHEMA_PARSE_FAILED",
+]
+
 [[requirements]]
 uid = "7a74ec14-14e1-4876-914b-66c898028d56"
 id = "LLR-019"
@@ -323,7 +410,16 @@ which enforces the expected target kind and ownership rules for
 HLR→SYS, LLR→HLR, and TEST→LLR.
 """
 verification_methods = ["test"]
-emits = ["TRACE_LINK_FAILED", "TRACE_PARSE_FAILED", "TRACE_READ_FAILED", "TRACE_REGISTER_FAILED", "TRACE_BACKFILL_READ_FAILED", "TRACE_BACKFILL_SERIALIZE_FAILED", "TRACE_BACKFILL_WRITE_FAILED"]
+emits = [
+    "TRACE_LINK_FAILED",
+    "TRACE_PARSE_FAILED",
+    "TRACE_READ_FAILED",
+    "TRACE_REGISTER_FAILED",
+    "TRACE_BACKFILL_READ_FAILED",
+    "TRACE_BACKFILL_SERIALIZE_FAILED",
+    "TRACE_BACKFILL_WRITE_FAILED",
+]
+
 [[requirements]]
 uid = "00578a4a-d6fe-420a-92c3-3cf4cb3387d6"
 id = "LLR-020"
@@ -341,6 +437,7 @@ stays silent.
 """
 verification_methods = ["test"]
 emits = ["CLI_UNSUPPORTED_FORMAT"]
+
 [[requirements]]
 uid = "c4492c70-fa65-4e61-a201-9cd2d07c489a"
 id = "LLR-021"
@@ -432,6 +529,7 @@ wins; mismatch between mode and shape also errors cleanly.
 """
 verification_methods = ["test"]
 emits = ["CLI_INVALID_ARGUMENT"]
+
 [[requirements]]
 uid = "03795ca7-d5d3-48bc-9774-490cd6d4c2e0"
 id = "LLR-026"
@@ -451,7 +549,12 @@ root_cause_uid (propagating upstream from a failing TEST through
 LLR → HLR → SYS). Rule 7 compliance without event-suppression.
 """
 verification_methods = ["test"]
-emits = ["REQ_PASS", "REQ_GAP", "REQ_SKIP"]
+emits = [
+    "REQ_PASS",
+    "REQ_GAP",
+    "REQ_SKIP",
+]
+
 [[requirements]]
 uid = "8738fc8e-353a-47d8-a6d4-e256673061d0"
 id = "LLR-027"
@@ -491,6 +594,7 @@ format-stability canary.
 """
 verification_methods = ["test"]
 emits = ["VERIFY_TEST_SUMMARY_MISMATCH"]
+
 [[requirements]]
 uid = "0835d2e8-3a84-4a4a-97e0-46985be02892"
 id = "LLR-029"
@@ -618,3 +722,71 @@ tuple that changed, naming both old and new statuses. The CI job
 `self-compliance` runs this test.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "338d51d5-9068-4984-9826-4b84e698c62a"
+id = "LLR-035"
+title = "evidence::floors measurement helpers + cert/floors.toml parser"
+owner = "tool"
+traces_to = ["4c27ff02-bef9-4cab-afa0-faaf3bf5f3c1"]
+modules = [
+    "evidence::floors::current_measurements",
+    "evidence::floors::count_rules",
+    "evidence::floors::count_terminals",
+    "evidence::floors::count_trace_per_layer",
+    "evidence::floors::count_tests",
+    "evidence::floors::count_library_panics",
+    "evidence::floors::FloorsConfig",
+]
+derived = false
+description = """
+A `floors` module in the evidence library exports per-dimension
+measurement helpers and a `FloorsConfig` TOML deserializer. Each
+helper reuses existing public surfaces (`RULES.len()`,
+`TERMINAL_CODES.len()`, `read_all_trace_files`) or a small source
+walk (for `#[test] fn` count and library panic macros). Per-helper
+unit tests pin current values so a helper regression surfaces
+independently of the full floors-gate integration.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "74f50e68-3a78-4557-a7c3-13340e52543a"
+id = "LLR-036"
+title = "cmd_floors runs the gate, emits FLOORS_BELOW_MIN on any failure"
+owner = "tool"
+traces_to = ["a3073b5a-ee61-4bdd-bdfe-c3154274e5ea"]
+modules = ["cargo_evidence::cli::floors::cmd_floors"]
+derived = false
+description = """
+`cargo evidence floors [--base <ref>] [--json]` reads
+cert/floors.toml, computes current measurements via
+`evidence::floors`, compares each entry against its floor / ceiling,
+and prints a per-dimension table in human mode or a deterministic
+JSON array in `--json` mode. Any dimension below floor or above
+ceiling emits a FLOORS_BELOW_MIN diagnostic naming the dimension,
+current value, and committed threshold; exit 2 if any failure. A
+`--base` flag scopes the `[delta_ceilings]` check to the PR diff.
+"""
+verification_methods = ["test"]
+emits = ["FLOORS_BELOW_MIN"]
+
+[[requirements]]
+uid = "7fc5f9fc-83e2-44a0-b2d9-e6e1d8501349"
+id = "LLR-037"
+title = "floors-lower-lint refuses silent decreases via a PR-body grep"
+owner = "tool"
+traces_to = ["410a3c64-c5d5-4619-832e-5415c1fdc090"]
+modules = ["scripts/floors-lower-lint.sh"]
+derived = false
+description = """
+A CI script compares `cert/floors.toml` at base vs HEAD, extracts
+numeric decreases in the [floors] table, and asserts the PR body
+(or commit message on push) contains a `Lower-Floor: <dimension>
+<reason>` line for each decrease. Any unjustified decrease emits
+FLOORS_LOWERED_WITHOUT_JUSTIFICATION and fails. Pattern mirrors
+PR #49's proposed Override-Deterministic-Baseline line so the
+lowering-exception protocol is uniform across baselines.
+"""
+verification_methods = ["test"]
+emits = ["FLOORS_LOWERED_WITHOUT_JUSTIFICATION"]

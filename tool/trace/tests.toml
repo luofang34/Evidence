@@ -276,3 +276,27 @@ title = "Self-compliance baseline matches current generation"
 owner = "tool"
 traces_to = ["d091f446-f196-49cd-8360-fccc139d19d9"]
 test_selector = "self_compliance_baseline::baseline_matches_current_generation"
+
+[[tests]]
+uid = "ba385e00-6646-4a41-afe2-0aabdf4dafba"
+id = "TEST-035"
+title = "evidence::floors helpers return the committed current values"
+owner = "tool"
+traces_to = ["338d51d5-9068-4984-9826-4b84e698c62a"]
+test_selector = "evidence::floors::tests::current_measurements_satisfy_committed_floors"
+
+[[tests]]
+uid = "e5ec5aab-828f-4540-8bc6-20c586adf45f"
+id = "TEST-036"
+title = "cargo evidence floors fires FLOORS_BELOW_MIN on a tampered floor"
+owner = "tool"
+traces_to = ["74f50e68-3a78-4557-a7c3-13340e52543a"]
+test_selector = "floors_gate::floors_gate_fires_on_below_min_floor"
+
+[[tests]]
+uid = "3ddd0b31-da12-4e4e-ae4b-e91cd830588c"
+id = "TEST-037"
+title = "floors-lower-lint refuses unjustified numeric decreases"
+owner = "tool"
+traces_to = ["7fc5f9fc-83e2-44a0-b2d9-e6e1d8501349"]
+test_selector = "floors_lower_lint::refuses_decrease_without_justification_line"

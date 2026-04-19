@@ -378,6 +378,64 @@ cargo evidence schema validate ./evidence/bundle/env.json
 
 Auto-detects the schema type from the filename or file content.
 
+### `cargo evidence floors` — the ratchet
+
+Enforce "rigor only goes up" across every dimension the tool
+ratchets. Reads `cert/floors.toml`, measures the current state, and
+reports per-dimension pass/fail:
+
+```bash
+cargo evidence floors         # human table, exit 0 if all ✓
+cargo evidence floors --json  # machine-readable, deterministic
+```
+
+Dimensions currently tracked: diagnostic code count, terminal code
+count, per-layer trace entry counts (SYS/HLR/LLR/Test), `#[test]`
+fn count, library panics. Adding a dimension is a PR that lands the
+measurement helper in `evidence::floors` and the initial floor in
+`cert/floors.toml`; CI keeps the floor from falling.
+
+**Lowering a floor** requires a `Lower-Floor: <dimension> <reason>`
+line in the PR body (or direct-push commit message). Without it,
+`scripts/floors-lower-lint.sh` fires in CI with
+`FLOORS_LOWERED_WITHOUT_JUSTIFICATION`. The friction is intentional:
+the ratchet only moves up.
+
+**Squash-merge caveat.** GitHub's default "squash and merge"
+button DROPS the original PR body unless the committer hand-copies
+it into the squash commit message. If your PR lowers a floor, paste
+the `Lower-Floor:` line into the squash commit's extended
+description before merging — otherwise a post-merge dogfood run of
+the lint on the `main` branch would fail against the squashed
+commit's body. Projects that use merge-commits or rebase-and-merge
+preserve the PR body and are unaffected.
+
+**Using `floors` in your own project (no manual setup required for
+the default case).** If your project has no `cert/floors.toml`, the
+subcommand emits a friendly "not configured" info line on stderr and
+exits 0 — non-adopters aren't forced into the gate. To opt in, drop
+a minimal `cert/floors.toml` in your repo:
+
+```toml
+# cert/floors.toml — pin whichever dimensions matter for your project
+[floors]
+test_count = 42          # `#[test]` fn count across crates/
+diagnostic_codes = 10    # evidence::RULES.len() if you use it
+
+[delta_ceilings]
+# Reserved for delta-based gates (new dead-code allows, new library
+# panics). Parsed today, enforced via a follow-up.
+```
+
+Only the dimensions you list are enforced — missing ones are
+skipped, not assumed-zero. Point at a custom path via
+`cargo evidence floors --config path/to/floors.toml` if your layout
+differs. Measurement helpers that need workspace subdirs (`tool/trace/`,
+`crates/*/src/`) gracefully degrade to 0 when the dirs are absent,
+so a single-crate project without a `tool/trace/` directory can
+still enforce `test_count` and `diagnostic_codes` without
+configuring the other dimensions.
+
 ### `cargo evidence rules` — what can the tool say?
 
 Dump every diagnostic code the tool can emit as a deterministic

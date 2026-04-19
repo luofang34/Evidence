@@ -547,3 +547,54 @@ compliance under its own rules.
 """
 verification_methods = ["test"]
 traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
+
+[[requirements]]
+uid = "4c27ff02-bef9-4cab-afa0-faaf3bf5f3c1"
+id = "HLR-035"
+title = "cert/floors.toml is the single source of truth for ratcheted measurements"
+owner = "tool"
+scope = "component"
+description = """
+A hand-curated TOML file at cert/floors.toml holds two tables:
+[floors] (must-be-≥ absolute measurements) and [delta_ceilings]
+(must-be-≤ additions in a PR diff). Each entry names a dimension
+and a committed integer. The file is plain data — no code — so a
+reviewer reading the PR diff sees numeric changes directly.
+"""
+verification_methods = ["test"]
+traces_to = ["a289fe83-d842-4708-b920-39cbcebd1aa1"]
+
+[[requirements]]
+uid = "a3073b5a-ee61-4bdd-bdfe-c3154274e5ea"
+id = "HLR-036"
+title = "CI enforces floors and ceilings on every push"
+owner = "tool"
+scope = "component"
+description = """
+A CI step invokes `cargo evidence floors [--base <ref>]` and fails
+the build if any absolute measurement drops below its floor
+(emitting FLOORS_BELOW_MIN) or any delta ceiling is exceeded. The
+Rust-side measurement lives in `evidence::floors` so the gate is
+testable locally; bash is confined to the CI wrapper. The existing
+`forbid-dead_code` delta gate is subsumed as one `delta_ceilings`
+entry.
+"""
+verification_methods = ["test"]
+traces_to = ["a289fe83-d842-4708-b920-39cbcebd1aa1"]
+
+[[requirements]]
+uid = "410a3c64-c5d5-4619-832e-5415c1fdc090"
+id = "HLR-037"
+title = "Lowering a committed floor requires explicit written justification"
+owner = "tool"
+scope = "component"
+description = """
+A separate CI lint compares `cert/floors.toml` at base vs HEAD. Any
+numeric decrease in a [floors] entry must be accompanied by a
+`Lower-Floor: <dimension> <reason>` line in the PR body (or commit
+message, on direct-to-main push). Without the line, the lint emits
+FLOORS_LOWERED_WITHOUT_JUSTIFICATION and fails the build. Mirrors
+the deterministic-baseline override pattern sketched in PR #49.
+"""
+verification_methods = ["test"]
+traces_to = ["a289fe83-d842-4708-b920-39cbcebd1aa1"]
