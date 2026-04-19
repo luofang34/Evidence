@@ -598,3 +598,62 @@ the deterministic-baseline override pattern sketched in PR #49.
 """
 verification_methods = ["test"]
 traces_to = ["a289fe83-d842-4708-b920-39cbcebd1aa1"]
+
+[[requirements]]
+uid = "80461fe3-aa78-4f86-8320-b298a188f51a"
+id = "HLR-038"
+title = "HLR declares lateral surface of user-visible behaviors"
+owner = "tool"
+scope = "component"
+description = """
+Each HLR shall carry a `surfaces: Vec<String>` claim-list naming the
+CLI verbs and observable contracts it governs. A bijection test
+asserts every entry in `KNOWN_SURFACES` is claimed by at least one
+HLR (no orphan subcommand), and every string in an HLR's surfaces
+field is a real known surface. Same contract pattern as PR #47's
+`every_code_is_claimed_by_an_llr`. Reverse-lookup from user report
+"cargo evidence X behaves wrong" to the governing HLR becomes a
+single hop.
+"""
+verification_methods = ["test"]
+traces_to = ["731cb43a-a9d1-43f8-8678-fc97db81162e"]
+
+[[requirements]]
+uid = "b6d5e15c-ce52-4a32-9f6a-8891e9f76022"
+id = "HLR-039"
+title = "TestEntry expresses N:M test-to-requirement mapping"
+owner = "tool"
+scope = "component"
+description = """
+`TestEntry.test_selectors: Vec<String>` with a StringOrVec
+deserializer replaces the old singular `test_selector:
+Option<String>`. TOML authors may write either `test_selectors =
+"foo::bar"` (shorthand) or `test_selectors = ["foo::bar",
+"baz::qux"]` (array). The resolver is strict: every selector in
+the list must resolve to a real `#[test] fn`. Splitting a test
+into two functions that both verify a single TEST entry becomes a
+one-line edit; verifying multiple TESTs from a single function
+likewise.
+"""
+verification_methods = ["test"]
+traces_to = ["731cb43a-a9d1-43f8-8678-fc97db81162e"]
+
+[[requirements]]
+uid = "a9b74c2e-0644-4f77-a709-63fe66f53cf8"
+id = "HLR-040"
+title = "Derived LLRs require written rationale"
+owner = "tool"
+scope = "component"
+description = """
+An LLR with `derived = true` is a design-introduced requirement per
+DO-178C §5.2.2 — not traced up from a system requirement but
+introduced by a design decision. The tool shall require every
+derived LLR to carry a non-empty `rationale` explaining the
+design motivation. `trace --validate` emits
+TRACE_DERIVED_MISSING_RATIONALE for any derived LLR without
+rationale. The rule is unconditional: downstream projects using
+`derived: bool` want the validation regardless of their local
+policy.
+"""
+verification_methods = ["test"]
+traces_to = ["731cb43a-a9d1-43f8-8678-fc97db81162e"]

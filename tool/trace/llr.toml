@@ -790,3 +790,69 @@ lowering-exception protocol is uniform across baselines.
 """
 verification_methods = ["test"]
 emits = ["FLOORS_LOWERED_WITHOUT_JUSTIFICATION"]
+
+[[requirements]]
+uid = "e9e20795-fba7-4c63-bc6d-e76c3a3dada6"
+id = "LLR-038"
+title = "HlrEntry.surfaces + KNOWN_SURFACES bijection"
+owner = "tool"
+traces_to = ["80461fe3-aa78-4f86-8320-b298a188f51a"]
+modules = [
+    "evidence::trace::entries::HlrEntry::surfaces",
+    "evidence::trace::surfaces::KNOWN_SURFACES",
+    "evidence::trace::validation::validate_hlr_surfaces",
+]
+derived = false
+description = """
+`HlrEntry.surfaces: Vec<String>` declares user-visible CLI verbs
+and observable contracts. A hand-curated `KNOWN_SURFACES: &[&str]`
+module-level const enumerates the complete surface catalog; a unit
+test asserts it matches the `Commands::*` enum plus hand-listed
+observable contracts. The Link-phase validator emits
+TRACE_HLR_SURFACE_UNCLAIMED for any KNOWN_SURFACES entry with no
+HLR claiming it, and TRACE_HLR_SURFACE_UNKNOWN for any HLR.surfaces
+string not in the catalog.
+"""
+verification_methods = ["test"]
+emits = [
+    "TRACE_HLR_SURFACE_UNCLAIMED",
+    "TRACE_HLR_SURFACE_UNKNOWN",
+]
+
+[[requirements]]
+uid = "1fd29203-a496-494a-b981-cf6730172f50"
+id = "LLR-039"
+title = "StringOrVec deserializer for test_selectors"
+owner = "tool"
+traces_to = ["b6d5e15c-ce52-4a32-9f6a-8891e9f76022"]
+modules = [
+    "evidence::trace::entries::TestEntry::test_selectors",
+    "evidence::trace::entries::deserialize_string_or_vec",
+]
+derived = false
+description = """
+Custom `StringOrVec` serde deserializer accepts both shorthand
+(`"X"`) and array (`["X", "Y"]`) TOML forms for `test_selectors`.
+The shorthand matches the 1:1 dominant case; the array enables
+N:M without ceremony. The field is always `Vec<String>` in Rust;
+the deserializer normalizes the shape.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "9968bdb9-3e20-40c9-ad84-3310621bd102"
+id = "LLR-040"
+title = "validate_derived_has_rationale Link-phase rule"
+owner = "tool"
+traces_to = ["a9b74c2e-0644-4f77-a709-63fe66f53cf8"]
+modules = ["evidence::trace::validation::validate_derived_has_rationale"]
+derived = false
+description = """
+A Link-phase rule that iterates every LLR with `derived == true`
+and asserts `rationale.is_some()` and non-empty. Emits
+TRACE_DERIVED_MISSING_RATIONALE with the LLR's file + toml_path.
+Unconditional — DO-178C §5.2.2 requires the distinction to be
+explicit; no policy flag to disable.
+"""
+verification_methods = ["test"]
+emits = ["TRACE_DERIVED_MISSING_RATIONALE"]
