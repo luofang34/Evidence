@@ -142,6 +142,7 @@ fn stub_llr(id: &str, uid: &str, traces_to: Vec<String>) -> LlrEntry {
         description: None,
         rationale: None,
         verification_methods: vec!["test".into()],
+        emits: vec![],
     }
 }
 
