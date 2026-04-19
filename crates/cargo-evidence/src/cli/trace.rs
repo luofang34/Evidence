@@ -42,7 +42,7 @@ pub fn cmd_trace(
 
     let roots: Vec<String> = trace_roots_arg
         .map(|s| s.split(',').map(|t| t.trim().to_string()).collect())
-        .unwrap_or_else(|| load_trace_roots(Path::new("cert/boundary.toml")));
+        .unwrap_or_else(default_trace_roots);
 
     // Validate trace links
     if do_validate {
@@ -201,4 +201,37 @@ pub fn cmd_trace(
     }
 
     Ok(EXIT_SUCCESS)
+}
+
+/// Resolve trace roots when `--trace-roots` is absent.
+///
+/// Discovery order (first existing wins):
+///
+/// 1. `./tool/trace/` — the tool's own self-trace convention
+///    (PR #44 / PR #44b). Picked first so the self-trace is
+///    always the primary target when run from the tool's own
+///    workspace root.
+/// 2. `./cert/trace/` — the cert-profile bundle-generation
+///    dogfood convention, inherited from pre-self-trace days.
+/// 3. Fall back to `load_trace_roots(cert/boundary.toml)` which
+///    reads the `scope.trace_roots` array for config-driven
+///    projects that don't follow the on-disk convention.
+///
+/// Explicit `--trace-roots` always wins and never reaches this
+/// function. Chosen root is logged via `tracing::info!` so agents
+/// reading stderr can see which source the run consumed.
+pub fn default_trace_roots() -> Vec<String> {
+    for convention in ["tool/trace", "cert/trace"] {
+        if Path::new(convention).is_dir() {
+            tracing::info!(
+                "trace: auto-discovered trace root '{}' (no --trace-roots given)",
+                convention
+            );
+            return vec![convention.to_string()];
+        }
+    }
+    tracing::info!(
+        "trace: no on-disk trace root convention found; falling back to cert/boundary.toml"
+    );
+    load_trace_roots(Path::new("cert/boundary.toml"))
 }

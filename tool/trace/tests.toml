@@ -189,7 +189,7 @@ id = "TEST-023"
 title = "Trace defaults to tool/trace when --trace-roots is absent"
 owner = "tool"
 traces_to = ["6be1b61b-0aeb-4c05-b2ef-f82fc7c00e55"]
-test_selector = "cli::trace_defaults_to_tool_trace_when_flag_absent"
+test_selector = "trace_discovery::trace_defaults_to_tool_trace_when_flag_absent"
 
 [[tests]]
 uid = "aecdd54a-7cd0-4ce9-9b09-68b3107462b6"
