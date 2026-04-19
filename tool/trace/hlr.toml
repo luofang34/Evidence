@@ -1,8 +1,4 @@
-#:schema https://navigate.dev/schema/evidence/hlr.schema.json
-# cargo-evidence — High-Level Requirements. One per load-bearing
-# invariant the tool enforces. Each HLR traces_to exactly one SYS UID;
-# tool-internal HLRs with no System parent would leave traces_to empty,
-# but every entry in this file currently has a System allocation.
+# tool/trace/hlr.toml — High-Level Requirements (see ../README.md)
 
 [schema]
 version = "0.0.3"
@@ -11,18 +7,12 @@ version = "0.0.3"
 document_id = "TOOL-HLR"
 revision = "1.0"
 
-# -------------------------------------------------------------------
-# Diagnostic format contract (Schema Rules 1–10 in
-# schemas/diagnostic.schema.json). All allocated under SYS-002.
-# -------------------------------------------------------------------
-
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000001"
+uid = "f6d35f65-4a38-4ad9-ba2a-b5c4e3d7da41"
 id = "HLR-001"
 title = "Every --format=jsonl run emits exactly one terminal event"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000002"]
 description = """
 Schema Rule 1: the last JSONL line on stdout has a code ending in _OK
 (exit 0), _FAIL (exit 2), or _ERROR (exit 1). Every run — including
@@ -30,14 +20,14 @@ runtime faults — emits exactly one terminal so reader code can detect
 stream truncation.
 """
 verification_methods = ["test"]
+traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000002"
+uid = "da30287c-8223-448b-ad94-7a09cc981347"
 id = "HLR-002"
 title = "stdout under --format=jsonl is strict JSONL"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000002"]
 description = """
 Schema Rule 2: under --format=jsonl, every stdout line parses as a JSON
 object. Human progress text, tracing logs, and error prose live on
@@ -45,14 +35,14 @@ stderr only. Stderr on the JSONL error path is silent so agents
 reading both streams don't see duplicate error data.
 """
 verification_methods = ["test"]
+traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000003"
+uid = "9296020e-761f-4d47-9081-7858c699e3f8"
 id = "HLR-003"
 title = "Diagnostic codes are locked: unique + regex + exhaustive"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000002"]
 description = """
 Schema Rule 3: every DiagnosticCode::code return matches
 ^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$, every code is unique across the
@@ -60,14 +50,14 @@ library, and the match inside each impl is exhaustive (a new variant
 without a code fails to compile).
 """
 verification_methods = ["test"]
+traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000004"
+uid = "3181e08a-934f-4031-99ec-d55e609399c7"
 id = "HLR-004"
 title = "Terminal suffixes are reserved"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000002"]
 description = """
 Schema Rule 1 (suffix clause): _OK, _FAIL, _ERROR are terminal-only.
 No DiagnosticCode impl may return a code ending in these suffixes;
@@ -76,14 +66,14 @@ enforced by diagnostic_codes_locked (disjointness + reserved-suffix
 containment in both directions).
 """
 verification_methods = ["test"]
+traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000005"
+uid = "ba4d711e-f3e9-4af5-951c-682755799f18"
 id = "HLR-005"
 title = "FixHint is forward-compatible"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000002"]
 description = """
 Schema Rule 6: a JSONL consumer written against this schema must
 tolerate unknown FixHint `kind` values. Unknown kinds deserialize as
@@ -91,19 +81,14 @@ FixHint::Other via #[serde(other)]; adding a FixHint variant in a
 later release does not break existing agents.
 """
 verification_methods = ["test"]
-
-# -------------------------------------------------------------------
-# Bundle generation pipeline. Allocated under SYS-001 (verifiable) and
-# SYS-003 (cross-host reproducibility).
-# -------------------------------------------------------------------
+traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000006"
+uid = "78a03d07-7314-46bc-8b63-776104d99c35"
 id = "HLR-006"
 title = "Capture atomic git snapshot at start"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000001"]
 description = """
 Generate captures the git SHA, branch, and dirty status once at the
 start of the run and re-checks the SHA at finalize. Downstream steps
@@ -111,14 +96,14 @@ read from the captured snapshot, not from fresh git queries, so a
 HEAD move mid-run cannot create a bundle that mixes two commits.
 """
 verification_methods = ["test"]
+traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000007"
+uid = "2e3840ff-7803-4ba0-b88d-9cc6ec8b6062"
 id = "HLR-007"
 title = "Capture deterministic environment fingerprint"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000003"]
 description = """
 Generate records rustc version, cargo version, target triple, host
 metadata, Cargo.lock hash, rust-toolchain.toml, and RUSTFLAGS into
@@ -126,14 +111,14 @@ env.json. Under cert / record profiles, missing rustc or cargo probes
 abort with a strict error rather than recording 'unknown'.
 """
 verification_methods = ["test"]
+traces_to = ["ee75dd4a-972d-44e1-96dd-1bc08c8f8726"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000008"
+uid = "48f569e5-6671-4fb6-b36f-b04b446bd6c1"
 id = "HLR-008"
 title = "Write SHA256SUMS with deterministic ordering"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000001"]
 description = """
 The content-layer file (SHA256SUMS) lists every hashed bundle file
 with its SHA-256 digest, sorted by path with forward-slash separators
@@ -141,14 +126,14 @@ regardless of host. BTreeMap collection enforces deterministic key
 order; no HashMap-driven nondeterminism is allowed.
 """
 verification_methods = ["test"]
+traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000009"
+uid = "6947e635-4f6b-4833-a101-f896b8ae59c9"
 id = "HLR-009"
 title = "Emit deterministic-manifest.json projection"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000003"]
 description = """
 deterministic-manifest.json is a host-independent projection of
 env.json covering only toolchain + source identity. Its SHA-256 is
@@ -156,14 +141,14 @@ recorded in index.json.deterministic_hash; cross-host parity is
 asserted in CI via determinism-compare.
 """
 verification_methods = ["test"]
+traces_to = ["ee75dd4a-972d-44e1-96dd-1bc08c8f8726"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000010"
+uid = "f08c9da9-627c-471e-90af-0c286332a41f"
 id = "HLR-010"
 title = "Finalize re-checks git SHA (TOCTOU guard)"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000005"]
 description = """
 At finalize time the builder re-queries git HEAD and compares against
 the snapshot taken at start. On mismatch, BuilderError::Toctou aborts
@@ -171,18 +156,14 @@ the run so no bundle is ever emitted that describes 'the commit at
 start' while referencing a different HEAD state.
 """
 verification_methods = ["test"]
-
-# -------------------------------------------------------------------
-# Verification pipeline. Allocated under SYS-001.
-# -------------------------------------------------------------------
+traces_to = ["31ad3334-3d64-4fff-9f7a-fe7d5c709288"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000011"
+uid = "6cabc09d-8556-48f9-800b-7c1111fc0877"
 id = "HLR-011"
 title = "Verify detects hash mismatch for every hashed file"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000001"]
 description = """
 verify_bundle recomputes the SHA-256 of every file listed in
 SHA256SUMS and emits VERIFY_HASH_MISMATCH for each mismatch. A file
@@ -191,14 +172,14 @@ VERIFY_UNEXPECTED_FILE; a listed file missing from the bundle
 triggers VERIFY_MISSING_HASHED_FILE.
 """
 verification_methods = ["test"]
+traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000012"
+uid = "2e7d1836-c8b0-461f-8704-45ddefce31a5"
 id = "HLR-012"
 title = "Verify enforces env.json ↔ index.json consistency"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000001"]
 description = """
 Fields duplicated across env.json and index.json (profile, git_sha,
 git_branch, git_dirty) must agree. A disagreement emits
@@ -206,14 +187,14 @@ VERIFY_CROSS_FILE_INCONSISTENCY naming the field and both values so a
 reviewer can root-cause the divergence.
 """
 verification_methods = ["test"]
+traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000013"
+uid = "214ab4da-5328-4ace-9626-326dd95894a6"
 id = "HLR-013"
 title = "Verify enforces DAL-map ↔ compliance consistency"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000004"]
 description = """
 index.json.dal_map[crate] must equal compliance/<crate>.json.dal for
 the same crate, and every DAL-mapped crate must have a compliance
@@ -221,14 +202,14 @@ report (and vice versa). Mismatches emit VERIFY_DAL_MAP_MISMATCH or
 VERIFY_DAL_MAP_ORPHAN.
 """
 verification_methods = ["test"]
+traces_to = ["5af6e706-6aef-411d-811d-747633876695"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000014"
+uid = "fd304d26-ba40-4beb-9ab8-18f2185abbf3"
 id = "HLR-014"
 title = "Verify enforces trace_outputs are in SHA256SUMS"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000001"]
 description = """
 Every path in index.json.trace_outputs must also appear in
 SHA256SUMS. An index-only reference overclaims coverage because the
@@ -236,61 +217,56 @@ referenced file would not be integrity-checked; verify surfaces that
 as VERIFY_TRACE_OUTPUT_NOT_HASHED.
 """
 verification_methods = ["test"]
+traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000015"
+uid = "904ad11d-7b76-4707-8a08-cab8224b64c9"
 id = "HLR-015"
 title = "Strict-mode verify requires BUNDLE.sig"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000005"]
 description = """
 Under --strict verify, a bundle without BUNDLE.sig and no --verify-key
 is a verification failure. The JSONL path emits
 VERIFY_STRICT_SIGNATURE_MISSING + VERIFY_FAIL terminal, exit 2.
 """
 verification_methods = ["test"]
-
-# -------------------------------------------------------------------
-# CLI surface. Allocated under SYS-002 (machine-readable stream),
-# SYS-004 (policy-gated), SYS-005 (refusal on integrity unmet).
-# -------------------------------------------------------------------
+traces_to = ["31ad3334-3d64-4fff-9f7a-fe7d5c709288"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000016"
+uid = "f11c7b59-7dea-490f-a355-bb07459bb49b"
 id = "HLR-016"
 title = "Exit codes map to terminal events"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000002"]
 description = """
 Per Schema Rule 1, exit 0 ⟺ last JSONL line _OK, exit 2 ⟺ _FAIL,
 exit 1 ⟺ _ERROR. Runtime faults emit the runtime finding followed by
 the _ERROR terminal before returning EXIT_ERROR.
 """
 verification_methods = ["test"]
+traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000017"
+uid = "cb2b1464-3b2b-43a2-bffe-a41c16efefe6"
 id = "HLR-017"
 title = "--format resolution folds legacy --json"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000002"]
 description = """
 OutputFormat::resolve honors an explicit --format over the legacy
 --json bool; absent --format, --json is treated as --format=json
 (Schema Rule 5 — permanent alias, no deprecation).
 """
 verification_methods = ["test"]
+traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000018"
+uid = "9ea226b0-852f-4047-a953-2ab0f4778da1"
 id = "HLR-018"
 title = "schema show diagnostic prints the embedded source"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000002"]
 description = """
 `cargo evidence schema show diagnostic` writes
 schemas/diagnostic.schema.json to stdout verbatim. `schema validate`
@@ -298,14 +274,14 @@ deliberately does not recognize diagnostic files by filename
 (Schema Rule 9).
 """
 verification_methods = ["test"]
+traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000019"
+uid = "bfa93e37-0469-468b-b89a-d8b165b42168"
 id = "HLR-019"
 title = "trace --validate enforces cross-tier links"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000004"]
 description = """
 validate_trace_links_with_policy enforces: every traces_to UID
 resolves to an existing entry of the expected kind; ownership rules
@@ -314,14 +290,14 @@ for HLR→SYS, LLR→HLR, TEST→LLR; UUID syntax; uniqueness of every
 violations fail.
 """
 verification_methods = ["test"]
+traces_to = ["5af6e706-6aef-411d-811d-747633876695"]
 
 [[requirements]]
-uid = "22222222-2222-4222-8222-000000000020"
+uid = "62498de7-e6b9-4805-8b6c-afead78b33ac"
 id = "HLR-020"
 title = "Dispatch guards unwired --format=jsonl subcommands"
 owner = "tool"
 scope = "component"
-traces_to = ["11111111-1111-4111-8111-000000000002"]
 description = """
 Passing --format=jsonl to a subcommand without native JSONL support
 emits CLI_UNSUPPORTED_FORMAT + CLI_SUBCOMMAND_ERROR terminal (with
@@ -330,3 +306,65 @@ stderr silent — never silently degrades to mixed human/JSON text on
 stdout.
 """
 verification_methods = ["test"]
+traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
+
+[[requirements]]
+uid = "3aec2a02-644b-4e58-a718-17ed879372ba"
+id = "HLR-021"
+title = "Policy gate rejects HLR with empty traces_to"
+owner = "tool"
+scope = "component"
+description = """
+When --require-hlr-sys-trace is set on `cargo evidence trace --validate`,
+an HLR with an empty `traces_to` vector produces a Link-phase error
+(TRACE_LINK_FAILED). Default is off to keep existing external projects
+building. The tool's own CI run enables the flag.
+"""
+verification_methods = ["test"]
+traces_to = ["daf04641-ce24-4426-9c39-9f02b6c511cf"]
+
+[[requirements]]
+uid = "2c6f5903-b666-4f72-97d9-877e9b1ee787"
+id = "HLR-022"
+title = "Test-selector resolution catches dangling pointers"
+owner = "tool"
+scope = "component"
+description = '''
+When --check-test-selectors is set, every Test entry's `test_selector`
+is resolved against the workspace source (grep-level: `fn <name>\s*\(`
+within 5 lines of a `#[test]` attribute). Unresolvable selectors
+produce a TRACE_SELECTOR_UNRESOLVED error. Off by default so
+--validate stays fast on large workspaces.
+'''
+verification_methods = ["test"]
+traces_to = ["daf04641-ce24-4426-9c39-9f02b6c511cf"]
+
+[[requirements]]
+uid = "911fe168-04d7-49ee-99f4-d7a5a7a6fb1c"
+id = "HLR-023"
+title = "Default --trace-roots discovery"
+owner = "tool"
+scope = "component"
+description = """
+When --trace-roots is absent, `cargo evidence trace` discovers
+./tool/trace/ first, then ./cert/trace/, using the first that exists.
+Explicit --trace-roots always wins; discovery only fires on absence.
+The chosen root is logged via tracing::info!.
+"""
+verification_methods = ["test"]
+traces_to = ["daf04641-ce24-4426-9c39-9f02b6c511cf"]
+
+[[requirements]]
+uid = "a86e0c73-4ffd-4f46-8733-ce5cd0abba76"
+id = "HLR-024"
+title = "CI self-check on enforcement flags"
+owner = "tool"
+scope = "component"
+description = """
+The committed `.github/workflows/ci.yml` trace-self-validate job must
+carry both --require-hlr-sys-trace and --check-test-selectors flags.
+A grep-based integration test asserts this; if a future edit strips
+either flag, the test fires before the change merges.
+"""
+verification_methods = ["test"]
+traces_to = ["daf04641-ce24-4426-9c39-9f02b6c511cf"]

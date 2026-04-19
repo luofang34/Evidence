@@ -1,8 +1,4 @@
-#:schema https://navigate.dev/schema/evidence/llr.schema.json
-# cargo-evidence — Low-Level Requirements. One per HLR, naming the
-# concrete function or entry point that implements it. The `modules`
-# field carries a crate::path::to::function pointer so a reader can
-# jump from requirement to implementation without grep.
+# tool/trace/llr.toml — Low-Level Requirements (see ../README.md)
 
 [schema]
 version = "0.0.3"
@@ -11,17 +7,14 @@ version = "0.0.3"
 document_id = "TOOL-LLR"
 revision = "1.0"
 
-# -------------------------------------------------------------------
-# Diagnostic format contract
-# -------------------------------------------------------------------
-
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000001"
+uid = "ef688fd5-21e0-4cf7-9ed5-b1819b5ae50d"
 id = "LLR-001"
 title = "cmd_verify_jsonl emits a terminal on every exit path"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000001"]
+traces_to = ["f6d35f65-4a38-4ad9-ba2a-b5c4e3d7da41"]
 modules = ["cargo_evidence::cli::verify::cmd_verify_jsonl"]
+derived = false
 description = """
 Each arm of cmd_verify_jsonl (pass, fail, skipped, runtime error,
 strict-signature-missing) emits exactly one hand-built terminal
@@ -31,31 +24,33 @@ before returning the matching exit code.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000002"
+uid = "36491f32-293f-4f39-a2f5-cdb7e746330c"
 id = "LLR-002"
 title = "emit_jsonl flushes stdout per event"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000002"]
+traces_to = ["da30287c-8223-448b-ad94-7a09cc981347"]
 modules = ["cargo_evidence::cli::output::emit_jsonl"]
-description = """
+derived = false
+description = '''
 The emit_jsonl helper locks stdout, writes one compact JSON line +
-'\\n', and calls handle.flush() before returning. This is the only
+'\n', and calls handle.flush() before returning. This is the only
 path that writes JSONL to stdout; tracing is routed to stderr by
 init_tracing.
-"""
+'''
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000003"
+uid = "f2df39c3-48d2-4128-a037-82e6f9a2a0ab"
 id = "LLR-003"
 title = "DiagnosticCode impls use exhaustive match self"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000003"]
+traces_to = ["9296020e-761f-4d47-9081-7858c699e3f8"]
 modules = [
     "evidence::diagnostic::DiagnosticCode",
     "evidence::verify::errors::VerifyError",
     "evidence::hash::HashError",
 ]
+derived = false
 description = """
 Each DiagnosticCode::code impl matches self exhaustively so adding a
 new variant without a code fails at compile time. The
@@ -65,12 +60,13 @@ asserting regex + uniqueness across the walked source tree.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000004"
+uid = "217bd203-fa16-45a7-89ef-b3c42a589d57"
 id = "LLR-004"
 title = "TERMINAL_CODES is the source of truth for terminals"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000004"]
+traces_to = ["3181e08a-934f-4031-99ec-d55e609399c7"]
 modules = ["evidence::diagnostic::TERMINAL_CODES"]
+derived = false
 description = """
 pub const TERMINAL_CODES: &[&str] enumerates every hand-emitted
 terminal. diagnostic_codes_locked asserts (a) internal uniqueness,
@@ -81,14 +77,15 @@ walked code ending in a reserved suffix is also in TERMINAL_CODES,
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000005"
+uid = "f0d8f7ed-60fa-4c56-8d71-7145d2bd85dd"
 id = "LLR-005"
 title = "FixHint::Other catches unknown kind via #[serde(other)]"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000005"]
+traces_to = ["ba4d711e-f3e9-4af5-951c-682755799f18"]
 modules = ["evidence::diagnostic::FixHint"]
+derived = false
 description = """
-FixHint is a tagged enum with #[serde(tag = \"kind\")]. An unknown
+FixHint is a tagged enum with #[serde(tag = "kind")]. An unknown
 kind string deserializes to FixHint::Other (the #[serde(other)]
 variant) rather than failing. The payload is discarded because serde
 #[serde(other)] requires unit variants; preserving it is scope for
@@ -96,17 +93,14 @@ PR #5.
 """
 verification_methods = ["test"]
 
-# -------------------------------------------------------------------
-# Bundle generation
-# -------------------------------------------------------------------
-
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000006"
+uid = "bed8bdf2-13f3-4823-8c07-dd74162e182d"
 id = "LLR-006"
 title = "GitSnapshot::capture queries git once at builder construction"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000006"]
+traces_to = ["78a03d07-7314-46bc-8b63-776104d99c35"]
 modules = ["evidence::git::GitSnapshot::capture"]
+derived = false
 description = """
 GitSnapshot::capture reads HEAD SHA, branch, and dirty status in one
 atomic set. Subsequent pipeline steps read the snapshot; they do not
@@ -115,12 +109,13 @@ re-query git. The snapshot is owned by EvidenceBuilder.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000007"
+uid = "59e86206-9a09-4bb9-bf41-ccd6e4bd0022"
 id = "LLR-007"
 title = "env_fingerprint records toolchain + host identity"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000007"]
+traces_to = ["2e3840ff-7803-4ba0-b88d-9cc6ec8b6062"]
 modules = ["evidence::env::capture::env_fingerprint"]
+derived = false
 description = """
 env_fingerprint runs rustc --version, cargo --version, reads
 Cargo.lock and rust-toolchain.toml, captures RUSTFLAGS and NAV_*
@@ -130,12 +125,13 @@ rustc or cargo raises EnvCaptureError::Strict{Rustc,Cargo}Required.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000008"
+uid = "37164358-b015-4bf7-b66a-aebe442533b7"
 id = "LLR-008"
 title = "write_sha256sums sorts and normalizes paths"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000008"]
+traces_to = ["48f569e5-6671-4fb6-b36f-b04b446bd6c1"]
 modules = ["evidence::hash::write_sha256sums"]
+derived = false
 description = """
 write_sha256sums walks the bundle root, collects file paths, sorts
 them, normalizes backslashes to forward slashes, and writes
@@ -145,12 +141,13 @@ BUNDLE.sig so the content layer is stable.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000009"
+uid = "c5b6d67a-603c-4e74-9197-10419a5495c0"
 id = "LLR-009"
 title = "DeterministicManifest projects host-independent fields"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000009"]
+traces_to = ["6947e635-4f6b-4833-a101-f896b8ae59c9"]
 modules = ["evidence::env::fingerprint::DeterministicManifest"]
+derived = false
 description = """
 DeterministicManifest is derived from EnvFingerprint by selecting
 only fields that shall be byte-equal across hosts for the same
@@ -161,12 +158,13 @@ index.json.deterministic_hash.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000010"
+uid = "65bf54da-9f0e-49a0-876e-ada775d65f0a"
 id = "LLR-010"
 title = "EvidenceBuilder::finalize re-reads git SHA"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000010"]
+traces_to = ["f08c9da9-627c-471e-90af-0c286332a41f"]
 modules = ["evidence::bundle::EvidenceBuilder::finalize"]
+derived = false
 description = """
 finalize() calls GitProvider::head_sha() a second time and compares
 against the snapshot. On mismatch it returns BuilderError::Toctou
@@ -175,17 +173,14 @@ time-of-check / time-of-use gap for the bundle's git provenance.
 """
 verification_methods = ["test"]
 
-# -------------------------------------------------------------------
-# Verification
-# -------------------------------------------------------------------
-
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000011"
+uid = "723bc544-3db6-4140-9708-4c003454bd05"
 id = "LLR-011"
 title = "verify_hash_list rehashes every SHA256SUMS entry"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000011"]
+traces_to = ["6cabc09d-8556-48f9-800b-7c1111fc0877"]
 modules = ["evidence::verify::bundle::verify_bundle_with_key"]
+derived = false
 description = """
 verify_bundle_with_key parses SHA256SUMS, recomputes the SHA-256 of
 each listed file with streaming io::copy, and pushes VerifyError
@@ -196,12 +191,13 @@ bail).
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000012"
+uid = "240aad6f-3111-4087-a3e2-8f59972b55d4"
 id = "LLR-012"
 title = "check_env_vs_index cross-checks duplicated fields"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000012"]
+traces_to = ["2e7d1836-c8b0-461f-8704-45ddefce31a5"]
 modules = ["evidence::verify::cross_file::check_env_vs_index"]
+derived = false
 description = """
 check_env_vs_index reads env.json (tolerating tamper-failure via
 if let Ok), compares profile / git_sha / git_branch / git_dirty
@@ -211,12 +207,13 @@ per disagreement.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000013"
+uid = "f00c60a2-f4e2-4d6a-a107-5a6a81489e6f"
 id = "LLR-013"
 title = "check_dal_map cross-checks index.json ↔ compliance/"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000013"]
+traces_to = ["214ab4da-5328-4ace-9626-326dd95894a6"]
 modules = ["evidence::verify::consistency::check_dal_map"]
+derived = false
 description = """
 check_dal_map iterates index.json.dal_map, reads each
 compliance/<crate>.json, and asserts the dal string matches.
@@ -226,12 +223,13 @@ offending crate name.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000014"
+uid = "699b17f9-3e28-4af1-8949-b3d94c75ba8c"
 id = "LLR-014"
 title = "check_trace_outputs_hashed enforces trace-file hashing"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000014"]
+traces_to = ["fd304d26-ba40-4beb-9ab8-18f2185abbf3"]
 modules = ["evidence::verify::consistency::check_trace_outputs_hashed"]
+derived = false
 description = """
 check_trace_outputs_hashed iterates index.json.trace_outputs and
 asserts each path is present in the SHA256SUMS key set. Missing
@@ -240,12 +238,13 @@ entries emit VerifyError::TraceOutputNotHashed.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000015"
+uid = "bb176fd9-7859-4ec1-bbc0-088d2518dc54"
 id = "LLR-015"
 title = "cmd_verify_jsonl strict-mode signature guard"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000015"]
+traces_to = ["904ad11d-7b76-4707-8a08-cab8224b64c9"]
 modules = ["cargo_evidence::cli::verify::cmd_verify_jsonl"]
+derived = false
 description = """
 When strict is true and neither BUNDLE.sig nor --verify-key is
 present, cmd_verify_jsonl emits VERIFY_STRICT_SIGNATURE_MISSING as a
@@ -254,21 +253,18 @@ EXIT_VERIFICATION_FAILURE (2).
 """
 verification_methods = ["test"]
 
-# -------------------------------------------------------------------
-# CLI surface
-# -------------------------------------------------------------------
-
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000016"
+uid = "77b0a3dc-2b31-4d25-a375-2bc51f5f6497"
 id = "LLR-016"
 title = "terminal_{ok,fail,error} construct fixed-code diagnostics"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000016"]
+traces_to = ["f11c7b59-7dea-490f-a355-bb07459bb49b"]
 modules = [
     "cargo_evidence::cli::verify::terminal_ok",
     "cargo_evidence::cli::verify::terminal_fail",
     "cargo_evidence::cli::verify::terminal_error",
 ]
+derived = false
 description = """
 The three terminal-builder helpers in cli/verify.rs hand-construct
 Diagnostic { code = VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR, severity,
@@ -279,12 +275,13 @@ Rule 1.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000017"
+uid = "c5f2b95b-5555-4261-a92c-76ce3ec2e5cf"
 id = "LLR-017"
 title = "OutputFormat::resolve folds --json + --format precedence"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000017"]
+traces_to = ["cb2b1464-3b2b-43a2-bffe-a41c16efefe6"]
 modules = ["cargo_evidence::cli::args::OutputFormat::resolve"]
+derived = false
 description = """
 resolve returns format_flag unchanged if it is not Human; otherwise
 it returns Json when json_flag is true, else Human. Explicit
@@ -293,15 +290,16 @@ it returns Json when json_flag is true, else Human. Explicit
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000018"
+uid = "dfc19912-4b1f-4a0c-8e18-a66d6e0738c3"
 id = "LLR-018"
 title = "cmd_schema_show writes embedded schema source to stdout"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000018"]
+traces_to = ["9ea226b0-852f-4047-a953-2ab0f4778da1"]
 modules = [
     "cargo_evidence::cli::schema::cmd_schema_show",
     "evidence::schema::Schema::source",
 ]
+derived = false
 description = """
 cmd_schema_show maps the CLI SchemaName to evidence::schema::Schema
 and prints the include_str!()'d source verbatim. Schema::for_filename
@@ -311,12 +309,13 @@ validate never matches it by filename.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000019"
+uid = "7a74ec14-14e1-4876-914b-66c898028d56"
 id = "LLR-019"
 title = "validate_trace_links_with_policy is two-phase"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000019"]
+traces_to = ["bfa93e37-0469-468b-b89a-d8b165b42168"]
 modules = ["evidence::trace::validation::validate_trace_links_with_policy"]
+derived = false
 description = """
 validate_trace_links_with_policy first registers every SYS / HLR /
 LLR / TEST / DERIVED entry into a uid_index + item_index,
@@ -328,17 +327,89 @@ HLR→SYS, LLR→HLR, and TEST→LLR.
 verification_methods = ["test"]
 
 [[requirements]]
-uid = "33333333-3333-4333-8333-000000000020"
+uid = "00578a4a-d6fe-420a-92c3-3cf4cb3387d6"
 id = "LLR-020"
 title = "dispatch guard emits CLI_SUBCOMMAND_ERROR terminal"
 owner = "tool"
-traces_to = ["22222222-2222-4222-8222-000000000020"]
+traces_to = ["62498de7-e6b9-4805-8b6c-afead78b33ac"]
 modules = ["cargo_evidence::main::emit_unsupported_jsonl_terminal"]
+derived = false
 description = """
 When --format=jsonl is passed to any non-verify subcommand,
 dispatch calls emit_unsupported_jsonl_terminal, which streams
 CLI_UNSUPPORTED_FORMAT (finding) then CLI_SUBCOMMAND_ERROR
 (terminal, with subcommand field set), returning EXIT_ERROR. Stderr
 stays silent.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "c4492c70-fa65-4e61-a201-9cd2d07c489a"
+id = "LLR-021"
+title = "validate_trace_links_with_policy honors require_hlr_sys_trace"
+owner = "tool"
+traces_to = ["3aec2a02-644b-4e58-a718-17ed879372ba"]
+modules = [
+    "evidence::policy::TracePolicy",
+    "evidence::trace::validation::validate_trace_links_with_policy",
+]
+derived = false
+description = """
+TracePolicy gains a `require_hlr_sys_trace: bool` (serde default false).
+When true, the HLR loop in validate_trace_links_with_policy emits a
+Link-phase error for every HLR with empty traces_to. Wired from the
+new CLI flag --require-hlr-sys-trace on the `trace` subcommand.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "4dd702cf-714a-4f70-9100-27770e1535c5"
+id = "LLR-022"
+title = "selector_check::resolve_test_selectors greps source tree"
+owner = "tool"
+traces_to = ["2c6f5903-b666-4f72-97d9-877e9b1ee787"]
+modules = [
+    "evidence::trace::selector_check::resolve_test_selectors",
+    "evidence::trace::validation::TraceValidationError::SelectorUnresolved",
+]
+derived = false
+description = """
+resolve_test_selectors takes &[TestEntry] + workspace root, scans each
+non-empty test_selector against .rs files, returns unresolvable list.
+SelectorUnresolved variant on TraceValidationError with diagnostic
+code TRACE_SELECTOR_UNRESOLVED. CLI flag --check-test-selectors
+enables the check.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "6be1b61b-0aeb-4c05-b2ef-f82fc7c00e55"
+id = "LLR-023"
+title = "default_trace_roots picks tool/trace or cert/trace"
+owner = "tool"
+traces_to = ["911fe168-04d7-49ee-99f4-d7a5a7a6fb1c"]
+modules = ["cargo_evidence::cli::trace::default_trace_roots"]
+derived = false
+description = """
+default_trace_roots returns Option<Vec<String>> by probing for
+./tool/trace/ then ./cert/trace/. cmd_trace calls it only when
+--trace-roots is absent; explicit flag always wins. Logs chosen root
+via tracing::info!.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "1f7977da-6692-45ad-8a29-72a1d3efa60a"
+id = "LLR-024"
+title = "ci_self_check greps committed ci.yml for both flags"
+owner = "tool"
+traces_to = ["a86e0c73-4ffd-4f46-8733-ce5cd0abba76"]
+modules = ["evidence::tests::ci_self_check"]
+derived = false
+description = """
+An integration test reads .github/workflows/ci.yml verbatim, locates
+the trace-self-validate job's run: block, asserts both
+--require-hlr-sys-trace and --check-test-selectors appear in it.
+Fires if a future edit strips either flag.
 """
 verification_methods = ["test"]

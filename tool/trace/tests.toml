@@ -1,13 +1,4 @@
-#:schema https://navigate.dev/schema/evidence/tests.schema.json
-# cargo-evidence — Test cases. One per LLR, naming the authoritative
-# test (integration or unit). `test_selector` uses the Rust
-# `cargo test <selector>` convention — i.e. crate::module::path or
-# test_file_stem::fn_name.
-#
-# Selector staleness is a known gap: the LLR → Test UUID link is
-# validated, but the selector itself is not resolved against the
-# source tree in PR #44. PR #44b will extend trace --validate with
-# --check-test-selectors. See tool/trace/README.md journal entry #1.
+# tool/trace/tests.toml — Test cases (see ../README.md)
 
 [schema]
 version = "0.0.3"
@@ -16,178 +7,194 @@ version = "0.0.3"
 document_id = "TOOL-TESTS"
 revision = "1.0"
 
-# -------------------------------------------------------------------
-# Diagnostic format contract
-# -------------------------------------------------------------------
-
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000001"
+uid = "c688bd6f-7514-43c4-97c5-d22cadba8e26"
 id = "TEST-001"
 title = "verify --format=jsonl happy path ends with VERIFY_OK"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000001"]
+traces_to = ["ef688fd5-21e0-4cf7-9ed5-b1819b5ae50d"]
 test_selector = "verify_jsonl::verify_ok_terminates_with_verify_ok_and_exit_zero"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000002"
+uid = "3da79a9f-157a-47e5-a6b6-a160c3854b43"
 id = "TEST-002"
 title = "stdout under --format=jsonl is strict JSONL"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000002"]
+traces_to = ["36491f32-293f-4f39-a2f5-cdb7e746330c"]
 test_selector = "verify_jsonl::verify_jsonl_stdout_is_strict_jsonl_only"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000003"
+uid = "0a9b48cb-7dae-4e49-903d-c5d92d8fac3c"
 id = "TEST-003"
 title = "DiagnosticCode impls are locked: regex + uniqueness"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000003"]
+traces_to = ["f2df39c3-48d2-4128-a037-82e6f9a2a0ab"]
 test_selector = "diagnostic_codes_locked::diagnostic_codes_locked"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000004"
+uid = "4d724f11-6be6-448b-a38a-b22f5c6549ce"
 id = "TEST-004"
 title = "Runtime-error JSONL path ends with VERIFY_ERROR terminal"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000004"]
+traces_to = ["217bd203-fa16-45a7-89ef-b3c42a589d57"]
 test_selector = "verify_jsonl::verify_runtime_error_ends_with_verify_error_terminal"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000005"
+uid = "9f2d6691-d7f0-4949-a4d4-ef87babedf24"
 id = "TEST-005"
 title = "FixHint::Other tolerates unknown kind payload"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000005"]
+traces_to = ["f0d8f7ed-60fa-4c56-8d71-7145d2bd85dd"]
 test_selector = "evidence::diagnostic::tests::fix_hint_unknown_kind_falls_back_to_other"
 
-# -------------------------------------------------------------------
-# Bundle generation
-# -------------------------------------------------------------------
-
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000006"
+uid = "1191eb4c-9891-48f3-852b-aaf879d437bc"
 id = "TEST-006"
 title = "GitSnapshot captures atomically via GitProvider"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000006"]
+traces_to = ["bed8bdf2-13f3-4823-8c07-dd74162e182d"]
 test_selector = "git_and_hashes::test_git_snapshot_with_mock_provider"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000007"
+uid = "67c0ccf5-3c99-48b6-bb8a-7689a7cce817"
 id = "TEST-007"
 title = "Cert profile requires rustc/cargo probes to succeed"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000007"]
+traces_to = ["59e86206-9a09-4bb9-bf41-ccd6e4bd0022"]
 test_selector = "git_and_hashes::test_cert_mode_strict_errors_missing_git"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000008"
+uid = "228d4c2c-cba8-4491-becd-acbbfd42d2fe"
 id = "TEST-008"
 title = "SHA256SUMS is byte-identical across re-runs"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000008"]
+traces_to = ["37164358-b015-4bf7-b66a-aebe442533b7"]
 test_selector = "cross_platform_determinism::sha256sums_contents_are_cross_platform_deterministic"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000009"
+uid = "595c2dba-91dc-4f6f-8d6c-c398c77d16f3"
 id = "TEST-009"
 title = "content_hash is cross-platform deterministic"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000009"]
+traces_to = ["c5b6d67a-603c-4e74-9197-10419a5495c0"]
 test_selector = "cross_platform_determinism::content_hash_is_cross_platform_deterministic"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000010"
+uid = "174385eb-99a8-4a23-a303-d97a70bf8d0f"
 id = "TEST-010"
 title = "TOCTOU mid-run SHA drift aborts finalize"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000010"]
+traces_to = ["65bf54da-9f0e-49a0-876e-ada775d65f0a"]
 test_selector = "bundle_lifecycle::test_toctou_detection"
 
-# -------------------------------------------------------------------
-# Verification
-# -------------------------------------------------------------------
-
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000011"
+uid = "63a679ae-c101-48d0-8a8c-8771c25e4d80"
 id = "TEST-011"
 title = "Verify detects content-layer tampering"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000011"]
+traces_to = ["723bc544-3db6-4140-9708-4c003454bd05"]
 test_selector = "bundle_content::test_tampering_detection"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000012"
+uid = "b17bdfd6-9e68-4dc5-9b2c-f8444676b904"
 id = "TEST-012"
 title = "Verify detects env.json vs index.json profile drift"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000012"]
+traces_to = ["240aad6f-3111-4087-a3e2-8f59972b55d4"]
 test_selector = "verify_consistency::test_verify_detects_env_index_profile_mismatch"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000013"
+uid = "fb5d4772-2c56-4abd-9c13-abef0be37320"
 id = "TEST-013"
 title = "Verify rejects git source with non-hex SHA on cert"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000013"]
+traces_to = ["f00c60a2-f4e2-4d6a-a107-5a6a81489e6f"]
 test_selector = "verify_consistency::test_verify_rejects_git_source_with_nonhex_sha"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000014"
+uid = "e18d21f1-19cd-45aa-aa3c-773f685081b4"
 id = "TEST-014"
 title = "Verify rejects trace_outputs entries missing from SHA256SUMS"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000014"]
+traces_to = ["699b17f9-3e28-4af1-8949-b3d94c75ba8c"]
 test_selector = "verify_consistency::test_verify_rejects_phantom_trace_output_not_in_sha256sums"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000015"
+uid = "c818cd84-8d25-457e-b18e-a613c691964d"
 id = "TEST-015"
 title = "Cert profile refuses generate on dirty git tree"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000015"]
+traces_to = ["bb176fd9-7859-4ec1-bbc0-088d2518dc54"]
 test_selector = "cli::test_generate_refuses_unimplemented_policy_rule"
 
-# -------------------------------------------------------------------
-# CLI surface
-# -------------------------------------------------------------------
-
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000016"
+uid = "a8bc1428-d088-40b5-8b9f-84c33667fc4c"
 id = "TEST-016"
 title = "Finding path ends with VERIFY_FAIL terminal on exit 2"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000016"]
+traces_to = ["77b0a3dc-2b31-4d25-a375-2bc51f5f6497"]
 test_selector = "verify_jsonl::verify_finding_emits_terminal_fail_and_exit_two"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000017"
+uid = "383598b3-4a32-470c-a73e-c4645e22fe6c"
 id = "TEST-017"
 title = "Verify with --json on nonexistent bundle returns JSON"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000017"]
+traces_to = ["c5f2b95b-5555-4261-a92c-76ce3ec2e5cf"]
 test_selector = "cli::test_verify_json_nonexistent"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000018"
+uid = "f7cd1dd3-8a82-4442-9c19-93f6729329af"
 id = "TEST-018"
 title = "schema show index prints the embedded schema"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000018"]
+traces_to = ["dfc19912-4b1f-4a0c-8e18-a66d6e0738c3"]
 test_selector = "cli::test_schema_show_index"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000019"
+uid = "e1316d7a-cbea-418f-8444-1da1ca110651"
 id = "TEST-019"
 title = "SYS→HLR→LLR→Test chain validates"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000019"]
+traces_to = ["7a74ec14-14e1-4876-914b-66c898028d56"]
 test_selector = "evidence::trace::validation::tests::sys_hlr_llr_test_chain_validates"
 
 [[tests]]
-uid = "44444444-4444-4444-8444-000000000020"
+uid = "ba80f1d3-65a0-44b7-afc7-85ca0fd1bc3c"
 id = "TEST-020"
 title = "Unwired --format=jsonl on generate hard-errors with terminal"
 owner = "tool"
-traces_to = ["33333333-3333-4333-8333-000000000020"]
+traces_to = ["00578a4a-d6fe-420a-92c3-3cf4cb3387d6"]
 test_selector = "verify_jsonl::unwired_generate_jsonl_is_rejected"
+
+[[tests]]
+uid = "09a155a3-efd5-4117-86e5-1e9fecafc106"
+id = "TEST-021"
+title = "Policy gate rejects HLR with empty traces_to"
+owner = "tool"
+traces_to = ["c4492c70-fa65-4e61-a201-9cd2d07c489a"]
+test_selector = "trace_sys_layer::require_hlr_sys_trace_rejects_empty_traces_to"
+
+[[tests]]
+uid = "ef0d337d-cea8-4adb-b5dd-48a09aeae72d"
+id = "TEST-022"
+title = "Selector resolver flags dangling pointers"
+owner = "tool"
+traces_to = ["4dd702cf-714a-4f70-9100-27770e1535c5"]
+test_selector = "trace_sys_layer::selector_check_flags_dangling_selector"
+
+[[tests]]
+uid = "f9278d5b-373f-4493-a607-0e105ac84a0a"
+id = "TEST-023"
+title = "Trace defaults to tool/trace when --trace-roots is absent"
+owner = "tool"
+traces_to = ["6be1b61b-0aeb-4c05-b2ef-f82fc7c00e55"]
+test_selector = "cli::trace_defaults_to_tool_trace_when_flag_absent"
+
+[[tests]]
+uid = "aecdd54a-7cd0-4ce9-9b09-68b3107462b6"
+id = "TEST-024"
+title = "CI yaml carries both enforcement flags"
+owner = "tool"
+traces_to = ["1f7977da-6692-45ad-8a29-72a1d3efa60a"]
+test_selector = "ci_self_check::ci_yaml_has_enforcement_flags"
