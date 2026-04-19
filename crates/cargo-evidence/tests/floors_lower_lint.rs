@@ -1,0 +1,119 @@
+//! Integration test for `scripts/floors-lower-lint.sh` (PR #48 /
+//! LLR-037 / TEST-037).
+//!
+//! The script reads base-vs-HEAD `cert/floors.toml`, finds floor
+//! decreases, and requires a `Lower-Floor: <dimension> <reason>`
+//! line in the PR body (or commit message) for each. Without the
+//! line, the script emits FLOORS_LOWERED_WITHOUT_JUSTIFICATION and
+//! exits 1.
+//!
+//! Three scenarios pinned:
+//!
+//! 1. Decrease without justification → exit 1 + error message.
+//! 2. Decrease WITH justification line → exit 0.
+//! 3. No decrease (raise or equal) → exit 0 regardless of body.
+//!
+//! The script supports `FLOORS_BASE_CONTENT` / `FLOORS_HEAD_CONTENT`
+//! env vars that skip the git read, which is what these tests use —
+//! no tempdir git repo needed.
+
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+
+use std::path::PathBuf;
+use std::process::Command;
+
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates/")
+        .parent()
+        .expect("workspace root")
+        .to_path_buf()
+}
+
+fn run_lint(base: &str, head: &str, body: &str) -> std::process::Output {
+    let script = workspace_root()
+        .join("scripts")
+        .join("floors-lower-lint.sh");
+    Command::new("bash")
+        .arg(&script)
+        .env("FLOORS_BASE_CONTENT", base)
+        .env("FLOORS_HEAD_CONTENT", head)
+        .env("PR_BODY", body)
+        .current_dir(workspace_root())
+        .output()
+        .expect("spawn bash")
+}
+
+/// Decrease without a Lower-Floor: line fires the lint.
+#[test]
+fn refuses_decrease_without_justification_line() {
+    let base = "[floors]\ndiagnostic_codes = 82\n";
+    let head = "[floors]\ndiagnostic_codes = 70\n";
+    let out = run_lint(base, head, "a PR body that forgot to justify");
+
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "unjustified decrease must exit 1; stdout={}\nstderr={}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    assert!(
+        combined.contains("FLOORS_LOWERED_WITHOUT_JUSTIFICATION"),
+        "expected FLOORS_LOWERED_WITHOUT_JUSTIFICATION in output; got:\n{}",
+        combined
+    );
+    assert!(
+        combined.contains("diagnostic_codes"),
+        "expected dimension name in output; got:\n{}",
+        combined
+    );
+}
+
+/// Decrease WITH the justification line passes.
+#[test]
+fn accepts_decrease_with_justification_line() {
+    let base = "[floors]\ndiagnostic_codes = 82\n";
+    let head = "[floors]\ndiagnostic_codes = 70\n";
+    let body = "Some summary.\n\nLower-Floor: diagnostic_codes consolidating redundant codes.\n";
+    let out = run_lint(base, head, body);
+
+    assert!(
+        out.status.success(),
+        "justified decrease must exit 0; stdout={}\nstderr={}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+}
+
+/// Raising a floor (no decrease) passes without needing a line.
+#[test]
+fn raise_passes_without_justification() {
+    let base = "[floors]\ndiagnostic_codes = 82\n";
+    let head = "[floors]\ndiagnostic_codes = 90\n";
+    let out = run_lint(base, head, "");
+
+    assert!(
+        out.status.success(),
+        "raise must exit 0; stdout={}\nstderr={}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let combined = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        combined.contains("no floor decreases"),
+        "expected 'no floor decreases' in stdout; got: {}",
+        combined
+    );
+}

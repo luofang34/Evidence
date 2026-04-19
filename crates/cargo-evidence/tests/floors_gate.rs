@@ -59,15 +59,8 @@ fn floors_gate_passes_on_committed_state() {
     let rows: Vec<Value> = serde_json::from_str(&stdout).expect("parses");
     assert!(!rows.is_empty(), "expected at least one floor row");
 
-    let fails: Vec<&Value> = rows
-        .iter()
-        .filter(|r| r["status"] == "fail")
-        .collect();
-    assert!(
-        fails.is_empty(),
-        "unexpected failing rows: {:?}",
-        fails
-    );
+    let fails: Vec<&Value> = rows.iter().filter(|r| r["status"] == "fail").collect();
+    assert!(fails.is_empty(), "unexpected failing rows: {:?}", fails);
 }
 
 /// Tampered floor: bump `diagnostic_codes` to 999 (far above RULES

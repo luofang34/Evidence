@@ -146,4 +146,3 @@ fn print_human(rows: &[FloorRow]) {
         );
     }
 }
-

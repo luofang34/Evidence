@@ -46,10 +46,9 @@ impl FloorsConfig {
     /// Parse `cert/floors.toml` at `path`. I/O and parse errors return
     /// a typed message; callers lift into their own error envelope.
     pub fn load(path: &Path) -> Result<Self, String> {
-        let text = fs::read_to_string(path)
-            .map_err(|e| format!("reading {}: {}", path.display(), e))?;
-        toml::from_str(&text)
-            .map_err(|e| format!("parsing {}: {}", path.display(), e))
+        let text =
+            fs::read_to_string(path).map_err(|e| format!("reading {}: {}", path.display(), e))?;
+        toml::from_str(&text).map_err(|e| format!("parsing {}: {}", path.display(), e))
     }
 }
 
@@ -69,7 +68,10 @@ pub fn current_measurements(workspace_root: &Path) -> BTreeMap<String, u64> {
     out.insert("trace_test".into(), test);
 
     out.insert("test_count".into(), count_tests(workspace_root));
-    out.insert("library_panics".into(), count_library_panics(workspace_root));
+    out.insert(
+        "library_panics".into(),
+        count_library_panics(workspace_root),
+    );
     out
 }
 
@@ -159,7 +161,8 @@ pub fn count_library_panics(workspace_root: &Path) -> u64 {
             // Skip doc-comment lines to ignore example panics inside
             // module docstrings.
             let trimmed = line.trim_start();
-            if trimmed.starts_with("//!") || trimmed.starts_with("///") || trimmed.starts_with("//") {
+            if trimmed.starts_with("//!") || trimmed.starts_with("///") || trimmed.starts_with("//")
+            {
                 continue;
             }
             for needle in ["panic!(", "unimplemented!(", "todo!("] {
@@ -218,9 +221,7 @@ fn strip_cfg_test_modules(text: &str) -> String {
     while i < bytes.len() {
         // Look for `#[cfg(test)]` at the start of a line.
         let at_line_start = i == 0 || bytes[i - 1] == b'\n';
-        if at_line_start
-            && bytes[i..].starts_with(b"#[cfg(test)]")
-        {
+        if at_line_start && bytes[i..].starts_with(b"#[cfg(test)]") {
             // Skip to the next `{` (module body open).
             let mut j = i;
             while j < bytes.len() && bytes[j] != b'{' {
