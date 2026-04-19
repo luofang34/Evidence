@@ -401,6 +401,32 @@ line in the PR body (or direct-push commit message). Without it,
 `FLOORS_LOWERED_WITHOUT_JUSTIFICATION`. The friction is intentional:
 the ratchet only moves up.
 
+**Using `floors` in your own project (no manual setup required for
+the default case).** If your project has no `cert/floors.toml`, the
+subcommand emits a friendly "not configured" info line on stderr and
+exits 0 — non-adopters aren't forced into the gate. To opt in, drop
+a minimal `cert/floors.toml` in your repo:
+
+```toml
+# cert/floors.toml — pin whichever dimensions matter for your project
+[floors]
+test_count = 42          # `#[test]` fn count across crates/
+diagnostic_codes = 10    # evidence::RULES.len() if you use it
+
+[delta_ceilings]
+# Reserved for delta-based gates (new dead-code allows, new library
+# panics). Parsed today, enforced via a follow-up.
+```
+
+Only the dimensions you list are enforced — missing ones are
+skipped, not assumed-zero. Point at a custom path via
+`cargo evidence floors --config path/to/floors.toml` if your layout
+differs. Measurement helpers that need workspace subdirs (`tool/trace/`,
+`crates/*/src/`) gracefully degrade to 0 when the dirs are absent,
+so a single-crate project without a `tool/trace/` directory can
+still enforce `test_count` and `diagnostic_codes` without
+configuring the other dimensions.
+
 ### `cargo evidence rules` — what can the tool say?
 
 Dump every diagnostic code the tool can emit as a deterministic

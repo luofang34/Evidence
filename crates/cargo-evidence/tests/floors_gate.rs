@@ -105,6 +105,55 @@ diagnostic_codes = 999
     );
 }
 
+/// Downstream UX: a project without `cert/floors.toml` must not see
+/// a scary error. The CLI emits an info message on stderr and exits
+/// 0 — the user opts in by creating the file.
+#[test]
+fn missing_floors_toml_is_a_friendly_skip_not_a_hard_error() {
+    let tmp = TempDir::new().expect("tempdir");
+    let missing = tmp.path().join("floors-does-not-exist.toml");
+    let out = cargo_evidence()
+        .current_dir(workspace_root())
+        .args(["evidence", "floors", "--config"])
+        .arg(&missing)
+        .output()
+        .expect("spawn");
+    assert!(
+        out.status.success(),
+        "missing config must be a friendly skip (exit 0); stdout={}\nstderr={}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("no floors config") || stderr.contains("not configured"),
+        "expected a friendly info message on stderr; got:\n{}",
+        stderr
+    );
+}
+
+/// Malformed TOML must fail hard (exit 1) — a typo'd path silently
+/// passing is a worse outcome than a loud error.
+#[test]
+fn malformed_floors_toml_is_a_hard_error() {
+    let tmp = TempDir::new().expect("tempdir");
+    let bad = tmp.path().join("floors.toml");
+    std::fs::write(&bad, "this is not = valid {{{").expect("write");
+    let out = cargo_evidence()
+        .current_dir(workspace_root())
+        .args(["evidence", "floors", "--config"])
+        .arg(&bad)
+        .output()
+        .expect("spawn");
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "malformed TOML must exit 1; stdout={}\nstderr={}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+}
+
 /// JSON mode is a valid JSON array and round-trips through serde.
 #[test]
 fn floors_json_is_parseable_array() {

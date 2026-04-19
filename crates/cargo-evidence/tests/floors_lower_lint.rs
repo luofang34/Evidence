@@ -15,8 +15,16 @@
 //!
 //! The script supports `FLOORS_BASE_CONTENT` / `FLOORS_HEAD_CONTENT`
 //! env vars that skip the git read, which is what these tests use —
-//! no tempdir git repo needed.
+//! no tempdir git repo needed. Those same env vars also let the
+//! script work in the Nix sandbox (no git binary available).
+//!
+//! **Platform**: this module is Linux/macOS only. Windows doesn't
+//! ship `bash` out of the box — `Command::new("bash")` triggers the
+//! WSL stub which fails — and the lint is a CI gate run on Linux.
+//! Windows developers have full test coverage via every other
+//! integration-test binary.
 
+#![cfg(not(target_os = "windows"))]
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,

@@ -25,10 +25,11 @@ set -euo pipefail
 
 BASE_REF="${1:-origin/main}"
 
-# Work from the repo root so `cert/floors.toml` resolves predictably.
-cd "$(git rev-parse --show-toplevel)"
-
-# Fetch base and HEAD content. Test hook: env-var overrides skip git.
+# Fetch base and HEAD content. The test-hook env vars let integration
+# tests skip the git invocation entirely so the script can run in
+# sandboxes without a git binary (Nix build, chroot CI, etc.). If
+# they're set, we don't cd into the repo either — the cd would fail
+# when git isn't available.
 if [[ -n "${FLOORS_BASE_CONTENT:-}" && -n "${FLOORS_HEAD_CONTENT:-}" ]]; then
     base_text="$FLOORS_BASE_CONTENT"
     head_text="$FLOORS_HEAD_CONTENT"
@@ -36,6 +37,9 @@ elif [[ -n "${FLOORS_BASE_CONTENT:-}" || -n "${FLOORS_HEAD_CONTENT:-}" ]]; then
     echo "::error::both FLOORS_BASE_CONTENT and FLOORS_HEAD_CONTENT must be set together" >&2
     exit 2
 else
+    # Normal path: work from the repo root so `cert/floors.toml`
+    # resolves predictably, then read both revisions via git.
+    cd "$(git rev-parse --show-toplevel)"
     # Base ref may not exist on a first-commit repo; default to empty.
     base_text=$(git show "${BASE_REF}:cert/floors.toml" 2>/dev/null || true)
     head_text=$(cat cert/floors.toml 2>/dev/null || true)
@@ -68,18 +72,20 @@ extract_floors() {
 base_floors=$(extract_floors "$base_text")
 head_floors=$(extract_floors "$head_text")
 
-# Build associative map of HEAD floors.
-declare -A head_map=()
-while IFS=' ' read -r name val; do
-    [[ -z "$name" ]] && continue
-    head_map["$name"]="$val"
-done <<<"$head_floors"
+# Find decreases (base > head). Portable to bash 3.2 (macOS default)
+# — no associative arrays. HEAD lookup is a grep on the extracted
+# lines; linear scan per dimension is fine at our scale (tens of
+# entries, not thousands).
+lookup_head() {
+    # Print the value for `name` from head_floors, or nothing.
+    local want="$1"
+    awk -v want="$want" '$1 == want { print $2; exit }' <<<"$head_floors"
+}
 
-# Find decreases (base > head).
 decreases=""
 while IFS=' ' read -r name base_val; do
     [[ -z "$name" ]] && continue
-    head_val="${head_map[$name]:-}"
+    head_val=$(lookup_head "$name")
     # Missing in HEAD = floor was deleted; treat as a decrease.
     if [[ -z "$head_val" ]]; then
         decreases+="$name $base_val DELETED"$'\n'

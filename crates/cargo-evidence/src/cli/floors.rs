@@ -19,9 +19,10 @@ use std::path::PathBuf;
 use anyhow::Result;
 use serde::Serialize;
 
+use evidence::floors::LoadOutcome;
 use evidence::{FloorsConfig, current_measurements};
 
-use super::args::{EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
+use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
 use super::output::emit_json;
 
 /// One row of the floors report.
@@ -38,11 +39,25 @@ struct FloorRow {
 pub fn cmd_floors(json: bool, config: Option<PathBuf>) -> Result<i32> {
     let workspace = std::env::current_dir()?;
     let floors_path = config.unwrap_or_else(|| workspace.join("cert").join("floors.toml"));
-    let config = match FloorsConfig::load(&floors_path) {
-        Ok(c) => c,
-        Err(e) => {
+    let config = match FloorsConfig::load_or_missing(&floors_path) {
+        LoadOutcome::Loaded(c) => c,
+        LoadOutcome::Missing => {
+            // Downstream users who haven't adopted the floors gate
+            // hit this path. Emit a friendly info message on stderr
+            // (so stdout stays clean for piping), exit 0. Set up a
+            // `cert/floors.toml` or pass `--config <path>` to
+            // enable the gate.
+            eprintln!(
+                "info: no floors config at {} — floors gate is not configured for this project. \
+                 Create cert/floors.toml (or pass --config) to enable. See README \
+                 \"`cargo evidence floors` — the ratchet\" for the expected shape.",
+                floors_path.display()
+            );
+            return Ok(EXIT_SUCCESS);
+        }
+        LoadOutcome::Error(e) => {
             eprintln!("error: {}", e);
-            return Ok(EXIT_VERIFICATION_FAILURE);
+            return Ok(EXIT_ERROR);
         }
     };
     let measurements = current_measurements(&workspace);

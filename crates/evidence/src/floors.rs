@@ -42,13 +42,45 @@ pub struct FloorsConfig {
     pub delta_ceilings: BTreeMap<String, u64>,
 }
 
+/// Outcome of attempting to load `cert/floors.toml`. Distinguishes
+/// a deliberately-absent file (downstream user hasn't opted into
+/// the gate) from a malformed file (must fail hard — silent skip
+/// would mask drift on a typo'd path).
+pub enum LoadOutcome {
+    /// Successfully parsed config.
+    Loaded(FloorsConfig),
+    /// File not found at the expected path. Downstream users who
+    /// haven't adopted the floors gate hit this case; the CLI emits
+    /// a friendly "no floors configured" message and exits 0.
+    Missing,
+    /// File exists but couldn't be read or parsed.
+    Error(String),
+}
+
 impl FloorsConfig {
-    /// Parse `cert/floors.toml` at `path`. I/O and parse errors return
-    /// a typed message; callers lift into their own error envelope.
+    /// Parse `cert/floors.toml` at `path`. Malformed files return
+    /// an Err; callers lift into their own envelope.
     pub fn load(path: &Path) -> Result<Self, String> {
         let text =
             fs::read_to_string(path).map_err(|e| format!("reading {}: {}", path.display(), e))?;
         toml::from_str(&text).map_err(|e| format!("parsing {}: {}", path.display(), e))
+    }
+
+    /// Like [`load`], but distinguishes "file not found" from other
+    /// errors. Used by `cargo evidence floors` so external projects
+    /// without a `cert/floors.toml` don't see a scary error — they
+    /// just haven't opted in yet.
+    ///
+    /// [`load`]: Self::load
+    pub fn load_or_missing(path: &Path) -> LoadOutcome {
+        match fs::read_to_string(path) {
+            Ok(text) => match toml::from_str::<Self>(&text) {
+                Ok(cfg) => LoadOutcome::Loaded(cfg),
+                Err(e) => LoadOutcome::Error(format!("parsing {}: {}", path.display(), e)),
+            },
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => LoadOutcome::Missing,
+            Err(e) => LoadOutcome::Error(format!("reading {}: {}", path.display(), e)),
+        }
     }
 }
 
@@ -304,6 +336,99 @@ mod tests {
             m["library_panics"], 0,
             "library panics must be 0 at PR #48 commit 1; audit before raising"
         );
+    }
+
+    /// Regression: the walker must NOT count occurrences that sit
+    /// inside a string literal. `floors.rs` itself has
+    /// `["panic!(", "unimplemented!(", "todo!("]` as a literal
+    /// Rust source; a naive substring scan would count all three
+    /// and fire a false positive on this very module.
+    ///
+    /// The quote-parity check (odd number of `"` before the
+    /// needle → inside a string → skip) guards that case. This
+    /// test pins the contract: removing the check breaks the test
+    /// and the downstream user sees a clean failure.
+    #[test]
+    fn count_library_panics_ignores_occurrences_inside_string_literals() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("crates").join("fake").join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        // File has "panic!(", "unimplemented!(", "todo!(" as string
+        // literals (same pattern as floors.rs itself), plus nothing
+        // outside strings. Expected count: 0.
+        std::fs::write(
+            src.join("lib.rs"),
+            concat!(
+                "pub fn f() {\n",
+                "    let patterns = [\"panic!(\", \"unimplemented!(\", \"todo!(\"];\n",
+                "    let _ = patterns;\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        assert_eq!(count_library_panics(tmp.path()), 0);
+    }
+
+    /// Complementary to the above: a REAL bare panic in non-test code
+    /// MUST be counted. Pins the floor-to-catch-real-regressions
+    /// contract in the other direction.
+    #[test]
+    fn count_library_panics_catches_bare_panic_outside_strings() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("crates").join("fake").join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(
+            src.join("lib.rs"),
+            "pub fn f() { panic!(\"real\"); }\npub fn g() { todo!(); }\n",
+        )
+        .unwrap();
+        assert_eq!(count_library_panics(tmp.path()), 2);
+    }
+
+    /// Downstream users without a `crates/` directory (or without
+    /// `tool/trace/`) shouldn't see the measurements blow up —
+    /// helpers gracefully degrade to 0 so an external project can
+    /// opt into specific floors without setting up the full
+    /// workspace layout we use.
+    #[test]
+    fn measurements_on_empty_workspace_report_zero_gracefully() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let m = current_measurements(tmp.path());
+        assert_eq!(m["trace_sys"], 0);
+        assert_eq!(m["trace_hlr"], 0);
+        assert_eq!(m["trace_llr"], 0);
+        assert_eq!(m["trace_test"], 0);
+        assert_eq!(m["test_count"], 0);
+        assert_eq!(m["library_panics"], 0);
+        // RULES and TERMINAL_CODES are compile-time constants, so
+        // those dimensions stay at their true count regardless of
+        // workspace shape.
+        assert_eq!(m["diagnostic_codes"], count_rules());
+        assert_eq!(m["terminal_codes"], count_terminals());
+    }
+
+    #[test]
+    fn load_or_missing_distinguishes_not_found_from_parse_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let missing = tmp.path().join("does-not-exist.toml");
+        assert!(matches!(
+            FloorsConfig::load_or_missing(&missing),
+            LoadOutcome::Missing
+        ));
+
+        let bad = tmp.path().join("malformed.toml");
+        std::fs::write(&bad, "this is = not valid {{{").unwrap();
+        assert!(matches!(
+            FloorsConfig::load_or_missing(&bad),
+            LoadOutcome::Error(_)
+        ));
+
+        let ok = tmp.path().join("ok.toml");
+        std::fs::write(&ok, "[floors]\ndiagnostic_codes = 1\n").unwrap();
+        assert!(matches!(
+            FloorsConfig::load_or_missing(&ok),
+            LoadOutcome::Loaded(_)
+        ));
     }
 
     #[test]
