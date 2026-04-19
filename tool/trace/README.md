@@ -4,12 +4,12 @@ This directory dogfoods the tool's own traceability format against
 the tool itself, across the full DO-178C §5.1 chain:
 
 ```
-System Requirements  (sys.toml)   ─▶  7 entries
-High-Level Reqs      (hlr.toml)   ─▶ 28 entries  traces_to SYS
-Low-Level Reqs       (llr.toml)   ─▶ 28 entries  traces_to HLR
-Test Cases           (tests.toml) ─▶ 28 entries  traces_to LLR
-                                     ───────────
-                                     91 entries total
+System Requirements  (sys.toml)   ─▶   8 entries
+High-Level Reqs      (hlr.toml)   ─▶  34 entries  traces_to SYS
+Low-Level Reqs       (llr.toml)   ─▶  34 entries  traces_to HLR
+Test Cases           (tests.toml) ─▶  34 entries  traces_to LLR
+                                      ────────────
+                                      110 entries total
 ```
 
 The CI job `trace-self-validate` runs
@@ -164,13 +164,33 @@ did not resolve selectors against the workspace source. Agents
 reading a self-trace bundle couldn't tell the difference between a
 live test pointer and a stale one.
 
+#### [2026-04 · PR #47 · resolved] LLR.emits closes the code-to-requirement loop
+
+Context: before PR #47, an LLR could claim behavior that the source
+didn't implement, and the source could emit diagnostic codes that
+no LLR claimed. The only link was prose, verifiable only by human
+review.
+
+Resolution: `LlrEntry.emits: Vec<String>` declares which diagnostic
+codes each LLR owns. The locked-codes test asserts every code in
+`evidence::RULES` is claimed by at least one LLR (minus an explicit
+`RESERVED_UNCLAIMED_CODES` set — currently empty) and every
+`emits` string is a real RULES code. Combined with the existing
+LLR↔TEST link (TEST.traces_to) and the TEST↔`#[test] fn` link
+(`--check-test-selectors`), every advertised code is now
+mechanically traced through a requirement chain to a real function.
+
+Convention: LLRs describing pure structure (schema shapes, config
+loaders that wrap errors transparently) leave `emits = []`.
+Emitter LLRs list every code they directly return.
+
 #### (Future entries append above this line, newest first.)
 
 ## Ratchet ties
 
 Once `cert/floors.toml` lands (PR #48), the self-trace's minimum
-entry count pins at `min_trace_entries = 91` (7 SYS + 28 HLR + 28
-LLR + 28 Test). Removing an entry then requires a PR that both edits
+entry count pins at `min_trace_entries = 110` (8 SYS + 34 HLR + 34
+LLR + 34 Test). Removing an entry then requires a PR that both edits
 the TOML and lowers the floor, with an explicit justification. The
 intent is that self-trace coverage only grows.
 

@@ -378,6 +378,30 @@ cargo evidence schema validate ./evidence/bundle/env.json
 
 Auto-detects the schema type from the filename or file content.
 
+### `cargo evidence rules` — what can the tool say?
+
+Dump every diagnostic code the tool can emit as a deterministic
+JSON array (for agents / MCP) or a human-readable table:
+
+```bash
+cargo evidence rules --json  # machine-readable, stable shape
+cargo evidence rules         # human table
+```
+
+Each entry carries `code`, `severity`, `domain`, `has_fix_hint`, and
+`terminal`. This is the self-describe endpoint MCP (PR #50) wraps;
+every code here is (a) backed by a `DiagnosticCode::code()` impl or
+by the `TERMINAL_CODES` / `HAND_EMITTED_CLI_CODES` sets, and (b)
+claimed by at least one LLR's `emits` list in
+`tool/trace/llr.toml`. Four bijection invariants in
+`diagnostic_codes_locked` fail CI if those relationships ever drift
+— adding a code without updating `RULES` or writing an owning LLR
+is not possible silently.
+
+The `--json` wire shape is byte-locked against a committed fixture
+at `crates/cargo-evidence/tests/fixtures/golden_rules.json`.
+Intentional regeneration: `tools/regen-golden-fixtures.sh`.
+
 ---
 
 ## For Auditors
