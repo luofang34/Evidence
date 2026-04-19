@@ -154,6 +154,39 @@ fn malformed_floors_toml_is_a_hard_error() {
     );
 }
 
+/// Bijection: the set of `[per_crate.<name>]` keys in
+/// `cert/floors.toml` must equal `scope.in_scope` in
+/// `cert/boundary.toml`. Adding a crate to the workspace requires
+/// adding its per-crate floor row in the same PR; conversely, an
+/// orphan `per_crate.<name>` entry for a removed crate must be
+/// cleaned up. Same contract pattern as PR #47's
+/// `every_code_is_claimed_by_an_llr` — the bijection is the whole
+/// point of committing per-crate floors.
+#[test]
+fn per_crate_floors_match_boundary_in_scope() {
+    let root = workspace_root();
+    let floors = evidence::FloorsConfig::load(&root.join("cert").join("floors.toml"))
+        .expect("load floors.toml");
+    let boundary = evidence::BoundaryConfig::load(&root.join("cert").join("boundary.toml"))
+        .expect("load boundary.toml");
+
+    let in_scope: std::collections::BTreeSet<String> =
+        boundary.scope.in_scope.iter().cloned().collect();
+    let declared: std::collections::BTreeSet<String> = floors.per_crate.keys().cloned().collect();
+
+    let only_in_boundary: Vec<&String> = in_scope.difference(&declared).collect();
+    let only_in_floors: Vec<&String> = declared.difference(&in_scope).collect();
+
+    assert!(
+        only_in_boundary.is_empty() && only_in_floors.is_empty(),
+        "cert/floors.toml [per_crate.*] must match cert/boundary.toml scope.in_scope\n\
+         in boundary but missing from floors.toml: {:?}\n\
+         in floors.toml but missing from boundary.toml: {:?}",
+        only_in_boundary,
+        only_in_floors
+    );
+}
+
 /// JSON mode is a valid JSON array and round-trips through serde.
 #[test]
 fn floors_json_is_parseable_array() {

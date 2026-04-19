@@ -41,12 +41,21 @@ pub const FLOORS_SCHEMA_VERSION: u32 = 1;
 
 /// On-disk shape of `cert/floors.toml`.
 ///
-/// Two tables:
-/// - `[floors]` — absolute `current >= floor` contracts, one entry
-///   per measured dimension.
-/// - `[delta_ceilings]` — `added_in_pr_diff <= ceiling`. Applied only
-///   when the gate runs with a `--base <ref>` scope. Parsed today,
-///   reported as `deferred` pending the diff-enforcement commit.
+/// Three tables:
+/// - `[floors]` — workspace-wide absolute floors (one value applies
+///   to the whole workspace). Used for dimensions with a single
+///   global identity: `diagnostic_codes` (from `RULES` in one
+///   crate), `terminal_codes`, per-layer trace entry counts.
+/// - `[per_crate.<crate>]` — per-crate absolute floors. Used for
+///   dimensions where a compensation mask would be invisible on a
+///   workspace aggregate — e.g. evidence adds a `panic!`, cargo-
+///   evidence removes one, total stays the same. Every in-scope
+///   crate in `cert/boundary.toml` must appear here (enforced by
+///   a bijection test).
+/// - `[delta_ceilings]` — `added_in_pr_diff <= ceiling`. Applied
+///   only when the gate runs with a `--base <ref>` scope. Parsed
+///   today, reported as `deferred` pending the diff-enforcement
+///   commit.
 ///
 /// The top-level `schema_version` field pins the shape; older tools
 /// refuse to parse a newer version rather than silently skip unknown
@@ -56,8 +65,12 @@ pub const FLOORS_SCHEMA_VERSION: u32 = 1;
 pub struct FloorsConfig {
     /// Shape version; must equal [`FLOORS_SCHEMA_VERSION`].
     pub schema_version: u32,
-    /// Absolute floors: `current >= value`.
+    /// Workspace-wide absolute floors: `current >= value`.
     pub floors: BTreeMap<String, u64>,
+    /// Per-crate absolute floors. Key = crate name (must match
+    /// `cert/boundary.toml` `scope.in_scope`); value = per-crate
+    /// `{dimension → floor}` map.
+    pub per_crate: BTreeMap<String, BTreeMap<String, u64>>,
     /// Delta ceilings: `added_in_diff <= value`.
     pub delta_ceilings: BTreeMap<String, u64>,
 }
@@ -67,6 +80,7 @@ impl Default for FloorsConfig {
         Self {
             schema_version: FLOORS_SCHEMA_VERSION,
             floors: BTreeMap::new(),
+            per_crate: BTreeMap::new(),
             delta_ceilings: BTreeMap::new(),
         }
     }
@@ -135,10 +149,14 @@ impl FloorsConfig {
     }
 }
 
-/// Collect every absolute measurement, keyed by the same names the
-/// floors TOML uses. Callers diff this map against
-/// [`FloorsConfig::floors`] and emit `FLOORS_BELOW_MIN` for each
-/// dimension whose measurement is below its committed floor.
+/// Collect every **workspace-wide** absolute measurement, keyed by
+/// the same names `[floors]` uses. Per-crate dimensions
+/// (`test_count`, `library_panics`) have a separate aggregator —
+/// see [`per_crate_measurements`].
+///
+/// Callers diff this map against [`FloorsConfig::floors`] and emit
+/// `FLOORS_BELOW_MIN` for any dimension where the measurement falls
+/// below its committed floor.
 pub fn current_measurements(workspace_root: &Path) -> BTreeMap<String, u64> {
     let mut out = BTreeMap::new();
     out.insert("diagnostic_codes".into(), count_rules());
@@ -149,12 +167,43 @@ pub fn current_measurements(workspace_root: &Path) -> BTreeMap<String, u64> {
     out.insert("trace_hlr".into(), hlr);
     out.insert("trace_llr".into(), llr);
     out.insert("trace_test".into(), test);
+    out
+}
 
-    out.insert("test_count".into(), count_tests(workspace_root));
-    out.insert(
-        "library_panics".into(),
-        count_library_panics(workspace_root),
-    );
+/// Per-crate absolute measurements. Outer key = crate name (directory
+/// under `crates/`); inner map = `{dimension → current value}` with
+/// the same names `[per_crate.<crate>]` uses in `cert/floors.toml`.
+///
+/// Crates that don't exist as `crates/<name>/` directories are
+/// omitted; the CLI cross-checks against `FloorsConfig::per_crate`
+/// keys and emits a `FLOORS_BELOW_MIN` row with current=0 for any
+/// declared crate that's gone missing.
+///
+/// Why per-crate for these two dimensions specifically: a workspace-
+/// wide aggregate would mask compensation (evidence adds a panic,
+/// cargo-evidence removes one, total stays the same). Every other
+/// ratcheted dimension in this file has a single global identity;
+/// these two do not.
+pub fn per_crate_measurements(workspace_root: &Path) -> BTreeMap<String, BTreeMap<String, u64>> {
+    let mut out: BTreeMap<String, BTreeMap<String, u64>> = BTreeMap::new();
+    let crates_root = workspace_root.join("crates");
+    let entries = match fs::read_dir(&crates_root) {
+        Ok(e) => e,
+        Err(_) => return out,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let mut per = BTreeMap::new();
+        per.insert("test_count".into(), count_tests(&path));
+        per.insert("library_panics".into(), count_library_panics_in(&path));
+        out.insert(name.to_string(), per);
+    }
     out
 }
 
@@ -191,21 +240,22 @@ pub fn count_trace_per_layer(workspace_root: &Path) -> (u64, u64, u64, u64) {
     }
 }
 
-/// Count `#[test]` attribute occurrences across `crates/**/*.rs`.
+/// Count `#[test]` attribute occurrences inside `root` recursively.
+/// Callers pass a whole-workspace root or a single-crate directory
+/// depending on scope.
 ///
 /// **Convention**: only the canonical `#[test]` form counts.
 /// Custom test attributes (`#[tokio::test]`, `#[test_case(…)]`,
 /// `#[rstest]`, etc.) are NOT counted — they would over-count or
 /// require per-framework special cases, and the project's own code
-/// uses only `#[test]`. A downstream project that uses custom
-/// test attributes should either wrap them in a macro that emits
+/// uses only `#[test]`. A downstream project that uses custom test
+/// attributes should either wrap them in a macro that emits
 /// `#[test]`, or leave the `test_count` floor out of their
 /// `cert/floors.toml` and rely on per-crate CI coverage counters
 /// instead.
-pub fn count_tests(workspace_root: &Path) -> u64 {
-    let crates = workspace_root.join("crates");
+pub fn count_tests(root: &Path) -> u64 {
     let mut files = Vec::new();
-    walk_rs_files(&crates, &mut files);
+    walk_rs_files(root, &mut files);
     let mut total: u64 = 0;
     for file in &files {
         let content = match fs::read_to_string(file) {
@@ -241,10 +291,13 @@ pub fn count_tests(workspace_root: &Path) -> u64 {
 ///
 /// A hand-curated allowlist at the file level is the escape hatch
 /// if any of these produces a false positive in practice.
-pub fn count_library_panics(workspace_root: &Path) -> u64 {
-    let crates = workspace_root.join("crates");
+pub fn count_library_panics(root: &Path) -> u64 {
+    count_library_panics_in(root)
+}
+
+fn count_library_panics_in(root: &Path) -> u64 {
     let mut files = Vec::new();
-    walk_rs_files(&crates, &mut files);
+    walk_rs_files(root, &mut files);
     let mut total: u64 = 0;
     for file in &files {
         // Exclude tests/ dirs (integration tests). Windows paths use
@@ -278,195 +331,11 @@ pub fn count_library_panics(workspace_root: &Path) -> u64 {
     total
 }
 
+// Tests live in a sibling file pulled in via `#[path]` so the facade
+// stays under the 500-line workspace limit. The naming collision
+// with the parent `mod floors;` is avoided by pointing directly at
+// the file.
 #[cfg(test)]
-#[allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    reason = "test setup failures should panic immediately"
-)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
+#[path = "floors/tests.rs"]
+mod tests;
 
-    fn workspace_root() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .expect("crates/")
-            .parent()
-            .expect("workspace root")
-            .to_path_buf()
-    }
-
-    /// Single-source-of-truth regression: the committed
-    /// `cert/floors.toml` must be satisfied by the current tree. No
-    /// hardcoded per-dimension expected values — the test reads the
-    /// TOML and asserts `current >= floor` for each entry. If a
-    /// measurement helper drifts, this test fires with the dimension
-    /// and both values in the panic message.
-    #[test]
-    fn current_measurements_satisfy_committed_floors() {
-        let root = workspace_root();
-        let floors_toml = root.join("cert").join("floors.toml");
-        let cfg = FloorsConfig::load(&floors_toml)
-            .unwrap_or_else(|e| panic!("load {}: {}", floors_toml.display(), e));
-        let m = current_measurements(&root);
-
-        let mut failures: Vec<String> = Vec::new();
-        for (dim, &floor) in &cfg.floors {
-            let current = m.get(dim).copied().unwrap_or(0);
-            if current < floor {
-                failures.push(format!(
-                    "  {}: current = {}, floor = {}",
-                    dim, current, floor
-                ));
-            }
-        }
-        assert!(
-            failures.is_empty(),
-            "cert/floors.toml is not satisfied by the current tree:\n{}\n\
-             either restore the measurement or edit cert/floors.toml with a \
-             `Lower-Floor:` line in the PR body.",
-            failures.join("\n")
-        );
-    }
-
-    /// Regression: the walker must NOT count occurrences that sit
-    /// inside a plain string literal. `floors.rs` itself has
-    /// `["panic!(", "unimplemented!(", "todo!("]` as a literal
-    /// Rust source; a naive substring scan would count all three
-    /// and fire a false positive on this very module.
-    #[test]
-    fn count_library_panics_ignores_occurrences_inside_string_literals() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let src = tmp.path().join("crates").join("fake").join("src");
-        std::fs::create_dir_all(&src).unwrap();
-        std::fs::write(
-            src.join("lib.rs"),
-            concat!(
-                "pub fn f() {\n",
-                "    let patterns = [\"panic!(\", \"unimplemented!(\", \"todo!(\"];\n",
-                "    let _ = patterns;\n",
-                "}\n",
-            ),
-        )
-        .unwrap();
-        assert_eq!(count_library_panics(tmp.path()), 0);
-    }
-
-    /// Regression: raw-string literals (`r"…"` and `r#"…"#`) also
-    /// count as strings. A `panic!(` inside a raw-string must not
-    /// trip the gate.
-    #[test]
-    fn count_library_panics_ignores_occurrences_inside_raw_strings() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let src = tmp.path().join("crates").join("fake").join("src");
-        std::fs::create_dir_all(&src).unwrap();
-        std::fs::write(
-            src.join("lib.rs"),
-            "pub fn f() { let _s = r#\"panic!(\\\"inside raw\\\")\"#; }\n",
-        )
-        .unwrap();
-        assert_eq!(count_library_panics(tmp.path()), 0);
-    }
-
-    /// Complementary: a REAL bare panic outside any string MUST be
-    /// counted. Pins the floor-to-catch-real-regressions contract.
-    #[test]
-    fn count_library_panics_catches_bare_panic_outside_strings() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let src = tmp.path().join("crates").join("fake").join("src");
-        std::fs::create_dir_all(&src).unwrap();
-        std::fs::write(
-            src.join("lib.rs"),
-            "pub fn f() { panic!(\"real\"); }\npub fn g() { todo!(); }\n",
-        )
-        .unwrap();
-        assert_eq!(count_library_panics(tmp.path()), 2);
-    }
-
-    /// Downstream users without a `crates/` directory (or without
-    /// `tool/trace/`) shouldn't see the measurements blow up —
-    /// helpers gracefully degrade to 0 so an external project can
-    /// opt into specific floors without setting up the full
-    /// workspace layout we use.
-    #[test]
-    fn measurements_on_empty_workspace_report_zero_gracefully() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let m = current_measurements(tmp.path());
-        assert_eq!(m["trace_sys"], 0);
-        assert_eq!(m["trace_hlr"], 0);
-        assert_eq!(m["trace_llr"], 0);
-        assert_eq!(m["trace_test"], 0);
-        assert_eq!(m["test_count"], 0);
-        assert_eq!(m["library_panics"], 0);
-        // RULES / TERMINAL_CODES are compile-time constants.
-        assert_eq!(m["diagnostic_codes"], count_rules());
-        assert_eq!(m["terminal_codes"], count_terminals());
-    }
-
-    #[test]
-    fn load_or_missing_distinguishes_not_found_from_parse_error() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let missing = tmp.path().join("does-not-exist.toml");
-        assert!(matches!(
-            FloorsConfig::load_or_missing(&missing),
-            LoadOutcome::Missing
-        ));
-
-        let bad = tmp.path().join("malformed.toml");
-        std::fs::write(&bad, "this is = not valid {{{").unwrap();
-        assert!(matches!(
-            FloorsConfig::load_or_missing(&bad),
-            LoadOutcome::Error(_)
-        ));
-
-        let ok = tmp.path().join("ok.toml");
-        std::fs::write(&ok, "schema_version = 1\n[floors]\ndiagnostic_codes = 1\n").unwrap();
-        assert!(matches!(
-            FloorsConfig::load_or_missing(&ok),
-            LoadOutcome::Loaded(_)
-        ));
-    }
-
-    #[test]
-    fn load_rejects_unknown_future_schema_version() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let path = tmp.path().join("future.toml");
-        std::fs::write(&path, "schema_version = 99\n[floors]\n").unwrap();
-        let err = FloorsConfig::load(&path).expect_err("future version must reject");
-        assert!(err.contains("schema_version"));
-    }
-
-    #[test]
-    fn count_tests_finds_at_least_one() {
-        let root = workspace_root();
-        let n = count_tests(&root);
-        assert!(n > 0, "walker found no #[test] — parser regression?");
-    }
-
-    #[test]
-    fn floors_config_deserializes_empty_with_defaults() {
-        let cfg: FloorsConfig = toml::from_str("schema_version = 1\n").expect("parses");
-        assert_eq!(cfg.schema_version, 1);
-        assert!(cfg.floors.is_empty());
-        assert!(cfg.delta_ceilings.is_empty());
-    }
-
-    #[test]
-    fn floors_config_deserializes_full_shape() {
-        let toml = r#"
-schema_version = 1
-
-[floors]
-diagnostic_codes = 80
-
-[delta_ceilings]
-new_dead_code_allows = 0
-"#;
-        let cfg: FloorsConfig = toml::from_str(toml).expect("parses");
-        assert_eq!(cfg.schema_version, 1);
-        assert_eq!(cfg.floors.get("diagnostic_codes"), Some(&80u64));
-        assert_eq!(cfg.delta_ceilings.get("new_dead_code_allows"), Some(&0u64));
-    }
-}

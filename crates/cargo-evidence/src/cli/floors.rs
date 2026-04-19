@@ -19,17 +19,24 @@ use std::path::PathBuf;
 use anyhow::Result;
 use serde::Serialize;
 
-use evidence::floors::LoadOutcome;
+use evidence::floors::{LoadOutcome, per_crate_measurements};
 use evidence::{FloorsConfig, current_measurements};
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
 use super::output::emit_json;
 
 /// One row of the floors report.
+///
+/// `crate_name = None` identifies a workspace-wide floor;
+/// `crate_name = Some(name)` identifies a per-crate floor. The JSON
+/// output reserves the optional `crate` field so agents can group
+/// rows by kind.
 #[derive(Debug, Serialize)]
 struct FloorRow {
     name: String,
     kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "crate")]
+    crate_name: Option<String>,
     current: u64,
     floor: u64,
     status: &'static str,
@@ -61,8 +68,9 @@ pub fn cmd_floors(json: bool, config: Option<PathBuf>) -> Result<i32> {
         }
     };
     let measurements = current_measurements(&workspace);
+    let per_crate = per_crate_measurements(&workspace);
 
-    let rows = build_rows(&config, &measurements);
+    let rows = build_rows(&config, &measurements, &per_crate);
     let any_fail = rows.iter().any(|r| r.status == "fail");
 
     if json {
@@ -81,19 +89,44 @@ pub fn cmd_floors(json: bool, config: Option<PathBuf>) -> Result<i32> {
 fn build_rows(
     config: &FloorsConfig,
     measurements: &std::collections::BTreeMap<String, u64>,
+    per_crate: &std::collections::BTreeMap<String, std::collections::BTreeMap<String, u64>>,
 ) -> Vec<FloorRow> {
     let mut rows: Vec<FloorRow> = Vec::new();
+
+    // Workspace-wide floors.
     for (name, &floor) in &config.floors {
         let current = measurements.get(name).copied().unwrap_or(0);
         let status = if current >= floor { "pass" } else { "fail" };
         rows.push(FloorRow {
             name: name.clone(),
             kind: "floor",
+            crate_name: None,
             current,
             floor,
             status,
         });
     }
+
+    // Per-crate floors. If a declared crate has no matching directory
+    // under `crates/`, the measurement lookup returns None and we
+    // report current=0 → gate fails with a clear naming of the
+    // missing crate.
+    for (crate_name, per) in &config.per_crate {
+        let measured = per_crate.get(crate_name);
+        for (dim, &floor) in per {
+            let current = measured.and_then(|m| m.get(dim).copied()).unwrap_or(0);
+            let status = if current >= floor { "pass" } else { "fail" };
+            rows.push(FloorRow {
+                name: dim.clone(),
+                kind: "per_crate_floor",
+                crate_name: Some(crate_name.clone()),
+                current,
+                floor,
+                status,
+            });
+        }
+    }
+
     // Delta ceilings: parsed, reported as "deferred" pending CI
     // commit. Keeps the shape stable for agents reading the JSON
     // output today.
@@ -101,6 +134,7 @@ fn build_rows(
         rows.push(FloorRow {
             name: name.clone(),
             kind: "delta_ceiling",
+            crate_name: None,
             current: 0,
             floor,
             status: "deferred",
@@ -110,9 +144,20 @@ fn build_rows(
 }
 
 fn print_human(rows: &[FloorRow]) {
-    let name_w = rows.iter().map(|r| r.name.len()).max().unwrap_or(4).max(4);
+    // Display name: per-crate rows prefix the crate → `evidence/
+    // test_count`, workspace rows keep the bare dimension name.
+    let display_name = |r: &FloorRow| match &r.crate_name {
+        Some(c) => format!("{}/{}", c, r.name),
+        None => r.name.clone(),
+    };
+    let name_w = rows
+        .iter()
+        .map(|r| display_name(r).len())
+        .max()
+        .unwrap_or(4)
+        .max(4);
     println!(
-        "{:<name_w$}  {:<14}  {:>8}  {:>8}  STATUS",
+        "{:<name_w$}  {:<16}  {:>8}  {:>8}  STATUS",
         "DIMENSION",
         "KIND",
         "CURRENT",
@@ -120,7 +165,7 @@ fn print_human(rows: &[FloorRow]) {
         name_w = name_w
     );
     println!(
-        "{:-<name_w$}  {:-<14}  {:->8}  {:->8}  {:-<8}",
+        "{:-<name_w$}  {:-<16}  {:->8}  {:->8}  {:-<8}",
         "",
         "",
         "",
@@ -136,8 +181,8 @@ fn print_human(rows: &[FloorRow]) {
             other => other,
         };
         println!(
-            "{:<name_w$}  {:<14}  {:>8}  {:>8}  {}",
-            r.name,
+            "{:<name_w$}  {:<16}  {:>8}  {:>8}  {}",
+            display_name(r),
             r.kind,
             r.current,
             r.floor,
