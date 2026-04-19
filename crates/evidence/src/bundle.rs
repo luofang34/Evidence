@@ -30,5 +30,7 @@ pub use command::CommandRecord;
 pub use error::BuilderError;
 pub use index::EvidenceIndex;
 pub use signing::{SigningError, sign_bundle, verify_bundle_signature};
-pub use test_summary::{TestSummary, parse_cargo_test_output};
+pub use test_summary::{
+    TestOutcome, TestSummary, parse_cargo_test_output, parse_cargo_test_output_with_outcomes,
+};
 pub use time::{utc_compact_stamp, utc_now_rfc3339};

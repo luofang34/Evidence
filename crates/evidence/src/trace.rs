@@ -19,6 +19,7 @@
 mod entries;
 mod matrix;
 mod read;
+mod requirement_report;
 mod selector_check;
 mod uuid;
 mod validation;
@@ -29,6 +30,7 @@ pub use entries::{
 };
 pub use matrix::generate_traceability_matrix;
 pub use read::{TraceFiles, read_all_trace_files, read_toml};
+pub use requirement_report::{RequirementStatus, build_requirement_report};
 pub use selector_check::{UnresolvedSelector, resolve_test_selectors};
 pub use uuid::{
     assign_missing_uuids_derived, assign_missing_uuids_hlr, assign_missing_uuids_llr,

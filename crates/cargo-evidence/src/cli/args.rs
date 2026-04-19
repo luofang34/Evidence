@@ -112,6 +112,24 @@ pub struct EvidenceArgs {
     pub format: OutputFormat,
 }
 
+/// Selects how `check` interprets its path argument.
+///
+/// - `Auto` (default): inspect the path. Containing `SHA256SUMS`
+///   wins (bundle mode); else containing `Cargo.toml` (source
+///   mode); else `CLI_INVALID_ARGUMENT`.
+/// - `Source`: force source mode; reject a bundle dir.
+/// - `Bundle`: force bundle mode; reject a source tree.
+#[derive(Clone, Copy, Default, PartialEq, Eq, ValueEnum, Debug)]
+pub enum CheckMode {
+    /// Pick mode from the path shape (default).
+    #[default]
+    Auto,
+    /// Force source-tree mode (trace validation + test run).
+    Source,
+    /// Force bundle mode (delegate to `verify`).
+    Bundle,
+}
+
 /// Global `--format` choice. See [`EvidenceArgs::format`].
 #[derive(Clone, Copy, Default, PartialEq, Eq, ValueEnum, Debug)]
 pub enum OutputFormat {
@@ -204,6 +222,26 @@ pub enum Commands {
     Schema {
         #[command(subcommand)]
         command: SchemaCommands,
+    },
+
+    /// One-shot agent-facing validation (source tree or bundle)
+    ///
+    /// Auto-detects whether the path is a source tree (has `Cargo.toml`)
+    /// or a bundle (has `SHA256SUMS`) and dispatches accordingly.
+    /// Source mode emits per-requirement `REQ_PASS` / `REQ_GAP` /
+    /// `REQ_SKIP` diagnostics plus the aggregate terminal. Bundle mode
+    /// delegates to `verify`. Use `check` as the default; `verify` is
+    /// kept as a low-level primitive for CI scripts.
+    Check {
+        /// Auto-detect mode (default), force source mode, or force
+        /// bundle mode. Mode mismatch with the path shape emits
+        /// `CLI_INVALID_ARGUMENT` rather than silently running the
+        /// wrong pipeline.
+        #[arg(long, value_enum, default_value_t = CheckMode::Auto)]
+        mode: CheckMode,
+
+        /// Path to check. Defaults to `.` (the current directory).
+        path: Option<PathBuf>,
     },
 
     /// Trace management utilities

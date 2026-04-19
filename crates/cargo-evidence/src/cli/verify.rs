@@ -58,12 +58,24 @@ fn fail_verify(
     Ok(exit_code)
 }
 
-/// `cargo evidence verify` handler: run every integrity + policy
-/// check on `bundle_path` and emit a per-check pass/fail report.
-/// Returns [`EXIT_VERIFICATION_FAILURE`]
+/// `cargo evidence verify` handler — the **low-level primitive**
+/// for bundle integrity + policy checks.
+///
+/// Runs every integrity + policy check on `bundle_path` and emits a
+/// per-check pass/fail report. Returns [`EXIT_VERIFICATION_FAILURE`]
 /// when any check fails (or when any warning fires in `--strict`
 /// mode), and [`EXIT_ERROR`] only when the tool itself can't run —
 /// e.g. the bundle directory is missing.
+///
+/// **Agents and humans should prefer `cargo evidence check`**
+/// ([`crate::cli::check::cmd_check`]) as the default entry point:
+/// it auto-detects whether the argument is a source tree or bundle,
+/// emits per-requirement `REQ_*` diagnostics in source mode, and
+/// carries `FixHint` variants for mechanical autofix. `verify`
+/// remains supported for CI scripts and shell pipelines that want a
+/// stable bundle-only surface. MCP (PR #50) wraps `check`; `verify`
+/// is deliberately not exposed over MCP to avoid agents picking
+/// between two commands that overlap in bundle mode.
 pub fn cmd_verify(
     bundle_path: PathBuf,
     strict: bool,
@@ -274,6 +286,7 @@ fn cmd_verify_jsonl(
             location: None,
             fix_hint: None,
             subcommand: None,
+            root_cause_uid: None,
         })?;
         emit_jsonl(&terminal_fail("bundle failed strict signature requirement"))?;
         return Ok(EXIT_VERIFICATION_FAILURE);
@@ -320,6 +333,7 @@ fn cmd_verify_jsonl(
                 location: None,
                 fix_hint: None,
                 subcommand: None,
+                root_cause_uid: None,
             })?;
             if strict {
                 emit_jsonl(&terminal_fail(&format!(
@@ -353,6 +367,7 @@ fn terminal_ok(message: &str) -> Diagnostic {
         location: None,
         fix_hint: None,
         subcommand: None,
+        root_cause_uid: None,
     }
 }
 
@@ -364,6 +379,7 @@ fn terminal_fail(message: &str) -> Diagnostic {
         location: None,
         fix_hint: None,
         subcommand: None,
+        root_cause_uid: None,
     }
 }
 
@@ -375,5 +391,6 @@ fn terminal_error(message: &str) -> Diagnostic {
         location: None,
         fix_hint: None,
         subcommand: None,
+        root_cause_uid: None,
     }
 }

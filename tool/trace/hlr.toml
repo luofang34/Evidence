@@ -1,5 +1,3 @@
-# tool/trace/hlr.toml — High-Level Requirements (see ../README.md)
-
 [schema]
 version = "0.0.3"
 
@@ -368,3 +366,76 @@ either flag, the test fires before the change merges.
 """
 verification_methods = ["test"]
 traces_to = ["daf04641-ce24-4426-9c39-9f02b6c511cf"]
+
+[[requirements]]
+uid = "6c6eeac3-d491-42da-940f-97714e78e351"
+id = "HLR-025"
+title = "check auto-detects argument shape"
+owner = "tool"
+scope = "component"
+description = """
+`cargo evidence check [--mode=auto|source|bundle] [PATH]`. PATH
+defaults to `.`. With --mode=auto (default), a PATH containing
+SHA256SUMS is bundle mode; else a PATH containing Cargo.toml is
+source mode; else CLI_INVALID_ARGUMENT + VERIFY_FAIL terminal.
+Explicit --mode always wins. Bundle-beats-Cargo.toml precedence
+handles the README-discouraged-but-real "bundle inside source tree"
+case without silent mis-dispatch.
+"""
+verification_methods = ["test"]
+traces_to = ["aa13d9a6-042e-4bc9-9d9e-c191128fb857"]
+
+[[requirements]]
+uid = "9766fba0-eac5-4678-a548-b04c799ee527"
+id = "HLR-026"
+title = "check emits one diagnostic per requirement"
+owner = "tool"
+scope = "component"
+description = """
+For every SYS/HLR/LLR/Test entry in the discovered trace, `check`
+emits exactly one REQ_PASS / REQ_GAP / REQ_SKIP diagnostic keyed on
+the requirement UID. When a root-cause failure at one layer
+propagates (failing test → LLR/HLR/SYS above it), each upstream
+entry gets its own REQ_GAP carrying root_cause_uid pointing at the
+primary failure. Agents group client-side; no information is lost
+and no cascade is suppressed.
+"""
+verification_methods = ["test"]
+traces_to = ["aa13d9a6-042e-4bc9-9d9e-c191128fb857"]
+
+[[requirements]]
+uid = "7c6672c3-5a20-42b6-bf73-04aa6c00a914"
+id = "HLR-027"
+title = "Every REQ_GAP carries a mechanical FixHint where one exists"
+owner = "tool"
+scope = "component"
+description = """
+REQ_GAP events include a FixHint variant chosen by sub-case:
+empty traces_to under require_hlr_sys_trace → AddTomlKey;
+missing uid → AssignUuid;
+unresolvable test_selector → AddTomlKey recommending a resolved
+selector. Real test failures carry no FixHint (the fix is in source
+code, not in the trace file) but do carry enough message context
+for an agent to root-cause. Without hints, `check` is structured
+logging; with them, MCP (PR #50) can wrap autofix agents directly.
+"""
+verification_methods = ["test"]
+traces_to = ["aa13d9a6-042e-4bc9-9d9e-c191128fb857"]
+
+[[requirements]]
+uid = "c50517f8-23e6-4d1e-814e-c3b0938c3cb8"
+id = "HLR-028"
+title = "Test results come from captured workspace stdout"
+owner = "tool"
+scope = "component"
+description = """
+Source mode runs `cargo test --workspace --no-fail-fast` once,
+parses stable libtest text output into a BTreeMap<FullyQualifiedName,
+TestOutcome>, and looks up each test_selector. No per-test cargo
+invocation: that would spawn N times, diverge from workspace-run
+semantics under shared fixtures, and duplicate work. A pinned
+libtest_output_sample.txt fixture + regression test fires if
+libtest ever changes output format.
+"""
+verification_methods = ["test"]
+traces_to = ["aa13d9a6-042e-4bc9-9d9e-c191128fb857"]

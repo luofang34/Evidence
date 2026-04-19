@@ -1,5 +1,3 @@
-# tool/trace/tests.toml — Test cases (see ../README.md)
-
 [schema]
 version = "0.0.3"
 
@@ -157,7 +155,7 @@ id = "TEST-019"
 title = "SYS→HLR→LLR→Test chain validates"
 owner = "tool"
 traces_to = ["7a74ec14-14e1-4876-914b-66c898028d56"]
-test_selector = "evidence::trace::validation::tests::sys_hlr_llr_test_chain_validates"
+test_selector = "trace_sys_layer::sys_hlr_llr_test_chain_validates"
 
 [[tests]]
 uid = "ba80f1d3-65a0-44b7-afc7-85ca0fd1bc3c"
@@ -198,3 +196,35 @@ title = "CI yaml carries both enforcement flags"
 owner = "tool"
 traces_to = ["1f7977da-6692-45ad-8a29-72a1d3efa60a"]
 test_selector = "ci_self_check::ci_yaml_has_enforcement_flags"
+
+[[tests]]
+uid = "3dc79eb5-3ffc-4b04-ba4c-e2a2e458feeb"
+id = "TEST-025"
+title = "check dispatches source mode on a workspace directory"
+owner = "tool"
+traces_to = ["7df3b426-c9ea-426b-8fb9-64ce247312a0"]
+test_selector = "check_source_tree::check_source_mode_on_clean_workspace"
+
+[[tests]]
+uid = "e515c2c0-bf93-4768-8141-f4c0e5424301"
+id = "TEST-026"
+title = "REQ_GAP on blanked HLR.traces_to carries AddTomlKey FixHint"
+owner = "tool"
+traces_to = ["8738fc8e-353a-47d8-a6d4-e256673061d0"]
+test_selector = "check_source_tree::req_gap_on_blank_traces_to_has_fixhint"
+
+[[tests]]
+uid = "ea000db3-f2d2-44f0-9121-6c5f84192cd7"
+id = "TEST-027"
+title = "Derived REQ_GAPs carry root_cause_uid"
+owner = "tool"
+traces_to = ["03795ca7-d5d3-48bc-9774-490cd6d4c2e0"]
+test_selector = "check_source_tree::derived_gaps_carry_root_cause_uid"
+
+[[tests]]
+uid = "4650b356-6c50-4ea8-b548-e650ce923973"
+id = "TEST-028"
+title = "check bundle mode byte-matches verify --format=jsonl"
+owner = "tool"
+traces_to = ["7df3b426-c9ea-426b-8fb9-64ce247312a0"]
+test_selector = "check_bundle_mode::check_bundle_mode_matches_verify"
