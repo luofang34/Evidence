@@ -38,6 +38,7 @@ pub mod compliance;
 pub mod coverage;
 pub mod diagnostic;
 pub mod env;
+pub mod floors;
 pub mod git;
 pub mod hash;
 pub mod policy;
@@ -62,6 +63,7 @@ pub use compliance::{
 pub use coverage::{CoverageLevel, CoverageSummary};
 pub use diagnostic::{Diagnostic, DiagnosticCode, FixHint, Location, Severity, TERMINAL_CODES};
 pub use env::{DeterministicManifest, EnvFingerprint, Host};
+pub use floors::{FloorsConfig, current_measurements};
 pub use git::{GitSnapshot, RealGitProvider, check_shallow_clone, is_dirty_or_unknown};
 pub use hash::{sha256, sha256_file};
 pub use policy::{

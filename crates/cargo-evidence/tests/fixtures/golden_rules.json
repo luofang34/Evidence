@@ -168,6 +168,20 @@
     "terminal": false
   },
   {
+    "code": "FLOORS_BELOW_MIN",
+    "severity": "error",
+    "domain": "floors",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "FLOORS_LOWERED_WITHOUT_JUSTIFICATION",
+    "severity": "error",
+    "domain": "floors",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "GIT_CMD_FAILED",
     "severity": "error",
     "domain": "git",
