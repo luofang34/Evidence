@@ -132,3 +132,23 @@ in any of those dimensions shall fail CI.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "a289fe83-d842-4708-b920-39cbcebd1aa1"
+id = "SYS-009"
+title = "Tool ratchets its own rigor floors — no silent regression"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall commit an absolute floor for every dimension along
+which it ratchets its own rigor (diagnostic codes, terminal codes,
+per-layer trace entry counts, #[test] count, bijection-invariant
+count), plus a delta ceiling for dimensions where any new addition
+is a regression (dead-code allows, library-code panics). A CI gate
+shall fail any change that lowers a measurement below its committed
+floor or exceeds a committed ceiling. Lowering a floor shall require
+an explicit written justification; silent ratchet-reversal shall be
+mechanically impossible.
+"""
+verification_methods = ["test"]
+traces_to = []
