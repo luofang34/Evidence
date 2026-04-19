@@ -385,6 +385,27 @@
     "terminal": false
   },
   {
+    "code": "TRACE_DERIVED_MISSING_RATIONALE",
+    "severity": "error",
+    "domain": "trace",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "TRACE_HLR_SURFACE_UNCLAIMED",
+    "severity": "error",
+    "domain": "trace",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "TRACE_HLR_SURFACE_UNKNOWN",
+    "severity": "error",
+    "domain": "trace",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "TRACE_LINK_FAILED",
     "severity": "error",
     "domain": "trace",
