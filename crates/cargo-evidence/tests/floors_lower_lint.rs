@@ -105,6 +105,38 @@ fn accepts_decrease_with_justification_line() {
     );
 }
 
+/// PR bodies in the wild contain backticks, `$()`, angle brackets,
+/// and markdown links. The script must still match the
+/// `Lower-Floor:` line without expanding any of these as shell
+/// code. Pins the env-var transport is byte-exact, not eval'd.
+#[test]
+fn justification_survives_special_chars_in_pr_body() {
+    let base = "[floors]\ndiagnostic_codes = 82\n";
+    let head = "[floors]\ndiagnostic_codes = 70\n";
+    // Body mixes the justification line with a bunch of shell-
+    // hostile content: backticks, command-substitution tokens,
+    // angle-bracket tags, markdown links, a literal `$` line.
+    let body = r#"## Summary
+
+Consolidating redundant diagnostic codes — we had `$(whoami)` as
+a placeholder in the comment, plus a <script> tag and [a link](
+https://example.com "quoted title") that shouldn't disturb parsing.
+
+Also see `ls -la | grep foo` in the README for another example.
+
+Lower-Floor: diagnostic_codes consolidated redundant codes post-refactor $(echo ok).
+"#;
+    let out = run_lint(base, head, body);
+
+    assert!(
+        out.status.success(),
+        "justified decrease must exit 0 even with special chars; \
+         stdout={}\nstderr={}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+}
+
 /// Raising a floor (no decrease) passes without needing a line.
 #[test]
 fn raise_passes_without_justification() {

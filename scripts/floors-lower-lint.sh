@@ -11,6 +11,16 @@
 # Without the line, this script emits FLOORS_LOWERED_WITHOUT_
 # JUSTIFICATION and exits 1.
 #
+# **Squash-merge note.** Most GitHub projects enable "squash and
+# merge", which DROPS the original PR body unless the committer
+# hand-copies it into the squash commit message. If your PR lowers
+# a floor, you MUST paste the `Lower-Floor:` line into the squash
+# commit's extended description before merging, otherwise a
+# post-merge `main`-branch dogfood of this lint would fail against
+# the (squashed) commit message. GitHub's default squash template
+# can be configured to carry the PR body; if yours doesn't, the PR
+# author owns that step.
+#
 # Usage:
 #   scripts/floors-lower-lint.sh [base-ref]   # default: origin/main
 #

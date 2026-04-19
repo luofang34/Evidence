@@ -132,7 +132,8 @@ fn print_human(rows: &[FloorRow]) {
         let marker = match r.status {
             "pass" => "✓ pass",
             "fail" => "✗ FAIL",
-            _ => "- skip",
+            "deferred" => "⏸ deferred (not enforced yet)",
+            other => other,
         };
         println!(
             "{:<name_w$}  {:<14}  {:>8}  {:>8}  {}",
@@ -147,11 +148,18 @@ fn print_human(rows: &[FloorRow]) {
     println!();
     let fails = rows.iter().filter(|r| r.status == "fail").count();
     if fails == 0 {
-        println!(
-            "{} floor(s) pass, {} delta_ceiling(s) deferred to CI.",
-            rows.iter().filter(|r| r.status == "pass").count(),
-            rows.iter().filter(|r| r.status == "deferred").count(),
-        );
+        let deferred = rows.iter().filter(|r| r.status == "deferred").count();
+        let pass = rows.iter().filter(|r| r.status == "pass").count();
+        if deferred > 0 {
+            println!(
+                "{} floor(s) pass. {} delta_ceiling(s) declared but NOT enforced yet — \
+                 parsed only for wire-shape stability; the diff-enforcement path lands \
+                 in a follow-up commit.",
+                pass, deferred
+            );
+        } else {
+            println!("{} floor(s) pass.", pass);
+        }
     } else {
         println!(
             "FLOORS_BELOW_MIN: {} floor violation(s). Rigor has slipped — \

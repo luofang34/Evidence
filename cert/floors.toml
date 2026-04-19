@@ -17,6 +17,13 @@
 # Adding a new entry: land it in the same PR as the feature that
 # makes the dimension measurable, set the floor to the commit-time
 # value, and document the dimension's meaning in evidence::floors.
+#
+# `schema_version` pins the shape. A break in the shape (removed
+# field, renamed table, incompatible type change) bumps this; an
+# older tool reading a newer config refuses to proceed rather than
+# silently skip unknown fields.
+
+schema_version = 1
 
 [floors]
 # evidence::RULES length — every diagnostic code the tool can emit,

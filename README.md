@@ -401,6 +401,15 @@ line in the PR body (or direct-push commit message). Without it,
 `FLOORS_LOWERED_WITHOUT_JUSTIFICATION`. The friction is intentional:
 the ratchet only moves up.
 
+**Squash-merge caveat.** GitHub's default "squash and merge"
+button DROPS the original PR body unless the committer hand-copies
+it into the squash commit message. If your PR lowers a floor, paste
+the `Lower-Floor:` line into the squash commit's extended
+description before merging — otherwise a post-merge dogfood run of
+the lint on the `main` branch would fail against the squashed
+commit's body. Projects that use merge-commits or rebase-and-merge
+preserve the PR body and are unaffected.
+
 **Using `floors` in your own project (no manual setup required for
 the default case).** If your project has no `cert/floors.toml`, the
 subcommand emits a friendly "not configured" info line on stderr and
