@@ -131,12 +131,36 @@ pub const RESERVED_UNCLAIMED_CODES: &[&str] = &[];
 /// `tool/trace/llr.toml` whose `emits` list owns this code (or add
 /// one), and add a test exercising the emit path.
 pub const RULES: &[RuleEntry] = &[
-    r("BOUNDARY_CARGO_METADATA_FAILED", Severity::Error, Domain::Boundary),
-    r("BOUNDARY_CONFIG_PARSE_FAILED", Severity::Error, Domain::Boundary),
-    r("BOUNDARY_CONFIG_READ_FAILED", Severity::Error, Domain::Boundary),
-    r("BOUNDARY_OUT_OF_SCOPE_DEPS", Severity::Error, Domain::Boundary),
-    r("BOUNDARY_PARSE_METADATA_FAILED", Severity::Error, Domain::Boundary),
-    r("BOUNDARY_UNKNOWN_IN_SCOPE_CRATE", Severity::Error, Domain::Boundary),
+    r(
+        "BOUNDARY_CARGO_METADATA_FAILED",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_CONFIG_PARSE_FAILED",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_CONFIG_READ_FAILED",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_OUT_OF_SCOPE_DEPS",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_PARSE_METADATA_FAILED",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_UNKNOWN_IN_SCOPE_CRATE",
+        Severity::Error,
+        Domain::Boundary,
+    ),
     r("BUNDLE_ALREADY_EXISTS", Severity::Error, Domain::Bundle),
     r("BUNDLE_CURRENT_DIR_FAILED", Severity::Error, Domain::Bundle),
     r("BUNDLE_DIRTY_GIT_TREE", Severity::Error, Domain::Bundle),
@@ -182,33 +206,77 @@ pub const RULES: &[RuleEntry] = &[
     r("SIGN_READ_FAILED", Severity::Error, Domain::Sign),
     r("SIGN_WRITE_FAILED", Severity::Error, Domain::Sign),
     r("TRACE_BACKFILL_READ_FAILED", Severity::Error, Domain::Trace),
-    r("TRACE_BACKFILL_SERIALIZE_FAILED", Severity::Error, Domain::Trace),
-    r("TRACE_BACKFILL_WRITE_FAILED", Severity::Error, Domain::Trace),
+    r(
+        "TRACE_BACKFILL_SERIALIZE_FAILED",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r(
+        "TRACE_BACKFILL_WRITE_FAILED",
+        Severity::Error,
+        Domain::Trace,
+    ),
     r("TRACE_LINK_FAILED", Severity::Error, Domain::Trace),
     r("TRACE_PARSE_FAILED", Severity::Error, Domain::Trace),
     r("TRACE_READ_FAILED", Severity::Error, Domain::Trace),
     r("TRACE_REGISTER_FAILED", Severity::Error, Domain::Trace),
-    r("VERIFY_CONTENT_HASH_MISMATCH", Severity::Error, Domain::Verify),
-    r("VERIFY_CROSS_FILE_INCONSISTENCY", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_CONTENT_HASH_MISMATCH",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_CROSS_FILE_INCONSISTENCY",
+        Severity::Error,
+        Domain::Verify,
+    ),
     r("VERIFY_DAL_MAP_MISMATCH", Severity::Error, Domain::Verify),
     r("VERIFY_DAL_MAP_ORPHAN", Severity::Error, Domain::Verify),
-    r("VERIFY_DETERMINISTIC_HASH_MISMATCH", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_DETERMINISTIC_HASH_MISMATCH",
+        Severity::Error,
+        Domain::Verify,
+    ),
     terminal("VERIFY_ERROR", Severity::Error),
     terminal("VERIFY_FAIL", Severity::Error),
     r("VERIFY_HASH_MISMATCH", Severity::Error, Domain::Verify),
     r("VERIFY_HMAC_FAILURE", Severity::Error, Domain::Verify),
     r("VERIFY_INVALID_FORMAT", Severity::Error, Domain::Verify),
-    r("VERIFY_MANIFEST_PROJECTION_DRIFT", Severity::Error, Domain::Verify),
-    r("VERIFY_MISSING_HASHED_FILE", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_MANIFEST_PROJECTION_DRIFT",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_MISSING_HASHED_FILE",
+        Severity::Error,
+        Domain::Verify,
+    ),
     terminal("VERIFY_OK", Severity::Info),
-    r("VERIFY_RUNTIME_BUNDLE_NOT_FOUND", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_RUNTIME_BUNDLE_NOT_FOUND",
+        Severity::Error,
+        Domain::Verify,
+    ),
     r("VERIFY_RUNTIME_HASH", Severity::Error, Domain::Verify),
-    r("VERIFY_RUNTIME_PARSE_INDEX", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_RUNTIME_PARSE_INDEX",
+        Severity::Error,
+        Domain::Verify,
+    ),
     r("VERIFY_RUNTIME_READ_FILE", Severity::Error, Domain::Verify),
     r("VERIFY_RUNTIME_SIGNING", Severity::Error, Domain::Verify),
     r("VERIFY_RUNTIME_WALK", Severity::Error, Domain::Verify),
-    r("VERIFY_TEST_SUMMARY_MISMATCH", Severity::Error, Domain::Verify),
-    r("VERIFY_TRACE_OUTPUT_NOT_HASHED", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_TEST_SUMMARY_MISMATCH",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_TRACE_OUTPUT_NOT_HASHED",
+        Severity::Error,
+        Domain::Verify,
+    ),
     r("VERIFY_UNEXPECTED_FILE", Severity::Error, Domain::Verify),
     r("VERIFY_UNSAFE_PATH", Severity::Error, Domain::Verify),
 ];
@@ -349,9 +417,8 @@ mod tests {
     #[test]
     fn rules_domain_matches_prefix() {
         for r in RULES {
-            let derived = Domain::from_code(r.code).unwrap_or_else(|| {
-                panic!("RULES entry '{}' has no recognizable prefix", r.code)
-            });
+            let derived = Domain::from_code(r.code)
+                .unwrap_or_else(|| panic!("RULES entry '{}' has no recognizable prefix", r.code));
             assert_eq!(
                 derived, r.domain,
                 "RULES entry '{}' declares domain {:?} but its prefix implies {:?}",

@@ -111,7 +111,10 @@ fn generate_and_collect_statuses(tmp: &Path) -> BTreeMap<String, BTreeMap<String
         let crate_name = v["crate_name"].as_str().expect("crate_name").to_string();
         let mut statuses: BTreeMap<String, String> = BTreeMap::new();
         for obj in v["objectives"].as_array().expect("objectives array") {
-            let id = obj["objective_id"].as_str().expect("objective_id").to_string();
+            let id = obj["objective_id"]
+                .as_str()
+                .expect("objective_id")
+                .to_string();
             let status = obj["status"].as_str().expect("status").to_string();
             statuses.insert(id, status);
         }

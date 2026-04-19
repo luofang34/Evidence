@@ -1,44 +1,26 @@
 //! Grep-regression for `DiagnosticCode` codes across the library.
 //!
-//! Walks every `crates/evidence/src/**/*.rs` file, finds `impl
-//! DiagnosticCode for …` blocks, and extracts the string literals
-//! returned from their `match` arms. Then enforces Schema Rule 3
-//! plus the terminal-suffix namespace rule from Schema Rule 1:
+//! This file holds the test cases. The source-walking machinery lives
+//! in the sibling `diagnostic_codes_locked/walker.rs` — split out to
+//! stay under the 500-line workspace file-size limit (see
+//! `crates/evidence/tests/file_size_limit.rs`).
+//!
+//! Invariants enforced (Schema Rule 3 + reserved-suffix rule from
+//! Rule 1 + PR #47 bijections):
 //!
 //! - Every walked code matches `^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$`.
 //! - No two variants across the whole library return the same code.
 //! - [`TERMINAL_CODES`] is internally unique.
-//! - [`TERMINAL_CODES`] is disjoint from the walked registry (no code
-//!   is both hand-emitted and returned from a `DiagnosticCode` impl).
-//! - Every walked code ending in `_OK` / `_FAIL` / `_ERROR` is also in
-//!   [`TERMINAL_CODES`] — catches the foot-gun of a future
-//!   `TRACE_PARSE_ERROR` variant silently stealing a reserved suffix.
-//! - Every [`TERMINAL_CODES`] entry ends in one of the three reserved
-//!   terminal suffixes.
-//!
-//! The exhaustive `match self` in each `DiagnosticCode::code` impl is
-//! the compile-time half of Schema Rule 3 — a new variant without a
-//! stable code fails to compile. This test is the run-time half:
-//! a renamed or copy-pasted literal that slipped past review still
-//! fails here.
-//!
-//! # Out of scope: dead-code detection
-//!
-//! Schema Rule 3 does NOT promise detection of dead code strings: if a
-//! variant is later removed but its code literal lingers in a `_ =>`
-//! fallback arm or a stale comment, this test will not fire. The
-//! compile-time exhaustiveness check prevents the common case (adding
-//! a new variant without a code), but removed variants leave only a
-//! dead return-path that the compiler can't flag. A contributor who
-//! needs that guarantee must add a separate dead-code lint pass — this
-//! test stays focused on the two positive invariants (regex +
-//! uniqueness) plus the four terminal-namespace invariants above.
-//!
-//! This is deliberately a source-walking test rather than a reflection-
-//! based one: Rust has no runtime reflection over trait impls, and
-//! manually instantiating every error variant would require constructor
-//! arguments that aren't universally available. Walking the source is
-//! the pragmatic alternative, same shape as `schema_versions_locked`.
+//! - [`TERMINAL_CODES`] is disjoint from the walked registry.
+//! - Every walked code ending in `_OK` / `_FAIL` / `_ERROR` is in
+//!   [`TERMINAL_CODES`].
+//! - Every [`TERMINAL_CODES`] entry ends in a reserved terminal
+//!   suffix.
+//! - (PR #47) `RULES ⇔ source walked set` bijection.
+//! - (PR #47) `RULES.terminal=true ⇔ TERMINAL_CODES` bijection.
+//! - (PR #47) Every `RULES` code is claimed by at least one
+//!   `LLR.emits` list, and every `LLR.emits` entry is a real `RULES`
+//!   code.
 //!
 //! [`TERMINAL_CODES`]: evidence::TERMINAL_CODES
 
@@ -49,196 +31,19 @@
     reason = "test setup failures should panic immediately"
 )]
 
+// `#[path]` avoids the `mod diagnostic_codes_locked;` naming collision
+// with the outer integration-test file of the same name.
+#[path = "diagnostic_codes_locked/walker.rs"]
+mod walker;
+
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("crates/")
-        .parent()
-        .expect("workspace root")
-        .to_path_buf()
-}
-
-/// Walk `root` recursively; return every `.rs` file below it. Skips
-/// `target/` so a `cargo doc` output tree can't taint the search.
-fn rs_files(root: &Path, out: &mut Vec<PathBuf>) {
-    let entries = match fs::read_dir(root) {
-        Ok(r) => r,
-        Err(_) => return,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            if path.file_name().and_then(|n| n.to_str()) == Some("target") {
-                continue;
-            }
-            rs_files(&path, out);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-            out.push(path);
-        }
-    }
-}
-
-/// Strip `//` single-line comments from `text`, preserving newlines
-/// so line numbers stay accurate. Sufficient for Rust source because
-/// doc-comment code literals (`//! impl DiagnosticCode for …`) would
-/// otherwise pollute the walked set with examples like
-/// `MY_BAD_CHECKSUM` that aren't real impls. `//` inside a string
-/// literal would be a corner case; the walked targets are all
-/// UPPER_SNAKE_CASE codes so the conservative stripper is safe.
-fn strip_line_comments(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for line in text.lines() {
-        if let Some(cut) = line.find("//") {
-            out.push_str(&line[..cut]);
-        } else {
-            out.push_str(line);
-        }
-        out.push('\n');
-    }
-    out
-}
-
-/// Extract (code, source-location) for every `"X" =>` arm inside every
-/// `impl DiagnosticCode for … { fn code(&self) … }` block in `text`.
-///
-/// The parser is deliberately simple: we find `impl DiagnosticCode
-/// for`, then track brace depth inside a `fn code(` definition,
-/// collecting `"…"` literals that appear as the right-hand side of a
-/// `=>` arm. Anything else (error messages inside `#[error(...)]`,
-/// comments, unrelated string literals) is not matched because the
-/// parser only activates inside the `fn code` body.
-fn extract_codes(text: &str) -> Vec<(String, usize)> {
-    let mut out = Vec::new();
-    let bytes = text.as_bytes();
-
-    // Find every `impl DiagnosticCode for` start. The module's own
-    // doc-comment might mention the phrase; restrict to occurrences
-    // followed by an identifier + `{`, as a real impl header has.
-    let needle = b"impl DiagnosticCode for";
-    let mut search_start = 0;
-    while let Some(rel) = find_subslice(&bytes[search_start..], needle) {
-        let abs = search_start + rel;
-        search_start = abs + needle.len();
-
-        // Walk to the opening `{` of the impl body.
-        let Some(impl_open) = bytes[abs..].iter().position(|&b| b == b'{') else {
-            continue;
-        };
-        let impl_open = abs + impl_open;
-        let impl_close = match_braces(bytes, impl_open);
-        let impl_body = &bytes[impl_open + 1..impl_close];
-
-        // Within the impl body, find `fn code(` and match its body.
-        let fn_needle = b"fn code(";
-        let Some(rel_fn) = find_subslice(impl_body, fn_needle) else {
-            continue;
-        };
-        let fn_abs = impl_open + 1 + rel_fn;
-        let Some(fn_open_rel) = bytes[fn_abs..].iter().position(|&b| b == b'{') else {
-            continue;
-        };
-        let fn_open = fn_abs + fn_open_rel;
-        let fn_close = match_braces(bytes, fn_open);
-        let fn_body = &bytes[fn_open + 1..fn_close];
-
-        // Walk the fn body looking for `=> "CODE"` arms.
-        let mut i = 0;
-        while i + 2 < fn_body.len() {
-            if fn_body[i] == b'=' && fn_body[i + 1] == b'>' {
-                // Skip whitespace after `=>`.
-                let mut j = i + 2;
-                while j < fn_body.len() && fn_body[j].is_ascii_whitespace() {
-                    j += 1;
-                }
-                if j < fn_body.len() && fn_body[j] == b'"' {
-                    // Collect the string literal (no escapes expected
-                    // in an UPPER_SNAKE_CASE code).
-                    let start = j + 1;
-                    let mut k = start;
-                    while k < fn_body.len() && fn_body[k] != b'"' {
-                        k += 1;
-                    }
-                    if k < fn_body.len() {
-                        let code = std::str::from_utf8(&fn_body[start..k]).unwrap_or("");
-                        // Character-count the bytes-before-the-arm to
-                        // report a roughly accurate line. `fn_open +
-                        // 1 + i` is the byte offset in the whole file
-                        // of the `=>`.
-                        let byte_offset = fn_open + 1 + i;
-                        let line = 1 + bytes[..byte_offset].iter().filter(|&&b| b == b'\n').count();
-                        out.push((code.to_string(), line));
-                        i = k + 1;
-                        continue;
-                    }
-                }
-            }
-            i += 1;
-        }
-    }
-    out
-}
-
-fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|w| w == needle)
-}
-
-/// Given `open_idx` pointing at `{`, return the index of its matching
-/// `}`. Aborts (panic) if unbalanced — a compile failure would fire
-/// first in that case, so this is safety belt only.
-fn match_braces(bytes: &[u8], open_idx: usize) -> usize {
-    let mut depth: i32 = 0;
-    let mut i = open_idx;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'{' => depth += 1,
-            b'}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return i;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    panic!("unbalanced braces at {}", open_idx);
-}
-
-fn code_is_valid(code: &str) -> bool {
-    // `^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$` — same pattern locked by
-    // `schemas/diagnostic.schema.json`.
-    let bytes = code.as_bytes();
-    if bytes.is_empty() || !bytes[0].is_ascii_uppercase() {
-        return false;
-    }
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c == b'_' {
-            // Underscore must be followed by at least one [A-Z0-9].
-            if i + 1 >= bytes.len() {
-                return false;
-            }
-            let next = bytes[i + 1];
-            if !next.is_ascii_uppercase() && !next.is_ascii_digit() {
-                return false;
-            }
-            i += 1;
-            continue;
-        }
-        if !c.is_ascii_uppercase() && !c.is_ascii_digit() {
-            return false;
-        }
-        i += 1;
-    }
-    true
-}
+use walker::{
+    code_is_valid, ends_in_terminal_suffix, extract_codes, rs_files, strip_line_comments,
+    walked_codes, workspace_root,
+};
 
 #[test]
 fn diagnostic_codes_locked() {
@@ -249,8 +54,6 @@ fn diagnostic_codes_locked() {
     rs_files(&crate_root, &mut files);
     files.sort();
 
-    // code → list of (file, line) it was returned from; used to
-    // pinpoint duplicates when they occur.
     let mut seen: BTreeMap<String, Vec<(PathBuf, usize)>> = BTreeMap::new();
     let mut invalid: Vec<(String, PathBuf, usize)> = Vec::new();
 
@@ -268,15 +71,12 @@ fn diagnostic_codes_locked() {
         }
     }
 
-    // Must have collected something; if zero codes surfaced the parser
-    // broke silently.
     assert!(
         !seen.is_empty(),
         "parser found no DiagnosticCode impls under {:?} — parser regression?",
         crate_root
     );
 
-    // Regex gate.
     assert!(
         invalid.is_empty(),
         "codes violating UPPER_SNAKE_CASE pattern:\n{}",
@@ -287,7 +87,6 @@ fn diagnostic_codes_locked() {
             .join("\n")
     );
 
-    // Uniqueness gate.
     let duplicates: Vec<(&String, &Vec<(PathBuf, usize)>)> = seen
         .iter()
         .filter(|(_, locations)| locations.len() > 1)
@@ -312,25 +111,9 @@ fn diagnostic_codes_locked() {
             .join("\n")
     );
 
-    // =================================================================
-    // Terminal-namespace invariants (Schema Rule 1 / reserved suffixes)
-    // =================================================================
-    //
-    // The four assertions below enforce the terminal-codes contract.
-    // `TERMINAL_CODES` is the single source of truth for hand-emitted
-    // terminals; every invariant below reads from it. If a future
-    // contributor adds a new hand-emitted terminal in the CLI without
-    // appending it to `TERMINAL_CODES`, the disjointness test won't
-    // fire (the CLI isn't walked) — but the test inside
-    // `crates/evidence/src/diagnostic.rs` (`terminal_codes_all_end_in
-    // _reserved_suffix`) anchors the slice's shape, and the CLI has
-    // integration tests that exercise the terminal by matching against
-    // the slice. That pair is sufficient.
-
     let terminal_codes: std::collections::BTreeSet<&str> =
         evidence::TERMINAL_CODES.iter().copied().collect();
 
-    // Invariant (1): `TERMINAL_CODES` internal uniqueness.
     assert_eq!(
         terminal_codes.len(),
         evidence::TERMINAL_CODES.len(),
@@ -338,9 +121,6 @@ fn diagnostic_codes_locked() {
         evidence::TERMINAL_CODES
     );
 
-    // Invariant (4): every `TERMINAL_CODES` entry ends in a reserved
-    // terminal suffix. (Placed before (2)/(3) because it anchors the
-    // meaning of "reserved suffix" used in (3).)
     let bad_suffix: Vec<&str> = evidence::TERMINAL_CODES
         .iter()
         .copied()
@@ -352,9 +132,6 @@ fn diagnostic_codes_locked() {
         bad_suffix
     );
 
-    // Invariant (2): `TERMINAL_CODES` is disjoint from the walked
-    // registry. A code can be walked-from-an-impl OR hand-emitted,
-    // never both.
     let walked_as_terminal: Vec<&String> = seen
         .keys()
         .filter(|k| terminal_codes.contains(k.as_str()))
@@ -365,10 +142,6 @@ fn diagnostic_codes_locked() {
         walked_as_terminal
     );
 
-    // Invariant (3): every walked code ending in a reserved terminal
-    // suffix must be in `TERMINAL_CODES`. Catches the foot-gun of a
-    // future `TRACE_PARSE_ERROR` variant silently promoting itself
-    // into the terminal namespace without being registered.
     let reserved_walked: Vec<&String> = seen
         .keys()
         .filter(|k| ends_in_terminal_suffix(k) && !terminal_codes.contains(k.as_str()))
@@ -382,54 +155,20 @@ fn diagnostic_codes_locked() {
     );
 }
 
-fn ends_in_terminal_suffix(code: &str) -> bool {
-    code.ends_with("_OK") || code.ends_with("_FAIL") || code.ends_with("_ERROR")
-}
-
 // ============================================================================
 // PR #47 bijection invariants — source ↔ RULES ↔ LLR.emits closed loop.
 // ============================================================================
-//
-// Four new invariants tighten the "what can the tool say" contract to
-// match what the RULES manifest advertises and what the trace
-// requirements claim. Together with the existing walk-level regex +
-// uniqueness checks above and PR #43's terminal-namespace set, these
-// close the code↔test↔requirement loop: adding a code without an
-// RULES entry, an LLR without a test, or a test without a selector
-// all fail CI with targeted messages.
-//
-// The walking logic is shared with `diagnostic_codes_locked` above —
-// `walked_codes()` re-runs the same extraction on the library source
-// tree so a parser change in `extract_codes` is reflected in both.
-
-fn walked_codes() -> std::collections::BTreeSet<String> {
-    let crate_root = workspace_root().join("crates").join("evidence").join("src");
-    let mut files = Vec::new();
-    rs_files(&crate_root, &mut files);
-    files.sort();
-    let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for file in &files {
-        let content = match fs::read_to_string(file) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-        let stripped = strip_line_comments(&content);
-        for (code, _line) in extract_codes(&stripped) {
-            out.insert(code);
-        }
-    }
-    out
-}
 
 /// PR #47 invariant (1): every code returned from a library
-/// `DiagnosticCode::code()` impl is declared in [`RULES`]. Adding a
-/// variant without updating `RULES` fires here with the orphan name.
+/// `DiagnosticCode::code()` impl is declared in [`RULES`].
 #[test]
 fn rules_contains_every_code() {
     let walked = walked_codes();
-    let rules: std::collections::BTreeSet<&str> =
-        evidence::RULES.iter().map(|r| r.code).collect();
-    let missing: Vec<&String> = walked.iter().filter(|c| !rules.contains(c.as_str())).collect();
+    let rules: std::collections::BTreeSet<&str> = evidence::RULES.iter().map(|r| r.code).collect();
+    let missing: Vec<&String> = walked
+        .iter()
+        .filter(|c| !rules.contains(c.as_str()))
+        .collect();
     assert!(
         missing.is_empty(),
         "codes returned from DiagnosticCode::code() but missing from RULES \
@@ -439,11 +178,7 @@ fn rules_contains_every_code() {
 }
 
 /// PR #47 invariant (2): every non-terminal, non-hand-emitted
-/// `RULES` entry is backed by a real `DiagnosticCode::code()` impl in
-/// the library. Terminal codes live in `TERMINAL_CODES` (CLI-emitted,
-/// not walked); hand-emitted non-terminal CLI codes live in
-/// `HAND_EMITTED_CLI_CODES`. Everything else must be a library impl.
-/// A stale `RULES` entry naming a code no impl returns fires here.
+/// `RULES` entry is backed by a real `DiagnosticCode::code()` impl.
 #[test]
 fn every_rules_entry_is_implemented() {
     let walked = walked_codes();
@@ -468,9 +203,7 @@ fn every_rules_entry_is_implemented() {
     );
 }
 
-/// PR #47 invariant (3): the set of `RULES` entries with `terminal =
-/// true` equals `TERMINAL_CODES` exactly. Promoting a code to a
-/// terminal without updating both lists, or vice versa, fires here.
+/// PR #47 invariant (3): `RULES.terminal=true` equals `TERMINAL_CODES`.
 #[test]
 fn rules_terminal_set_matches_terminal_codes() {
     let rules_terminals: std::collections::BTreeSet<&str> = evidence::RULES
@@ -494,16 +227,10 @@ fn rules_terminal_set_matches_terminal_codes() {
     );
 }
 
-/// PR #47 invariant (4) — THE sync check. Every code in `RULES`
-/// (minus `RESERVED_UNCLAIMED_CODES`) is claimed by at least one
-/// `LLR.emits` list in `tool/trace/llr.toml`, and every
-/// `LLR.emits` string names a real `RULES` code. Adding a code
-/// without writing an owning LLR fails here; an LLR claiming a dead
-/// code also fails here.
-///
-/// Loads the trace via `read_all_trace_files` so the test exercises
-/// the production parsing path — a future change in the loader can't
-/// silently make this check pass on a malformed input.
+/// PR #47 invariant (4): every `RULES` code (minus
+/// `RESERVED_UNCLAIMED_CODES`) is claimed by at least one
+/// `LLR.emits` list, and every `LLR.emits` string names a real
+/// `RULES` code.
 #[test]
 fn every_code_is_claimed_by_an_llr() {
     let trace = evidence::read_all_trace_files(
@@ -515,8 +242,7 @@ fn every_code_is_claimed_by_an_llr() {
     )
     .expect("tool/trace must load");
 
-    let rules: std::collections::BTreeSet<&str> =
-        evidence::RULES.iter().map(|r| r.code).collect();
+    let rules: std::collections::BTreeSet<&str> = evidence::RULES.iter().map(|r| r.code).collect();
     let reserved: std::collections::BTreeSet<&str> =
         evidence::RESERVED_UNCLAIMED_CODES.iter().copied().collect();
     let claimed: std::collections::BTreeSet<String> = trace
@@ -526,8 +252,10 @@ fn every_code_is_claimed_by_an_llr() {
         .flat_map(|l| l.emits.iter().cloned())
         .collect();
 
-    // 4a: every LLR.emits entry is a real RULES code.
-    let dead: Vec<&String> = claimed.iter().filter(|c| !rules.contains(c.as_str())).collect();
+    let dead: Vec<&String> = claimed
+        .iter()
+        .filter(|c| !rules.contains(c.as_str()))
+        .collect();
     assert!(
         dead.is_empty(),
         "LLR.emits refers to code(s) not in RULES (typo, stale reference, or \
@@ -535,7 +263,6 @@ fn every_code_is_claimed_by_an_llr() {
         dead
     );
 
-    // 4b: every RULES code (minus explicit reserved set) is claimed.
     let unclaimed: Vec<&str> = evidence::RULES
         .iter()
         .map(|r| r.code)
@@ -544,7 +271,7 @@ fn every_code_is_claimed_by_an_llr() {
     assert!(
         unclaimed.is_empty(),
         "RULES code(s) not claimed by any LLR.emits in tool/trace/llr.toml \
-         (add the code to an LLR that owns its emit path, or add an \
+         (add the code to an LLR that owns its emit path, or add a \
          RESERVED_UNCLAIMED_CODES entry with written justification): {:?}",
         unclaimed
     );
@@ -552,23 +279,19 @@ fn every_code_is_claimed_by_an_llr() {
 
 #[test]
 fn code_regex_validator_catches_known_shapes() {
-    // Happy path.
     assert!(code_is_valid("VERIFY_OK"));
     assert!(code_is_valid("HASH_OPEN_FAILED"));
     assert!(code_is_valid("BUNDLE_TOCTOU"));
     assert!(code_is_valid("POLICY_UNKNOWN_DAL"));
-    // Single-segment codes still pass.
     assert!(code_is_valid("VERIFY"));
-    // Digits allowed inside a segment.
     assert!(code_is_valid("SCHEMA_V1_COMPILE"));
 
-    // Rejected shapes.
     assert!(!code_is_valid(""));
-    assert!(!code_is_valid("verify_ok")); // lowercase start
-    assert!(!code_is_valid("Verify_Ok")); // mixed case
-    assert!(!code_is_valid("VERIFY__OK")); // empty segment
-    assert!(!code_is_valid("VERIFY_")); // trailing underscore
-    assert!(!code_is_valid("_VERIFY_OK")); // leading underscore
-    assert!(!code_is_valid("VERIFY-OK")); // hyphen forbidden
-    assert!(!code_is_valid("0VERIFY")); // digit start
+    assert!(!code_is_valid("verify_ok"));
+    assert!(!code_is_valid("Verify_Ok"));
+    assert!(!code_is_valid("VERIFY__OK"));
+    assert!(!code_is_valid("VERIFY_"));
+    assert!(!code_is_valid("_VERIFY_OK"));
+    assert!(!code_is_valid("VERIFY-OK"));
+    assert!(!code_is_valid("0VERIFY"));
 }
