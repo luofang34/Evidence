@@ -490,3 +490,131 @@ path verbatim. Pinned libtest_output_sample.txt fixture is the
 format-stability canary.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "0835d2e8-3a84-4a4a-97e0-46985be02892"
+id = "LLR-029"
+title = "RULES const + rules subcommand + rules_json()"
+owner = "tool"
+traces_to = ["17cd860a-cf97-4eba-b54f-1f7d2563e74b"]
+modules = [
+    "evidence::rules::RULES",
+    "evidence::rules::RuleEntry",
+    "evidence::rules::Domain",
+    "evidence::rules::rules_json",
+    "cargo_evidence::cli::rules::cmd_rules",
+]
+derived = false
+description = """
+`evidence::rules` defines `RuleEntry { code, severity, domain,
+has_fix_hint, terminal }`, the `Domain` enum (closed over code
+prefixes), and `pub const RULES: &[RuleEntry]` exhaustively listing
+every emittable code. `rules_json()` returns a deterministic
+serialized form sorted by code. `cargo_evidence::cli::rules::cmd_rules`
+renders either the JSON array (`--json`) or a human-readable table.
+`--format=jsonl` is not supported (single JSON blob, not a stream)
+and falls through to the existing `CLI_UNSUPPORTED_FORMAT` guard.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "1e35264b-eda4-43ae-b991-fc325e8a2a79"
+id = "LLR-030"
+title = "Locked-codes invariant: RULES <-> source DiagnosticCode walk"
+owner = "tool"
+traces_to = ["93a4a758-4e77-47c0-8c16-1b8e77be05f1"]
+modules = [
+    "diagnostic_codes_locked::rules_contains_every_code",
+    "diagnostic_codes_locked::every_rules_entry_is_implemented",
+]
+derived = false
+description = """
+Two new invariants in the existing `diagnostic_codes_locked` test
+module: (a) the set of source-walked `DiagnosticCode::code()`
+return strings is a subset of `RULES.code`; (b) `RULES.code` is a
+subset of the source-walked set. Together they form a bijection.
+Uses the existing source-walk helper so the walk side of the check
+is never skipped.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "04d734bc-d8c5-4a1a-9fd4-4511abdc1476"
+id = "LLR-031"
+title = "Locked-codes invariant: every code is claimed by >=1 LLR.emits"
+owner = "tool"
+traces_to = ["460e5ca4-901f-4086-b660-2e2490dfecdc"]
+modules = [
+    "evidence::trace::entries::LlrEntry::emits",
+    "diagnostic_codes_locked::every_code_is_claimed_by_an_llr",
+]
+derived = false
+description = """
+`LlrEntry` gains `emits: Vec<String>` with `#[serde(default,
+skip_serializing_if = "Vec::is_empty")]`. A locked-codes invariant
+loads `tool/trace/llr.toml` via `read_all_trace_files`, collects
+the union of `emits` across all LLRs, and asserts that union
+equals `RULES.code` minus an explicit `reserved_unclaimed` set. The
+invariant also asserts every `emits` string is a real code in
+RULES. `reserved_unclaimed` lives next to RULES with a doc comment
+enumerating each reserved code and its justification.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "92fe3e5e-8a56-4f35-b01d-31d8607dc094"
+id = "LLR-032"
+title = "Locked-codes invariant: RULES.terminal matches TERMINAL_CODES"
+owner = "tool"
+traces_to = ["163796eb-0063-4b24-8012-96b167e54e20"]
+modules = ["diagnostic_codes_locked::rules_terminal_set_matches_terminal_codes"]
+derived = false
+description = """
+New invariant asserts `{ r.code | r in RULES where r.terminal }`
+equals `TERMINAL_CODES` as a set. A new terminal added to
+TERMINAL_CODES without a RULES entry where `terminal = true` fails,
+and a RULES entry with `terminal = true` not in TERMINAL_CODES also
+fails.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "673ee175-fc1c-4720-919c-4beb915f3eea"
+id = "LLR-033"
+title = "Byte-diff test pins verify + check wire fixtures"
+owner = "tool"
+traces_to = ["4834b99c-bc1c-4061-bbbd-ab05feb3330c"]
+modules = [
+    "golden_fixtures::verify_golden_matches",
+    "golden_fixtures::check_source_golden_matches",
+]
+derived = false
+description = """
+Two integration tests under `crates/cargo-evidence/tests/` run
+`verify --format=jsonl` on a committed golden bundle and `check .`
+on a committed synthetic source tree, normalize known-
+nondeterministic fields (timestamps; libtest `finished in`
+durations), and byte-diff against committed fixture files. The
+synthetic source tree is independent of `tool/trace/` so the
+fixture doesn't drift when the tool's own self-trace grows.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "d091f446-f196-49cd-8360-fccc139d19d9"
+id = "LLR-034"
+title = "Self-compliance baseline diff test"
+owner = "tool"
+traces_to = ["a3593224-76e3-4928-a67f-833f7961e10d"]
+modules = ["self_compliance_baseline::baseline_matches_current_generation"]
+derived = false
+description = """
+Integration test runs `cargo evidence generate` against the tool's
+own workspace into a tempdir, parses every `compliance/*.json`
+produced, serializes the tuples `(crate, objective_id, status)`,
+and asserts the set equals the committed
+`cert/baselines/self_compliance.json`. A diff fires with the exact
+tuple that changed, naming both old and new statuses. The CI job
+`self-compliance` runs this test.
+"""
+verification_methods = ["test"]

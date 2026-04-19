@@ -114,3 +114,21 @@ a stable `code` rather than parse prose.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "589a4478-b9b6-4eb3-99aa-5e5e0c631242"
+id = "SYS-008"
+title = "Tool self-describes its diagnostic vocabulary and refuses contract drift"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall expose a machine-readable manifest of every diagnostic
+code it can emit (`cargo evidence rules --json`) and mechanically
+enforce three-way consistency between source code, requirements, and
+committed wire fixtures. Every advertised code must be declared in
+the manifest, claimed by a named requirement, tested against a real
+function, and pinned against a byte-exact wire fixture. Silent drift
+in any of those dimensions shall fail CI.
+"""
+verification_methods = ["test"]
+traces_to = []

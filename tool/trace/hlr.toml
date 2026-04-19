@@ -439,3 +439,111 @@ libtest ever changes output format.
 """
 verification_methods = ["test"]
 traces_to = ["aa13d9a6-042e-4bc9-9d9e-c191128fb857"]
+
+[[requirements]]
+uid = "17cd860a-cf97-4eba-b54f-1f7d2563e74b"
+id = "HLR-029"
+title = "RULES is the single source of truth for the diagnostic vocabulary"
+owner = "tool"
+scope = "component"
+description = """
+A hand-curated `pub const RULES: &[RuleEntry]` in the evidence crate
+lists every diagnostic code the tool can emit, its severity, its
+domain, whether it carries a FixHint, and whether it is a hand-
+emitted terminal. `cargo evidence rules --json` serializes RULES
+verbatim. The const is deliberately hand-authored (not code-
+generated) so adding a new code requires a reviewer-visible edit.
+"""
+verification_methods = ["test"]
+traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
+
+[[requirements]]
+uid = "93a4a758-4e77-47c0-8c16-1b8e77be05f1"
+id = "HLR-030"
+title = "RULES <-> source DiagnosticCode bijection is machine-enforced"
+owner = "tool"
+scope = "component"
+description = """
+A locked-codes invariant asserts the set of source-walked
+`DiagnosticCode::code()` return strings equals the set of RULES
+entry codes. A code added to a DiagnosticCode impl without touching
+RULES fails CI, and a RULES entry naming a code no DiagnosticCode
+impl returns also fails CI. Eliminates the drift mode where source
+and documentation disagree about what the tool can say.
+"""
+verification_methods = ["test"]
+traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
+
+[[requirements]]
+uid = "460e5ca4-901f-4086-b660-2e2490dfecdc"
+id = "HLR-031"
+title = "Every code is claimed by an LLR via LLR.emits"
+owner = "tool"
+scope = "component"
+description = """
+An LLR entry field `emits: Vec<String>` declares which diagnostic
+codes that LLR is responsible for. A locked-codes invariant asserts
+the union of `emits` across all LLRs equals the RULES set (minus an
+explicit `reserved_unclaimed` enumeration which must be empty or
+justified in source comments), and that every `emits` entry names a
+real RULES code. This is the link that closes the code-test-
+requirement loop: adding a code without writing an owning LLR fails
+CI, and an LLR claiming a dead code also fails CI.
+"""
+verification_methods = ["test"]
+traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
+
+[[requirements]]
+uid = "163796eb-0063-4b24-8012-96b167e54e20"
+id = "HLR-032"
+title = "TERMINAL_CODES <-> RULES.terminal=true is machine-enforced"
+owner = "tool"
+scope = "component"
+description = """
+The `TERMINAL_CODES` const (from PR #43) is the source of truth for
+hand-emitted terminal codes (`_OK`/`_FAIL`/`_ERROR` suffixes). A
+locked-codes invariant asserts the set of RULES entries where
+`terminal = true` equals TERMINAL_CODES. A new terminal added to
+TERMINAL_CODES without a matching RULES entry fails CI, and vice
+versa.
+"""
+verification_methods = ["test"]
+traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
+
+[[requirements]]
+uid = "4834b99c-bc1c-4061-bbbd-ab05feb3330c"
+id = "HLR-033"
+title = "Committed JSONL fixtures byte-lock the verify and check wire shapes"
+owner = "tool"
+scope = "component"
+description = """
+Two committed fixtures under `crates/cargo-evidence/tests/fixtures/`
+pin the exact JSONL output of `verify --format=jsonl` on a frozen
+minimal bundle and `check .` on a frozen minimal source tree. A
+byte-diff test normalizes known-nondeterministic fields
+(timestamps, `finished in` values) and asserts the current output
+matches the fixtures. Any accidental field-order change or wire-
+shape mutation fires the test. Intentional regeneration goes
+through a committed helper script.
+"""
+verification_methods = ["test"]
+traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
+
+[[requirements]]
+uid = "a3593224-76e3-4928-a67f-833f7961e10d"
+id = "HLR-034"
+title = "Tool's own compliance report stays green under its own generator"
+owner = "tool"
+scope = "component"
+description = """
+A baseline JSON file at `cert/baselines/self_compliance.json` pins
+the expected per-crate per-objective compliance status when the
+tool's own workspace is fed to `cargo evidence generate`. A CI gate
+re-runs that generation and diffs against the baseline, failing
+with the exact `(crate, objective)` pair that drifted. Status
+upgrades land as explicit PRs that edit the baseline with written
+justification; the gate refuses silent regression of the tool's own
+compliance under its own rules.
+"""
+verification_methods = ["test"]
+traces_to = ["589a4478-b9b6-4eb3-99aa-5e5e0c631242"]
