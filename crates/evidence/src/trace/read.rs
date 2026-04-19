@@ -82,6 +82,11 @@ pub fn read_toml<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, TraceRe
 /// Parsed trace files from a single trace root.
 #[derive(Debug)]
 pub struct TraceFiles {
+    /// Parsed `sys.toml` (empty-defaulted if missing). System-level
+    /// requirements — the layer above HLR in the DO-178C §5.1 chain.
+    /// Reuses the [`HlrFile`] shape by design: SYS and HLR share every
+    /// field, the layer is signaled by filename.
+    pub sys: HlrFile,
     /// Parsed `hlr.toml` (empty-defaulted if missing).
     pub hlr: HlrFile,
     /// Parsed `llr.toml` (empty-defaulted if missing).
@@ -113,6 +118,17 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles, TraceReadError> {
         }
     }
 
+    fn empty_hlr_file() -> HlrFile {
+        HlrFile {
+            meta: TraceMeta {
+                document_id: "".into(),
+                revision: "".into(),
+            },
+            schema: Schema { version: "".into() },
+            requirements: vec![],
+        }
+    }
+
     let root_path = Path::new(root);
 
     if !root_path.exists() {
@@ -121,17 +137,8 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles, TraceReadError> {
             root_path.display()
         );
     }
-    let hlr = read_or_default(
-        &root_path.join("hlr.toml"),
-        HlrFile {
-            meta: TraceMeta {
-                document_id: "".into(),
-                revision: "".into(),
-            },
-            schema: Schema { version: "".into() },
-            requirements: vec![],
-        },
-    )?;
+    let sys = read_or_default(&root_path.join("sys.toml"), empty_hlr_file())?;
+    let hlr = read_or_default(&root_path.join("hlr.toml"), empty_hlr_file())?;
     let llr = read_or_default(
         &root_path.join("llr.toml"),
         LlrFile {
@@ -163,6 +170,7 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles, TraceReadError> {
     };
 
     Ok(TraceFiles {
+        sys,
         hlr,
         llr,
         tests,

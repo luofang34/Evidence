@@ -66,9 +66,14 @@ pub fn cmd_trace(
                 continue;
             }
             let TraceFiles {
-                hlr, llr, tests, ..
+                sys,
+                hlr,
+                llr,
+                tests,
+                ..
             } = read_all_trace_files(root)?;
             match validate_trace_links_with_policy(
+                &sys.requirements,
                 &hlr.requirements,
                 &llr.requirements,
                 &tests.tests,

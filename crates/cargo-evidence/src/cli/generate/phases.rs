@@ -282,9 +282,14 @@ pub(super) fn validate_trace_links_phase(
         }
         match read_all_trace_files(root) {
             Ok(TraceFiles {
-                hlr, llr, tests, ..
+                sys,
+                hlr,
+                llr,
+                tests,
+                ..
             }) => {
                 if let Err(e) = validate_trace_links_with_policy(
+                    &sys.requirements,
                     &hlr.requirements,
                     &llr.requirements,
                     &tests.tests,

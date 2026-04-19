@@ -38,6 +38,13 @@ pub struct HlrFile {
 }
 
 /// A High-Level Requirement entry.
+///
+/// `HlrEntry` also doubles as the System-Requirement entry shape when
+/// loaded from `sys.toml` — the layer is signaled by the source
+/// filename, not by a struct field. Both layers share every field
+/// below; the only cross-layer difference is that SYS entries have
+/// empty `traces_to` (nothing above system level), while HLRs
+/// optionally trace upward to SYS UIDs.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HlrEntry {
     /// Machine-stable UUID.
@@ -74,6 +81,12 @@ pub struct HlrEntry {
     /// Verification methods.
     #[serde(default)]
     pub verification_methods: Vec<String>,
+    /// UIDs of System Requirements this HLR traces up to. Empty for
+    /// tool-internal requirements with no System-level parent, and
+    /// always empty when this entry itself is a System Requirement
+    /// (loaded from `sys.toml`).
+    #[serde(default)]
+    pub traces_to: Vec<String>,
 }
 
 // ============================================================================
@@ -252,11 +265,27 @@ mod tests {
             description: Some("A test requirement".to_string()),
             rationale: Some("Because we need it".to_string()),
             verification_methods: vec!["test".to_string()],
+            traces_to: vec!["sys-parent-uuid".to_string()],
         };
         assert_eq!(hlr.id, "HLR-001");
         assert!(hlr.uid.is_some());
         assert_eq!(hlr.description.as_deref(), Some("A test requirement"));
         assert_eq!(hlr.rationale.as_deref(), Some("Because we need it"));
+        assert_eq!(hlr.traces_to, vec!["sys-parent-uuid".to_string()]);
+    }
+
+    /// `HlrEntry.traces_to` is `#[serde(default)]`, so a TOML file
+    /// without a `traces_to` key still parses — required for
+    /// backwards compatibility with every pre-PR-#44 hlr.toml.
+    #[test]
+    fn test_hlr_entry_traces_to_defaults_to_empty() {
+        let toml_without_traces_to = r#"
+            id = "HLR-LEGACY"
+            title = "Legacy requirement with no upward trace"
+        "#;
+        let entry: HlrEntry =
+            toml::from_str(toml_without_traces_to).expect("parse without traces_to");
+        assert!(entry.traces_to.is_empty(), "default must be empty Vec");
     }
 
     #[test]

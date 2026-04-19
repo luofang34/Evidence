@@ -1,13 +1,18 @@
-//! Cross-tier trace link validation (HLR → LLR → Test + Derived).
+//! Cross-tier trace link validation (SYS → HLR → LLR → Test + Derived).
 //!
 //! The single shared pass enforces: uniqueness of every UID and every
 //! `(kind, owner, id)` triple, UUID syntax, link-target existence,
-//! link-target kind, ownership rules (LLR→HLR same-owner or
-//! owner={soi,project}; TEST→LLR strictly same-owner), and a battery
-//! of policy-gated checks (required uids / owners / rationale /
-//! verification methods). Derived LLRs take the alternate branch where
-//! `traces_to` is empty; the check flags the contradiction if both
-//! `derived = true` and a non-empty `traces_to` are present.
+//! link-target kind, ownership rules (HLR→SYS same-owner or
+//! owner={soi,project}; LLR→HLR same-owner or owner={soi,project};
+//! TEST→LLR strictly same-owner), and a battery of policy-gated
+//! checks (required uids / owners / rationale / verification methods).
+//! Derived LLRs take the alternate branch where `traces_to` is empty;
+//! the check flags the contradiction if both `derived = true` and a
+//! non-empty `traces_to` are present. HLR `traces_to` is optional —
+//! an HLR with empty `traces_to` is tool-internal and legal (it does
+//! not claim a System-Requirement parent). SYS entries reuse the HLR
+//! struct shape; their `traces_to` is always empty because SYS is the
+//! top of the chain.
 //!
 //! Orphan tests (empty `traces_to`) are a *warning* here. They are
 //! listed in the traceability matrix's gap section instead of hard-
@@ -59,16 +64,26 @@ impl DiagnosticCode for TraceValidationError {
 /// Validate trace links between HLRs, LLRs, Tests, and optionally Derived requirements.
 ///
 /// Convenience wrapper around [`validate_trace_links_with_policy`] that uses
-/// the default `TracePolicy` and no derived requirements.
+/// the default `TracePolicy`, no System Requirements, and no derived
+/// requirements. Kept as a three-argument entry point for the common
+/// case where callers don't have a SYS layer yet.
 pub fn validate_trace_links(
     hlrs: &[HlrEntry],
     llrs: &[LlrEntry],
     tests: &[TestEntry],
 ) -> Result<(), TraceValidationError> {
-    validate_trace_links_with_policy(hlrs, llrs, tests, &[], &TracePolicy::default())
+    validate_trace_links_with_policy(&[], hlrs, llrs, tests, &[], &TracePolicy::default())
 }
 
-/// Validate trace links with explicit policy control and derived requirements.
+/// Validate trace links with explicit policy control, System
+/// Requirements, and Derived Requirements.
+///
+/// `sys` carries System-Requirement entries loaded from `sys.toml`.
+/// They use the same [`HlrEntry`] struct because SYS and HLR share
+/// every field (the layer is signaled by the source filename).
+/// HLRs may trace up to SYS UIDs via [`HlrEntry::traces_to`]; the
+/// link check allows empty `traces_to` for tool-internal HLRs with
+/// no System parent.
 ///
 /// Policy fields are read, not written. Every error is accumulated
 /// and logged before the final `bail!` so a single run surfaces all
@@ -77,6 +92,7 @@ pub fn validate_trace_links(
 /// anything, because downstream link checks assume the uid index is
 /// consistent.
 pub fn validate_trace_links_with_policy(
+    sys: &[HlrEntry],
     hlrs: &[HlrEntry],
     llrs: &[LlrEntry],
     tests: &[TestEntry],
@@ -136,6 +152,9 @@ pub fn validate_trace_links_with_policy(
         }
     };
 
+    for r in sys {
+        register(&r.uid, &r.owner, &r.id, "SYS");
+    }
     for r in hlrs {
         register(&r.uid, &r.owner, &r.id, "HLR");
     }
@@ -195,6 +214,20 @@ pub fn validate_trace_links_with_policy(
         let t_owner = target_owner.as_str();
 
         match (source_kind, expected_target_kind) {
+            ("HLR", "SYS") => {
+                // Allowed: same owner OR target is "soi"/"project".
+                // Same shape as LLR→HLR: System requirements commonly
+                // have owner `soi` (system-of-interest) since they
+                // sit above component boundaries.
+                if s_owner == t_owner || t_owner == "soi" || t_owner == "project" {
+                    // OK
+                } else {
+                    return Some(format!(
+                        "Ownership violation: HLR({}:{}) -> SYS({}:{}). Cross-owner link forbidden.",
+                        s_owner, source_id, t_owner, target_id
+                    ));
+                }
+            }
             ("LLR", "HLR") => {
                 // Allowed: same owner OR target is "soi"/"project".
                 if s_owner == t_owner || t_owner == "soi" || t_owner == "project" {
@@ -223,10 +256,23 @@ pub fn validate_trace_links_with_policy(
 
     // Policy-gated checks
 
-    // HLR policy.
+    // HLR policy + HLR→SYS link validation.
     for r in hlrs {
         if policy.require_hlr_verification_methods && r.verification_methods.is_empty() {
             errors.push(format!("HLR missing verification_methods: {}", r.id));
+        }
+
+        // HLR.traces_to is optional: empty = tool-internal HLR with
+        // no System-Requirement parent (legal, per module doc).
+        // Non-empty must resolve to SYS UIDs and obey ownership rules.
+        let mut seen_links = BTreeSet::new();
+        for link in &r.traces_to {
+            if !seen_links.insert(link) {
+                errors.push(format!("HLR {} has duplicate trace link '{}'", r.id, link));
+            }
+            if let Some(e) = check_link("HLR", &r.id, &r.owner, link, "SYS") {
+                errors.push(e);
+            }
         }
     }
 
@@ -306,3 +352,4 @@ pub fn validate_trace_links_with_policy(
 
     Ok(())
 }
+
