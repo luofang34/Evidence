@@ -378,6 +378,29 @@ cargo evidence schema validate ./evidence/bundle/env.json
 
 Auto-detects the schema type from the filename or file content.
 
+### `cargo evidence floors` — the ratchet
+
+Enforce "rigor only goes up" across every dimension the tool
+ratchets. Reads `cert/floors.toml`, measures the current state, and
+reports per-dimension pass/fail:
+
+```bash
+cargo evidence floors         # human table, exit 0 if all ✓
+cargo evidence floors --json  # machine-readable, deterministic
+```
+
+Dimensions currently tracked: diagnostic code count, terminal code
+count, per-layer trace entry counts (SYS/HLR/LLR/Test), `#[test]`
+fn count, library panics. Adding a dimension is a PR that lands the
+measurement helper in `evidence::floors` and the initial floor in
+`cert/floors.toml`; CI keeps the floor from falling.
+
+**Lowering a floor** requires a `Lower-Floor: <dimension> <reason>`
+line in the PR body (or direct-push commit message). Without it,
+`scripts/floors-lower-lint.sh` fires in CI with
+`FLOORS_LOWERED_WITHOUT_JUSTIFICATION`. The friction is intentional:
+the ratchet only moves up.
+
 ### `cargo evidence rules` — what can the tool say?
 
 Dump every diagnostic code the tool can emit as a deterministic
