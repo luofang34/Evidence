@@ -150,8 +150,15 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
         Some(Commands::Trace {
             validate,
             backfill_uuids,
+            require_hlr_sys_trace,
             json,
-        }) => cmd_trace(validate, backfill_uuids, args.trace_roots, json),
+        }) => cmd_trace(
+            validate,
+            backfill_uuids,
+            require_hlr_sys_trace,
+            args.trace_roots,
+            json,
+        ),
         // No subcommand given — default to generate with global args.
         None => cmd_generate(GenerateArgs {
             profile_arg: args.profile,

@@ -42,6 +42,7 @@ impl EvidencePolicy {
                     require_hlr_verification_methods: true,
                     require_llr_verification_methods: true,
                     require_derived_rationale: true,
+                    require_hlr_sys_trace: true,
                 },
                 require_structural_coverage: true,
                 coverage_level: Some("MC/DC".to_string()),
@@ -54,6 +55,7 @@ impl EvidencePolicy {
                     require_hlr_verification_methods: true,
                     require_llr_verification_methods: true,
                     require_derived_rationale: true,
+                    require_hlr_sys_trace: true,
                 },
                 require_structural_coverage: true,
                 coverage_level: Some("decision".to_string()),
@@ -66,6 +68,7 @@ impl EvidencePolicy {
                     require_hlr_verification_methods: true,
                     require_llr_verification_methods: false,
                     require_derived_rationale: true,
+                    require_hlr_sys_trace: true,
                 },
                 require_structural_coverage: true,
                 coverage_level: Some("statement".to_string()),
@@ -78,6 +81,7 @@ impl EvidencePolicy {
                     require_hlr_verification_methods: false,
                     require_llr_verification_methods: false,
                     require_derived_rationale: false,
+                    require_hlr_sys_trace: false,
                 },
                 require_structural_coverage: false,
                 coverage_level: None,
@@ -105,6 +109,16 @@ pub struct TracePolicy {
     /// Require derived LLRs to have rationale
     #[serde(default = "default_true")]
     pub require_derived_rationale: bool,
+    /// Require every HLR to trace up to a System Requirement.
+    ///
+    /// When `true`, an HLR with an empty `traces_to` vector is a
+    /// Link-phase error. Defaults to `false` so external projects
+    /// without a SYS layer keep validating cleanly; turn on via the
+    /// `--require-hlr-sys-trace` CLI flag on
+    /// `cargo evidence trace --validate` or via `[trace]` in
+    /// `boundary.toml` once that surface lands.
+    #[serde(default)]
+    pub require_hlr_sys_trace: bool,
 }
 
 fn default_true() -> bool {

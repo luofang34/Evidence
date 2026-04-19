@@ -135,9 +135,9 @@ fn hlr_traces_to_dangling_sys_uid_fails() {
     );
 }
 
-/// An HLR with empty `traces_to` is legal (tool-internal HLR with
-/// no System-Requirement parent). Must not produce any link-phase
-/// errors on its own.
+/// An HLR with empty `traces_to` is legal by default (tool-internal
+/// HLR with no System-Requirement parent). Must not produce any
+/// link-phase errors on its own under the default policy.
 #[test]
 fn hlr_with_empty_traces_to_is_legal() {
     let hlr_uuid = uuid::Uuid::new_v4().to_string();
@@ -148,6 +148,59 @@ fn hlr_with_empty_traces_to_is_legal() {
     assert!(
         result.is_ok(),
         "HLR with empty traces_to should validate: {:?}",
+        result.err(),
+    );
+}
+
+/// TEST-021: When `require_hlr_sys_trace` is set, an HLR with empty
+/// `traces_to` fails Link-phase validation. This is the gate that
+/// turns the SYS layer from advisory into load-bearing.
+#[test]
+fn require_hlr_sys_trace_rejects_empty_traces_to() {
+    let hlr_uuid = uuid::Uuid::new_v4().to_string();
+    let hlrs = vec![stub_hlr(&hlr_uuid, "HLR-001", "tool", vec![])];
+
+    let policy = TracePolicy {
+        require_hlr_sys_trace: true,
+        ..TracePolicy::default()
+    };
+
+    let result = validate_trace_links_with_policy(&[], &hlrs, &[], &[], &[], &policy);
+    let err = result.expect_err("policy gate must reject empty traces_to");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("Trace link validation failed"),
+        "expected Link-phase error, got: {}",
+        msg,
+    );
+}
+
+/// TEST-021 (pair): When `require_hlr_sys_trace` is set AND the HLR
+/// traces up to a SYS UID, validation still passes. Guards against a
+/// regression where the gate fires even on populated HLRs.
+#[test]
+fn require_hlr_sys_trace_allows_populated_hlr() {
+    let sys_uuid = uuid::Uuid::new_v4().to_string();
+    let hlr_uuid = uuid::Uuid::new_v4().to_string();
+
+    let sys = vec![stub_hlr(&sys_uuid, "SYS-001", "soi", vec![])];
+    let hlrs = vec![stub_hlr(
+        &hlr_uuid,
+        "HLR-001",
+        "tool",
+        vec![sys_uuid.clone()],
+    )];
+
+    let policy = TracePolicy {
+        require_hlr_sys_trace: true,
+        ..TracePolicy::default()
+    };
+
+    let result = validate_trace_links_with_policy(&sys, &hlrs, &[], &[], &[], &policy);
+    assert!(
+        result.is_ok(),
+        "HLR with populated traces_to should validate even under \
+         require_hlr_sys_trace: {:?}",
         result.err(),
     );
 }

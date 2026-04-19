@@ -19,6 +19,7 @@ use super::args::{EXIT_ERROR, EXIT_SUCCESS};
 pub fn cmd_trace(
     do_validate: bool,
     do_backfill: bool,
+    require_hlr_sys_trace: bool,
     trace_roots_arg: Option<String>,
     json_output: bool,
 ) -> Result<i32> {
@@ -47,7 +48,14 @@ pub fn cmd_trace(
         let boundary_config = BoundaryConfig::load_or_default(&PathBuf::from("cert/boundary.toml"));
         let dal_map = boundary_config.dal_map();
         let dal = dal_map.values().copied().max().unwrap_or_default();
-        let evidence_policy = EvidencePolicy::for_dal(dal);
+        let mut evidence_policy = EvidencePolicy::for_dal(dal);
+        // CLI flag overrides the DAL-derived default. Opt-in: external
+        // projects without a SYS layer keep passing by default; the
+        // tool's own CI enables the flag to make SYS coverage
+        // load-bearing for itself.
+        if require_hlr_sys_trace {
+            evidence_policy.trace.require_hlr_sys_trace = true;
+        }
 
         let mut all_valid = true;
         let mut results: Vec<serde_json::Value> = Vec::new();
