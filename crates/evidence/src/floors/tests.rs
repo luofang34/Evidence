@@ -249,7 +249,9 @@ new_dead_code_allows = 0
     assert_eq!(cfg.schema_version, 1);
     assert_eq!(cfg.floors.get("diagnostic_codes"), Some(&80u64));
     assert_eq!(
-        cfg.per_crate.get("my-crate").and_then(|m| m.get("test_count")),
+        cfg.per_crate
+            .get("my-crate")
+            .and_then(|m| m.get("test_count")),
         Some(&10u64)
     );
     assert_eq!(cfg.delta_ceilings.get("new_dead_code_allows"), Some(&0u64));

@@ -338,4 +338,3 @@ fn count_library_panics_in(root: &Path) -> u64 {
 #[cfg(test)]
 #[path = "floors/tests.rs"]
 mod tests;
-
