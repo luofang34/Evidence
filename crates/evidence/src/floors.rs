@@ -10,7 +10,7 @@
 //!
 //! Source-walking primitives (`walk_rs_files`, `strip_cfg_test_modules`,
 //! `needle_is_outside_string_literal`) live in the sibling
-//! [`walker`] module so this file stays under the 500-line
+//! `walker` module so this file stays under the 500-line
 //! workspace limit.
 //!
 //! **Scope of "library panics".** The `count_library_panics` walk

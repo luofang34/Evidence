@@ -283,7 +283,7 @@ id = "TEST-035"
 title = "evidence::floors helpers return the committed current values"
 owner = "tool"
 traces_to = ["338d51d5-9068-4984-9826-4b84e698c62a"]
-test_selector = "evidence::floors::tests::current_measurements_match_committed_snapshot"
+test_selector = "evidence::floors::tests::current_measurements_satisfy_committed_floors"
 
 [[tests]]
 uid = "e5ec5aab-828f-4540-8bc6-20c586adf45f"
