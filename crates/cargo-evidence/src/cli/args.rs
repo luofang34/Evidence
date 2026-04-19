@@ -216,6 +216,25 @@ pub enum Commands {
         #[arg(long)]
         backfill_uuids: bool,
 
+        /// Require every HLR to trace up to a System Requirement.
+        ///
+        /// When set, an HLR with empty `traces_to` fails Link-phase
+        /// validation. Off by default; projects without a SYS layer
+        /// keep validating cleanly. The tool's own CI enables this
+        /// flag on `tool/trace/` to keep the SYS layer load-bearing.
+        #[arg(long)]
+        require_hlr_sys_trace: bool,
+
+        /// Resolve each test's `test_selector` against a real
+        /// `#[test] fn` in the workspace source.
+        ///
+        /// Catches the silent-rot failure mode where renaming a
+        /// test function leaves `traces_to` UUID-valid but the
+        /// selector dangling. Opt-in because the resolver walks
+        /// every `.rs` file under the workspace root.
+        #[arg(long)]
+        check_test_selectors: bool,
+
         /// Output results as JSON
         #[arg(long)]
         json: bool,

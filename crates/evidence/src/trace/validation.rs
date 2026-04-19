@@ -262,9 +262,22 @@ pub fn validate_trace_links_with_policy(
             errors.push(format!("HLR missing verification_methods: {}", r.id));
         }
 
-        // HLR.traces_to is optional: empty = tool-internal HLR with
-        // no System-Requirement parent (legal, per module doc).
-        // Non-empty must resolve to SYS UIDs and obey ownership rules.
+        // HLR.traces_to is optional by default: empty = tool-internal
+        // HLR with no System-Requirement parent (legal). When
+        // require_hlr_sys_trace is set, empty becomes a Link-phase
+        // error — the gate that turns the SYS layer from advisory
+        // into load-bearing for projects that opt in.
+        if policy.require_hlr_sys_trace && r.traces_to.is_empty() {
+            errors.push(format!(
+                "HLR {} has empty traces_to but policy require_hlr_sys_trace is set: \
+                 add an upward trace to a SYS UID, or unset the policy for \
+                 tool-internal HLRs that have no System parent.",
+                r.id
+            ));
+        }
+
+        // Non-empty traces_to must resolve to SYS UIDs and obey
+        // ownership rules.
         let mut seen_links = BTreeSet::new();
         for link in &r.traces_to {
             if !seen_links.insert(link) {

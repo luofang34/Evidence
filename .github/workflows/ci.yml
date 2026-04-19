@@ -176,11 +176,20 @@ jobs:
       - name: Build release binary
         run: cargo build --release -p cargo-evidence
 
-      - name: Validate tool/trace
+      - name: Validate tool/trace (enforcement flags on, discovery picks tool/trace)
         run: |
+          # No --trace-roots: default discovery picks ./tool/trace/
+          # first. --require-hlr-sys-trace turns the SYS layer from
+          # advisory into load-bearing (empty HLR.traces_to fails
+          # Link phase). --check-test-selectors resolves every
+          # test_selector against a real #[test] fn in the
+          # workspace; renamed tests fire before the PR can merge.
+          # ci_self_check::ci_yaml_has_enforcement_flags asserts
+          # both flags remain committed to this job on every run.
           ./target/release/cargo-evidence evidence trace \
             --validate \
-            --trace-roots tool/trace
+            --require-hlr-sys-trace \
+            --check-test-selectors
 
       - name: Assert backfill is a no-op on committed trace
         shell: bash

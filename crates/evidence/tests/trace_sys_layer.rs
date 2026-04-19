@@ -14,7 +14,10 @@
 )]
 
 use evidence::TracePolicy;
-use evidence::trace::{HlrEntry, LlrEntry, TestEntry, validate_trace_links_with_policy};
+use evidence::trace::{
+    HlrEntry, LlrEntry, TestEntry, resolve_test_selectors, validate_trace_links_with_policy,
+};
+use std::path::Path;
 
 /// Minimal `HlrEntry` stub. Shared by SYS (same struct) and HLR.
 fn stub_hlr(uid: &str, id: &str, owner: &str, traces_to: Vec<String>) -> HlrEntry {
@@ -135,9 +138,9 @@ fn hlr_traces_to_dangling_sys_uid_fails() {
     );
 }
 
-/// An HLR with empty `traces_to` is legal (tool-internal HLR with
-/// no System-Requirement parent). Must not produce any link-phase
-/// errors on its own.
+/// An HLR with empty `traces_to` is legal by default (tool-internal
+/// HLR with no System-Requirement parent). Must not produce any
+/// link-phase errors on its own under the default policy.
 #[test]
 fn hlr_with_empty_traces_to_is_legal() {
     let hlr_uuid = uuid::Uuid::new_v4().to_string();
@@ -149,5 +152,141 @@ fn hlr_with_empty_traces_to_is_legal() {
         result.is_ok(),
         "HLR with empty traces_to should validate: {:?}",
         result.err(),
+    );
+}
+
+/// TEST-021: When `require_hlr_sys_trace` is set, an HLR with empty
+/// `traces_to` fails Link-phase validation. This is the gate that
+/// turns the SYS layer from advisory into load-bearing.
+#[test]
+fn require_hlr_sys_trace_rejects_empty_traces_to() {
+    let hlr_uuid = uuid::Uuid::new_v4().to_string();
+    let hlrs = vec![stub_hlr(&hlr_uuid, "HLR-001", "tool", vec![])];
+
+    let policy = TracePolicy {
+        require_hlr_sys_trace: true,
+        ..TracePolicy::default()
+    };
+
+    let result = validate_trace_links_with_policy(&[], &hlrs, &[], &[], &[], &policy);
+    let err = result.expect_err("policy gate must reject empty traces_to");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("Trace link validation failed"),
+        "expected Link-phase error, got: {}",
+        msg,
+    );
+}
+
+/// TEST-021 (pair): When `require_hlr_sys_trace` is set AND the HLR
+/// traces up to a SYS UID, validation still passes. Guards against a
+/// regression where the gate fires even on populated HLRs.
+#[test]
+fn require_hlr_sys_trace_allows_populated_hlr() {
+    let sys_uuid = uuid::Uuid::new_v4().to_string();
+    let hlr_uuid = uuid::Uuid::new_v4().to_string();
+
+    let sys = vec![stub_hlr(&sys_uuid, "SYS-001", "soi", vec![])];
+    let hlrs = vec![stub_hlr(
+        &hlr_uuid,
+        "HLR-001",
+        "tool",
+        vec![sys_uuid.clone()],
+    )];
+
+    let policy = TracePolicy {
+        require_hlr_sys_trace: true,
+        ..TracePolicy::default()
+    };
+
+    let result = validate_trace_links_with_policy(&sys, &hlrs, &[], &[], &[], &policy);
+    assert!(
+        result.is_ok(),
+        "HLR with populated traces_to should validate even under \
+         require_hlr_sys_trace: {:?}",
+        result.err(),
+    );
+}
+
+/// TEST-022: The selector resolver flags a selector that doesn't
+/// point at any real `#[test] fn`. Paired with a control case
+/// (a live selector) to prove the resolver isn't just returning
+/// "unresolved" unconditionally.
+#[test]
+fn selector_check_flags_dangling_selector() {
+    let live_test = stub_test(
+        &uuid::Uuid::new_v4().to_string(),
+        "TEST-LIVE",
+        "tool",
+        vec![],
+    );
+    // Point at a real test that exists in this file to anchor the
+    // control path — `sys_hlr_llr_test_chain_validates` is defined
+    // above.
+    let live_test = TestEntry {
+        test_selector: Some("sys_hlr_llr_test_chain_validates".to_string()),
+        ..live_test
+    };
+    let dangling_test = stub_test(
+        &uuid::Uuid::new_v4().to_string(),
+        "TEST-DANGLING",
+        "tool",
+        vec![],
+    );
+    let dangling_test = TestEntry {
+        test_selector: Some("this_fn_definitely_does_not_exist_anywhere".to_string()),
+        ..dangling_test
+    };
+
+    let unresolved = resolve_test_selectors(
+        &[live_test, dangling_test],
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap(),
+    );
+    assert_eq!(
+        unresolved.len(),
+        1,
+        "only the dangling selector should fail"
+    );
+    assert_eq!(unresolved[0].id, "TEST-DANGLING");
+    assert!(
+        unresolved[0]
+            .selector
+            .contains("this_fn_definitely_does_not_exist_anywhere"),
+        "unresolved entry should carry the original selector: {:?}",
+        unresolved[0],
+    );
+}
+
+/// TEST-022 (control): A selector pointing at a real `#[test] fn`
+/// resolves without flagging.
+#[test]
+fn selector_check_resolves_real_test() {
+    let live_test = stub_test(
+        &uuid::Uuid::new_v4().to_string(),
+        "TEST-LIVE",
+        "tool",
+        vec![],
+    );
+    let live_test = TestEntry {
+        test_selector: Some("require_hlr_sys_trace_allows_populated_hlr".to_string()),
+        ..live_test
+    };
+
+    let unresolved = resolve_test_selectors(
+        &[live_test],
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap(),
+    );
+    assert!(
+        unresolved.is_empty(),
+        "live selector should resolve, got: {:?}",
+        unresolved,
     );
 }

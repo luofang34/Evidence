@@ -5,11 +5,12 @@
 //!
 //! | Sub-module   | Concern                                                   |
 //! |--------------|-----------------------------------------------------------|
-//! | `entries`    | TOML data types (`HlrEntry`, `LlrEntry`, `TestEntry`, …)  |
-//! | `read`       | Reading TOML files into those types                       |
-//! | `uuid`       | Assigning + back-filling UUIDs on entries                 |
-//! | `validation` | Cross-tier link validation with policy gates              |
-//! | `matrix`     | Deterministic Markdown traceability matrix generation     |
+//! | `entries`        | TOML data types (`HlrEntry`, `LlrEntry`, `TestEntry`, …)  |
+//! | `read`           | Reading TOML files into those types                       |
+//! | `uuid`           | Assigning + back-filling UUIDs on entries                 |
+//! | `validation`     | Cross-tier link validation with policy gates              |
+//! | `selector_check` | Optional resolution of `test_selector` vs workspace source |
+//! | `matrix`         | Deterministic Markdown traceability matrix generation     |
 //!
 //! Re-exports below keep the crate's public API flat — every
 //! consumer can continue to `use evidence::trace::HlrEntry` without
@@ -18,6 +19,7 @@
 mod entries;
 mod matrix;
 mod read;
+mod selector_check;
 mod uuid;
 mod validation;
 
@@ -27,6 +29,7 @@ pub use entries::{
 };
 pub use matrix::generate_traceability_matrix;
 pub use read::{TraceFiles, read_all_trace_files, read_toml};
+pub use selector_check::{UnresolvedSelector, resolve_test_selectors};
 pub use uuid::{
     assign_missing_uuids_derived, assign_missing_uuids_hlr, assign_missing_uuids_llr,
     assign_missing_uuids_test, backfill_uuids,

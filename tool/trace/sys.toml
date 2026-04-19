@@ -1,14 +1,4 @@
-#:schema https://navigate.dev/schema/evidence/hlr.schema.json
-# cargo-evidence — System Requirements (layer above HLR).
-#
-# These are the tool's highest-level obligations. They collapse to 5
-# load-bearing properties every downstream HLR is allocated under.
-# Adding a SYS entry is a plan-level decision; the self-trace's
-# ratchet pins the count (see tool/trace/README.md).
-#
-# UIDs here are hand-authored deterministic UUIDs (valid v4 syntax,
-# stable across renames). Treat them as permanent identifiers; if a
-# SYS entry is removed, its UID is retired, not reused.
+# tool/trace/sys.toml — System Requirements (see ../README.md)
 
 [schema]
 version = "0.0.3"
@@ -18,7 +8,7 @@ document_id = "TOOL-SYS"
 revision = "1.0"
 
 [[requirements]]
-uid = "11111111-1111-4111-8111-000000000001"
+uid = "e16aabff-6655-4405-a1eb-b32f3def85f6"
 id = "SYS-001"
 title = "Verifiable evidence bundle"
 owner = "soi"
@@ -29,10 +19,14 @@ independently verified without re-invoking the tool: a sibling party
 with SHA-256 + HMAC implementations and the public signing key must be
 able to confirm every hashed file and the bundle envelope.
 """
-verification_methods = ["test", "review"]
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []
 
 [[requirements]]
-uid = "11111111-1111-4111-8111-000000000002"
+uid = "0e42b90f-88d7-408f-8843-0a3335279360"
 id = "SYS-002"
 title = "Machine-readable diagnostic stream"
 owner = "soi"
@@ -44,9 +38,10 @@ terminates in a single event that determines the process exit code.
 Agent consumers must not need to parse human prose.
 """
 verification_methods = ["test"]
+traces_to = []
 
 [[requirements]]
-uid = "11111111-1111-4111-8111-000000000003"
+uid = "ee75dd4a-972d-44e1-96dd-1bc08c8f8726"
 id = "SYS-003"
 title = "Cross-host reproducibility for the same commit"
 owner = "soi"
@@ -58,9 +53,10 @@ manifests (content_hash may differ by host-varying metadata, but
 deterministic_hash shall not).
 """
 verification_methods = ["test"]
+traces_to = []
 
 [[requirements]]
-uid = "11111111-1111-4111-8111-000000000004"
+uid = "5af6e706-6aef-411d-811d-747633876695"
 id = "SYS-004"
 title = "Policy-gated evidence emission"
 owner = "soi"
@@ -71,9 +67,10 @@ policy is violated. Unimplemented policy rules enabled in boundary.toml
 shall block generate rather than silently no-op.
 """
 verification_methods = ["test"]
+traces_to = []
 
 [[requirements]]
-uid = "11111111-1111-4111-8111-000000000005"
+uid = "31ad3334-3d64-4fff-9f7a-fe7d5c709288"
 id = "SYS-005"
 title = "Refusal on integrity guarantees unmet"
 owner = "soi"
@@ -85,3 +82,20 @@ be met (dirty git tree, missing toolchain probes, shallow clone,
 TOCTOU-observed SHA drift, etc.).
 """
 verification_methods = ["test"]
+traces_to = []
+
+[[requirements]]
+uid = "daf04641-ce24-4426-9c39-9f02b6c511cf"
+id = "SYS-006"
+title = "Self-enforcement of the trace contract"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall enforce its own traceability contract in its own CI
+pipeline: (a) every HLR in the tool's self-trace must trace up to a
+System Requirement; (b) every Test entry's test_selector must resolve
+to a real #[test] function; (c) the CI gate that enforces the above
+must itself be asserted against regression.
+"""
+verification_methods = ["test"]
+traces_to = []
