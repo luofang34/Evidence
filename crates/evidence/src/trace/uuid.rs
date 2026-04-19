@@ -133,6 +133,28 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
     let root_path = Path::new(trace_root);
     let mut total = 0;
 
+    // SYS (reuses HlrFile shape; `assign_missing_uuids_hlr` works
+    // against the shared slice type). SYS is the DO-178C §5.1 layer
+    // above HLR — we backfill it with the same code path because the
+    // struct is identical, only the filename differs.
+    let sys_path = root_path.join("sys.toml");
+    if sys_path.exists() {
+        let mut sys: HlrFile = read_toml(&sys_path)?;
+        let n = assign_missing_uuids_hlr(&mut sys.requirements);
+        if n > 0 {
+            let content =
+                toml::to_string_pretty(&sys).map_err(|source| BackfillError::Serialize {
+                    filename: "sys.toml",
+                    source: Box::new(source),
+                })?;
+            fs::write(&sys_path, content).map_err(|source| BackfillError::Write {
+                path: sys_path.clone(),
+                source,
+            })?;
+            total += n;
+        }
+    }
+
     // HLR
     let hlr_path = root_path.join("hlr.toml");
     if hlr_path.exists() {
@@ -238,6 +260,7 @@ mod tests {
                 description: None,
                 rationale: None,
                 verification_methods: vec![],
+                traces_to: vec![],
             },
             HlrEntry {
                 uid: Some("existing-uuid".to_string()),
@@ -252,6 +275,7 @@ mod tests {
                 description: None,
                 rationale: None,
                 verification_methods: vec![],
+                traces_to: vec![],
             },
         ];
 

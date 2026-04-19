@@ -1,0 +1,87 @@
+#:schema https://navigate.dev/schema/evidence/hlr.schema.json
+# cargo-evidence — System Requirements (layer above HLR).
+#
+# These are the tool's highest-level obligations. They collapse to 5
+# load-bearing properties every downstream HLR is allocated under.
+# Adding a SYS entry is a plan-level decision; the self-trace's
+# ratchet pins the count (see tool/trace/README.md).
+#
+# UIDs here are hand-authored deterministic UUIDs (valid v4 syntax,
+# stable across renames). Treat them as permanent identifiers; if a
+# SYS entry is removed, its UID is retired, not reused.
+
+[schema]
+version = "0.0.3"
+
+[meta]
+document_id = "TOOL-SYS"
+revision = "1.0"
+
+[[requirements]]
+uid = "11111111-1111-4111-8111-000000000001"
+id = "SYS-001"
+title = "Verifiable evidence bundle"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall produce an evidence bundle whose integrity can be
+independently verified without re-invoking the tool: a sibling party
+with SHA-256 + HMAC implementations and the public signing key must be
+able to confirm every hashed file and the bundle envelope.
+"""
+verification_methods = ["test", "review"]
+
+[[requirements]]
+uid = "11111111-1111-4111-8111-000000000002"
+id = "SYS-002"
+title = "Machine-readable diagnostic stream"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall emit a structured diagnostic stream on demand
+(--format=jsonl). The stream is pattern-matchable by stable codes and
+terminates in a single event that determines the process exit code.
+Agent consumers must not need to parse human prose.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "11111111-1111-4111-8111-000000000003"
+id = "SYS-003"
+title = "Cross-host reproducibility for the same commit"
+owner = "soi"
+scope = "soi"
+description = """
+Two invocations on different supported hosts against the same source
+commit and same toolchain shall produce byte-equal deterministic
+manifests (content_hash may differ by host-varying metadata, but
+deterministic_hash shall not).
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "11111111-1111-4111-8111-000000000004"
+id = "SYS-004"
+title = "Policy-gated evidence emission"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall refuse to emit evidence when configured boundary or DAL
+policy is violated. Unimplemented policy rules enabled in boundary.toml
+shall block generate rather than silently no-op.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "11111111-1111-4111-8111-000000000005"
+id = "SYS-005"
+title = "Refusal on integrity guarantees unmet"
+owner = "soi"
+scope = "soi"
+description = """
+Under cert / record profiles the tool shall refuse to generate or
+verify an evidence bundle when critical integrity guarantees cannot
+be met (dirty git tree, missing toolchain probes, shallow clone,
+TOCTOU-observed SHA drift, etc.).
+"""
+verification_methods = ["test"]
