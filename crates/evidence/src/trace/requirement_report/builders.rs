@@ -222,17 +222,34 @@ pub(super) fn build_test_diag(
     }
 }
 
+/// Bundled per-entry location + structural data for
+/// [`build_cascade_diag`]. Kept as a struct (rather than free args) to
+/// satisfy `clippy::too_many_arguments` — the cascade builder needs
+/// all of these cohesively, and splitting them into positional
+/// parameters just moves the ceremony to every caller.
+pub(super) struct CascadeEntry<'a> {
+    pub kind: RequirementKind,
+    pub id: &'a str,
+    pub uid: Option<&'a str>,
+    pub traces_to: &'a [String],
+    pub toml_path: String,
+    pub file: PathBuf,
+}
+
 pub(super) fn build_cascade_diag(
-    kind: RequirementKind,
-    id: &str,
-    uid: Option<&str>,
-    traces_to: &[String],
+    entry: CascadeEntry<'_>,
     child_uids: &[&str],
     child_status: &BTreeMap<String, TestStatus>,
     policy: &crate::policy::TracePolicy,
-    toml_path: String,
-    file: PathBuf,
 ) -> Diagnostic {
+    let CascadeEntry {
+        kind,
+        id,
+        uid,
+        traces_to,
+        toml_path,
+        file,
+    } = entry;
     let kind_label = match kind {
         RequirementKind::Sys => "SYS",
         RequirementKind::Hlr => "HLR",

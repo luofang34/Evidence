@@ -35,8 +35,8 @@ use crate::trace::read::TraceFiles;
 use crate::trace::selector_check::resolve_test_selectors;
 
 use builders::{
-    aggregate_child_status, build_cascade_diag, build_test_diag, find_toml_path_by_id,
-    hlr_children_of, llr_children_of, test_children_of,
+    CascadeEntry, aggregate_child_status, build_cascade_diag, build_test_diag,
+    find_toml_path_by_id, hlr_children_of, llr_children_of, test_children_of,
 };
 
 /// Closed enum for the three per-requirement codes. Implementing
@@ -146,19 +146,22 @@ pub fn build_requirement_report(
         .collect();
     for r in &trace.llr.requirements {
         let children = test_children_of(&trace.tests.tests, r.uid.as_deref());
+        let toml_path = find_toml_path_by_id(&llr_ids, &r.id);
         diagnostics.push(build_cascade_diag(
-            RequirementKind::Llr,
-            &r.id,
-            r.uid.as_deref(),
-            &r.traces_to,
+            CascadeEntry {
+                kind: RequirementKind::Llr,
+                id: &r.id,
+                uid: r.uid.as_deref(),
+                traces_to: &r.traces_to,
+                toml_path,
+                file: PathBuf::from("llr.toml"),
+            },
             &children
                 .iter()
                 .filter_map(|t| t.uid.as_deref())
                 .collect::<Vec<_>>(),
             &test_status,
             policy,
-            find_toml_path_by_id(&llr_ids, &r.id),
-            PathBuf::from("llr.toml"),
         ));
     }
 
@@ -190,19 +193,22 @@ pub fn build_requirement_report(
         .collect();
     for r in &trace.hlr.requirements {
         let children = llr_children_of(&trace.llr.requirements, r.uid.as_deref());
+        let toml_path = find_toml_path_by_id(&hlr_ids, &r.id);
         diagnostics.push(build_cascade_diag(
-            RequirementKind::Hlr,
-            &r.id,
-            r.uid.as_deref(),
-            &r.traces_to,
+            CascadeEntry {
+                kind: RequirementKind::Hlr,
+                id: &r.id,
+                uid: r.uid.as_deref(),
+                traces_to: &r.traces_to,
+                toml_path,
+                file: PathBuf::from("hlr.toml"),
+            },
             &children
                 .iter()
                 .filter_map(|l| l.uid.as_deref())
                 .collect::<Vec<_>>(),
             &llr_status,
             policy,
-            find_toml_path_by_id(&hlr_ids, &r.id),
-            PathBuf::from("hlr.toml"),
         ));
     }
 
@@ -229,19 +235,22 @@ pub fn build_requirement_report(
         .collect();
     for s in &trace.sys.requirements {
         let children = hlr_children_of(&trace.hlr.requirements, s.uid.as_deref());
+        let toml_path = find_toml_path_by_id(&sys_ids, &s.id);
         diagnostics.push(build_cascade_diag(
-            RequirementKind::Sys,
-            &s.id,
-            s.uid.as_deref(),
-            &s.traces_to,
+            CascadeEntry {
+                kind: RequirementKind::Sys,
+                id: &s.id,
+                uid: s.uid.as_deref(),
+                traces_to: &s.traces_to,
+                toml_path,
+                file: PathBuf::from("sys.toml"),
+            },
             &children
                 .iter()
                 .filter_map(|h| h.uid.as_deref())
                 .collect::<Vec<_>>(),
             &hlr_status,
             policy,
-            find_toml_path_by_id(&sys_ids, &s.id),
-            PathBuf::from("sys.toml"),
         ));
     }
 

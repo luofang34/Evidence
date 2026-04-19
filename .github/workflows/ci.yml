@@ -178,18 +178,30 @@ jobs:
 
       - name: Validate tool/trace (enforcement flags on, discovery picks tool/trace)
         run: |
-          # No --trace-roots: default discovery picks ./tool/trace/
-          # first. --require-hlr-sys-trace turns the SYS layer from
-          # advisory into load-bearing (empty HLR.traces_to fails
-          # Link phase). --check-test-selectors resolves every
-          # test_selector against a real #[test] fn in the
-          # workspace; renamed tests fire before the PR can merge.
-          # ci_self_check::ci_yaml_has_enforcement_flags asserts
-          # both flags remain committed to this job on every run.
+          # Trace-only validation — fast, no `cargo test` run.
+          # `check .` (below) is the agent-facing one-shot that also
+          # runs the test suite and emits per-requirement REQ_*
+          # diagnostics; this step is kept as a separate gate so a
+          # pure-trace regression (broken link, dangling selector)
+          # fails fast without waiting for `cargo test`.
+          #
+          # ci_self_check::ci_yaml_has_enforcement_flags asserts both
+          # enforcement flags remain committed to this job.
           ./target/release/cargo-evidence evidence trace \
             --validate \
             --require-hlr-sys-trace \
             --check-test-selectors
+
+      - name: Self-check via `cargo evidence check .`
+        run: |
+          # Agent-facing one-shot: runs `cargo test --workspace` under
+          # the hood, parses outcomes, emits one REQ_PASS/REQ_GAP/
+          # REQ_SKIP per requirement, then the VERIFY_OK terminal.
+          # Pass / gap matrix for the tool's own self-trace — the
+          # downstream gate PR #47 (self-compliance) will layer on.
+          ./target/release/cargo-evidence evidence \
+            --format=jsonl \
+            check .
 
       - name: Assert backfill is a no-op on committed trace
         shell: bash

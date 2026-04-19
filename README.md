@@ -258,6 +258,36 @@ are hashed as-is — normalization would corrupt them and would not apply.
 
 ## Commands Reference
 
+### `cargo evidence check` — the agent-facing verb
+
+Agents and humans should call `check` as the default. It auto-detects
+whether the argument is a source tree or a bundle and dispatches:
+
+```bash
+cargo evidence check                 # source mode on current dir
+cargo evidence check .               # same, explicit
+cargo evidence check path/to/bundle  # bundle mode (auto-detected via SHA256SUMS)
+cargo evidence check --mode=source . # force source mode
+cargo evidence check --mode=bundle path/to/bundle  # force bundle mode
+cargo evidence --format=jsonl check .              # streaming per-requirement diags
+```
+
+In source mode, `check` runs `cargo test --workspace`, parses outcomes,
+and emits one `REQ_PASS` / `REQ_GAP` / `REQ_SKIP` diagnostic per
+requirement in the discovered trace (`tool/trace/` or `cert/trace/`).
+`REQ_GAP` events carry a `FixHint` for mechanically-fixable cases
+(missing UUID, empty `traces_to` under policy, dangling
+`test_selector`), and derived GAPs at higher layers carry
+`root_cause_uid` pointing at the primary failure.
+
+In bundle mode, `check` is a passthrough to `verify` — same wire
+shape, same exit codes.
+
+**`verify` remains supported as the low-level primitive** for CI
+scripts and bash pipelines that want a stable bundle-only surface
+without argument-shape inference. MCP (planned) wraps `check`, not
+`verify`: one agent verb, one MCP tool.
+
 ### `cargo evidence generate`
 
 Generate a new evidence bundle.
