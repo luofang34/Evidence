@@ -82,7 +82,22 @@ impl EvidenceBuilder {
 
         // Check git clean requirements
         if (config.require_clean_git || config.fail_on_dirty) && git_snapshot.dirty {
-            let dirty_files = provider.dirty_files().unwrap_or_default();
+            let dirty_files = match provider.dirty_files() {
+                Ok(files) => files,
+                Err(e) => {
+                    // Git reported dirty via `git_snapshot.dirty` above, but
+                    // we couldn't list the files. The cert check still fires
+                    // (error returned below); surface the list-failure root
+                    // cause so the audit trail can reconstruct why the user
+                    // got a "dirty tree" error with no file list attached.
+                    tracing::warn!(
+                        error = %e,
+                        "git reported dirty tree but could not list dirty files; \
+                         error message will omit the file list"
+                    );
+                    Vec::new()
+                }
+            };
             let suffix = if dirty_files.is_empty() {
                 String::new()
             } else {

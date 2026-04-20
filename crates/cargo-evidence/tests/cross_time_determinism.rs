@@ -14,6 +14,13 @@
 //! fails — and the lint is a CI gate run on Linux. Windows
 //! developers have full test coverage via every other integration
 //! binary. Same precedent as `floors_lower_lint.rs`.
+//!
+//! **Maintenance note**: the file-level `#![cfg(not(target_os =
+//! "windows"))]` below skips EVERY test in this file on Windows.
+//! Adding a platform-portable test here without removing the
+//! file-level cfg will silently skip the new test on Windows —
+//! if the test doesn't depend on `bash`, move it to a separate
+//! file that doesn't carry the cfg.
 
 #![cfg(not(target_os = "windows"))]
 #![allow(

@@ -469,9 +469,19 @@ jobs:
         shell: bash
         run: |
           mkdir -p ./dogfood-artifact
-          # cp -r tolerates a missing dir when a job fails before run B.
-          cp -r "$RUNNER_TEMP/out-a" ./dogfood-artifact/ 2>/dev/null || true
-          cp -r "$RUNNER_TEMP/out-b" ./dogfood-artifact/ 2>/dev/null || true
+          # `if: always()` means this step runs even when earlier steps
+          # failed before producing run A or B. Distinguish "source dir
+          # missing because the producer step didn't run" (legitimate —
+          # skip silently) from "source dir exists but cp failed" (real
+          # I/O error — surface it). The previous `|| true` swallowed
+          # both cases, hiding broken staging behind an empty artifact.
+          for src in "$RUNNER_TEMP/out-a" "$RUNNER_TEMP/out-b"; do
+            if [ -d "$src" ]; then
+              cp -r "$src" ./dogfood-artifact/
+            else
+              echo "note: $src does not exist (likely produced before a failed earlier step); skipping"
+            fi
+          done
 
       - name: Upload bundle as artifact
         if: always()
