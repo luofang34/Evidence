@@ -853,3 +853,83 @@ follow-up). Unconditional — DO-178C §5.2.2 requires the
 distinction to be explicit; no policy flag to disable.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "297a6b28-9a54-4581-abeb-6b8ff33bb9c7"
+id = "LLR-041"
+title = "LinkError enum with per-variant DiagnosticCode impl"
+owner = "tool"
+traces_to = ["6733cf01-b823-41c0-90e1-476581f413b1"]
+modules = [
+    "evidence::trace::validation::link_errors::LinkError",
+    "evidence::trace::validation::TraceValidationError",
+]
+derived = false
+description = """
+`pub enum LinkError` lives in a sibling
+`crates/evidence/src/trace/validation/link_errors.rs` file (pulled
+in by `validation.rs` as `mod link_errors;`) to keep the facade
+under the 500-line workspace limit. Variants carry payload fields
+(`hlr_id`, `llr_id`, `source_kind`, `link`, `expected`, etc.) that
+the `#[error(...)]` template formats. `DiagnosticCode::code` matches
+on `self` to return the variant's stable code string.
+`TraceValidationError::Link` carries `Vec<LinkError>`.
+"""
+verification_methods = ["test"]
+emits = [
+    "TRACE_CONTRADICTORY_DERIVED",
+    "TRACE_DANGLING_LINK",
+    "TRACE_DERIVED_MISSING_RATIONALE",
+    "TRACE_DUPLICATE_TRACE_LINK",
+    "TRACE_DUPLICATE_UID",
+    "TRACE_HLR_SURFACE_UNCLAIMED",
+    "TRACE_HLR_SURFACE_UNKNOWN",
+    "TRACE_INVALID_LINK_UUID",
+    "TRACE_LINK_OTHER",
+    "TRACE_MISSING_HLR_SYS_TRACE",
+    "TRACE_MISSING_VERIFICATION_METHODS",
+    "TRACE_OWNERSHIP_VIOLATION",
+    "TRACE_WRONG_TARGET_KIND",
+]
+
+[[requirements]]
+uid = "61f2c36a-0d47-4485-acca-f2d4403ec339"
+id = "LLR-042"
+title = "cmd_trace stream-emits one Diagnostic per LinkError"
+owner = "tool"
+traces_to = ["b7265ced-3c5b-4558-92d1-5c54cba8657f"]
+modules = ["cargo_evidence::cli::trace::cmd_trace"]
+derived = false
+description = """
+When `trace --validate --format=jsonl` hits
+`Err(TraceValidationError::Link { errors })`, the CLI handler
+iterates `errors` and calls `emit_jsonl` once per variant with
+`code = link_error.code()`, `severity = Error`, `message =
+link_error.to_string()`, and a variant-specific `Location`.
+Legacy `--json` mode keeps the prior aggregate shape (single
+result object with a concatenated `message`) so shell consumers
+that piped through `jq .message` aren't broken.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "becd7d00-a7e4-435b-9f06-398494529ab7"
+id = "LLR-043"
+title = "RULES registers every LinkError variant code; bijection closed"
+owner = "tool"
+traces_to = ["5280cbfc-ea87-4a6d-a2ed-172e9cb48c37"]
+modules = ["evidence::rules::RULES"]
+derived = false
+description = """
+Every `LinkError::code()` return has a matching entry in the
+`RULES` manifest, and LLR-041's `emits` list claims all of them.
+The `diagnostic_codes_locked` integration test enforces (a) the
+walker picks up each variant's code (uniqueness + regex +
+reserved-suffix), and (b) the PR #47 bijection
+`every_code_is_claimed_by_an_llr` closes the loop. Re-adds the
+three pseudo-codes PR #49 removed (`TRACE_DERIVED_MISSING_RATIONALE`,
+`TRACE_HLR_SURFACE_UNCLAIMED`, `TRACE_HLR_SURFACE_UNKNOWN`) as real
+typed emits + ~9 newly-typed codes for Link-phase rules that had
+no dedicated code before this PR.
+"""
+verification_methods = ["test"]

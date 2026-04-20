@@ -48,6 +48,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     "diagnostic code namespace (regex + reserved suffixes)",
     "jsonl stream per Schema Rule 2",
     "root_cause_uid grouping per Schema Rule 7",
+    "structured Link-phase diagnostic codes",
 ];
 
 /// Index of the first entry in the contracts group — everything at

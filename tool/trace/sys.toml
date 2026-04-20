@@ -170,3 +170,22 @@ the supporting machinery.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "5e9988ce-1351-4e39-98af-835e96e5fc17"
+id = "SYS-011"
+title = "Diagnostic stream shall expose structured codes per Link-phase failure, not an opaque prose envelope"
+owner = "soi"
+scope = "soi"
+description = """
+Every Link-phase validation rule (surface bijection, derived-
+rationale, dangling-link, ownership-violation, duplicate-uid, etc.)
+shall surface as a distinct diagnostic code in the JSONL stream, so
+agents and auditors can disambiguate violations by `code` rather
+than by pattern-matching prose payloads. Bundling heterogeneous
+rule failures under a single wrapper code (e.g. `TRACE_LINK_FAILED`
+with a concatenated message) regresses to the pre-typed-diagnostic
+shape the whole diagnostic-codes arc was built to eliminate.
+"""
+verification_methods = ["test"]
+traces_to = []
