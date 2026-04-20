@@ -299,3 +299,34 @@ uses.
 '''
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "abba0183-f506-4fe5-81d1-afdc3bcac1ca"
+id = "SYS-016"
+title = "The tool shall provide a mechanical rigor-audit subcommand that blocks cert-profile bundle generation on any FAIL finding"
+owner = "soi"
+scope = "soi"
+description = '''
+cargo-evidence's internal discipline — the Override-Deterministic-
+Baseline protocol, the floors ratchet, walker standardization,
+the locked-test ecology, merge-style assumptions — lives in this
+repo's CI + CLAUDE.md and is effectively invisible to downstream
+projects that `cargo install cargo-evidence`. A downstream team
+gets the CLI and the scaffolding (`init`) but not the mechanisms
+that make the tool's own evidence trustworthy, so cert bundles
+can be produced under DO-178C with none of the discipline the
+tool applies to itself.
+
+The tool shall ship a `doctor` subcommand that runs a mechanical
+checklist (trace validity, floors config, boundary config, CI
+integration, merge-style policy, override-protocol docs) against
+the caller's repo and emits one typed Diagnostic per check with
+a single terminal event (`DOCTOR_OK` / `DOCTOR_FAIL`). The
+`generate` subcommand in cert / record profile shall invoke
+doctor before bundle assembly and abort on any FAIL — producing
+a cert-profile bundle shall be mechanically impossible without
+passing the audit. No opt-out short of editing cargo-evidence
+itself, which is visible in the bundle's `engine_git_sha`.
+'''
+verification_methods = ["test"]
+traces_to = []

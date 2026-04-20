@@ -1041,3 +1041,38 @@ LLR: `emits = []` — the test produces an assertion message, not a
 typed `Diagnostic`.
 '''
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "ec50f98b-9a1d-4f7b-bc33-df56c7faab2a"
+id = "LLR-048"
+title = "cmd_doctor subcommand implementation"
+owner = "tool"
+traces_to = ["57992e98-fb1e-4248-b340-6dd454db95c1"]
+modules = ["cargo_evidence::cli::doctor"]
+derived = false
+description = '''
+`cmd_doctor(args) -> Result<()>` in
+`crates/cargo-evidence/src/cli/doctor.rs` runs each rigor check
+in a fixed deterministic order, emitting one `Diagnostic` per
+check via `evidence::diagnostic::emit_jsonl` with a `DOCTOR_*`
+code. Severity is derived per check: trace / floors / boundary
+failures are `error`; CI / merge-style / override-doc gaps are
+`warning`. A check that passes emits an `info`-severity
+`DOCTOR_*_OK` diagnostic so the stream shape stays "one line
+per check" and downstream tooling can detect truncation.
+
+Stream terminates with exactly one terminal diagnostic:
+- `DOCTOR_OK` + exit 0 when no `error`-severity diagnostic fired
+- `DOCTOR_FAIL` + exit 2 when at least one `error` fired
+Per Schema Rule 1 + the existing `TERMINAL_CODES` contract.
+
+`generate` wires doctor via a `precheck_doctor(&config)` call in
+the `Profile::Cert | Profile::Record` branch; the call returns
+`Err(BuilderError::DoctorFailed { codes: Vec<&'static str> })`
+when the audit fails, and the main dispatch translates the error
+into a `GENERATE_ERROR` terminal whose diagnostic enumerates the
+per-check codes so the auditor gets full detail without re-
+running doctor.
+'''
+emits = []
+verification_methods = ["test"]

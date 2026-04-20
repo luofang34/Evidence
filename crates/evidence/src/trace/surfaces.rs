@@ -36,6 +36,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     // Group 1 — CLI verb names (lowercase; match the `Commands::*`
     // variants exactly).
     "check",
+    "doctor",
     "floors",
     "generate",
     "rules",
@@ -60,7 +61,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
 /// Used by the group-scoped sort test to validate within-group order
 /// without imposing cross-group ordering.
 #[cfg(test)]
-const CONTRACTS_START: usize = 6;
+const CONTRACTS_START: usize = 7;
 
 #[cfg(test)]
 mod tests {
@@ -115,6 +116,7 @@ mod tests {
     fn contracts_start_index_is_consistent() {
         const CLI_VERBS: &[&str] = &[
             "check",
+            "doctor",
             "floors",
             "generate",
             "rules",
