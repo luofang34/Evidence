@@ -96,8 +96,15 @@ What this matrix does **not** claim:
 Get your first evidence bundle in under 30 seconds:
 
 ```bash
-# Install
-cargo install cargo-evidence
+# Install. `cargo install cargo-evidence` (bare) refuses to resolve
+# while only pre-release versions are published — cargo's default
+# version req excludes pre-releases, and range syntax like
+# `<1.0.0-z` doesn't help because cargo's pre-release opt-in is
+# per-MMP (major.minor.patch) rather than global. Pinning the
+# explicit pre-release version is the reliable path. See
+# https://crates.io/crates/cargo-evidence for the latest published
+# version; drop `--version` once 1.0 ships.
+cargo install cargo-evidence --version 0.1.0-alpha.1
 
 # Initialize evidence tracking in your project
 cargo evidence init
