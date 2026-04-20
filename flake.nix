@@ -17,6 +17,12 @@
             rustToolchain
             pkgs.cargo-watch
             pkgs.cargo-nextest
+            # `jq` is required by
+            # `scripts/deterministic-baseline-override-lint.sh`;
+            # ship it in the devShell so contributors running
+            # `./scripts/local-ci.sh` inside `nix develop` don't
+            # hit a PATH miss.
+            pkgs.jq
           ];
           shellHook = ''
             export IN_NIX_SHELL=1
@@ -40,6 +46,12 @@
             version = "0.1.0";
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
+            # `cross_time_determinism.rs` integration tests spawn
+            # the override lint, which runs `jq` against bundle
+            # manifests. Without this, the sandbox hides `jq`
+            # from PATH and the tests silently skip — which
+            # defeats the Nix reproducibility gate's whole point.
+            nativeBuildInputs = [ pkgs.jq ];
           };
       });
 }

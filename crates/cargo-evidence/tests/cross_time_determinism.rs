@@ -43,26 +43,24 @@ fn lint_script() -> PathBuf {
         .join("deterministic-baseline-override-lint.sh")
 }
 
-/// Sandbox-friendliness: skip gracefully when either (a) the
-/// script isn't present at the expected path — Nix
-/// `buildRustPackage` copies only the crate's src, leaving
-/// `../../scripts/` out of the sandbox — or (b) `jq` isn't on
-/// PATH, which is the case in the Nix build sandbox that hides
-/// host utilities by default. The CI runner path has both and
-/// exercises the gate fully; this guard only affects local
-/// sandboxed rebuilds.
+/// The one legitimate reason the tests can't run: the script
+/// itself isn't reachable from the test binary. Nix
+/// `buildRustPackage` copies only the crate's src tree — if a
+/// future Nix config forgets to expose `scripts/`, tests skip
+/// rather than panic on a `NotFound` spawn.
 ///
-/// Returns `true` iff the script is runnable.
+/// `jq` availability is NOT part of this probe. The project
+/// philosophy is "mechanical guardrails > graceful degradation";
+/// silently skipping nine tests in the Nix gate defeats the
+/// gate's whole purpose (Nix is specifically meant to validate
+/// the reproducibility path). `flake.nix` puts `jq` in the
+/// sandbox's `nativeBuildInputs`, so a missing `jq` indicates a
+/// real misconfiguration that should fail loud with "jq is
+/// required but not found on PATH" from the script itself.
+///
+/// Returns `true` iff the script is reachable.
 fn script_available() -> bool {
-    if !lint_script().is_file() {
-        return false;
-    }
-    // `jq` check: bail if `which jq` fails.
-    Command::new("jq")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    lint_script().is_file()
 }
 
 /// Minimal `deterministic-manifest.json` stub carrying the six
