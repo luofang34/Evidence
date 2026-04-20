@@ -423,3 +423,23 @@ test_selectors = [
     "cross_time_determinism::malformed_current_manifest_exit_two",
     "cross_time_determinism::git_state_fields_are_projected_out",
 ]
+
+[[tests]]
+uid = "9fc1181b-aa76-4a1b-b7c5-06928911bcce"
+id = "TEST-046"
+title = "trace-ID reference bijection fires on ghost ref, passes on clean tree"
+owner = "tool"
+traces_to = ["b269e51d-f656-4ecc-832e-8004a287a790"]
+description = """
+Positive + negative + current-tree-clean assertions:
+- Fixture with a ghost LLR-999 ref fires the gate (exit nonzero
+  with file:line listing).
+- Fixture with only resolvable refs passes.
+- The committed workspace tree is free of stale refs (the
+  load-bearing regression).
+"""
+test_selectors = [
+    "trace_id_refs_locked::current_tree_is_clean",
+    "trace_id_refs_locked::fires_on_ghost_reference",
+    "trace_id_refs_locked::passes_on_clean_fixture",
+]

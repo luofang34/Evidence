@@ -50,6 +50,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     "jsonl stream per Schema Rule 2",
     "root_cause_uid grouping per Schema Rule 7",
     "structured Link-phase diagnostic codes",
+    "trace-ID reference bijection",
 ];
 
 /// Index of the first entry in the contracts group — everything at
