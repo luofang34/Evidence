@@ -49,13 +49,13 @@ diagnostic_codes = 96
 terminal_codes = 4
 
 # tool/trace/sys.toml — System Requirements.
-trace_sys = 12
+trace_sys = 13
 # tool/trace/hlr.toml — High-Level Requirements.
-trace_hlr = 44
+trace_hlr = 45
 # tool/trace/llr.toml — Low-Level Requirements.
-trace_llr = 44
+trace_llr = 45
 # tool/trace/tests.toml — Test Cases.
-trace_test = 44
+trace_test = 45
 
 # evidence::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
@@ -80,7 +80,7 @@ known_surfaces = 13
 test_count = 213
 
 [per_crate.cargo-evidence]
-test_count = 74
+test_count = 81
 
 # Per-crate ceilings. library_panics is a ceiling, not a floor:
 # more panics is always worse. Placing a ceiling dimension under
