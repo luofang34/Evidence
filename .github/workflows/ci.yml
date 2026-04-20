@@ -1213,6 +1213,37 @@ jobs:
           echo "prior toolchain projection:"
           jq '{rustc, cargo, llvm_version, cargo_lock_hash, rustflags}' "$RUNNER_TEMP/prior-main/deterministic-manifest.json"
 
+      - name: Resolve merged-PR body (push events only)
+        # On push events, `github.event.pull_request` is empty even
+        # when the push was produced by merging a PR. Without this
+        # step, an `Override-Deterministic-Baseline:` line written
+        # in a PR body would survive only under squash-merge (where
+        # GitHub copies PR body into the squash commit message) or
+        # when the contributor manually copied the line into a branch
+        # commit. Under plain merge-commits the override is lost.
+        #
+        # Fetch the PR(s) associated with the pushed commit via the
+        # GitHub API. For a merge commit the endpoint returns the PR
+        # that was merged; for a direct-to-main push it returns empty.
+        # The fetched body is handed to the lint step via env, joining
+        # the existing haystack alongside PR_BODY / head_commit /
+        # commits-array. Override lives wherever the author put it;
+        # the gate finds it regardless of merge style.
+        if: steps.fetch-prior.outputs.prior_missing == '0' && github.event_name == 'push'
+        id: merged-pr-body
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bodies=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+            --jq '.[] | .body // ""' 2>/dev/null || echo "")
+          {
+            echo 'pr_bodies<<_END_OF_PR_BODIES_'
+            printf '%s\n' "$bodies"
+            echo '_END_OF_PR_BODIES_'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Lint drift against override
         if: steps.fetch-prior.outputs.prior_missing == '0'
         shell: bash
@@ -1224,15 +1255,18 @@ jobs:
           #     head_commit message, so `head_commit.message` carries it.
           #   - push event, merge-commit: head_commit is a mechanical
           #     "Merge pull request #N..." with no override. The override
-          #     lives in ONE of the branch commits merged in, which live
-          #     in `github.event.commits[*].message` on the push payload.
+          #     lives in ONE of the branch commits merged in, or (most
+          #     common) in the merged PR's body — the API-fetched
+          #     `merged-pr-body` step covers the latter.
           #   - push event, rebase-merge: head_commit is the last branch
           #     commit, but earlier branch commits also land — same
           #     commits-array fallback covers this.
-          # Plumbing all three haystacks means the gate works the same
+          # Plumbing all four haystacks means the gate works the same
           # regardless of merge style, removing the "override only
           # accepted in one specific place" foot-gun.
-          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BODY: |
+            ${{ github.event.pull_request.body }}
+            ${{ steps.merged-pr-body.outputs.pr_bodies }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           PUSH_COMMITS_MESSAGES: ${{ toJSON(github.event.commits.*.message) }}
         run: |
