@@ -1,4 +1,4 @@
-# Ratcheting floors for cargo-evidence itself (PR #48 / principle 2).
+# Ratcheting floors for cargo-evidence itself (principle 2).
 #
 # Each entry is a current measurement taken at commit time; the CI
 # floors-gate fails any change where `current < committed_floor`.
@@ -82,10 +82,10 @@ test_count = 213
 [per_crate.cargo-evidence]
 test_count = 74
 
-# Per-crate ceilings. library_panics is a ceiling, not a floor: more
-# panics is always worse. Before PR #49 this key lived in
-# `[per_crate.<crate>]` with a floor, where `current >= 0` trivially
-# passed — turning the gate into a no-op.
+# Per-crate ceilings. library_panics is a ceiling, not a floor:
+# more panics is always worse. Placing a ceiling dimension under
+# `[per_crate.<crate>]` (floor semantics) would make `current >= 0`
+# trivially pass, turning the gate into a no-op.
 
 [per_crate_ceilings.evidence]
 # panic! / unimplemented!() / todo!() in crates/evidence/src/**

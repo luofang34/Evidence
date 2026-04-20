@@ -34,7 +34,7 @@ use super::verify::cmd_verify;
 /// `cargo evidence check [--mode=auto|source|bundle] [PATH]`.
 ///
 /// PATH defaults to `.`. See the module docstring for mode semantics
-/// and Decision 1 of plan for the precedence table.
+/// and [`resolve_mode`] for the precedence table.
 pub fn cmd_check(mode: CheckMode, path: Option<PathBuf>) -> Result<i32> {
     let path = path.unwrap_or_else(|| PathBuf::from("."));
     let resolved = resolve_mode(mode, &path);

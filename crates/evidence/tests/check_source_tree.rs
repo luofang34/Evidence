@@ -284,8 +284,8 @@ fn req_gap_on_blank_traces_to_has_fixhint() {
 /// TEST-027: A failing leaf TEST propagates `REQ_GAP` up the chain
 /// with `root_cause_uid` pointing at the failing TEST. Four events
 /// for one failure (TEST/LLR/HLR/SYS), agent groups client-side.
-/// This is decision 2 of: N events with root_cause_uid, not
-/// 1 + derived.
+/// The shape is N events keyed by `root_cause_uid`, not a single
+/// event with a derived-failure list.
 #[test]
 fn derived_gaps_carry_root_cause_uid() {
     let sys_uid = "cccccccc-0000-4000-8000-000000000001";

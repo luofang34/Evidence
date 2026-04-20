@@ -446,9 +446,10 @@ cargo evidence rules         # human table
 ```
 
 Each entry carries `code`, `severity`, `domain`, `has_fix_hint`, and
-`terminal`. This is the self-describe endpoint MCP (PR #50) wraps;
-every code here is (a) backed by a `DiagnosticCode::code()` impl or
-by the `TERMINAL_CODES` / `HAND_EMITTED_CLI_CODES` sets, and (b)
+`terminal`. This is the self-describe endpoint the MCP wrapper (when
+published) consumes; every code here is (a) backed by a
+`DiagnosticCode::code()` impl or by the `TERMINAL_CODES` /
+`HAND_EMITTED_CLI_CODES` sets, and (b)
 claimed by at least one LLR's `emits` list in
 `tool/trace/llr.toml`. Four bijection invariants in
 `diagnostic_codes_locked` fail CI if those relationships ever drift

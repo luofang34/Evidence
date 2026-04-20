@@ -1,11 +1,19 @@
-//! Gate against rot-prone context markers in `.rs` source files
+//! Gate against rot-prone context markers in source + docs
 //! (LLR-044).
 //!
-//! Walks `crates/**/src/**` and `crates/**/tests/**` for `.rs`
-//! files, applies a pinned regex pattern set, and fails via
-//! `assert!` with `file:line` listing for any offending match. No
-//! `Diagnostic` wire shape; no `RULES` entry — the test's failure
-//! message is the diagnostic. Mirrors `schema_versions_locked`,
+//! Walks:
+//!
+//! - `crates/**/{src,tests}/**/*.rs` — production + test source.
+//! - `**/*.md` except `tool/trace/README.md` — top-level docs (README,
+//!   per-crate docs). The trace journal is audit provenance and stays
+//!   excluded.
+//! - `cert/**/*.toml` — our own cert state. `tool/trace/**` stays
+//!   excluded (legitimate audit trail).
+//!
+//! Applies a pinned regex pattern set and fails via `assert!` with
+//! `file:line` listing for any offending match. No `Diagnostic`
+//! wire shape; no `RULES` entry — the test's failure message is
+//! the diagnostic. Mirrors `schema_versions_locked`,
 //! `diagnostic_codes_locked`, `floors_equal_current_no_slack`.
 //!
 //! ## What counts as "rot-prone"
@@ -107,11 +115,25 @@ fn banned_patterns() -> Vec<(&'static str, Regex)> {
     ]
 }
 
-/// Walk `.rs` files under `crates/**/src/**` and `crates/**/tests/**`.
-fn collect_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
-    let entries = match fs::read_dir(root) {
-        Ok(r) => r,
-        Err(_) => return,
+/// Collect all in-scope files for the gate.
+///
+/// Scope:
+/// - `crates/**/*.rs` (excluding `target/`, `fixtures/`).
+/// - `**/*.md` at the workspace root and under `crates/`, but NOT
+///   `tool/trace/README.md` (audit journal; legitimate PR refs).
+/// - `cert/**/*.toml` (our own cert state); `tool/trace/**/*.toml`
+///   stays excluded — entries legitimately cite the implementing PR.
+fn collect_scan_targets(workspace_root: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    collect_rs(&workspace_root.join("crates"), &mut out);
+    collect_md(workspace_root, &mut out, true);
+    collect_toml_under(&workspace_root.join("cert"), &mut out);
+    out
+}
+
+fn collect_rs(root: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
     };
     for entry in entries.flatten() {
         let path = entry.path();
@@ -122,10 +144,62 @@ fn collect_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
             ) {
                 continue;
             }
-            collect_rs_files(&path, out);
+            collect_rs(&path, out);
             continue;
         }
         if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+            out.push(path);
+        }
+    }
+}
+
+/// Walk `.md` files. Skips `target/`, `.git/`, `node_modules/`,
+/// `tool/trace/` (journal = audit provenance).
+fn collect_md(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if matches!(
+                name,
+                "target" | ".git" | "node_modules" | "fixtures" | ".claude" | ".githooks"
+            ) {
+                continue;
+            }
+            // Skip tool/trace at any depth: the journal there is
+            // audit trail, not rot.
+            if name == "trace" && path.parent().and_then(|p| p.file_name()) == Some("tool".as_ref())
+            {
+                continue;
+            }
+            // Don't recurse into `cert` here — handled by
+            // `collect_toml_under`.
+            if is_workspace_root && name == "cert" {
+                continue;
+            }
+            collect_md(&path, out, false);
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) == Some("md") {
+            out.push(path);
+        }
+    }
+}
+
+fn collect_toml_under(root: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_toml_under(&path, out);
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) == Some("toml") {
             out.push(path);
         }
     }
@@ -146,9 +220,7 @@ fn is_reserved(rel: &str, line_num: usize) -> bool {
 /// Scan the tree for banned patterns. Returns a list of
 /// `(relative_path, line_number, label, matched_text)` tuples.
 fn scan_tree(root: &Path) -> Vec<(String, usize, &'static str, String)> {
-    let crates_root = root.join("crates");
-    let mut files = Vec::new();
-    collect_rs_files(&crates_root, &mut files);
+    let files = collect_scan_targets(root);
     let patterns = banned_patterns();
     let mut hits = Vec::new();
     for file in &files {
