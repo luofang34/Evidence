@@ -83,7 +83,11 @@ fn ci_yaml_has_enforcement_flags() {
         yaml_path.display()
     );
 
-    for flag in ["--require-hlr-sys-trace", "--check-test-selectors"] {
+    for flag in [
+        "--require-hlr-sys-trace",
+        "--check-test-selectors",
+        "--require-hlr-surface-bijection",
+    ] {
         assert!(
             job.contains(flag),
             "trace-self-validate job is missing `{}` flag — the self-trace \

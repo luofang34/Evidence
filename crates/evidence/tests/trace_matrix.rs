@@ -41,6 +41,7 @@ fn test_traceability_bidirectional_matrix() {
             rationale: None,
             verification_methods: vec!["test".to_string()],
             traces_to: vec![],
+            surfaces: vec![],
         }],
     };
 
@@ -79,6 +80,7 @@ fn test_traceability_bidirectional_matrix() {
             description: None,
             category: None,
             test_selector: None,
+            test_selectors: vec![],
             source: None,
         }],
     };
@@ -139,6 +141,7 @@ fn test_orphan_test_detection() {
         rationale: None,
         verification_methods: vec!["test".to_string()],
         traces_to: vec![],
+        surfaces: vec![],
     }];
 
     let llrs = vec![LlrEntry {
@@ -170,6 +173,7 @@ fn test_orphan_test_detection() {
             description: None,
             category: None,
             test_selector: None,
+            test_selectors: vec![],
             source: None,
         },
         TestEntry {
@@ -183,6 +187,7 @@ fn test_orphan_test_detection() {
             description: None,
             category: None,
             test_selector: None,
+            test_selectors: vec![],
             source: None,
         },
     ];

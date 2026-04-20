@@ -172,14 +172,20 @@ fn per_crate_floors_match_boundary_in_scope() {
 
     let in_scope: std::collections::BTreeSet<String> =
         boundary.scope.in_scope.iter().cloned().collect();
-    let declared: std::collections::BTreeSet<String> = floors.per_crate.keys().cloned().collect();
+    let declared: std::collections::BTreeSet<String> = floors
+        .per_crate
+        .keys()
+        .chain(floors.per_crate_ceilings.keys())
+        .cloned()
+        .collect();
 
     let only_in_boundary: Vec<&String> = in_scope.difference(&declared).collect();
     let only_in_floors: Vec<&String> = declared.difference(&in_scope).collect();
 
     assert!(
         only_in_boundary.is_empty() && only_in_floors.is_empty(),
-        "cert/floors.toml [per_crate.*] must match cert/boundary.toml scope.in_scope\n\
+        "cert/floors.toml [per_crate.*] ∪ [per_crate_ceilings.*] must match \
+         cert/boundary.toml scope.in_scope\n\
          in boundary but missing from floors.toml: {:?}\n\
          in floors.toml but missing from boundary.toml: {:?}",
         only_in_boundary,

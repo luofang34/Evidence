@@ -32,7 +32,18 @@ pub const BOUNDARY: &str = "0.0.1";
 /// Schema version for `cert/trace/*.toml` (HLR, LLR, tests, derived).
 /// All four trace files share one version because they deserialize
 /// through the same struct family.
-pub const TRACE: &str = "0.0.3";
+///
+/// **Pre-ship policy**: every constant in this module is pinned at
+/// `"0.0.1"` until the project ships a 1.0. Breaking changes rewrite
+/// rule text in place; they do **not** bump the version. Enforced by
+/// `schema_constants_pinned_at_001` in
+/// `tests/schema_versions_locked.rs`. If you find yourself wanting
+/// to bump, either (a) your change is a genuine 1.0 ship — pin to
+/// a non-`"0.0.1"` value there and drop the pin test, or (b) your
+/// change is still pre-ship — rewrite in place and update the
+/// regression test for the drifted shape without touching the
+/// version string.
+pub const TRACE: &str = "0.0.1";
 
 /// Schema version for per-crate `compliance/*.json` reports.
 pub const COMPLIANCE: &str = "0.0.1";

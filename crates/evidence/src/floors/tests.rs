@@ -71,6 +71,27 @@ fn current_measurements_satisfy_committed_floors() {
         }
     }
 
+    // Per-crate ceilings: current must not exceed the declared value.
+    for (crate_name, per) in &cfg.per_crate_ceilings {
+        let Some(current_per) = per_crate_m.get(crate_name) else {
+            failures.push(format!(
+                "  [per_crate_ceilings.{}]: crate has no measurement \
+                 (directory missing under crates/)",
+                crate_name
+            ));
+            continue;
+        };
+        for (dim, &ceiling) in per {
+            let current = current_per.get(dim).copied().unwrap_or(0);
+            if current > ceiling {
+                failures.push(format!(
+                    "  [per_crate_ceilings.{}] {}: current = {}, ceiling = {}",
+                    crate_name, dim, current, ceiling
+                ));
+            }
+        }
+    }
+
     assert!(
         failures.is_empty(),
         "cert/floors.toml is not satisfied by the current tree:\n{}\n\
@@ -242,6 +263,9 @@ diagnostic_codes = 80
 [per_crate.my-crate]
 test_count = 10
 
+[per_crate_ceilings.my-crate]
+library_panics = 0
+
 [delta_ceilings]
 new_dead_code_allows = 0
 "#;
@@ -254,5 +278,35 @@ new_dead_code_allows = 0
             .and_then(|m| m.get("test_count")),
         Some(&10u64)
     );
+    assert_eq!(
+        cfg.per_crate_ceilings
+            .get("my-crate")
+            .and_then(|m| m.get("library_panics")),
+        Some(&0u64)
+    );
     assert_eq!(cfg.delta_ceilings.get("new_dead_code_allows"), Some(&0u64));
+}
+
+/// Regression: the walker must exclude sibling `tests.rs` facade-
+/// modules pulled in via `#[cfg(test)] #[path = "foo/tests.rs"] mod
+/// tests;`. Before the exclusion the walker counted test code as
+/// library code — 6 panics in production modules where the real count
+/// is 0.
+#[test]
+fn count_library_panics_excludes_sibling_tests_rs() {
+    use std::fs;
+    let tmp = tempfile::TempDir::new().expect("tempdir");
+    let crates = tmp.path().join("crates").join("demo").join("src");
+    fs::create_dir_all(&crates).expect("mkdir -p");
+    fs::create_dir_all(crates.join("foo")).expect("mkdir -p foo");
+    // Production facade — zero panics.
+    fs::write(crates.join("foo.rs"), "pub fn f() {}\n").expect("write foo.rs");
+    // Sibling tests file — must be excluded.
+    fs::write(
+        crates.join("foo").join("tests.rs"),
+        "#[test]\nfn t() { panic!(\"in a sibling tests file\"); }\n",
+    )
+    .expect("write tests.rs");
+    let n = count_library_panics(tmp.path());
+    assert_eq!(n, 0, "sibling tests.rs should be excluded; got {}", n);
 }

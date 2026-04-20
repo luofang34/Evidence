@@ -174,3 +174,63 @@ fn test_detector_recognizes_versionish_strings() {
     assert!(!is_version_literal(r#""0.0.""#)); // no digits
     assert!(!is_version_literal(r#""0.0.1"#)); // missing closing quote
 }
+
+/// PR #49 pre-ship pin: every `pub const X: &str = "..."` in
+/// `schema_versions.rs` must equal `"0.0.1"`. Codifies the project
+/// convention that schema versions don't churn before the 1.0 ship;
+/// breaking shape changes rewrite rule text in place. If a future
+/// 1.0 release tier introduces genuine versioning, drop this test
+/// and rewire `cargo semver-checks` or equivalent.
+#[test]
+fn schema_constants_pinned_at_001() {
+    let path = workspace_root().join("crates/evidence/src/schema_versions.rs");
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {}: {}", path.display(), e));
+
+    // Simple byte-level scan: find every `pub const <NAME>: &str = "<value>";`
+    // line; assert the value equals "0.0.1".
+    let mut drifted: Vec<(String, String)> = Vec::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with("pub const ") || !trimmed.contains(": &str") {
+            continue;
+        }
+        // Extract NAME (between `pub const ` and `:`).
+        let Some(after_const) = trimmed.strip_prefix("pub const ") else {
+            continue;
+        };
+        let Some(colon_pos) = after_const.find(':') else {
+            continue;
+        };
+        let name = after_const[..colon_pos].trim().to_string();
+        // Extract the quoted value.
+        let Some(eq_pos) = trimmed.find('=') else {
+            continue;
+        };
+        let after_eq = &trimmed[eq_pos + 1..];
+        let Some(open_q) = after_eq.find('"') else {
+            continue;
+        };
+        let rest = &after_eq[open_q + 1..];
+        let Some(close_q) = rest.find('"') else {
+            continue;
+        };
+        let value = rest[..close_q].to_string();
+        if value != "0.0.1" {
+            drifted.push((name, value));
+        }
+    }
+
+    assert!(
+        drifted.is_empty(),
+        "schema constants drifted from the pre-ship pin of \"0.0.1\":\n{}\n\
+         Reset these to \"0.0.1\" — schema versions don't bump pre-ship; \
+         breaking shape changes rewrite rule text in place. If this is a \
+         genuine 1.0 ship, drop this test.",
+        drifted
+            .iter()
+            .map(|(n, v)| format!("  {} = \"{}\"", n, v))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}

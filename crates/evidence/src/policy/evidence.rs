@@ -43,6 +43,7 @@ impl EvidencePolicy {
                     require_llr_verification_methods: true,
                     require_derived_rationale: true,
                     require_hlr_sys_trace: true,
+                    require_hlr_surface_bijection: false,
                 },
                 require_structural_coverage: true,
                 coverage_level: Some("MC/DC".to_string()),
@@ -56,6 +57,7 @@ impl EvidencePolicy {
                     require_llr_verification_methods: true,
                     require_derived_rationale: true,
                     require_hlr_sys_trace: true,
+                    require_hlr_surface_bijection: false,
                 },
                 require_structural_coverage: true,
                 coverage_level: Some("decision".to_string()),
@@ -69,6 +71,7 @@ impl EvidencePolicy {
                     require_llr_verification_methods: false,
                     require_derived_rationale: true,
                     require_hlr_sys_trace: true,
+                    require_hlr_surface_bijection: false,
                 },
                 require_structural_coverage: true,
                 coverage_level: Some("statement".to_string()),
@@ -82,6 +85,7 @@ impl EvidencePolicy {
                     require_llr_verification_methods: false,
                     require_derived_rationale: false,
                     require_hlr_sys_trace: false,
+                    require_hlr_surface_bijection: false,
                 },
                 require_structural_coverage: false,
                 coverage_level: None,
@@ -119,6 +123,16 @@ pub struct TracePolicy {
     /// `boundary.toml` once that surface lands.
     #[serde(default)]
     pub require_hlr_sys_trace: bool,
+    /// Enforce the `HlrEntry.surfaces` ⇔ `KNOWN_SURFACES` bijection
+    /// (PR #49 / HLR-038). When `true`, (a) every `HlrEntry.surfaces`
+    /// string must be in `KNOWN_SURFACES`, and (b) every
+    /// `KNOWN_SURFACES` entry must be claimed by at least one HLR.
+    /// Defaults to `false` so external projects without surface
+    /// catalog coverage keep validating cleanly; the tool's own CI
+    /// opts in via `--require-hlr-surface-bijection` on
+    /// `cargo evidence trace --validate`.
+    #[serde(default)]
+    pub require_hlr_surface_bijection: bool,
 }
 
 fn default_true() -> bool {
