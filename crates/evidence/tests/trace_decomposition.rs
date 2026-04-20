@@ -1,8 +1,4 @@
-//! Integration tests for PR #49's trace-schema hardening + PR #51's
-//! typed Link-error variants.
-//!
-//! Covers the three Link-phase rules introduced in PR #49 and
-//! promoted to typed codes in PR #51:
+//! Integration tests for the Link-phase decomposition rules:
 //!
 //! - `HlrEntry.surfaces` ⇔ `KNOWN_SURFACES` bijection
 //!   → `LinkError::SurfaceUnknown` (`TRACE_HLR_SURFACE_UNKNOWN`)
@@ -14,8 +10,7 @@
 //!   → `LinkError::DerivedMissingRationale`
 //!   (`TRACE_DERIVED_MISSING_RATIONALE`).
 //!
-//! Assertions match on `err.code()` returns (PR #51) instead of
-//! substring-matching prose (the PR #49-era shape pre-typing).
+//! Assertions match on `err.code()` returns.
 
 #![allow(
     clippy::unwrap_used,

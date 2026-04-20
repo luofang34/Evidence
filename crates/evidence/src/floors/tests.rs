@@ -101,6 +101,75 @@ fn current_measurements_satisfy_committed_floors() {
     );
 }
 
+/// Strict ratchet: every floor value must equal (not merely be
+/// satisfied by) the current measurement. Slack (`current > floor`)
+/// is a silent permissiveness trap — a later PR can delete a test,
+/// a diagnostic code, or a trace entry without firing the gate, as
+/// long as the new current still exceeds the stale floor.
+///
+/// Rule: a PR that *adds* N units along a ratcheted dimension must
+/// bump the matching floor by N in the same commit. A PR that
+/// *removes* M units must (a) include a `Lower-Floor: <dim>
+/// <reason>` line so `scripts/floors-lower-lint.sh` accepts the
+/// decrease, AND (b) set the new floor to
+/// `current_after_change = current_before - M + (any additions)`.
+/// This test enforces the equality half; the shell lint enforces
+/// the justification half.
+///
+/// A `per_crate` dimension with no fixture at the matching
+/// `crates/<name>/` directory reports `current = 0` through the
+/// aggregate; `per_crate_floors_match_boundary_in_scope` fires
+/// first in that scenario, so the equality check doesn't need to
+/// special-case it.
+#[test]
+fn floors_equal_current_no_slack() {
+    let root = workspace_root();
+    let floors_toml = root.join("cert").join("floors.toml");
+    let cfg = FloorsConfig::load(&floors_toml)
+        .unwrap_or_else(|e| panic!("load {}: {}", floors_toml.display(), e));
+    let workspace_m = current_measurements(&root);
+    let per_crate_m = per_crate_measurements(&root);
+
+    let mut slack: Vec<String> = Vec::new();
+
+    for (dim, &floor) in &cfg.floors {
+        let current = workspace_m.get(dim).copied().unwrap_or(0);
+        if current > floor {
+            slack.push(format!(
+                "  [floors] {}: floor = {}, current = {} (bump floor to {})",
+                dim, floor, current, current
+            ));
+        }
+    }
+    for (crate_name, per) in &cfg.per_crate {
+        let Some(current_per) = per_crate_m.get(crate_name) else {
+            continue; // already covered by the boundary-bijection test
+        };
+        for (dim, &floor) in per {
+            let current = current_per.get(dim).copied().unwrap_or(0);
+            if current > floor {
+                slack.push(format!(
+                    "  [per_crate.{}] {}: floor = {}, current = {} (bump floor to {})",
+                    crate_name, dim, floor, current, current
+                ));
+            }
+        }
+    }
+
+    assert!(
+        slack.is_empty(),
+        "cert/floors.toml has slack on one or more floors — the committed \
+         value is below the current measurement. A later PR can delete \
+         items along these dimensions without firing the ratchet gate.\n\n{}\n\n\
+         Rule: a PR that adds to a ratcheted dimension must bump the \
+         matching floor to the post-change count in the same commit. \
+         This test enforces floor == current; the companion \
+         `current_measurements_satisfy_committed_floors` test enforces \
+         current >= floor.",
+        slack.join("\n")
+    );
+}
+
 /// Regression: the walker must NOT count occurrences that sit
 /// inside a plain string literal. `floors.rs` itself has
 /// `["panic!(", "unimplemented!(", "todo!("]` as a literal Rust

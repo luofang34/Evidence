@@ -1,21 +1,16 @@
-//! Typed variants carried by `TraceValidationError::Link`.
+//! Typed variants carried by `TraceValidationError::Link` (LLR-041).
 //!
-//! PR #51 / LLR-041. Each variant has its own `DiagnosticCode` impl
-//! so the `diagnostic_codes_locked` walker picks up each code exactly
-//! the way it picks up `VerifyError` variants. The outer
-//! `TraceValidationError::Link { errors: Vec<LinkError> }` still
-//! returns `TRACE_LINK_FAILED` for aggregate-level callers; per-
-//! variant granularity comes from iterating `errors` and calling
-//! `.code()` on each.
+//! Each variant has its own `DiagnosticCode` impl so the
+//! `diagnostic_codes_locked` walker picks up each code the same way
+//! it picks up `VerifyError` variants. The outer
+//! `TraceValidationError::Link { errors: Vec<LinkError> }` returns
+//! `TRACE_LINK_FAILED` for aggregate-level callers; per-variant
+//! granularity comes from iterating `errors` and calling `.code()`
+//! on each.
 //!
-//! **Scope**: only Link-phase rules. The Register phase
-//! (`TraceValidationError::Register`) stays on `Vec<String>` for
-//! now; promoting it to typed variants is a separate follow-up PR.
-//!
-//! Lives in this sibling file (pulled in by `validation.rs` as
-//! `mod link_errors;`) to keep the facade under the workspace's
-//! 500-line per-file limit. Mirrors PR #48's `floors/walker.rs`
-//! split.
+//! Scope is Link-phase only. The Register phase
+//! (`TraceValidationError::Register`) stays on `Vec<String>`; a
+//! separate refactor would promote it.
 
 use thiserror::Error;
 

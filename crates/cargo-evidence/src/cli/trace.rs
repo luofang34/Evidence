@@ -130,9 +130,14 @@ pub fn cmd_trace(
                         .iter()
                         .map(|u| format!("  {}: selector '{}' did not resolve", u.id, u.selector))
                         .collect();
+                    // Prefix-free message so jsonl callers don't
+                    // see `code + ": " + code + ": " + body`. The
+                    // human / json paths prepend the code at print
+                    // time (see the match arm below); the jsonl
+                    // path uses this raw body inside the
+                    // `Diagnostic { code, message }` pair.
                     Err(format!(
-                        "TRACE_SELECTOR_UNRESOLVED: {} selector(s) did not \
-                         resolve to a real #[test] fn:\n{}",
+                        "{} selector(s) did not resolve to a real #[test] fn:\n{}",
                         unresolved.len(),
                         lines.join("\n")
                     ))
@@ -184,13 +189,21 @@ pub fn cmd_trace(
                             root_cause_uid: None,
                         })?;
                     } else if json_output {
+                        // Keep the legacy human-readable `code: body`
+                        // shape for non-jsonl consumers so existing
+                        // `jq .message` pipelines that grep for the
+                        // TRACE_SELECTOR_UNRESOLVED string still match.
+                        let prefixed = format!("TRACE_SELECTOR_UNRESOLVED: {}", msg);
                         results.push(serde_json::json!({
                             "root": root,
                             "status": "fail",
-                            "message": msg,
+                            "message": prefixed,
                         }));
                     } else {
-                        eprintln!("trace: validation FAILED for '{}': {}", root, msg);
+                        eprintln!(
+                            "trace: validation FAILED for '{}': TRACE_SELECTOR_UNRESOLVED: {}",
+                            root, msg
+                        );
                     }
                     all_valid = false;
                 }

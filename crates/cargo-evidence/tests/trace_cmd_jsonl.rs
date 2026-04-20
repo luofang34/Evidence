@@ -1,5 +1,5 @@
-//! PR #51 / TEST-042: `cargo evidence trace --validate
-//! --format=jsonl` stream-emit contract.
+//! `cargo evidence trace --validate --format=jsonl` stream-emit
+//! contract (TEST-042).
 //!
 //! Spawns the CLI against a tampered trace root with known
 //! violations; asserts stdout contains exactly one JSONL event per

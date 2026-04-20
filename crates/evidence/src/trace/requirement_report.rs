@@ -19,6 +19,26 @@
 //! `root_cause_uid`. See
 //! [`Diagnostic::root_cause_uid`](crate::diagnostic::Diagnostic::root_cause_uid).
 //!
+//! ## Aggregation vs pass-through (PR #51 / C6 interaction)
+//!
+//! PR #51 introduced typed `LinkError` variants and a per-variant
+//! JSONL stream on `cargo evidence trace --validate --format=jsonl`.
+//! `check` deliberately does NOT mirror that stream shape. For every
+//! failing LLR under a multi-selector (`test_selectors: Vec<String>`)
+//! setup, `check` emits **one** `REQ_GAP` whose `message` summarizes
+//! which selectors failed — not N `REQ_GAP` events (one per variant).
+//! The "one event per requirement" contract from PR #46 stays.
+//!
+//! Agents that want per-variant codes call `trace --validate
+//! --format=jsonl` directly; agents that want per-requirement
+//! pass/gap call `check`. The two surfaces answer different
+//! questions — "which Link-phase rules fired?" vs "which requirements
+//! are currently satisfied?" — so conflating their shapes into one
+//! stream would make each harder to consume. MCP (PR #53) wraps both.
+//!
+//! Pass-through to N `REQ_GAP` per LLR is a follow-up after MCP
+//! reveals a concrete need.
+//!
 //! The heavy diagnostic-construction logic lives in the sibling
 //! [`builders`] module so this file stays under the workspace 500-line
 //! file-size limit.

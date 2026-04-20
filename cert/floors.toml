@@ -77,10 +77,10 @@ known_surfaces = 12
 
 [per_crate.evidence]
 # `#[test]` attribute count inside crates/evidence/**/*.rs.
-test_count = 209
+test_count = 210
 
 [per_crate.cargo-evidence]
-test_count = 72
+test_count = 74
 
 # Per-crate ceilings. library_panics is a ceiling, not a floor: more
 # panics is always worse. Before PR #49 this key lived in
