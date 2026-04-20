@@ -1090,3 +1090,47 @@ emits = [
     "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
 ]
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "548b7b36-1d03-487d-a6a1-f2b37bdee2a1"
+id = "LLR-049"
+title = "Pre-release detection at build time + verify-side refusal"
+owner = "tool"
+traces_to = ["014adc4d-c545-403c-b4f2-d702a49dff30"]
+modules = [
+    "evidence::env::capture",
+    "evidence::verify::bundle",
+    "evidence::verify::errors",
+    "cargo_evidence::cli::verify",
+    "cargo_evidence::cli::generate::phases",
+]
+derived = false
+description = '''
+Four coupled sites:
+
+- `crates/evidence/src/env/capture.rs` adds a module-scope
+  `TOOL_IS_PRERELEASE: bool` computed from
+  `env!("CARGO_PKG_VERSION")` by byte-scanning for `-` in
+  const context. `env_fingerprint` appends `tool_prerelease:
+  TOOL_IS_PRERELEASE` to the returned `EnvFingerprint`.
+- `crates/evidence/src/env/fingerprint.rs` grows
+  `tool_prerelease: bool` with `#[serde(default)]` so
+  pre-PR-#60 bundles deserialize as `false`.
+- `crates/evidence/src/verify/errors.rs` adds
+  `VerifyError::PrereleaseToolDetected { profile,
+  engine_crate_version }` with `DiagnosticCode` returning
+  `"VERIFY_PRERELEASE_TOOL"`.
+- `crates/evidence/src/verify/bundle.rs` reads
+  `env.tool_prerelease` after `check_env_vs_index` and pushes
+  the error on every profile — library stays policy-free.
+- `crates/cargo-evidence/src/cli/verify.rs::cmd_verify_jsonl`
+  partitions the error bag: `VERIFY_PRERELEASE_TOOL` on
+  `Profile::Dev` → Warning stream + `VERIFY_OK` terminal +
+  exit 0; same code on Cert/Record → Error + `VERIFY_FAIL` +
+  exit 2. Every other VerifyError stays error-severity.
+- `crates/cargo-evidence/src/cli/generate/phases.rs::init_builder`
+  emits a warning-severity `VERIFY_PRERELEASE_TOOL` in
+  cert/record profile when `TOOL_IS_PRERELEASE` is true.
+'''
+emits = []
+verification_methods = ["test"]

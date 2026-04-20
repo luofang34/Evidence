@@ -903,3 +903,40 @@ doctor — dev iteration stays fast.
 verification_methods = ["test"]
 traces_to = ["abba0183-f506-4fe5-81d1-afdc3bcac1ca"]
 surfaces = ["doctor"]
+
+[[requirements]]
+uid = "014adc4d-c545-403c-b4f2-d702a49dff30"
+id = "HLR-049"
+title = "Pre-release builds embed a tool_prerelease flag in env.json and verify refuses such bundles under cert/record"
+owner = "tool"
+scope = "component"
+description = '''
+`env!("CARGO_PKG_VERSION")` at build time decides the flag:
+any `-` suffix (semver pre-release identifier per §9) sets
+`tool_prerelease = true` in the bundle's `env.json`. The schema
+edit is additive; absent field deserializes as `false` so
+pre-PR-#60 bundles continue to verify as release-grade (they
+were). `env.json`'s `ENV` schema constant stays at `"0.0.1"`
+per the pre-1.0 additive-field policy.
+
+`verify_bundle_with_key` checks `env.tool_prerelease` after
+the existing `check_env_vs_index` pass. On `tool_prerelease ==
+true` the library pushes `VerifyError::PrereleaseToolDetected
+{ profile, engine_crate_version }` into `verify_errors` on
+every profile (library stays policy-free: "report what's
+true"). The CLI layer (`cmd_verify_jsonl`) partitions
+VerifyError variants into error-vs-warning severity by
+`(code, index.profile)`: `VERIFY_PRERELEASE_TOOL` on
+`Profile::Dev` downgrades to Warning + `VERIFY_OK` terminal +
+exit 0; same code on Cert/Record stays Error + `VERIFY_FAIL` +
+exit 2. Every other VerifyError variant remains error-severity
+regardless of profile.
+
+`generate --profile cert` / `record` additionally emits a
+warning-severity `VERIFY_PRERELEASE_TOOL` at bundle-assembly
+time so the user sees the problem before trying to verify. Dev
+profile generate skips the emit — dev iteration stays fast.
+'''
+verification_methods = ["test"]
+traces_to = ["2758e039-4943-4a9a-ad3d-9e0b0d0da7d8"]
+surfaces = ["pre-release safety gate"]

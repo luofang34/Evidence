@@ -495,3 +495,34 @@ test_selectors = [
     "doctor_cmd::cert_generate_blocks_on_doctor_fail",
     "doctor_cmd::current_workspace_passes_doctor",
 ]
+
+[[tests]]
+uid = "2856e53c-8c90-42e8-ad9b-3da6f3a14a25"
+id = "TEST-049"
+title = "Pre-release tool flag propagates into env.json, blocks verify under cert/record, passes dev"
+owner = "tool"
+traces_to = ["548b7b36-1d03-487d-a6a1-f2b37bdee2a1"]
+description = """
+Five assertions:
+- `is_prerelease_version` correctly classifies `0.1.0-pre.1`,
+  `0.0.1-alpha.2`, `1.0.0-rc.3` as pre-release and
+  `0.1.0`, `1.0.0+build.42` as release (pure detection).
+- `EnvFingerprint` round-trips `tool_prerelease` through
+  serde; absent field deserializes as `false` (backwards
+  compat for pre-PR-#60 bundles).
+- Verify dev on a bundle with `tool_prerelease = true` exits 0
+  and emits `VERIFY_PRERELEASE_TOOL` at warning severity (not
+  terminal).
+- Verify cert on the same bundle exits 2 with
+  `VERIFY_PRERELEASE_TOOL` error + `VERIFY_FAIL` terminal.
+- Generate --profile cert on a pre-release build emits a
+  warning-severity `VERIFY_PRERELEASE_TOOL` diagnostic during
+  bundle assembly (before verify would fire later).
+"""
+test_selectors = [
+    "env_prerelease::is_prerelease_version_classifies_semver_shapes",
+    "env_prerelease::env_fingerprint_roundtrip_prerelease_field",
+    "verify_prerelease::dev_profile_warning_passes",
+    "verify_prerelease::cert_profile_blocks_with_verify_fail",
+    "verify_prerelease::generate_cert_warns_on_prerelease",
+]
