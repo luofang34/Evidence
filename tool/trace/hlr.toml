@@ -862,3 +862,44 @@ entry — the test's failure message is the diagnostic.
 verification_methods = ["test"]
 traces_to = ["18188b31-f01d-4902-97a2-4b981b50a1ad"]
 surfaces = ["walker-usage standardization"]
+
+[[requirements]]
+uid = "57992e98-fb1e-4248-b340-6dd454db95c1"
+id = "HLR-048"
+title = "cargo evidence doctor audits downstream rigor via a checklist of typed diagnostic codes"
+owner = "tool"
+scope = "component"
+description = '''
+New subcommand `cargo evidence doctor` runs a mechanical rigor
+audit against the caller's repo. Each check emits exactly one
+`Diagnostic` with a stable `DOCTOR_*` code and a severity
+(`error` / `warning` / `info`); the stream terminates with
+exactly one of `DOCTOR_OK` (exit 0) or `DOCTOR_FAIL` (exit 2)
+per Schema Rule 1. Jsonl-native so an agent can pattern-match
+on the code rather than parse prose.
+
+MVP checks:
+- trace validity (FAIL): wraps `trace --validate
+  --require-hlr-sys-trace --require-hlr-surface-bijection
+  --check-test-selectors`.
+- floors config present + satisfied (FAIL): wraps
+  `cargo evidence floors`.
+- boundary config present + parseable (FAIL): exists-check on
+  `cert/boundary.toml` + `BoundaryConfig::load`.
+- CI workflow references cargo evidence (WARN): greps
+  `.github/workflows/*.yml`.
+- merge-style policy (WARN): inspects last 20 main-branch
+  commits; warns on `Merge pull request #N from …` pattern
+  because merge-commit repos have the Override-Deterministic-
+  Baseline haystack gap.
+- override protocol documented (WARN): greps README.md +
+  CONTRIBUTING.md for `Override-Deterministic-Baseline:`.
+
+`cargo evidence generate --profile cert` (and `record`) invokes
+doctor internally before bundle assembly and aborts on any
+`error`-severity finding. `--profile dev` does not invoke
+doctor — dev iteration stays fast.
+'''
+verification_methods = ["test"]
+traces_to = ["abba0183-f506-4fe5-81d1-afdc3bcac1ca"]
+surfaces = ["doctor"]

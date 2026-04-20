@@ -148,6 +148,23 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     } = args;
 
     let profile = resolve_profile(profile_arg.as_deref())?;
+    // Doctor precheck gates cert / record profile bundle generation —
+    // downstream projects can't produce audit evidence without
+    // passing the rigor checklist (trace validity, floors config,
+    // boundary config). Dev profile skips the precheck so iteration
+    // stays fast.
+    //
+    // Runs BEFORE `preflight` because doctor findings are actionable
+    // ("add cert/boundary.toml") while preflight's dirty-tree / git-
+    // state errors are stop-ship. A first-time downstream user with
+    // no boundary config should see "boundary missing" before "dirty
+    // tree", not after. See LLR-048 / cli/doctor.rs::precheck_doctor.
+    if matches!(profile, Profile::Cert | Profile::Record) {
+        let workspace = std::env::current_dir()?;
+        if let Err(e) = super::doctor::precheck_doctor(&workspace) {
+            return fail(json_output, profile, e.to_string());
+        }
+    }
     if let Some(code) = phases::preflight(profile, json_output)? {
         return Ok(code);
     }

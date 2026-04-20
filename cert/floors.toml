@@ -42,27 +42,28 @@ schema_version = 1
 
 # evidence::RULES length — every diagnostic code the tool can emit,
 # hand-curated. Lives in a single crate, so workspace-wide.
-diagnostic_codes = 96
+diagnostic_codes = 109
 
 # evidence::TERMINAL_CODES length — hand-emitted terminals
-# (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR).
-terminal_codes = 4
+# (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR /
+#  DOCTOR_OK / DOCTOR_FAIL).
+terminal_codes = 6
 
 # tool/trace/sys.toml — System Requirements.
-trace_sys = 15
+trace_sys = 16
 # tool/trace/hlr.toml — High-Level Requirements.
-trace_hlr = 47
+trace_hlr = 48
 # tool/trace/llr.toml — Low-Level Requirements.
-trace_llr = 47
+trace_llr = 48
 # tool/trace/tests.toml — Test Cases.
-trace_test = 47
+trace_test = 48
 
 # evidence::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
 # coverage is enforced by `require_hlr_surface_bijection`; this floor
 # guards against silently shrinking the catalog itself (which would
 # relax the bijection without firing the check).
-known_surfaces = 15
+known_surfaces = 16
 
 # --------------------------------------------------------------------
 # Per-crate-true dimensions: one table per in-scope crate.
@@ -80,7 +81,7 @@ known_surfaces = 15
 test_count = 226
 
 [per_crate.cargo-evidence]
-test_count = 84
+test_count = 91
 
 # Per-crate ceilings. library_panics is a ceiling, not a floor:
 # more panics is always worse. Placing a ceiling dimension under

@@ -52,4 +52,12 @@ RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links -D rustdoc::private_intra_doc_l
 log "cargo build --workspace --release"
 cargo build --workspace --release
 
+# Self-dogfood the rigor audit. The release binary just built
+# runs doctor on the current workspace; any error-severity
+# finding aborts with DOCTOR_FAIL. This matches the CI step in
+# the Check job — catching rigor drift before push beats catching
+# it on the PR.
+log "cargo evidence doctor (self-dogfood)"
+./target/release/cargo-evidence evidence doctor --format=jsonl
+
 printf '\n== local-ci.sh: all gates pass ==\n'

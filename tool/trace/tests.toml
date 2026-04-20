@@ -464,3 +464,34 @@ test_selectors = [
     "walker_usage_locked::fires_on_unallowlisted_call",
     "walker_usage_locked::passes_on_allowlisted_file",
 ]
+
+[[tests]]
+uid = "11c798f0-62c9-4669-9cc5-2f596544cfb9"
+id = "TEST-048"
+title = "cargo evidence doctor passes on rigorous fixture, fails on sloppy fixture, blocks cert generate"
+owner = "tool"
+traces_to = ["ec50f98b-9a1d-4f7b-bc33-df56c7faab2a"]
+description = """
+Integration tests in `crates/cargo-evidence/tests/doctor_cmd.rs`:
+- Rigorous fixture (synthetic repo with tool/trace, cert/floors.toml,
+  cert/boundary.toml, .github/workflows/ci.yml mentioning cargo
+  evidence, README with `Override-Deterministic-Baseline:`) exits 0
+  with `DOCTOR_OK` terminal and one `_OK` diagnostic per check.
+- Sloppy fixture (missing trace + floors + boundary) exits 2 with
+  `DOCTOR_FAIL` terminal; stream contains `DOCTOR_TRACE_INVALID`,
+  `DOCTOR_FLOORS_MISSING`, `DOCTOR_BOUNDARY_MISSING` with
+  `severity=error`.
+- Cert-profile integration: `generate --profile cert` against the
+  sloppy fixture exits non-zero with a `GENERATE_ERROR` terminal
+  whose diagnostic enumerates the triggered doctor codes, proving
+  the audit runs BEFORE bundle assembly.
+- Self-dogfood: the current workspace passes `cargo evidence
+  doctor` (load-bearing regression — if the tool's own rigor
+  slips below its published checklist, this test fires).
+"""
+test_selectors = [
+    "doctor_cmd::rigorous_fixture_passes",
+    "doctor_cmd::sloppy_fixture_fails_with_named_codes",
+    "doctor_cmd::cert_generate_blocks_on_doctor_fail",
+    "doctor_cmd::current_workspace_passes_doctor",
+]

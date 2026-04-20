@@ -154,6 +154,97 @@
     "terminal": false
   },
   {
+    "code": "DOCTOR_BOUNDARY_MISSING",
+    "severity": "error",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_CHECK_PASSED",
+    "severity": "info",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_CI_INTEGRATION_MISSING",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_FAIL",
+    "severity": "error",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "DOCTOR_FLOORS_BOUNDARY_MISMATCH",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_FLOORS_MISSING",
+    "severity": "error",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_FLOORS_SLACK",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_FLOORS_VIOLATED",
+    "severity": "error",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_MERGE_STYLE_RISK",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_MERGE_STYLE_UNKNOWN",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_OK",
+    "severity": "info",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_TRACE_INVALID",
+    "severity": "error",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "ENV_STRICT_CARGO_REQUIRED",
     "severity": "error",
     "domain": "env",
