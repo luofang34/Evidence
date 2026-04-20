@@ -22,114 +22,13 @@
 )]
 
 use std::fs;
-use std::path::{Path, PathBuf};
 
-use assert_cmd::Command;
-use serde_json::Value;
 use tempfile::TempDir;
 
-fn cargo_evidence() -> Command {
-    #[allow(deprecated)]
-    Command::cargo_bin("cargo-evidence").unwrap()
-}
+#[path = "doctor_cmd/helpers.rs"]
+mod helpers;
 
-fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("crates/")
-        .parent()
-        .expect("workspace root")
-        .to_path_buf()
-}
-
-/// Build a synthetic "rigorous" fixture — has everything doctor
-/// checks for. Uses symlinks to the real `tool/trace/` on Unix so
-/// the trace validator runs against schema-valid entries; Windows
-/// falls back to copying the four toml files.
-fn setup_rigorous_fixture() -> TempDir {
-    let tmp = TempDir::new().expect("tempdir");
-    let root = tmp.path();
-
-    // tool/trace — the real one (symlink on Unix, copy on Windows).
-    let real = workspace_root();
-    fs::create_dir_all(root.join("tool")).unwrap();
-    #[cfg(unix)]
-    std::os::unix::fs::symlink(
-        real.join("tool").join("trace"),
-        root.join("tool").join("trace"),
-    )
-    .unwrap();
-    #[cfg(not(unix))]
-    {
-        let fake_trace = root.join("tool").join("trace");
-        fs::create_dir_all(&fake_trace).unwrap();
-        for name in ["sys.toml", "hlr.toml", "llr.toml", "tests.toml"] {
-            fs::copy(
-                real.join("tool").join("trace").join(name),
-                fake_trace.join(name),
-            )
-            .unwrap();
-        }
-    }
-
-    // cert/floors.toml — minimal schema_version + [floors] so
-    // loading succeeds. No dimensions = nothing breaches.
-    fs::create_dir_all(root.join("cert")).unwrap();
-    fs::write(
-        root.join("cert").join("floors.toml"),
-        "schema_version = 1\n\n[floors]\n",
-    )
-    .unwrap();
-
-    // cert/boundary.toml — minimal shape: schema + scope + policy.
-    fs::write(
-        root.join("cert").join("boundary.toml"),
-        "[schema]\nversion = \"0.0.1\"\n\n\
-         [scope]\nin_scope = [\"evidence\"]\ntrace_roots = [\"tool/trace\"]\n\n\
-         [policy]\nno_out_of_scope_deps = false\n\
-         forbid_build_rs = false\n\
-         forbid_proc_macros = false\n",
-    )
-    .unwrap();
-
-    // .github/workflows/ci.yml mentioning cargo evidence.
-    let wf = root.join(".github").join("workflows");
-    fs::create_dir_all(&wf).unwrap();
-    fs::write(
-        wf.join("ci.yml"),
-        "name: CI\non: push\njobs:\n  check:\n    runs-on: ubuntu-latest\n    \
-         steps:\n      - run: cargo evidence check\n",
-    )
-    .unwrap();
-
-    // README.md mentioning Override-Deterministic-Baseline:
-    fs::write(
-        root.join("README.md"),
-        "# Fixture repo\n\nFor reproducibility-affecting changes, add \
-         `Override-Deterministic-Baseline: <reason>` to the PR body.\n",
-    )
-    .unwrap();
-
-    tmp
-}
-
-/// Run `cargo evidence doctor --format=jsonl` against `workspace`,
-/// returning (exit_code, parsed_diagnostics).
-fn run_doctor(workspace: &Path) -> (i32, Vec<Value>) {
-    let out = cargo_evidence()
-        .args(["evidence", "doctor", "--format=jsonl"])
-        .current_dir(workspace)
-        .output()
-        .expect("spawn cargo-evidence");
-    let exit = out.status.code().unwrap_or(-1);
-    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
-    let diags: Vec<Value> = stdout
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .map(|l| serde_json::from_str(l).expect("each line must be a JSON object"))
-        .collect();
-    (exit, diags)
-}
+use helpers::{cargo_evidence, run_doctor, setup_rigorous_fixture, workspace_root};
 
 #[test]
 fn rigorous_fixture_passes() {
@@ -411,6 +310,74 @@ fn cert_generate_blocks_on_doctor_fail() {
         "stderr/stdout must surface the doctor codes; \nstderr:\n{}\nstdout:\n{}",
         stderr,
         stdout,
+    );
+}
+
+/// Boundary-missing + trace-fails: the trace diagnostic's message
+/// must carry the explicit fallback note so the user isn't
+/// silently looking at DAL-D output when their project was
+/// targeting DAL-A. Without the note, a misleading "trace
+/// validation failed at DAL-D" reads as "problem fixed at DAL-D"
+/// when the real problem is "boundary file broken, so we don't
+/// know what level this project targets."
+#[test]
+fn fallback_note_appears_when_boundary_missing_and_trace_fails() {
+    let tmp = TempDir::new().expect("tempdir");
+    let root = tmp.path();
+
+    // Valid trace layout with a dangling traces_to — fails at any
+    // DAL level including DAL-D's lenient default.
+    fs::create_dir_all(root.join("tool").join("trace")).unwrap();
+    fs::write(
+        root.join("tool").join("trace").join("hlr.toml"),
+        "[schema]\nversion = \"0.0.1\"\n\n[meta]\ndocument_id = \"DS-HLR\"\nrevision = \"1.0\"\n\n\
+         [[requirements]]\nuid = \"91d2a98f-7b89-4e3c-8d1d-4b7f8e77a9b4\"\nid = \"HLR-001\"\n\
+         title = \"Dangling HLR\"\nowner = \"downstream\"\nscope = \"component\"\n\
+         description = \"Points at a ghost SYS UID\"\nverification_methods = [\"test\"]\n\
+         traces_to = [\"00000000-0000-0000-0000-000000000000\"]\nsurfaces = []\n",
+    )
+    .unwrap();
+    for (name, doc, list_key) in [
+        ("sys.toml", "DS-SYS", "requirements"),
+        ("llr.toml", "DS-LLR", "requirements"),
+        ("tests.toml", "DS-TESTS", "tests"),
+    ] {
+        fs::write(
+            root.join("tool").join("trace").join(name),
+            format!(
+                "{} = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
+                 [meta]\ndocument_id = \"{}\"\nrevision = \"1.0\"\n",
+                list_key, doc
+            ),
+        )
+        .unwrap();
+    }
+    // No cert/boundary.toml on purpose — forces load_default_dal
+    // into the fallback branch (boundary_loadable = false).
+
+    let (exit, diags) = run_doctor(root);
+    assert_eq!(
+        exit, 2,
+        "dangling traces_to must fire at DAL-D; diags={:?}",
+        diags
+    );
+    let trace_msg: String = diags
+        .iter()
+        .find(|d| d["code"].as_str() == Some("DOCTOR_TRACE_INVALID"))
+        .and_then(|d| d["message"].as_str())
+        .unwrap_or("")
+        .to_string();
+    assert!(
+        trace_msg.contains("assumed DAL-D"),
+        "trace failure must carry the fallback note so the DAL-D \
+         assumption isn't silent; got message: {}",
+        trace_msg
+    );
+    assert!(
+        trace_msg.contains("boundary unloadable"),
+        "fallback note must name the root cause (boundary unloadable); \
+         got message: {}",
+        trace_msg
     );
 }
 

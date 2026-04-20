@@ -145,6 +145,24 @@ jobs:
       - name: Build (release)
         run: cargo build --workspace --release
 
+      - name: Package dry-run (cargo package --list)
+        # Catches reach-outside-crate regressions (`include_str!`
+        # paths outside src/, etc.) BEFORE they silently block
+        # first crates.io publish. `cargo build --release` tolerates
+        # such paths because it builds from the full workspace;
+        # `cargo package --list` simulates the sandboxed tarball
+        # view — only files under the crate's own directory are
+        # available. A missing reference here is the same class of
+        # regression the pre-publish audit first caught.
+        #
+        # `shell: bash` because the default on Windows is
+        # PowerShell which doesn't understand `/dev/null` (tries
+        # to resolve it as a literal path).
+        shell: bash
+        run: |
+          cargo package --list -p evidence --allow-dirty > /dev/null
+          cargo package --list -p cargo-evidence --allow-dirty > /dev/null
+
   trace-self-validate:
     # Dogfood the tool's own trace format against its own source.
     # `tool/trace/{sys,hlr,llr,tests}.toml` covers the full DO-178C
