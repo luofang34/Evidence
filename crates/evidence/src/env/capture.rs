@@ -84,17 +84,42 @@ pub fn env_fingerprint(profile: Profile, strict: bool) -> Result<EnvFingerprint,
     let host = Host::detect();
     let target_triple = extract_target_triple().unwrap_or_else(|| "unknown".to_string());
 
-    // Cargo.lock hash if present
+    // Cargo.lock hash if present. "file absent" is a legitimate None
+    // (projects without Cargo.lock). "file exists but I/O failed" is
+    // NOT — it silently drops a reproducibility input. Warn on the
+    // I/O-error path so downstream tooling can trace why a cert-
+    // profile bundle's manifest lacks the hash.
     let cargo_lock_hash = if std::path::Path::new("Cargo.lock").exists() {
-        std::fs::read("Cargo.lock")
-            .ok()
-            .map(|data| crate::hash::sha256(&data))
+        match std::fs::read("Cargo.lock") {
+            Ok(data) => Some(crate::hash::sha256(&data)),
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "Cargo.lock exists but read failed; cargo_lock_hash will be null \
+                     in env.json, which may cause cross-time determinism drift against \
+                     prior bundles that captured it"
+                );
+                None
+            }
+        }
     } else {
         None
     };
 
-    // rust-toolchain.toml contents if present
-    let rust_toolchain_toml = std::fs::read_to_string("rust-toolchain.toml").ok();
+    // rust-toolchain.toml contents if present. Same "absent vs
+    // unreadable" distinction as Cargo.lock above.
+    let rust_toolchain_toml = match std::fs::read_to_string("rust-toolchain.toml") {
+        Ok(text) => Some(text),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "rust-toolchain.toml exists but read failed; rust_toolchain_toml will be \
+                 null in env.json, which may cause cross-time determinism drift"
+            );
+            None
+        }
+    };
 
     // RUSTFLAGS env var
     let rustflags = std::env::var("RUSTFLAGS").ok();

@@ -14,6 +14,13 @@
 //! fails — and the lint is a CI gate run on Linux. Windows
 //! developers have full test coverage via every other integration
 //! binary. Same precedent as `floors_lower_lint.rs`.
+//!
+//! **Maintenance note**: the file-level `#![cfg(not(target_os =
+//! "windows"))]` below skips EVERY test in this file on Windows.
+//! Adding a platform-portable test here without removing the
+//! file-level cfg will silently skip the new test on Windows —
+//! if the test doesn't depend on `bash`, move it to a separate
+//! file that doesn't carry the cfg.
 
 #![cfg(not(target_os = "windows"))]
 #![allow(
@@ -23,127 +30,17 @@
     reason = "test setup failures should panic immediately"
 )]
 
-use std::path::PathBuf;
 use std::process::Command;
 
 use tempfile::TempDir;
 
-fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("crates/")
-        .parent()
-        .expect("workspace root")
-        .to_path_buf()
-}
+#[path = "cross_time_determinism/helpers.rs"]
+mod helpers;
 
-fn lint_script() -> PathBuf {
-    workspace_root()
-        .join("scripts")
-        .join("deterministic-baseline-override-lint.sh")
-}
-
-/// The one legitimate reason the tests can't run: the script
-/// itself isn't reachable from the test binary. Nix
-/// `buildRustPackage` copies only the crate's src tree — if a
-/// future Nix config forgets to expose `scripts/`, tests skip
-/// rather than panic on a `NotFound` spawn.
-///
-/// `jq` availability is NOT part of this probe. The project
-/// philosophy is "mechanical guardrails > graceful degradation";
-/// silently skipping nine tests in the Nix gate defeats the
-/// gate's whole purpose (Nix is specifically meant to validate
-/// the reproducibility path). `flake.nix` puts `jq` in the
-/// sandbox's `nativeBuildInputs`, so a missing `jq` indicates a
-/// real misconfiguration that should fail loud with "jq is
-/// required but not found on PATH" from the script itself.
-///
-/// Returns `true` iff the script is reachable.
-fn script_available() -> bool {
-    lint_script().is_file()
-}
-
-/// Minimal `deterministic-manifest.json` stub carrying the six
-/// toolchain-sensitive fields the lint projects. Everything else
-/// (schema_version, profile, git_*) is irrelevant to the gate and
-/// omitted so the fixtures stay tiny and obvious.
-fn manifest_json(
-    rustc: &str,
-    cargo: &str,
-    llvm: Option<&str>,
-    cargo_lock_hash: &str,
-    rust_toolchain_toml: &str,
-    rustflags: Option<&str>,
-) -> String {
-    let llvm_field = match llvm {
-        Some(v) => format!(r#""llvm_version":"{}""#, v),
-        None => r#""llvm_version":null"#.to_string(),
-    };
-    let rustflags_field = match rustflags {
-        Some(v) => format!(r#""rustflags":"{}""#, v),
-        None => r#""rustflags":null"#.to_string(),
-    };
-    format!(
-        r#"{{"rustc":"{}","cargo":"{}",{},"cargo_lock_hash":"{}","rust_toolchain_toml":{},{}}}"#,
-        rustc,
-        cargo,
-        llvm_field,
-        cargo_lock_hash,
-        serde_json::to_string(rust_toolchain_toml).expect("serialize toolchain string"),
-        rustflags_field,
-    )
-}
-
-fn write_manifest(dir: &TempDir, name: &str, contents: &str) -> PathBuf {
-    let path = dir.path().join(name);
-    std::fs::write(&path, contents).expect("write fixture");
-    path
-}
-
-fn default_prior_and_current(dir: &TempDir) -> (PathBuf, PathBuf) {
-    // Same six fields on both sides = identity; tests that need
-    // drift override one of them.
-    let prior = manifest_json(
-        "rustc 1.95.0 (abc)",
-        "cargo 1.95.0 (abc)",
-        Some("20.0.0"),
-        "deadbeef".to_string().as_str(),
-        "[toolchain]\nchannel = \"1.95\"\n",
-        Some("-D warnings"),
-    );
-    let current = prior.clone();
-    (
-        write_manifest(dir, "prior.json", &prior),
-        write_manifest(dir, "current.json", &current),
-    )
-}
-
-/// Spawn the lint via `bash <script>` (not by path) so the test
-/// is portable across Linux + macOS regardless of which `env`
-/// discovery path the shebang takes.
-fn run_lint(
-    prior: &PathBuf,
-    current: &PathBuf,
-    pr_body: Option<&str>,
-    commit_msg: Option<&str>,
-) -> (i32, String) {
-    let mut cmd = Command::new("bash");
-    cmd.arg(lint_script()).arg(prior).arg(current);
-    if let Some(body) = pr_body {
-        cmd.env("PR_BODY", body);
-    } else {
-        cmd.env_remove("PR_BODY");
-    }
-    if let Some(msg) = commit_msg {
-        cmd.env("COMMIT_MESSAGE", msg);
-    } else {
-        cmd.env_remove("COMMIT_MESSAGE");
-    }
-    let out = cmd.output().expect("spawn lint script");
-    let code = out.status.code().unwrap_or(-1);
-    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
-    (code, stderr)
-}
+use helpers::{
+    default_prior_and_current, lint_script, manifest_json, run_lint, script_available,
+    write_manifest,
+};
 
 /// Positive match: identical toolchain fields on both sides, no
 /// override line, exit 0 silently.
@@ -467,6 +364,91 @@ fn git_state_fields_are_projected_out() {
         code, 0,
         "identical toolchain fields + differing git_* must NOT \
          trigger drift; stderr:\n{}",
+        stderr
+    );
+}
+
+/// Regression: the CI workflow's YAML fragment that assembles
+/// `COMMIT_MESSAGE` from `github.event.commits.*.message` must
+/// NOT flatten newlines. The lint script's override check uses
+/// the `^` line anchor in `grep -E '^Override-Deterministic-
+/// Baseline: .+'`; a commit body in the canonical
+/// `subject\n\nbody with override` shape only passes that anchor
+/// when the body's internal newlines survive the YAML → shell
+/// pipeline.
+///
+/// Simulates the exact bash fragment from
+/// `.github/workflows/ci.yml` (Lint drift against override step)
+/// against a push-payload `commits` array whose single entry
+/// carries the override on line 3 of its body. A re-introduction
+/// of `| tr '\n' ' '` or equivalent flattening will fire this
+/// test with exit 1 (SILENT DRIFT DETECTED) instead of the
+/// expected exit 0.
+#[test]
+fn ci_assembly_preserves_newlines_for_override_anchor() {
+    if !script_available() {
+        return;
+    }
+    // Drift on cargo_lock_hash only.
+    let tmp = TempDir::new().expect("tempdir");
+    let prior = manifest_json(
+        "rustc 1.95.0",
+        "cargo 1.95.0",
+        None,
+        "aa",
+        "ch = 1.95",
+        None,
+    );
+    let current = manifest_json(
+        "rustc 1.95.0",
+        "cargo 1.95.0",
+        None,
+        "bb",
+        "ch = 1.95",
+        None,
+    );
+    let prior_p = write_manifest(&tmp, "prior.json", &prior);
+    let current_p = write_manifest(&tmp, "current.json", &current);
+
+    // PUSH_COMMITS_MESSAGES is the JSON-encoded array shape
+    // `toJSON(github.event.commits.*.message)` produces. Single
+    // element whose message has the override on line 3 (after
+    // subject + blank line). In git convention this is the body.
+    let push_commits =
+        r#"["chore: bump deps\n\nOverride-Deterministic-Baseline: regression-lock reason\n"]"#;
+
+    // Run the exact bash fragment from ci.yml's Lint step.
+    let bash_fragment = format!(
+        r#"set -euo pipefail
+COMMIT_MESSAGE=""
+PUSH_COMMITS_MESSAGES='{push_commits}'
+if [ -n "${{PUSH_COMMITS_MESSAGES:-}}" ] && [ "${{PUSH_COMMITS_MESSAGES}}" != "null" ]; then
+    extra=$(printf '%s' "$PUSH_COMMITS_MESSAGES" | jq -r '.[]? // empty' || true)
+    COMMIT_MESSAGE=$(printf '%s\n%s' "$COMMIT_MESSAGE" "$extra")
+fi
+export COMMIT_MESSAGE
+exec bash '{script}' '{prior}' '{current}'
+"#,
+        push_commits = push_commits,
+        script = lint_script().display(),
+        prior = prior_p.display(),
+        current = current_p.display(),
+    );
+    let out = Command::new("bash")
+        .arg("-c")
+        .arg(&bash_fragment)
+        .output()
+        .expect("spawn YAML-assembly pipeline");
+    let code = out.status.code().unwrap_or(-1);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(
+        code, 0,
+        "YAML-assembly pipeline must preserve newlines so the \
+         `^Override-Deterministic-Baseline:` anchor matches \
+         overrides in commit bodies. If this test fires with \
+         SILENT DRIFT DETECTED, ci.yml's assembly likely \
+         flattened newlines (e.g., via `tr` or similar) and \
+         the override line is now mid-line.\n\nstderr:\n{}",
         stderr
     );
 }

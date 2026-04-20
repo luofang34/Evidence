@@ -469,9 +469,19 @@ jobs:
         shell: bash
         run: |
           mkdir -p ./dogfood-artifact
-          # cp -r tolerates a missing dir when a job fails before run B.
-          cp -r "$RUNNER_TEMP/out-a" ./dogfood-artifact/ 2>/dev/null || true
-          cp -r "$RUNNER_TEMP/out-b" ./dogfood-artifact/ 2>/dev/null || true
+          # `if: always()` means this step runs even when earlier steps
+          # failed before producing run A or B. Distinguish "source dir
+          # missing because the producer step didn't run" (legitimate —
+          # skip silently) from "source dir exists but cp failed" (real
+          # I/O error — surface it). The previous `|| true` swallowed
+          # both cases, hiding broken staging behind an empty artifact.
+          for src in "$RUNNER_TEMP/out-a" "$RUNNER_TEMP/out-b"; do
+            if [ -d "$src" ]; then
+              cp -r "$src" ./dogfood-artifact/
+            else
+              echo "note: $src does not exist (likely produced before a failed earlier step); skipping"
+            fi
+          done
 
       - name: Upload bundle as artifact
         if: always()
@@ -1107,13 +1117,41 @@ jobs:
         if: steps.fetch-prior.outputs.prior_missing == '0'
         shell: bash
         env:
-          # On pull_request events, `github.event.pull_request.body`
-          # carries the body; on push events, `github.event.head_commit.message`
-          # carries the head commit message. We plumb both so the
-          # script's dual check works in either mode.
+          # The override line can legitimately live in several places
+          # depending on merge style and who authored it:
+          #   - pull_request event: PR body (author writes it there).
+          #   - push event, squash-merge: GitHub squashes PR body into
+          #     head_commit message, so `head_commit.message` carries it.
+          #   - push event, merge-commit: head_commit is a mechanical
+          #     "Merge pull request #N..." with no override. The override
+          #     lives in ONE of the branch commits merged in, which live
+          #     in `github.event.commits[*].message` on the push payload.
+          #   - push event, rebase-merge: head_commit is the last branch
+          #     commit, but earlier branch commits also land — same
+          #     commits-array fallback covers this.
+          # Plumbing all three haystacks means the gate works the same
+          # regardless of merge style, removing the "override only
+          # accepted in one specific place" foot-gun.
           PR_BODY: ${{ github.event.pull_request.body }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          PUSH_COMMITS_MESSAGES: ${{ toJSON(github.event.commits.*.message) }}
         run: |
+          # The script reads PR_BODY + COMMIT_MESSAGE. Concatenate
+          # the push-commits messages array (JSON-encoded strings)
+          # into COMMIT_MESSAGE so the script's existing haystack
+          # scan picks them up without signature change.
+          if [ -n "${PUSH_COMMITS_MESSAGES:-}" ] && [ "${PUSH_COMMITS_MESSAGES}" != "null" ]; then
+            # Preserve newlines: the lint script's grep uses the `^`
+            # line anchor (`^Override-Deterministic-Baseline: .+`).
+            # A commit body typically has `subject\n\nbody` where the
+            # override lives in the body — flattening with `tr` would
+            # put the override mid-line and defeat the anchor. jq -r
+            # already outputs one array element per line; per-element
+            # internal newlines survive.
+            extra=$(printf '%s' "$PUSH_COMMITS_MESSAGES" | jq -r '.[]? // empty' || true)
+            COMMIT_MESSAGE=$(printf '%s\n%s' "$COMMIT_MESSAGE" "$extra")
+          fi
+          export COMMIT_MESSAGE
           ./scripts/deterministic-baseline-override-lint.sh \
             "$RUNNER_TEMP/prior-main/deterministic-manifest.json" \
             "$RUNNER_TEMP/current-manifest.json"
