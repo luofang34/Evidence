@@ -170,15 +170,15 @@ fn rigorous_fixture_passes() {
 #[test]
 fn sloppy_fixture_fails_with_named_codes() {
     // Empty tempdir — no tool/trace, no cert/, no .github/, no README.
+    // With DAL-D as the implicit default (boundary missing), the
+    // trace check is lenient and an empty trace directory passes
+    // (link-validity on zero links trivially holds). The sloppy
+    // contract is now "floors + boundary missing fires" — the trace
+    // check is covered separately in `downstream_dal_a_fixture_*`.
     let tmp = TempDir::new().expect("tempdir");
     let (exit, diags) = run_doctor(tmp.path());
     assert_eq!(exit, 2, "sloppy fixture should exit 2; diags={:?}", diags);
     let codes: Vec<&str> = diags.iter().map(|d| d["code"].as_str().unwrap()).collect();
-    assert!(
-        codes.contains(&"DOCTOR_TRACE_INVALID"),
-        "expected DOCTOR_TRACE_INVALID in codes={:?}",
-        codes
-    );
     assert!(
         codes.contains(&"DOCTOR_FLOORS_MISSING"),
         "expected DOCTOR_FLOORS_MISSING in codes={:?}",
@@ -194,6 +194,182 @@ fn sloppy_fixture_fails_with_named_codes() {
         Some("DOCTOR_FAIL"),
         "stream must terminate with DOCTOR_FAIL; got codes={:?}",
         codes
+    );
+}
+
+/// Downstream simulation: a DAL-D project with minimal rigor still
+/// passes doctor's trace check. Specifically: HLRs have no
+/// `surfaces` claims (surface bijection stays off at every DAL,
+/// but this demonstrates a downstream HLR with domain-specific
+/// surfaces we don't know about), and no SYS layer
+/// (require_hlr_sys_trace is off at DAL-D). Without DAL-derived
+/// policy this scenario would hit `DOCTOR_TRACE_INVALID` because
+/// the check would hardcode all-strict flags.
+#[test]
+fn downstream_dal_d_fixture_passes() {
+    let tmp = TempDir::new().expect("tempdir");
+    let root = tmp.path();
+
+    // Minimal DAL-D project shape: HLR with empty surfaces, empty
+    // traces_to (no SYS layer). No derived. Each entry has a real
+    // UUID so register-phase validation passes.
+    fs::create_dir_all(root.join("tool").join("trace")).unwrap();
+    fs::write(
+        root.join("tool").join("trace").join("hlr.toml"),
+        "[schema]\nversion = \"0.0.1\"\n\n[meta]\ndocument_id = \"DS-HLR\"\nrevision = \"1.0\"\n\n\
+         [[requirements]]\nuid = \"91d2a98f-7b89-4e3c-8d1d-4b7f8e77a9b4\"\nid = \"HLR-001\"\n\
+         title = \"Downstream HLR\"\nowner = \"downstream\"\nscope = \"component\"\n\
+         description = \"Downstream domain requirement\"\nverification_methods = [\"test\"]\n\
+         traces_to = []\nsurfaces = []\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("tool").join("trace").join("sys.toml"),
+        "requirements = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
+         [meta]\ndocument_id = \"DS-SYS\"\nrevision = \"1.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("tool").join("trace").join("llr.toml"),
+        "requirements = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
+         [meta]\ndocument_id = \"DS-LLR\"\nrevision = \"1.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("tool").join("trace").join("tests.toml"),
+        "tests = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
+         [meta]\ndocument_id = \"DS-TESTS\"\nrevision = \"1.0\"\n",
+    )
+    .unwrap();
+
+    // DAL-D boundary + required configs.
+    fs::create_dir_all(root.join("cert")).unwrap();
+    fs::write(
+        root.join("cert").join("boundary.toml"),
+        "[schema]\nversion = \"0.0.1\"\n\n[scope]\nin_scope = [\"downstream\"]\n\
+         trace_roots = [\"tool/trace\"]\n\n[policy]\nno_out_of_scope_deps = false\n\
+         forbid_build_rs = false\nforbid_proc_macros = false\n\n\
+         [dal]\ndefault_dal = \"D\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("cert").join("floors.toml"),
+        "schema_version = 1\n\n[floors]\n\n[per_crate.downstream]\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join(".github").join("workflows")).unwrap();
+    fs::write(
+        root.join(".github").join("workflows").join("ci.yml"),
+        "name: CI\non: push\njobs:\n  check:\n    runs-on: ubuntu-latest\n    \
+         steps:\n      - run: cargo evidence check\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("README.md"),
+        "# Downstream\n\n`Override-Deterministic-Baseline: <reason>` in PR body for overrides.\n",
+    )
+    .unwrap();
+
+    let (exit, diags) = run_doctor(root);
+    let codes: Vec<&str> = diags.iter().map(|d| d["code"].as_str().unwrap()).collect();
+    assert_eq!(
+        exit, 0,
+        "DAL-D downstream fixture must pass doctor (trace bijection \
+         is off at this level); diags={:?}",
+        diags
+    );
+    let has_trace_error = diags
+        .iter()
+        .any(|d| d["code"].as_str() == Some("DOCTOR_TRACE_INVALID"));
+    assert!(
+        !has_trace_error,
+        "DAL-D must NOT fire DOCTOR_TRACE_INVALID on empty-surfaces / no-SYS trace; codes={:?}",
+        codes
+    );
+    assert_eq!(
+        codes.last().copied(),
+        Some("DOCTOR_OK"),
+        "stream must terminate with DOCTOR_OK; got codes={:?}",
+        codes
+    );
+}
+
+/// DAL-A strictness: a project declaring `default_dal = "A"` with
+/// an HLR lacking `traces_to` fires `DOCTOR_TRACE_INVALID` because
+/// DAL-A's derived policy sets `require_hlr_sys_trace: true`. The
+/// counterpart to `downstream_dal_d_fixture_passes` — proves the
+/// DAL-derived policy actually tightens at higher levels.
+#[test]
+fn downstream_dal_a_fixture_catches_missing_sys() {
+    let tmp = TempDir::new().expect("tempdir");
+    let root = tmp.path();
+
+    // HLR with empty traces_to + valid UUID — would pass at DAL-D,
+    // must fail at DAL-A via require_hlr_sys_trace.
+    fs::create_dir_all(root.join("tool").join("trace")).unwrap();
+    fs::write(
+        root.join("tool").join("trace").join("hlr.toml"),
+        "[schema]\nversion = \"0.0.1\"\n\n[meta]\ndocument_id = \"DS-HLR\"\nrevision = \"1.0\"\n\n\
+         [[requirements]]\nuid = \"91d2a98f-7b89-4e3c-8d1d-4b7f8e77a9b4\"\nid = \"HLR-001\"\n\
+         title = \"Orphaned HLR\"\nowner = \"downstream\"\nscope = \"component\"\n\
+         description = \"Should fail DAL-A\"\nverification_methods = [\"test\"]\n\
+         traces_to = []\nsurfaces = []\n",
+    )
+    .unwrap();
+    for (name, doc, list_key) in [
+        ("sys.toml", "DS-SYS", "requirements"),
+        ("llr.toml", "DS-LLR", "requirements"),
+        ("tests.toml", "DS-TESTS", "tests"),
+    ] {
+        fs::write(
+            root.join("tool").join("trace").join(name),
+            format!(
+                "{} = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
+                 [meta]\ndocument_id = \"{}\"\nrevision = \"1.0\"\n",
+                list_key, doc
+            ),
+        )
+        .unwrap();
+    }
+
+    fs::create_dir_all(root.join("cert")).unwrap();
+    fs::write(
+        root.join("cert").join("boundary.toml"),
+        "[schema]\nversion = \"0.0.1\"\n\n[scope]\nin_scope = [\"downstream\"]\n\
+         trace_roots = [\"tool/trace\"]\n\n[policy]\nno_out_of_scope_deps = false\n\
+         forbid_build_rs = false\nforbid_proc_macros = false\n\n\
+         [dal]\ndefault_dal = \"A\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("cert").join("floors.toml"),
+        "schema_version = 1\n\n[floors]\n\n[per_crate.downstream]\n",
+    )
+    .unwrap();
+
+    let (exit, diags) = run_doctor(root);
+    let codes: Vec<&str> = diags.iter().map(|d| d["code"].as_str().unwrap()).collect();
+    assert_eq!(
+        exit, 2,
+        "DAL-A must catch the orphan HLR and fail; diags={:?}",
+        diags
+    );
+    assert!(
+        codes.contains(&"DOCTOR_TRACE_INVALID"),
+        "DAL-A must fire DOCTOR_TRACE_INVALID on missing SYS trace; codes={:?}",
+        codes
+    );
+    // Message should include the DAL level for auditor context.
+    let trace_msg: String = diags
+        .iter()
+        .find(|d| d["code"].as_str() == Some("DOCTOR_TRACE_INVALID"))
+        .and_then(|d| d["message"].as_str())
+        .unwrap_or("")
+        .to_string();
+    assert!(
+        trace_msg.contains("DAL-A") || trace_msg.contains("DAL-"),
+        "trace failure message must include DAL level for context; got: {}",
+        trace_msg
     );
 }
 

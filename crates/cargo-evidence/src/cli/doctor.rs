@@ -54,10 +54,16 @@ const SUBCOMMAND: &str = "doctor";
 /// a matching `run_named_check` arm. Severity of a `CheckResult::Fail`
 /// is derived at row-construction time from `evidence::RULES` so the
 /// wire-level severity comes from a single source of truth.
+///
+/// `boundary config` runs before `trace validity` because the
+/// trace check reads `cert/boundary.toml` to derive its DAL policy.
+/// If boundary is missing or corrupt, trace falls back to DAL-D
+/// (lenient) and may return a misleading pass; surfacing the
+/// boundary failure first makes the root cause visible up front.
 const CHECKS: &[&str] = &[
+    "boundary config",
     "trace validity",
     "floors config",
-    "boundary config",
     "CI integration",
     "merge-style policy",
     "override protocol docs",
