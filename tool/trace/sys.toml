@@ -189,3 +189,26 @@ shape the whole diagnostic-codes arc was built to eliminate.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "94cb54a1-53a0-40e3-81a1-e3e8d231b0e7"
+id = "SYS-012"
+title = "Tool source shall be free of rot-prone context markers (PR-number breadcrumbs, absolute line counts, time-pinned narrative)"
+owner = "soi"
+scope = "soi"
+description = """
+Docstring comments with short-lived context markers — PR-number
+breadcrumbs (`PR #49 removed ...`), absolute line counts
+(`sits at ~497 lines`), time-pinned narrative (`post-PR-#51`),
+review-round markers (`round-1 / round-2`) — are stale by the next
+PR touching the same file. Reviewers stop trusting them; new
+contributors read them as current context and spread
+misinformation. The tool's source shall be mechanically free of
+this class, enforced by a CI integration test that walks every
+`.rs` file under `crates/**/{src,tests}/**` and fails on any
+banned pattern. If a caution is genuinely load-bearing, encode it
+as a test (file-size limit, bijection, strict-floor equality); if
+it's narrative, it belongs in the commit message, not the code.
+"""
+verification_methods = ["test"]
+traces_to = []
