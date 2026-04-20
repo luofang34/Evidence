@@ -1141,7 +1141,14 @@ jobs:
           # into COMMIT_MESSAGE so the script's existing haystack
           # scan picks them up without signature change.
           if [ -n "${PUSH_COMMITS_MESSAGES:-}" ] && [ "${PUSH_COMMITS_MESSAGES}" != "null" ]; then
-            extra=$(printf '%s' "$PUSH_COMMITS_MESSAGES" | jq -r '.[]? // empty' | tr '\n' ' ' || true)
+            # Preserve newlines: the lint script's grep uses the `^`
+            # line anchor (`^Override-Deterministic-Baseline: .+`).
+            # A commit body typically has `subject\n\nbody` where the
+            # override lives in the body — flattening with `tr` would
+            # put the override mid-line and defeat the anchor. jq -r
+            # already outputs one array element per line; per-element
+            # internal newlines survive.
+            extra=$(printf '%s' "$PUSH_COMMITS_MESSAGES" | jq -r '.[]? // empty' || true)
             COMMIT_MESSAGE=$(printf '%s\n%s' "$COMMIT_MESSAGE" "$extra")
           fi
           export COMMIT_MESSAGE
