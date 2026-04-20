@@ -57,6 +57,8 @@ jobs:
     name: Publish dev channel
     if: github.event_name == 'workflow_dispatch' && inputs.channel == 'dev'
     runs-on: ubuntu-latest
+    environment: publish-dev   # scopes OIDC claim so crates.io trusted
+                               # publisher entries can match per channel
     permissions:
       id-token: write   # OIDC for trusted publishing
       contents: read
