@@ -4,14 +4,17 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
+use evidence::diagnostic::{Diagnostic, DiagnosticCode, Location, Severity};
 use evidence::{
     BoundaryConfig, EvidencePolicy, backfill_uuids, load_trace_roots,
     trace::{
-        TraceFiles, read_all_trace_files, resolve_test_selectors, validate_trace_links_with_policy,
+        LinkError, TraceFiles, TraceValidationError, read_all_trace_files, resolve_test_selectors,
+        validate_trace_links_with_policy,
     },
 };
 
-use super::args::{EXIT_ERROR, EXIT_SUCCESS};
+use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFormat};
+use super::output::emit_jsonl;
 
 /// `cargo evidence trace` handler: multiplexes the two tracing
 /// utilities — `--validate` (cross-check HLR/LLR/Test links) and
@@ -25,8 +28,11 @@ pub fn cmd_trace(
     require_hlr_surface_bijection: bool,
     check_test_selectors: bool,
     trace_roots_arg: Option<String>,
-    json_output: bool,
+    format: OutputFormat,
 ) -> Result<i32> {
+    let json_output = format == OutputFormat::Json;
+    let jsonl_output = format == OutputFormat::Jsonl;
+
     if !do_backfill && !do_validate {
         if json_output {
             println!(
@@ -35,6 +41,19 @@ pub fn cmd_trace(
                     "error": "specify an action, e.g. --validate or --backfill-uuids"
                 }))?
             );
+        } else if jsonl_output {
+            emit_jsonl(&Diagnostic {
+                code: "CLI_INVALID_ARGUMENT".to_string(),
+                severity: Severity::Error,
+                message: "specify an action, e.g. --validate or --backfill-uuids".to_string(),
+                location: None,
+                fix_hint: None,
+                subcommand: Some("trace".to_string()),
+                root_cause_uid: None,
+            })?;
+            emit_jsonl(&terminal_trace_fail(
+                "no action specified (use --validate or --backfill-uuids)",
+            ))?;
         } else {
             eprintln!("error: specify an action, e.g. --validate or --backfill-uuids");
         }
@@ -111,9 +130,14 @@ pub fn cmd_trace(
                         .iter()
                         .map(|u| format!("  {}: selector '{}' did not resolve", u.id, u.selector))
                         .collect();
+                    // Prefix-free message so jsonl callers don't
+                    // see `code + ": " + code + ": " + body`. The
+                    // human / json paths prepend the code at print
+                    // time (see the match arm below); the jsonl
+                    // path uses this raw body inside the
+                    // `Diagnostic { code, message }` pair.
                     Err(format!(
-                        "TRACE_SELECTOR_UNRESOLVED: {} selector(s) did not \
-                         resolve to a real #[test] fn:\n{}",
+                        "{} selector(s) did not resolve to a real #[test] fn:\n{}",
                         unresolved.len(),
                         lines.join("\n")
                     ))
@@ -129,12 +153,17 @@ pub fn cmd_trace(
                             "root": root,
                             "status": "pass"
                         }));
+                    } else if jsonl_output {
+                        // No per-root event on success; the terminal
+                        // covers the aggregate pass signal.
                     } else {
                         println!("trace: validation passed for '{}'", root);
                     }
                 }
                 (Err(e), _) => {
-                    if json_output {
+                    if jsonl_output {
+                        emit_link_errors_jsonl(&e, root)?;
+                    } else if json_output {
                         results.push(serde_json::json!({
                             "root": root,
                             "status": "fail",
@@ -146,14 +175,35 @@ pub fn cmd_trace(
                     all_valid = false;
                 }
                 (Ok(()), Err(msg)) => {
-                    if json_output {
+                    if jsonl_output {
+                        emit_jsonl(&Diagnostic {
+                            code: "TRACE_SELECTOR_UNRESOLVED".to_string(),
+                            severity: Severity::Error,
+                            message: msg.clone(),
+                            location: Some(Location {
+                                file: Some(PathBuf::from(root)),
+                                ..Location::default()
+                            }),
+                            fix_hint: None,
+                            subcommand: Some("trace".to_string()),
+                            root_cause_uid: None,
+                        })?;
+                    } else if json_output {
+                        // Keep the legacy human-readable `code: body`
+                        // shape for non-jsonl consumers so existing
+                        // `jq .message` pipelines that grep for the
+                        // TRACE_SELECTOR_UNRESOLVED string still match.
+                        let prefixed = format!("TRACE_SELECTOR_UNRESOLVED: {}", msg);
                         results.push(serde_json::json!({
                             "root": root,
                             "status": "fail",
-                            "message": msg,
+                            "message": prefixed,
                         }));
                     } else {
-                        eprintln!("trace: validation FAILED for '{}': {}", root, msg);
+                        eprintln!(
+                            "trace: validation FAILED for '{}': TRACE_SELECTOR_UNRESOLVED: {}",
+                            root, msg
+                        );
                     }
                     all_valid = false;
                 }
@@ -169,8 +219,27 @@ pub fn cmd_trace(
                 }))?
             );
         }
+        if jsonl_output {
+            // One terminal per run per Rule 1. Aggregate status
+            // covers every root; per-variant events already emitted
+            // above.
+            if all_valid {
+                emit_jsonl(&terminal_trace_ok(&format!(
+                    "{} trace root(s) validated",
+                    roots.len()
+                )))?;
+            } else {
+                emit_jsonl(&terminal_trace_fail(
+                    "trace validation failed; see preceding events for per-variant details",
+                ))?;
+            }
+        }
         if !all_valid {
-            return Ok(EXIT_ERROR);
+            return Ok(if jsonl_output {
+                EXIT_VERIFICATION_FAILURE
+            } else {
+                EXIT_ERROR
+            });
         }
     }
 
@@ -238,4 +307,79 @@ pub fn default_trace_roots() -> Vec<String> {
         "trace: no on-disk trace root convention found; falling back to cert/boundary.toml"
     );
     load_trace_roots(Path::new("cert/boundary.toml"))
+}
+
+/// Stream one JSONL `Diagnostic` per `LinkError` variant inside the
+/// `TraceValidationError::Link` envelope. Register-phase errors
+/// (kept as `Vec<String>` per PR #51 scope) surface as a single
+/// `TRACE_REGISTER_FAILED` aggregate event with the concatenated
+/// messages in the payload — typed per-variant Register-phase codes
+/// are a separate follow-up.
+fn emit_link_errors_jsonl(err: &TraceValidationError, root: &str) -> Result<()> {
+    match err {
+        TraceValidationError::Link { errors } => {
+            for le in errors {
+                emit_jsonl(&link_error_to_diagnostic(le, root))?;
+            }
+        }
+        TraceValidationError::Register { errors } => {
+            emit_jsonl(&Diagnostic {
+                code: "TRACE_REGISTER_FAILED".to_string(),
+                severity: Severity::Error,
+                message: errors.join("; "),
+                location: Some(Location {
+                    file: Some(PathBuf::from(root)),
+                    ..Location::default()
+                }),
+                fix_hint: None,
+                subcommand: Some("trace".to_string()),
+                root_cause_uid: None,
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// Build a `Diagnostic` from a single `LinkError` variant. The
+/// variant's `code()` is the `Diagnostic.code`; `to_string()` is
+/// the message; `location.file` is the trace root (finer TOML-path
+/// locations land as follow-up since they require threading the
+/// file path through `validate_trace_links_with_policy`).
+fn link_error_to_diagnostic(le: &LinkError, root: &str) -> Diagnostic {
+    Diagnostic {
+        code: le.code().to_string(),
+        severity: le.severity(),
+        message: le.to_string(),
+        location: Some(Location {
+            file: Some(PathBuf::from(root)),
+            ..Location::default()
+        }),
+        fix_hint: None,
+        subcommand: Some("trace".to_string()),
+        root_cause_uid: None,
+    }
+}
+
+fn terminal_trace_ok(message: &str) -> Diagnostic {
+    Diagnostic {
+        code: "VERIFY_OK".to_string(),
+        severity: Severity::Info,
+        message: message.to_string(),
+        location: None,
+        fix_hint: None,
+        subcommand: Some("trace".to_string()),
+        root_cause_uid: None,
+    }
+}
+
+fn terminal_trace_fail(message: &str) -> Diagnostic {
+    Diagnostic {
+        code: "VERIFY_FAIL".to_string(),
+        severity: Severity::Error,
+        message: message.to_string(),
+        location: None,
+        fix_hint: None,
+        subcommand: Some("trace".to_string()),
+        root_cause_uid: None,
+    }
 }

@@ -1,12 +1,12 @@
 //! Meta self-check: `scripts/local-ci.sh` must contain every cargo
 //! gate run by the `check` job in `.github/workflows/ci.yml`.
 //!
-//! PR #49 hit the class of bug this test prevents: I ran a partial
-//! `RUSTDOCFLAGS` locally (`-D missing_docs`), pushed, and CI's
-//! full `RUSTDOCFLAGS` (`-D rustdoc::broken_intra_doc_links`) caught
-//! an intra-doc link I couldn't see. The fix is two-part: a local
-//! script that mirrors CI exactly, and this test to keep them in
-//! sync as CI evolves.
+//! The class of bug this test prevents: a partial `RUSTDOCFLAGS`
+//! locally (`-D missing_docs`) passes while CI's full
+//! `RUSTDOCFLAGS` (`-D rustdoc::broken_intra_doc_links`) catches
+//! an intra-doc link the local run couldn't see. A single local
+//! script that mirrors CI exactly, plus this test to keep them in
+//! sync, closes the loop.
 //!
 //! The check is grep-level — we don't parse YAML or bash. For each
 //! cargo invocation in the `check` job's steps, assert a matching
@@ -83,13 +83,8 @@ fn local_ci_script_mirrors_workflow() {
     let script_path = root.join("scripts").join("local-ci.sh");
     let workflow_path = root.join(".github").join("workflows").join("ci.yml");
 
-    let script = fs::read_to_string(&script_path).unwrap_or_else(|e| {
-        panic!(
-            "reading {} (is PR #50 applied?): {}",
-            script_path.display(),
-            e
-        )
-    });
+    let script = fs::read_to_string(&script_path)
+        .unwrap_or_else(|e| panic!("reading {}: {}", script_path.display(), e));
     let workflow = fs::read_to_string(&workflow_path)
         .unwrap_or_else(|e| panic!("reading {}: {}", workflow_path.display(), e));
 

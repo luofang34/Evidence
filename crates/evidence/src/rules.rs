@@ -124,6 +124,7 @@ pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "CLI_UNSUPPORTED_FORMAT",
     "FLOORS_BELOW_MIN",
     "FLOORS_LOWERED_WITHOUT_JUSTIFICATION",
+    "TRACE_SELECTOR_UNRESOLVED",
 ];
 
 /// Codes declared in `RULES` that are intentionally NOT claimed by any
@@ -226,10 +227,48 @@ pub const RULES: &[RuleEntry] = &[
         Severity::Error,
         Domain::Trace,
     ),
+    r(
+        "TRACE_CONTRADICTORY_DERIVED",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r("TRACE_DANGLING_LINK", Severity::Error, Domain::Trace),
+    r(
+        "TRACE_DERIVED_MISSING_RATIONALE",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r("TRACE_DUPLICATE_TRACE_LINK", Severity::Error, Domain::Trace),
+    r(
+        "TRACE_HLR_SURFACE_UNCLAIMED",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r("TRACE_HLR_SURFACE_UNKNOWN", Severity::Error, Domain::Trace),
+    r("TRACE_INVALID_LINK_UUID", Severity::Error, Domain::Trace),
     r("TRACE_LINK_FAILED", Severity::Error, Domain::Trace),
+    r("TRACE_LINK_OTHER", Severity::Error, Domain::Trace),
+    r(
+        "TRACE_LLR_MISSING_PARENT_LINKS",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r(
+        "TRACE_MISSING_HLR_SYS_TRACE",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r(
+        "TRACE_MISSING_VERIFICATION_METHODS",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r("TRACE_OWNERSHIP_VIOLATION", Severity::Error, Domain::Trace),
     r("TRACE_PARSE_FAILED", Severity::Error, Domain::Trace),
     r("TRACE_READ_FAILED", Severity::Error, Domain::Trace),
     r("TRACE_REGISTER_FAILED", Severity::Error, Domain::Trace),
+    r("TRACE_SELECTOR_UNRESOLVED", Severity::Error, Domain::Trace),
+    r("TRACE_WRONG_TARGET_KIND", Severity::Error, Domain::Trace),
     r(
         "VERIFY_CONTENT_HASH_MISMATCH",
         Severity::Error,

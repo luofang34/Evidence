@@ -68,7 +68,10 @@ containment in both directions).
 """
 verification_methods = ["test"]
 traces_to = ["0e42b90f-88d7-408f-8843-0a3335279360"]
-surfaces = ["CLI_SUBCOMMAND_ERROR terminal", "diagnostic code namespace (regex + reserved suffixes)"]
+surfaces = [
+    "CLI_SUBCOMMAND_ERROR terminal",
+    "diagnostic code namespace (regex + reserved suffixes)",
+]
 
 [[requirements]]
 uid = "ba4d711e-f3e9-4af5-951c-682755799f18"
@@ -424,7 +427,10 @@ and no cascade is suppressed.
 """
 verification_methods = ["test"]
 traces_to = ["aa13d9a6-042e-4bc9-9d9e-c191128fb857"]
-surfaces = ["check", "root_cause_uid grouping per Schema Rule 7"]
+surfaces = [
+    "check",
+    "root_cause_uid grouping per Schema Rule 7",
+]
 
 [[requirements]]
 uid = "7c6672c3-5a20-42b6-bf73-04aa6c00a914"
@@ -692,3 +698,70 @@ policy.
 verification_methods = ["test"]
 traces_to = ["731cb43a-a9d1-43f8-8678-fc97db81162e"]
 surfaces = ["trace"]
+
+[[requirements]]
+uid = "6733cf01-b823-41c0-90e1-476581f413b1"
+id = "HLR-041"
+title = "TraceValidationError::Link carries a typed sub-error enum"
+owner = "tool"
+scope = "component"
+description = """
+`TraceValidationError::Link` shall carry `Vec<LinkError>` where
+`LinkError` is a typed enum with one variant per Link-phase
+validation rule. Each variant implements `DiagnosticCode` so the
+walker-level uniqueness + regex + reserved-suffix invariants apply
+to it automatically. The outer `TraceValidationError` still
+returns `TRACE_LINK_FAILED` for back-compat with aggregate-level
+callers; per-variant granularity comes from iterating `errors`.
+"""
+verification_methods = ["test"]
+traces_to = ["5e9988ce-1351-4e39-98af-835e96e5fc17"]
+surfaces = [
+    "trace",
+    "structured Link-phase diagnostic codes",
+]
+
+[[requirements]]
+uid = "b7265ced-3c5b-4558-92d1-5c54cba8657f"
+id = "HLR-042"
+title = "`trace --validate` emits one JSONL event per Link-phase sub-error"
+owner = "tool"
+scope = "component"
+description = """
+The CLI handler for `cargo evidence trace --validate --format=jsonl`
+shall iterate `TraceValidationError::Link { errors }` and
+`emit_jsonl` one `Diagnostic { code, severity, message, location }`
+per `LinkError` variant, not a single concatenated-prose envelope.
+Legacy `--json` (non-jsonl) mode preserves the prior aggregate
+shape so existing shell consumers aren't broken.
+"""
+verification_methods = ["test"]
+traces_to = ["5e9988ce-1351-4e39-98af-835e96e5fc17"]
+surfaces = [
+    "trace",
+    "jsonl stream per Schema Rule 2",
+    "structured Link-phase diagnostic codes",
+]
+
+[[requirements]]
+uid = "5280cbfc-ea87-4a6d-a2ed-172e9cb48c37"
+id = "HLR-043"
+title = "Every Link-phase sub-rule is listed in RULES with its own code"
+owner = "tool"
+scope = "component"
+description = """
+Each `LinkError` variant's `code()` return shall appear in the
+`RULES` manifest (via the automatic walker), with a matching
+`LLR.emits` claim closing the bijection. PR #49 removed three
+pseudo-codes that were never real emits; PR #51 re-registers those
+plus ~9 newly-typed codes covering every other Link-phase rule.
+The `every_code_is_claimed_by_an_llr` bijection test enforces the
+tie-in.
+"""
+verification_methods = ["test"]
+traces_to = ["5e9988ce-1351-4e39-98af-835e96e5fc17"]
+surfaces = [
+    "trace",
+    "diagnostic code namespace (regex + reserved suffixes)",
+    "structured Link-phase diagnostic codes",
+]

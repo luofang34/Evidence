@@ -38,4 +38,6 @@ pub use uuid::{
     assign_missing_uuids_derived, assign_missing_uuids_hlr, assign_missing_uuids_llr,
     assign_missing_uuids_test, backfill_uuids,
 };
-pub use validation::{validate_trace_links, validate_trace_links_with_policy};
+pub use validation::{
+    LinkError, TraceValidationError, validate_trace_links, validate_trace_links_with_policy,
+};

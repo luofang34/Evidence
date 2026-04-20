@@ -1,18 +1,16 @@
-//! Integration tests for PR #49's trace-schema hardening.
+//! Integration tests for the Link-phase decomposition rules:
 //!
-//! Covers the three new Link-phase rules:
-//!
-//! - `HlrEntry.surfaces` ⇔ `KNOWN_SURFACES` bijection (unknown +
-//!   unclaimed prose).
+//! - `HlrEntry.surfaces` ⇔ `KNOWN_SURFACES` bijection
+//!   → `LinkError::SurfaceUnknown` (`TRACE_HLR_SURFACE_UNKNOWN`)
+//!   + `LinkError::SurfaceUnclaimed` (`TRACE_HLR_SURFACE_UNCLAIMED`).
 //! - `TestEntry.test_selectors: Vec<String>` with `StringOrVec`
 //!   deserializer (single-string shorthand round-trips to
 //!   multi-element array semantics).
-//! - Derived LLR without rationale fires the derived-rationale rule.
+//! - Derived LLR without rationale
+//!   → `LinkError::DerivedMissingRationale`
+//!   (`TRACE_DERIVED_MISSING_RATIONALE`).
 //!
-//! All three rules currently surface under the single
-//! `TRACE_LINK_FAILED` envelope; per-sub-rule diagnostic codes land
-//! when `TraceValidationError::Link` is refactored into typed
-//! sub-errors (C6 follow-up).
+//! Assertions match on `err.code()` returns.
 
 #![allow(
     clippy::unwrap_used,
@@ -22,7 +20,11 @@
 )]
 
 use evidence::TracePolicy;
-use evidence::trace::{HlrEntry, LlrEntry, TestEntry, validate_trace_links_with_policy};
+use evidence::diagnostic::DiagnosticCode;
+use evidence::trace::{
+    HlrEntry, LinkError, LlrEntry, TestEntry, TraceValidationError,
+    validate_trace_links_with_policy,
+};
 
 fn hlr(id: &str, uid: &str, traces_to: Vec<String>, surfaces: Vec<String>) -> HlrEntry {
     HlrEntry {
@@ -62,13 +64,21 @@ fn llr(id: &str, uid: &str, traces_to: Vec<String>) -> LlrEntry {
     }
 }
 
-/// Surface bijection fires in both directions: (a) an HLR that claims
-/// a surface not in KNOWN_SURFACES trips TRACE_HLR_SURFACE_UNKNOWN;
-/// (b) a KNOWN_SURFACES entry with no claiming HLR trips
-/// TRACE_HLR_SURFACE_UNCLAIMED. Synthesizes a minimal trace that
-/// exercises both arms in one validator run.
+/// `surface_unknown_fires_with_typed_code`: an HLR claiming a
+/// surface not in KNOWN_SURFACES must fire
+/// `TRACE_HLR_SURFACE_UNKNOWN` as a typed `LinkError`, with the
+/// offending `(hlr_id, surface)` reachable via the variant payload.
+///
+/// Covered-by-design: `surface_unclaimed_fires_with_typed_code`
+/// fires in the same `validate_trace_links_with_policy` run
+/// because the fixture's HLR only claims ONE known surface
+/// (`check`), leaving every other `KNOWN_SURFACES` entry
+/// orphaned. Both variants surface in the errors vec; this test
+/// asserts the unknown arm, the companion test below asserts the
+/// unclaimed arm. Separating them lets the failure mode read
+/// "one specific arm broke," not "something in the bijection did."
 #[test]
-fn surfaces_bijection_fires_on_orphan_and_unknown() {
+fn surface_unknown_fires_with_typed_code() {
     // Single HLR claiming (a) a surface that IS in KNOWN_SURFACES
     // (covers one of them but leaves others unclaimed), and (b) a
     // surface that is NOT in KNOWN_SURFACES (unknown).
@@ -105,20 +115,95 @@ fn surfaces_bijection_fires_on_orphan_and_unknown() {
     let err = validate_trace_links_with_policy(&[], &[h], &[l], &[t], &[], &policy)
         .expect_err("expected bijection failure");
 
-    let msg = format!("{:?}", err);
-    // Pre-C6: Link-phase violations surface under the single
-    // TRACE_LINK_FAILED envelope; the prose identifies the sub-rule.
-    // Once `TraceValidationError::Link` is refactored into typed
-    // sub-errors these assertions flip to `err.code() == "..."`.
+    let TraceValidationError::Link { errors } = err else {
+        panic!("expected Link variant, got {:?}", err);
+    };
+    let codes: Vec<&str> = errors.iter().map(|e| e.code()).collect();
     assert!(
-        msg.contains("NOT_A_REAL_SURFACE") && msg.contains("not in KNOWN_SURFACES"),
-        "expected unknown-surface prose naming 'NOT_A_REAL_SURFACE'; got:\n{}",
-        msg
+        codes.contains(&"TRACE_HLR_SURFACE_UNKNOWN"),
+        "expected TRACE_HLR_SURFACE_UNKNOWN for 'NOT_A_REAL_SURFACE'; got codes:\n{:?}",
+        codes
+    );
+    let unknown_payload = errors.iter().find_map(|e| match e {
+        LinkError::SurfaceUnknown { hlr_id, surface } => Some((hlr_id.clone(), surface.clone())),
+        _ => None,
+    });
+    assert_eq!(
+        unknown_payload,
+        Some(("HLR-1".into(), "NOT_A_REAL_SURFACE".into())),
+        "SurfaceUnknown payload must carry the offending (hlr_id, surface)"
+    );
+}
+
+/// `surface_unclaimed_fires_with_typed_code`: companion to the
+/// unknown arm — asserts `TRACE_HLR_SURFACE_UNCLAIMED` fires for
+/// every `KNOWN_SURFACES` entry not claimed by any HLR. Uses the
+/// same minimal fixture: one HLR claims a single known surface,
+/// leaving every other entry in `KNOWN_SURFACES` orphaned.
+#[test]
+fn surface_unclaimed_fires_with_typed_code() {
+    let h = hlr(
+        "HLR-1",
+        "bbbbbbbb-0000-4000-8000-000000000001",
+        vec![],
+        vec!["check".into()],
+    );
+    let l = llr(
+        "LLR-1",
+        "bbbbbbbb-0000-4000-8000-000000000002",
+        vec!["bbbbbbbb-0000-4000-8000-000000000001".into()],
+    );
+    let t = TestEntry {
+        uid: Some("bbbbbbbb-0000-4000-8000-000000000003".into()),
+        ns: None,
+        id: "TEST-1".into(),
+        title: "t".into(),
+        owner: Some("tool".into()),
+        sort_key: None,
+        traces_to: vec!["bbbbbbbb-0000-4000-8000-000000000002".into()],
+        description: None,
+        category: None,
+        test_selector: Some("t".into()),
+        test_selectors: vec![],
+        source: None,
+    };
+
+    let policy = TracePolicy {
+        require_hlr_surface_bijection: true,
+        ..TracePolicy::default()
+    };
+    let err = validate_trace_links_with_policy(&[], &[h], &[l], &[t], &[], &policy)
+        .expect_err("expected bijection failure");
+
+    let TraceValidationError::Link { errors } = err else {
+        panic!("expected Link variant, got {:?}", err);
+    };
+    let codes: Vec<&str> = errors.iter().map(|e| e.code()).collect();
+    assert!(
+        codes.contains(&"TRACE_HLR_SURFACE_UNCLAIMED"),
+        "expected TRACE_HLR_SURFACE_UNCLAIMED for orphan KNOWN_SURFACES entries; got codes:\n{:?}",
+        codes
+    );
+    // Payload-preservation: at least one unclaimed-surface payload
+    // names a real `KNOWN_SURFACES` entry.
+    let unclaimed_surfaces: Vec<String> = errors
+        .iter()
+        .filter_map(|e| match e {
+            LinkError::SurfaceUnclaimed { surface } => Some(surface.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !unclaimed_surfaces.is_empty(),
+        "expected at least one SurfaceUnclaimed variant; got errors:\n{:?}",
+        errors
     );
     assert!(
-        msg.contains("is not claimed by any HLR"),
-        "expected unclaimed-surface prose; got:\n{}",
-        msg
+        unclaimed_surfaces
+            .iter()
+            .any(|s| evidence::trace::KNOWN_SURFACES.contains(&s.as_str())),
+        "unclaimed surfaces must match real KNOWN_SURFACES entries; got {:?}",
+        unclaimed_surfaces
     );
 }
 
@@ -170,7 +255,7 @@ test_selectors = ["foo::single", "foo::extra"]
 /// TRACE_DERIVED_MISSING_RATIONALE. Unconditional rule — no
 /// `policy.require_derived_rationale` flag needed.
 #[test]
-fn derived_without_rationale_fires() {
+fn derived_missing_rationale_fires_with_typed_code() {
     // Build a tree where the derived LLR has no traces_to and no
     // rationale. Also need enough surrounding structure to trip the
     // surface bijection into silence — easiest: zero HLRs, zero
@@ -195,12 +280,20 @@ fn derived_without_rationale_fires() {
     let err = validate_trace_links_with_policy(&[], &[], &[l], &[], &[], &TracePolicy::default())
         .expect_err("expected derived-rationale failure");
 
-    let msg = format!("{:?}", err);
-    // Pre-C6: surfaces under the TRACE_LINK_FAILED envelope; prose
-    // identifies the rule. Flips to `err.code()` after typed variants.
+    let TraceValidationError::Link { errors } = err else {
+        panic!("expected Link variant, got {:?}", err);
+    };
+    let codes: Vec<&str> = errors.iter().map(|e| e.code()).collect();
     assert!(
-        msg.contains("derived LLR") && msg.contains("missing non-empty rationale"),
-        "expected derived-rationale prose; got:\n{}",
-        msg
+        codes.contains(&"TRACE_DERIVED_MISSING_RATIONALE"),
+        "expected TRACE_DERIVED_MISSING_RATIONALE; got codes:\n{:?}",
+        codes
     );
+    // Payload preservation: agents pulling the variant get the
+    // offending LLR id directly, no prose parsing.
+    let payload = errors.iter().find_map(|e| match e {
+        LinkError::DerivedMissingRationale { llr_id } => Some(llr_id.clone()),
+        _ => None,
+    });
+    assert_eq!(payload, Some("LLR-1".into()));
 }

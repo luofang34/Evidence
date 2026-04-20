@@ -101,15 +101,17 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
     };
 
     // Guard rail for subcommands that don't yet stream JSONL natively.
-    // `verify` and `check` both emit JSONL directly; every other
-    // subcommand under `--format=jsonl` would silently mix human /
-    // JSON text on stdout (Schema Rule 2 violation). Hard-error
+    // `verify`, `check`, and `trace` all emit JSONL directly; every
+    // other subcommand under `--format=jsonl` would silently mix human
+    // / JSON text on stdout (Schema Rule 2 violation). Hard-error
     // instead: emit a `CLI_UNSUPPORTED_FORMAT` finding +
     // `CLI_SUBCOMMAND_ERROR` terminal and return exit 1.
     //
     // TODO(jsonl): add subcommand names here as they gain JSONL
     // support.
-    if args.format == OutputFormat::Jsonl && !matches!(subcommand_name, "verify" | "check") {
+    if args.format == OutputFormat::Jsonl
+        && !matches!(subcommand_name, "verify" | "check" | "trace")
+    {
         return emit_unsupported_jsonl_terminal(subcommand_name);
     }
 
@@ -160,15 +162,18 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             require_hlr_surface_bijection,
             check_test_selectors,
             json,
-        }) => cmd_trace(
-            validate,
-            backfill_uuids,
-            require_hlr_sys_trace,
-            require_hlr_surface_bijection,
-            check_test_selectors,
-            args.trace_roots,
-            json,
-        ),
+        }) => {
+            let format = OutputFormat::resolve(args.format, args.json || json);
+            cmd_trace(
+                validate,
+                backfill_uuids,
+                require_hlr_sys_trace,
+                require_hlr_surface_bijection,
+                check_test_selectors,
+                args.trace_roots,
+                format,
+            )
+        }
         Some(Commands::Rules { json }) => {
             // `rules` emits a single blob (JSON array or human table),
             // not a JSONL stream, so it's already filtered out of the

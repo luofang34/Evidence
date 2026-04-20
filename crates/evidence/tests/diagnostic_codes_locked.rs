@@ -295,3 +295,125 @@ fn code_regex_validator_catches_known_shapes() {
     assert!(!code_is_valid("VERIFY-OK"));
     assert!(!code_is_valid("0VERIFY"));
 }
+
+/// PR #51 / TEST-043 bijection regression. Every `LinkError::code()`
+/// return must (a) appear in `RULES` and (b) be claimed by at least
+/// one `LLR.emits` list in `tool/trace/llr.toml`. Catches a new
+/// variant landing in `LinkError` without the matching `RULES` +
+/// `LLR.emits` edits — the kind of silent-drift PR #49 hit with the
+/// three pseudo-codes. The `every_code_is_claimed_by_an_llr`
+/// general test above enforces the full-codebase bijection; this
+/// localized version names `LinkError` specifically so a variant-
+/// level break reads as "typed Link-error bijection broke," not as
+/// one line in a 100-code dump.
+#[test]
+fn link_error_codes_in_rules_and_claimed() {
+    use evidence::diagnostic::DiagnosticCode;
+    use evidence::trace::LinkError;
+
+    // Construct one instance of every LinkError variant. `LinkError`
+    // doesn't expose `VARIANTS` (no serde magic) so the list is
+    // hand-rolled — dropping a variant from this list is a
+    // reviewer-visible omission, and that's the friction we want.
+    let samples: Vec<LinkError> = vec![
+        LinkError::InvalidLinkUuid {
+            source_kind: "HLR",
+            source_id: "x".into(),
+            link: "y".into(),
+        },
+        LinkError::DanglingLink {
+            source_kind: "HLR",
+            source_id: "x".into(),
+            link: "y".into(),
+            expected_target_kind: "SYS",
+        },
+        LinkError::WrongTargetKind {
+            source_kind: "HLR",
+            source_id: "x".into(),
+            link: "y".into(),
+            expected: "SYS",
+            found: "LLR".into(),
+        },
+        LinkError::OwnershipViolation {
+            source_kind: "HLR",
+            source_id: "x".into(),
+            source_owner: "a".into(),
+            target_kind: "SYS",
+            target_id: "y".into(),
+            target_owner: "b".into(),
+        },
+        LinkError::SurfaceUnknown {
+            hlr_id: "HLR-1".into(),
+            surface: "zzz".into(),
+        },
+        LinkError::SurfaceUnclaimed {
+            surface: "zzz".into(),
+        },
+        LinkError::MissingVerificationMethods {
+            kind: "HLR",
+            id: "x".into(),
+        },
+        LinkError::MissingHlrSysTrace {
+            hlr_id: "HLR-1".into(),
+        },
+        LinkError::DuplicateTraceLink {
+            source_kind: "HLR",
+            source_id: "x".into(),
+            link: "y".into(),
+        },
+        LinkError::LlrMissingParentLinks {
+            llr_id: "LLR-1".into(),
+        },
+        LinkError::DerivedMissingRationale {
+            llr_id: "LLR-1".into(),
+        },
+        LinkError::ContradictoryDerived {
+            llr_id: "LLR-1".into(),
+        },
+        LinkError::Other {
+            message: "anything".into(),
+        },
+    ];
+
+    let rules: std::collections::BTreeSet<&str> = evidence::RULES.iter().map(|r| r.code).collect();
+
+    let trace = evidence::read_all_trace_files(
+        workspace_root()
+            .join("tool")
+            .join("trace")
+            .to_str()
+            .expect("workspace path is UTF-8"),
+    )
+    .expect("tool/trace must load");
+    let claimed: std::collections::BTreeSet<String> = trace
+        .llr
+        .requirements
+        .iter()
+        .flat_map(|l| l.emits.iter().cloned())
+        .collect();
+
+    let mut missing_from_rules: Vec<&str> = Vec::new();
+    let mut unclaimed: Vec<&str> = Vec::new();
+    for sample in &samples {
+        let code = sample.code();
+        if !rules.contains(code) {
+            missing_from_rules.push(code);
+        }
+        if !claimed.contains(code) {
+            unclaimed.push(code);
+        }
+    }
+    assert!(
+        missing_from_rules.is_empty(),
+        "LinkError variants whose code() is not in RULES: {:?} — add the \
+         code to evidence::rules::RULES",
+        missing_from_rules
+    );
+    assert!(
+        unclaimed.is_empty(),
+        "LinkError variants whose code() is not claimed by any LLR.emits \
+         in tool/trace/llr.toml: {:?} — add the code to LLR-041's emits (or \
+         another LLR that describes the new emit path)",
+        unclaimed
+    );
+}

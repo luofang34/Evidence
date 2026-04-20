@@ -307,7 +307,10 @@ id = "TEST-038"
 title = "HLR.surfaces bijection fires on orphan surface or unknown claim"
 owner = "tool"
 traces_to = ["e9e20795-fba7-4c63-bc6d-e76c3a3dada6"]
-test_selector = "trace_decomposition::surfaces_bijection_fires_on_orphan_and_unknown"
+test_selectors = [
+    "trace_decomposition::surface_unknown_fires_with_typed_code",
+    "trace_decomposition::surface_unclaimed_fires_with_typed_code",
+]
 
 [[tests]]
 uid = "79466752-19d0-4c49-85e8-3e71a13c3a60"
@@ -323,4 +326,53 @@ id = "TEST-040"
 title = "derived==true without rationale fires TRACE_DERIVED_MISSING_RATIONALE"
 owner = "tool"
 traces_to = ["9968bdb9-3e20-40c9-ad84-3310621bd102"]
-test_selector = "trace_decomposition::derived_without_rationale_fires"
+test_selector = "trace_decomposition::derived_missing_rationale_fires_with_typed_code"
+
+[[tests]]
+uid = "f1b8ebca-d919-4810-b0ca-81f3c39b3095"
+id = "TEST-041"
+title = "LinkError variants each fire with the right code"
+owner = "tool"
+traces_to = ["297a6b28-9a54-4581-abeb-6b8ff33bb9c7"]
+description = """
+Matrix test over every LinkError variant: constructs the minimal
+trace input that trips each rule, asserts the returned
+`TraceValidationError::Link { errors }` contains exactly one
+LinkError whose `code()` matches the expected TRACE_* string.
+Flips the PR #49-era prose-contains assertions in
+trace_decomposition.rs to code-equals.
+"""
+test_selectors = [
+    "trace_decomposition::surface_unknown_fires_with_typed_code",
+    "trace_decomposition::surface_unclaimed_fires_with_typed_code",
+    "trace_decomposition::derived_missing_rationale_fires_with_typed_code",
+]
+
+[[tests]]
+uid = "453db165-a0b4-45d3-9c12-895537b2f067"
+id = "TEST-042"
+title = "trace --validate --format=jsonl emits one event per LinkError"
+owner = "tool"
+traces_to = ["61f2c36a-0d47-4485-acca-f2d4403ec339"]
+description = """
+Spawns `cargo evidence trace --validate --format=jsonl` over a
+tampered trace root with N known violations; asserts stdout
+contains exactly N JSONL events before the terminal, each with
+the right `code` field and non-empty `location.file`.
+"""
+test_selectors = ["trace_cmd_jsonl::trace_validate_jsonl_emits_per_variant"]
+
+[[tests]]
+uid = "adcc0fe7-e6c4-4f27-a04d-025b96b9fbec"
+id = "TEST-043"
+title = "RULES manifest includes every LinkError code; bijection closed"
+owner = "tool"
+traces_to = ["becd7d00-a7e4-435b-9f06-398494529ab7"]
+description = """
+`diagnostic_codes_locked` already enforces walker⇔RULES⇔LLR.emits
+bijection; TEST-043 is the explicit regression that every
+LinkError variant's code appears in RULES and is claimed by
+LLR-041's `emits` list. Fires if a new variant lands without the
+matching RULES + LLR edits.
+"""
+test_selectors = ["diagnostic_codes_locked::link_error_codes_in_rules_and_claimed"]
