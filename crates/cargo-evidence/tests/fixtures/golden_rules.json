@@ -203,6 +203,13 @@
     "terminal": false
   },
   {
+    "code": "DOCTOR_MERGE_STYLE_UNKNOWN",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "DOCTOR_OK",
     "severity": "info",
     "domain": "doctor",

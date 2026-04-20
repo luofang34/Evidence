@@ -42,7 +42,7 @@ schema_version = 1
 
 # evidence::RULES length — every diagnostic code the tool can emit,
 # hand-curated. Lives in a single crate, so workspace-wide.
-diagnostic_codes = 106
+diagnostic_codes = 107
 
 # evidence::TERMINAL_CODES length — hand-emitted terminals
 # (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR /
@@ -81,7 +81,7 @@ known_surfaces = 16
 test_count = 226
 
 [per_crate.cargo-evidence]
-test_count = 88
+test_count = 90
 
 # Per-crate ceilings. library_panics is a ceiling, not a floor:
 # more panics is always worse. Placing a ceiling dimension under

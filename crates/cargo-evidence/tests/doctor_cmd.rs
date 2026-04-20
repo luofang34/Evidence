@@ -137,15 +137,24 @@ fn rigorous_fixture_passes() {
     let (exit, diags) = run_doctor(tmp.path());
     assert_eq!(exit, 0, "rigorous fixture should exit 0; diags={:?}", diags);
     let codes: Vec<&str> = diags.iter().map(|d| d["code"].as_str().unwrap()).collect();
-    // Exactly 6 DOCTOR_CHECK_PASSED + 1 DOCTOR_OK terminal.
-    let passed_count = codes
-        .iter()
-        .filter(|c| **c == "DOCTOR_CHECK_PASSED")
-        .count();
+    // Exactly 7 lines: 6 checks + 1 terminal. No DOCTOR_FAIL, no
+    // error-severity DOCTOR_* in the stream.
     assert_eq!(
-        passed_count, 6,
-        "expected 6 DOCTOR_CHECK_PASSED diagnostics; got codes={:?}",
+        codes.len(),
+        7,
+        "expected 6 check diagnostics + 1 terminal = 7 lines; got codes={:?}",
         codes
+    );
+    let errors: Vec<&&str> = diags
+        .iter()
+        .filter(|d| d["severity"].as_str() == Some("error"))
+        .zip(codes.iter())
+        .map(|(_, c)| c)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "rigorous fixture produced error-severity diagnostics: {:?}",
+        errors
     );
     assert_eq!(
         codes.last().copied(),
@@ -153,6 +162,9 @@ fn rigorous_fixture_passes() {
         "stream must terminate with DOCTOR_OK; got codes={:?}",
         codes
     );
+    // Warnings are OK (e.g. DOCTOR_MERGE_STYLE_UNKNOWN on a
+    // non-git tempdir fixture). What matters for the rigorous case
+    // is that nothing fires at error severity.
 }
 
 #[test]

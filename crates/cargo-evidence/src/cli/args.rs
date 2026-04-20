@@ -226,12 +226,20 @@ pub enum Commands {
 
     /// Audit downstream rigor adoption (trace + floors + boundary + CI + merge-style + override-docs)
     ///
-    /// Runs a checklist against the current workspace and emits one
-    /// `DOCTOR_*` diagnostic per check, terminating in `DOCTOR_OK` or
-    /// `DOCTOR_FAIL`. `generate --profile cert` / `record` invokes
-    /// doctor internally before bundle assembly; cert-profile bundles
-    /// can't be produced while any error-severity finding stands.
-    Doctor,
+    /// Runs a checklist against the current workspace and renders the
+    /// result. Default: human-readable `[✓]` / `[⚠]` / `[✗]` table +
+    /// `DOCTOR_OK` / `DOCTOR_FAIL` footer. `--json` streams one
+    /// JSONL `Diagnostic` per check + terminal for agents / CI.
+    ///
+    /// `generate --profile cert` / `record` invokes doctor internally
+    /// before bundle assembly and escalates warnings to blockers —
+    /// cert-profile bundles can't be produced while any finding stands.
+    Doctor {
+        /// Emit streaming JSONL on stdout (one diagnostic per line + terminal).
+        /// Without this flag, a human-readable summary is printed instead.
+        #[arg(long)]
+        json: bool,
+    },
 
     /// One-shot agent-facing validation (source tree or bundle)
     ///

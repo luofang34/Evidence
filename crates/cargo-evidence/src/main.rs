@@ -94,7 +94,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
         Some(Commands::Verify { .. }) => "verify",
         Some(Commands::Check { .. }) => "check",
         Some(Commands::Diff { .. }) => "diff",
-        Some(Commands::Doctor) => "doctor",
+        Some(Commands::Doctor { .. }) => "doctor",
         Some(Commands::Init { .. }) => "init",
         Some(Commands::Schema { .. }) => "schema",
         Some(Commands::Trace { .. }) => "trace",
@@ -147,7 +147,12 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             cmd_verify(bundle_path, strict, verify_key, format)
         }
         Some(Commands::Check { mode, path }) => cmd_check(mode, path),
-        Some(Commands::Doctor) => cmd_doctor(),
+        Some(Commands::Doctor { json }) => {
+            // Global `--format=jsonl` (or `--json`) flips to JSONL
+            // mode; default is the human `[✓]/[⚠]/[✗]` summary.
+            let format = OutputFormat::resolve(args.format, args.json || json);
+            cmd_doctor(format == OutputFormat::Jsonl || format == OutputFormat::Json)
+        }
         Some(Commands::Diff {
             bundle_a,
             bundle_b,

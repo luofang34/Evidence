@@ -131,6 +131,7 @@ pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "DOCTOR_FLOORS_MISSING",
     "DOCTOR_FLOORS_VIOLATED",
     "DOCTOR_MERGE_STYLE_RISK",
+    "DOCTOR_MERGE_STYLE_UNKNOWN",
     "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
     "DOCTOR_TRACE_INVALID",
     "FLOORS_BELOW_MIN",
@@ -208,6 +209,11 @@ pub const RULES: &[RuleEntry] = &[
     r("DOCTOR_FLOORS_MISSING", Severity::Error, Domain::Doctor),
     r("DOCTOR_FLOORS_VIOLATED", Severity::Error, Domain::Doctor),
     r("DOCTOR_MERGE_STYLE_RISK", Severity::Warning, Domain::Doctor),
+    r(
+        "DOCTOR_MERGE_STYLE_UNKNOWN",
+        Severity::Warning,
+        Domain::Doctor,
+    ),
     terminal("DOCTOR_OK", Severity::Info),
     r(
         "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
