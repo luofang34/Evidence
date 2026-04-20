@@ -213,22 +213,26 @@ pub fn count_known_surfaces() -> u64 {
 pub fn per_crate_measurements(workspace_root: &Path) -> BTreeMap<String, BTreeMap<String, u64>> {
     let mut out: BTreeMap<String, BTreeMap<String, u64>> = BTreeMap::new();
     let crates_root = workspace_root.join("crates");
-    let entries = match fs::read_dir(&crates_root) {
-        Ok(e) => e,
-        Err(_) => return out,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+    let crate_dirs = walkdir::WalkDir::new(&crates_root)
+        .follow_links(false)
+        .min_depth(1)
+        .max_depth(1)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_dir());
+    for entry in crate_dirs {
+        let path = entry.into_path();
+        let Some(name) = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(str::to_string)
+        else {
             continue;
         };
         let mut per = BTreeMap::new();
         per.insert("test_count".into(), count_tests(&path));
         per.insert("library_panics".into(), count_library_panics(&path));
-        out.insert(name.to_string(), per);
+        out.insert(name, per);
     }
     out
 }
