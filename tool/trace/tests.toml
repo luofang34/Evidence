@@ -307,7 +307,10 @@ id = "TEST-038"
 title = "HLR.surfaces bijection fires on orphan surface or unknown claim"
 owner = "tool"
 traces_to = ["e9e20795-fba7-4c63-bc6d-e76c3a3dada6"]
-test_selector = "trace_decomposition::surfaces_bijection_fires_on_orphan_and_unknown"
+test_selectors = [
+    "trace_decomposition::surface_unknown_fires_with_typed_code",
+    "trace_decomposition::surface_unclaimed_fires_with_typed_code",
+]
 
 [[tests]]
 uid = "79466752-19d0-4c49-85e8-3e71a13c3a60"
@@ -323,7 +326,7 @@ id = "TEST-040"
 title = "derived==true without rationale fires TRACE_DERIVED_MISSING_RATIONALE"
 owner = "tool"
 traces_to = ["9968bdb9-3e20-40c9-ad84-3310621bd102"]
-test_selector = "trace_decomposition::derived_without_rationale_fires"
+test_selector = "trace_decomposition::derived_missing_rationale_fires_with_typed_code"
 
 [[tests]]
 uid = "f1b8ebca-d919-4810-b0ca-81f3c39b3095"
