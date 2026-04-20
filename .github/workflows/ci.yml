@@ -1117,13 +1117,35 @@ jobs:
         if: steps.fetch-prior.outputs.prior_missing == '0'
         shell: bash
         env:
-          # On pull_request events, `github.event.pull_request.body`
-          # carries the body; on push events, `github.event.head_commit.message`
-          # carries the head commit message. We plumb both so the
-          # script's dual check works in either mode.
+          # The override line can legitimately live in several places
+          # depending on merge style and who authored it:
+          #   - pull_request event: PR body (author writes it there).
+          #   - push event, squash-merge: GitHub squashes PR body into
+          #     head_commit message, so `head_commit.message` carries it.
+          #   - push event, merge-commit: head_commit is a mechanical
+          #     "Merge pull request #N..." with no override. The override
+          #     lives in ONE of the branch commits merged in, which live
+          #     in `github.event.commits[*].message` on the push payload.
+          #   - push event, rebase-merge: head_commit is the last branch
+          #     commit, but earlier branch commits also land — same
+          #     commits-array fallback covers this.
+          # Plumbing all three haystacks means the gate works the same
+          # regardless of merge style, removing the "override only
+          # accepted in one specific place" foot-gun.
           PR_BODY: ${{ github.event.pull_request.body }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          PUSH_COMMITS_MESSAGES: ${{ toJSON(github.event.commits.*.message) }}
         run: |
+          # The script reads PR_BODY + COMMIT_MESSAGE. Concatenate
+          # the push-commits messages array (JSON-encoded strings)
+          # into COMMIT_MESSAGE so the script's existing haystack
+          # scan picks them up without signature change.
+          if [ -n "${PUSH_COMMITS_MESSAGES:-}" ] && [ "${PUSH_COMMITS_MESSAGES}" != "null" ]; then
+            extra=$(printf '%s' "$PUSH_COMMITS_MESSAGES" | jq -r '.[]? // empty' | tr '\n' ' ' || true)
+            COMMIT_MESSAGE="${COMMIT_MESSAGE}
+${extra}"
+          fi
+          export COMMIT_MESSAGE
           ./scripts/deterministic-baseline-override-lint.sh \
             "$RUNNER_TEMP/prior-main/deterministic-manifest.json" \
             "$RUNNER_TEMP/current-manifest.json"
