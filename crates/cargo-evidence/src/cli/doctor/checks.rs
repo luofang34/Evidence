@@ -9,7 +9,7 @@ use std::process::Command;
 
 use evidence::FloorsConfig;
 use evidence::floors::{LoadOutcome, current_measurements, per_crate_measurements};
-use evidence::policy::{BoundaryConfig, TracePolicy};
+use evidence::policy::{BoundaryConfig, Dal, EvidencePolicy};
 use evidence::trace::{read_all_trace_files, validate_trace_links_with_policy};
 
 use super::CheckResult;
@@ -38,12 +38,19 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
             );
         }
     };
-    let policy = TracePolicy {
-        require_hlr_sys_trace: true,
-        require_hlr_surface_bijection: true,
-        require_derived_rationale: true,
-        ..TracePolicy::default()
-    };
+    // Derive the trace policy from the project's declared DAL level
+    // via `EvidencePolicy::for_dal`. Hardcoding all-strict flags
+    // would block every real downstream cert build: `KNOWN_SURFACES`
+    // names cargo-evidence's own observable contracts, so a
+    // downstream HLR claiming its own surface ("sensor fusion") would
+    // fail the bijection. DAL-D (downstream default) disables all
+    // three strict flags; higher DAL levels enable SYS-trace +
+    // derived-rationale — but surface bijection stays opt-in at
+    // every level because surfaces are project-specific. Our own
+    // `cargo evidence trace --validate --require-hlr-surface-bijection`
+    // CI step (unchanged) keeps the internal dogfood rigor.
+    let dal = load_default_dal(workspace);
+    let policy = EvidencePolicy::for_dal(dal).trace;
     let sys_reqs = files.sys.requirements.clone();
     let hlr_reqs = files.hlr.requirements.clone();
     let llr_reqs = files.llr.requirements.clone();
@@ -59,9 +66,21 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
         Ok(()) => CheckResult::Pass,
         Err(e) => CheckResult::Fail(
             "DOCTOR_TRACE_INVALID",
-            format!("tool/trace/ validation failed: {}", e),
+            format!("tool/trace/ validation failed at DAL-{:?}: {}", dal, e),
         ),
     }
+}
+
+/// Read `cert/boundary.toml` to discover the project's declared
+/// DAL level for trace-policy derivation. Defaults to DAL-D
+/// (the lenient downstream default) if boundary is missing or
+/// unparseable — doctor's `check_boundary` already surfaces the
+/// config problem via its own diagnostic, so we don't double-fire.
+fn load_default_dal(workspace: &Path) -> Dal {
+    let path = workspace.join("cert").join("boundary.toml");
+    BoundaryConfig::load(&path)
+        .map(|cfg| cfg.dal.default_dal)
+        .unwrap_or(Dal::D)
 }
 
 pub(super) fn check_floors(workspace: &Path) -> CheckResult {
