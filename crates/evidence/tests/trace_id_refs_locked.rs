@@ -41,6 +41,9 @@ use std::path::{Path, PathBuf};
 
 use regex::Regex;
 
+#[path = "walker_helpers.rs"]
+mod traversal;
+
 #[path = "trace_id_refs_locked/walker.rs"]
 mod walker;
 use walker::collect_scan_targets;

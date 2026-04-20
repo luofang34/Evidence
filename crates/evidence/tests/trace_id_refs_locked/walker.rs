@@ -2,10 +2,9 @@
 //!
 //! Split out of the main file to stay under the 500-line workspace
 //! file-size limit (see `crates/evidence/tests/file_size_limit.rs`).
-//! Each walker carries its own skip-list so callsites don't share a
-//! `config` struct — cheaper than the abstraction. Once the
-//! workspace-wide `walkdir`-based consolidation lands, all three
-//! collapse into a single callsite here.
+//! Filter logic stays here (per-callsite tree-skip rules); the shared
+//! `follow_links(false)` primitive lives in `tests/walker_helpers.rs`
+//! and is loaded by the parent binary as `mod traversal;`.
 
 #![allow(
     clippy::unwrap_used,
@@ -14,8 +13,9 @@
     reason = "test setup failures should panic immediately"
 )]
 
-use std::fs;
 use std::path::{Path, PathBuf};
+
+use super::traversal;
 
 /// Collect all in-scope files for the trace-ID ref scan.
 ///
@@ -29,96 +29,106 @@ use std::path::{Path, PathBuf};
 ///   ground truth we validate against and is explicitly excluded.
 pub fn collect_scan_targets(workspace: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
-    collect_by_ext(&workspace.join("crates"), "rs", &mut out, &[]);
+    collect_by_ext(&workspace.join("crates"), "rs", &mut out);
     collect_md_non_trace(workspace, &mut out, true);
-    collect_toml_non_trace(workspace, &mut out, true);
+    collect_toml_non_trace(workspace, &mut out);
     out
 }
 
-fn collect_by_ext(root: &Path, ext: &str, out: &mut Vec<PathBuf>, skip_dirs: &[&str]) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if matches!(
-                name,
-                "target" | ".git" | "node_modules" | "fixtures" | ".claude" | ".githooks"
-            ) || skip_dirs.contains(&name)
-            {
-                continue;
-            }
-            collect_by_ext(&path, ext, out, skip_dirs);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some(ext) {
-            out.push(path);
-        }
-    }
+fn collect_by_ext(root: &Path, ext: &str, out: &mut Vec<PathBuf>) {
+    let files = traversal::walk(root)
+        .filter_entry(|e| {
+            !traversal::is_dir_named(
+                e,
+                &[
+                    "target",
+                    ".git",
+                    "node_modules",
+                    "fixtures",
+                    ".claude",
+                    ".githooks",
+                ],
+            )
+        })
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file() && traversal::has_ext(e.path(), ext))
+        .map(|e| e.into_path());
+    out.extend(files);
 }
 
-/// Walk `.md` files, skipping `tool/trace/` (journal is audit
-/// provenance).
+/// Walk `.md` files, skipping `tool/trace/` (journal = audit
+/// provenance) at any depth, and — when invoked from the workspace
+/// root — top-level `cert/` so the toml walker owns that subtree.
 fn collect_md_non_trace(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if matches!(
-                name,
-                "target" | ".git" | "node_modules" | "fixtures" | ".claude" | ".githooks"
+    let top_skip: &[&str] = if is_workspace_root { &["cert"] } else { &[] };
+    let files = traversal::walk(root)
+        .filter_entry(|e| {
+            if traversal::is_dir_named(
+                e,
+                &[
+                    "target",
+                    ".git",
+                    "node_modules",
+                    "fixtures",
+                    ".claude",
+                    ".githooks",
+                ],
             ) {
-                continue;
+                return false;
             }
-            if name == "trace" && path.parent().and_then(|p| p.file_name()) == Some("tool".as_ref())
+            if e.file_type().is_dir()
+                && e.file_name().to_str() == Some("trace")
+                && e.path()
+                    .parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
+                    == Some("tool")
             {
-                continue;
+                return false;
             }
-            // Don't descend into cert under the workspace root — the
-            // toml walker handles it.
-            if is_workspace_root && name == "cert" {
-                continue;
+            if e.depth() == 1 && !top_skip.is_empty() && traversal::is_dir_named(e, top_skip) {
+                return false;
             }
-            collect_md_non_trace(&path, out, false);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("md") {
-            out.push(path);
-        }
-    }
+            true
+        })
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file() && traversal::has_ext(e.path(), "md"))
+        .map(|e| e.into_path());
+    out.extend(files);
 }
 
 /// Walk `.toml` files, skipping `tool/trace/` (the source of
-/// truth) and `target/`.
-fn collect_toml_non_trace(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if matches!(
-                name,
-                "target" | ".git" | "node_modules" | "fixtures" | ".claude" | ".githooks"
+/// truth) and standard noise dirs.
+fn collect_toml_non_trace(root: &Path, out: &mut Vec<PathBuf>) {
+    let files = traversal::walk(root)
+        .filter_entry(|e| {
+            if traversal::is_dir_named(
+                e,
+                &[
+                    "target",
+                    ".git",
+                    "node_modules",
+                    "fixtures",
+                    ".claude",
+                    ".githooks",
+                ],
             ) {
-                continue;
+                return false;
             }
-            if name == "trace" && path.parent().and_then(|p| p.file_name()) == Some("tool".as_ref())
+            if e.file_type().is_dir()
+                && e.file_name().to_str() == Some("trace")
+                && e.path()
+                    .parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
+                    == Some("tool")
             {
-                continue;
+                return false;
             }
-            let _ = is_workspace_root;
-            collect_toml_non_trace(&path, out, false);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("toml") {
-            out.push(path);
-        }
-    }
+            true
+        })
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file() && traversal::has_ext(e.path(), "toml"))
+        .map(|e| e.into_path());
+    out.extend(files);
 }
