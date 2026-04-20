@@ -851,13 +851,13 @@ jobs:
       - name: Verify bundle (prerelease-aware)
         shell: bash
         run: |
-          # On a pre-release version of the tool itself (e.g. the
-          # `0.1.0-alpha.1` name-reservation release), verify MUST
-          # reject cert-profile bundles — that's exactly the
-          # VERIFY_PRERELEASE_TOOL refusal PR #60 landed. On a stable
+          # If cargo-evidence's own crate version carries a pre-release
+          # suffix (e.g. `-alpha.N`, `-rc.N`, `-dev.N`), verify MUST
+          # reject cert-profile bundles it produces — that's the
+          # VERIFY_PRERELEASE_TOOL refusal by design. On a stable
           # (non-prerelease) version, verify MUST pass. Branch on the
-          # workspace version so this gate keeps working across the
-          # prerelease window without relaxing the contract itself.
+          # workspace version so this gate reflects the right contract
+          # for each tool version without relaxing it.
           VER=$(cargo metadata --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.name == "cargo-evidence") | .version')
           if [[ "$VER" == *-* ]]; then

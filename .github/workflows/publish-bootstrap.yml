@@ -1,7 +1,9 @@
 name: Publish bootstrap (one-time)
 
 # One-time workflow for initial crates.io name reservation of
-# `evidence-core` and `cargo-evidence` at version 0.1.0-alpha.1.
+# `evidence-core` and `cargo-evidence`. The authorized version is
+# pinned mechanically by the "Verify workspace version" step below
+# (not restated here; the pin is the single source of truth).
 #
 # Scheduled for removal once trusted publishing is configured. Until
 # then, this file is the ONLY authorized publish path — the bootstrap
