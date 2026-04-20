@@ -74,11 +74,11 @@ fn is_excluded(rel: &Path) -> bool {
     let s = rel.to_string_lossy().replace('\\', "/");
 
     // The source of truth itself is allowed to declare the constants.
-    if s.ends_with("evidence/src/schema_versions.rs") {
+    if s.ends_with("evidence-core/src/schema_versions.rs") {
         return true;
     }
     // This regression test's own source contains the search needle.
-    if s.ends_with("evidence/tests/schema_versions_locked.rs") {
+    if s.ends_with("evidence-core/tests/schema_versions_locked.rs") {
         return true;
     }
     // Committed frozen evidence bundle — captured bytes are the point.

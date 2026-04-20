@@ -167,6 +167,12 @@ pub fn verify_bundle_with_key(
     // 3c. Cross-file consistency: env.json vs index.json
     check_env_vs_index(bundle, &index, &mut verify_errors);
 
+    // 3d. Pre-release tool refusal (SYS-017 / HLR-049 / LLR-049).
+    // Library stays policy-free — push the finding on every profile
+    // regardless. The CLI partitions severity by `(code, profile)`:
+    // Dev downgrades this code to Warning; Cert/Record keeps Error.
+    check_prerelease_tool(bundle, &index, &mut verify_errors);
+
     // 4. Verify trace outputs exist (with path safety)
     for trace_out in &index.trace_outputs {
         if !is_safe_bundle_path(trace_out) {
@@ -467,4 +473,24 @@ fn check_deterministic_manifest(
         }
     }
     Ok(())
+}
+
+/// Push `VerifyError::PrereleaseToolDetected` when `env.json`
+/// reports `tool_prerelease = true`. Library reports what's true;
+/// the CLI partitions severity by profile. Missing/unparseable
+/// env.json is already caught upstream — silent return here
+/// avoids double-firing on the same root cause.
+fn check_prerelease_tool(bundle: &Path, index: &EvidenceIndex, errors: &mut Vec<VerifyError>) {
+    let Ok(env_bytes) = fs::read(bundle.join("env.json")) else {
+        return;
+    };
+    let Ok(env_fp) = serde_json::from_slice::<crate::env::EnvFingerprint>(&env_bytes) else {
+        return;
+    };
+    if env_fp.tool_prerelease {
+        errors.push(VerifyError::PrereleaseToolDetected {
+            profile: index.profile.to_string(),
+            engine_crate_version: index.engine_crate_version.clone(),
+        });
+    }
 }

@@ -328,13 +328,38 @@ fn cmd_verify_jsonl(
         }
         Ok(VerifyResult::Fail(errors)) => {
             // Schema Rule 7: each finding is an independent observation.
-            // Emit one per error, then the aggregate terminal event.
+            // Emit one per error, then the aggregate terminal.
+            //
+            // Severity partition: `VERIFY_PRERELEASE_TOOL` on a
+            // `dev`-profile bundle is a warning — downstream users
+            // trialling the tool with a pre-release install must be
+            // able to generate + verify dev bundles as a sanity
+            // check. On `cert`/`record` profiles the same code is
+            // an error (cert bundles from pre-release tools are
+            // not valid audit evidence). Every other VerifyError
+            // variant stays Error regardless of profile.
+            let mut any_error = false;
             for err in &errors {
-                emit_jsonl(&err.to_diagnostic())?;
+                let mut diag = err.to_diagnostic();
+                if let evidence_core::VerifyError::PrereleaseToolDetected { profile, .. } = err
+                    && profile == "dev"
+                {
+                    diag.severity = Severity::Warning;
+                } else {
+                    any_error = true;
+                }
+                emit_jsonl(&diag)?;
             }
-            let reason = format!("{} finding(s)", errors.len());
-            emit_jsonl(&terminal_fail(&reason))?;
-            Ok(EXIT_VERIFICATION_FAILURE)
+            if any_error {
+                let reason = format!("{} finding(s)", errors.len());
+                emit_jsonl(&terminal_fail(&reason))?;
+                Ok(EXIT_VERIFICATION_FAILURE)
+            } else {
+                emit_jsonl(&terminal_ok(
+                    "pre-release tool warning on dev profile — non-blocking",
+                ))?;
+                Ok(EXIT_SUCCESS)
+            }
         }
         Ok(VerifyResult::Skipped(reason)) => {
             // Advisory event before the terminal — agents can see why

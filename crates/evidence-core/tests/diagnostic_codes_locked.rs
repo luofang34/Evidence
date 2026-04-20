@@ -50,7 +50,10 @@ use walker::{
 
 #[test]
 fn diagnostic_codes_locked() {
-    let crate_root = workspace_root().join("crates").join("evidence").join("src");
+    let crate_root = workspace_root()
+        .join("crates")
+        .join("evidence-core")
+        .join("src");
     assert!(crate_root.is_dir(), "src/ not found at {:?}", crate_root);
 
     let mut files = rs_files(&crate_root);

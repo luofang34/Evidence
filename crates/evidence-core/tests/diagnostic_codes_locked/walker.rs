@@ -179,7 +179,10 @@ pub fn ends_in_terminal_suffix(code: &str) -> bool {
 /// regex/uniqueness check and the bijection invariants so a
 /// parser change is reflected in all four.
 pub fn walked_codes() -> std::collections::BTreeSet<String> {
-    let crate_root = workspace_root().join("crates").join("evidence").join("src");
+    let crate_root = workspace_root()
+        .join("crates")
+        .join("evidence-core")
+        .join("src");
     let mut files = rs_files(&crate_root);
     files.sort();
     let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();

@@ -59,7 +59,7 @@ pub struct EnvFingerprint {
     /// pre-release build (semver suffix containing `-` per §9).
     /// Drives `VERIFY_PRERELEASE_TOOL` under cert/record profiles —
     /// cert bundles from pre-release tools are not valid audit
-    /// evidence. Default `false` for backwards compat: pre-PR-#60
+    /// evidence. Default `false` for backwards compat: older
     /// bundles lacking the field deserialize as release-grade
     /// (which they trivially were — the flag didn't exist yet).
     #[serde(default)]
@@ -175,7 +175,7 @@ mod tests {
             "in_nix_shell": false,
             "tools": {},
             "nav_env": {},
-            "host": {"kind":"linux","arch":"x86_64"},
+            "host": {"os":"linux","arch":"x86_64"},
             "target_triple": "x86_64-unknown-linux-gnu"
         }"#;
         let fp: EnvFingerprint = serde_json::from_str(json).expect("parses");
@@ -198,7 +198,7 @@ mod tests {
             "in_nix_shell": false,
             "tools": {},
             "nav_env": {},
-            "host": {"kind":"linux","arch":"x86_64"},
+            "host": {"os":"linux","arch":"x86_64"},
             "target_triple": "x86_64-unknown-linux-gnu",
             "tool_prerelease": true
         }"#;

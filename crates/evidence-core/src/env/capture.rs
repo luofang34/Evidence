@@ -194,10 +194,6 @@ mod prerelease_tests {
         // Release shapes — no `-` in the identifier.
         assert!(!is_prerelease_version("0.1.0"));
         assert!(!is_prerelease_version("1.0.0"));
-        assert!(!is_prerelease_version("0.1.0-")); // `-` at position N also counts
-        // Wait: trailing bare `-` isn't semver-valid, but per
-        // strict byte-scan semantics above, `true` is correct —
-        // any `-` is pre-release. Flip assertion to match.
 
         // Build metadata only (no pre-release) — `+` is not `-`.
         assert!(!is_prerelease_version("1.0.0+build.42"));

@@ -201,7 +201,7 @@ fn parser_contract_requires_colorless_input() {
     // is uncolored. We wrap the whole line to exercise the
     // worst-case — if this case works, lighter wrappings do too.
     let ansi = format!(
-        "{ESC}[1m{ESC}[32m     Running{ESC}[0m unittests src/lib.rs (target/debug/deps/evidence-3f4a2c7d9e12b8f1)\n\
+        "{ESC}[1m{ESC}[32m     Running{ESC}[0m unittests src/lib.rs (target/debug/deps/evidence_core-3f4a2c7d9e12b8f1)\n\
          \n\
          running 1 test\n\
          test diagnostic::tests::works ... ok\n\

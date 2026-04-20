@@ -144,6 +144,22 @@ pub(super) fn init_builder(
         println!("evidence: generating bundle in {:?}", builder.bundle_dir());
         println!("evidence: profile = {}", profile);
     }
+    // Pre-release tool → cert/record early warning (SYS-017).
+    // The eventual `verify --profile cert` will fail with
+    // `VERIFY_PRERELEASE_TOOL`; emit the warning now so the user
+    // doesn't learn about it only after the full generate pipeline
+    // runs. Dev profile: silent (dev iteration stays fast).
+    if evidence_core::env::TOOL_IS_PRERELEASE && matches!(profile, Profile::Cert | Profile::Record)
+    {
+        tracing::warn!(
+            "tool_prerelease = true on profile {}: the bundle this run \
+             produces will fail `verify --profile {}` with \
+             VERIFY_PRERELEASE_TOOL. Install a release build to produce \
+             audit-valid cert evidence.",
+            profile,
+            profile
+        );
+    }
     Ok(Ok(builder))
 }
 

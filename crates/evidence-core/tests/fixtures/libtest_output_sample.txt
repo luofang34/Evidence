@@ -1,7 +1,7 @@
-   Compiling evidence v0.1.0 (/workspace/crates/evidence)
+   Compiling evidence-core v0.1.0 (/workspace/crates/evidence-core)
    Compiling cargo-evidence v0.1.0 (/workspace/crates/cargo-evidence)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 5.42s
-     Running unittests src/lib.rs (target/debug/deps/evidence-3f4a2c7d9e12b8f1)
+     Running unittests src/lib.rs (target/debug/deps/evidence_core-3f4a2c7d9e12b8f1)
 
 running 4 tests
 test diagnostic::tests::severity_rejects_unknown_variant ... ok
@@ -36,9 +36,9 @@ test selector_check_flags_dangling_selector ... ok
 
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
 
-   Doc-tests evidence
+   Doc-tests evidence-core
 
 running 1 test
-test crates/evidence/src/lib.rs - (line 23) ... ignored
+test crates/evidence-core/src/lib.rs - (line 23) ... ignored
 
 test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
