@@ -1,5 +1,5 @@
 [schema]
-version = "0.0.3"
+version = "0.0.1"
 
 [meta]
 document_id = "TOOL-SYS"
@@ -149,6 +149,24 @@ shall fail any change that lowers a measurement below its committed
 floor or exceeds a committed ceiling. Lowering a floor shall require
 an explicit written justification; silent ratchet-reversal shall be
 mechanically impossible.
+"""
+verification_methods = ["test"]
+traces_to = []
+
+[[requirements]]
+uid = "731cb43a-a9d1-43f8-8678-fc97db81162e"
+id = "SYS-010"
+title = "Trace layer shall support genuine decomposition beyond 1:1:1"
+owner = "soi"
+scope = "soi"
+description = """
+The tool's own trace schema shall express (a) lateral mapping from
+HLRs to user-visible behaviors (CLI verbs + observable contracts),
+(b) N:M test-to-requirement associations, and (c) explicitly-marked
+derived requirements with written rationale per DO-178C §5.2.2. A
+1:1:1 HLR:LLR:TEST graph is not evidence of decomposition; the
+schema shall refuse to present such a graph as sufficient without
+the supporting machinery.
 """
 verification_methods = ["test"]
 traces_to = []

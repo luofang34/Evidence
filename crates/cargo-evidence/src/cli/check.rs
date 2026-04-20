@@ -159,6 +159,7 @@ fn cmd_check_source(workspace_root: &Path) -> Result<i32> {
         .unwrap_or_default();
     let mut policy = EvidencePolicy::for_dal(dal).trace;
     policy.require_hlr_sys_trace = true;
+    policy.require_hlr_surface_bijection = true;
 
     // Step 5: build + emit per-requirement diagnostics.
     let diagnostics = build_requirement_report(&trace, &outcomes, workspace_root, &policy);

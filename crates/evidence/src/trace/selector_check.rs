@@ -65,7 +65,16 @@ pub fn resolve_test_selectors(
             _ => continue, // empty / None selectors are not in scope
         };
         let fn_name = selector.rsplit("::").next().unwrap_or(selector);
-        if !any_file_matches(&rs_files, fn_name) {
+        // Unqualified selectors (no `::`) don't constrain the search
+        // scope — we resolve against any file. Qualified selectors
+        // pin the search to files whose path reflects the leading
+        // segment (crate / binary / module name).
+        let prefix = if selector.contains("::") {
+            Some(selector.split("::").next().unwrap_or(selector))
+        } else {
+            None
+        };
+        if !any_file_matches(&rs_files, fn_name, prefix) {
             unresolved.push(UnresolvedSelector {
                 id: t.id.clone(),
                 selector: selector.to_string(),
@@ -99,11 +108,26 @@ fn collect_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// `true` iff any `.rs` file in `files` contains a line matching
-/// `fn <fn_name>\s*\(` with a `#[test]` attribute on one of the
-/// preceding ≤5 non-blank lines. Grep-level parse, no syn dep.
-fn any_file_matches(files: &[PathBuf], fn_name: &str) -> bool {
+/// `true` iff any `.rs` file in `files` whose path contains the
+/// selector's leading segment contains a line matching `fn
+/// <fn_name>\s*\(` with a `#[test]` attribute on one of the
+/// preceding ≤5 non-blank lines.
+///
+/// The prefix anchor prevents `crate_a::...::fn_name` resolving via
+/// a homonymous test function in `crate_b`. The anchor is
+/// substring-style — matches `crate_a` as a directory name OR as a
+/// filename stem (integration-test binaries) OR as a module path
+/// segment. That's the widest rule that still eliminates cross-
+/// crate false positives; tighter parsing would require mapping
+/// selector prefixes to cargo target conventions, which is not
+/// worth the complexity here.
+fn any_file_matches(files: &[PathBuf], fn_name: &str, prefix: Option<&str>) -> bool {
     for file in files {
+        if let Some(p) = prefix
+            && !path_matches_prefix(file, p)
+        {
+            continue;
+        }
         let text = match fs::read_to_string(file) {
             Ok(t) => t,
             Err(_) => continue,
@@ -113,6 +137,22 @@ fn any_file_matches(files: &[PathBuf], fn_name: &str) -> bool {
         }
     }
     false
+}
+
+/// Path-based prefix match: accepts `<prefix>.rs` as a filename,
+/// `<prefix>/` as a directory segment, or matches against the
+/// integration-test convention `tests/<prefix>.rs`. Windows-safe —
+/// normalizes separators first.
+fn path_matches_prefix(path: &Path, prefix: &str) -> bool {
+    let normalized = path.to_string_lossy().replace('\\', "/");
+    // Filename stem equal to prefix (integration test binaries).
+    if path.file_stem().and_then(|s| s.to_str()) == Some(prefix) {
+        return true;
+    }
+    // Directory name equal to prefix (unit tests under `crates/<name>/`
+    // or a module path component).
+    let marker = format!("/{}/", prefix);
+    normalized.contains(&marker)
 }
 
 fn file_has_test_fn(text: &str, fn_name: &str) -> bool {
@@ -221,5 +261,36 @@ mod tests {
             pub fn pub_test() {}
         "#;
         assert!(file_has_test_fn(source, "pub_test"));
+    }
+
+    /// Regression for the crate-prefix bug: a selector
+    /// `crate_a::...::fn_name` must not resolve via a homonymous test
+    /// function in `crate_b`. The `path_matches_prefix` anchor is the
+    /// guard.
+    #[test]
+    fn prefix_anchors_the_search_to_the_right_crate() {
+        use std::fs;
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let crate_a = tmp.path().join("crates").join("crate_a").join("src");
+        let crate_b = tmp.path().join("crates").join("crate_b").join("src");
+        fs::create_dir_all(&crate_a).expect("mkdir a");
+        fs::create_dir_all(&crate_b).expect("mkdir b");
+        // Only crate_b has the test — a homonym in the wrong crate.
+        fs::write(crate_a.join("lib.rs"), "pub fn unrelated() {}\n").expect("write a/lib");
+        fs::write(
+            crate_b.join("lib.rs"),
+            "#[test]\nfn my_fn() { assert!(true); }\n",
+        )
+        .expect("write b/lib");
+
+        let mut files: Vec<PathBuf> = Vec::new();
+        collect_rs_files(tmp.path(), &mut files);
+
+        // Unqualified: resolves (legacy bare-name behavior preserved).
+        assert!(any_file_matches(&files, "my_fn", None));
+        // Qualified against crate_b: resolves.
+        assert!(any_file_matches(&files, "my_fn", Some("crate_b")));
+        // Qualified against crate_a: must NOT resolve via crate_b.
+        assert!(!any_file_matches(&files, "my_fn", Some("crate_a")));
     }
 }

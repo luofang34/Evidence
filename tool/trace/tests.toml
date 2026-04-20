@@ -1,5 +1,5 @@
 [schema]
-version = "0.0.3"
+version = "0.0.1"
 
 [meta]
 document_id = "TOOL-TESTS"
@@ -300,3 +300,27 @@ title = "floors-lower-lint refuses unjustified numeric decreases"
 owner = "tool"
 traces_to = ["7fc5f9fc-83e2-44a0-b2d9-e6e1d8501349"]
 test_selector = "floors_lower_lint::refuses_decrease_without_justification_line"
+
+[[tests]]
+uid = "222fcee8-cd91-4ef4-9214-5c5e83cd2bea"
+id = "TEST-038"
+title = "HLR.surfaces bijection fires on orphan surface or unknown claim"
+owner = "tool"
+traces_to = ["e9e20795-fba7-4c63-bc6d-e76c3a3dada6"]
+test_selector = "trace_decomposition::surfaces_bijection_fires_on_orphan_and_unknown"
+
+[[tests]]
+uid = "79466752-19d0-4c49-85e8-3e71a13c3a60"
+id = "TEST-039"
+title = "test_selectors accepts StringOrVec shorthand and array"
+owner = "tool"
+traces_to = ["1fd29203-a496-494a-b981-cf6730172f50"]
+test_selector = "trace_decomposition::test_selectors_deserializes_both_shapes"
+
+[[tests]]
+uid = "442b55a6-b374-4f6a-aabf-1ee6c7f89df1"
+id = "TEST-040"
+title = "derived==true without rationale fires TRACE_DERIVED_MISSING_RATIONALE"
+owner = "tool"
+traces_to = ["9968bdb9-3e20-40c9-ad84-3310621bd102"]
+test_selector = "trace_decomposition::derived_without_rationale_fires"

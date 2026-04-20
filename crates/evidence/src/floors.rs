@@ -75,6 +75,14 @@ pub struct FloorsConfig {
     /// `cert/boundary.toml` `scope.in_scope`); value = per-crate
     /// `{dimension → floor}` map.
     pub per_crate: BTreeMap<String, BTreeMap<String, u64>>,
+    /// Per-crate absolute **ceilings**: `current <= value`. For
+    /// dimensions where *fewer is better* — library panics,
+    /// deprecated-API uses, etc. A floor and a ceiling share the
+    /// same "absolute, checked every CI run" semantics; they differ
+    /// only in comparison direction. Same key-set rules as
+    /// [`FloorsConfig::per_crate`]: each crate name must match
+    /// `cert/boundary.toml` `scope.in_scope`.
+    pub per_crate_ceilings: BTreeMap<String, BTreeMap<String, u64>>,
     /// Delta ceilings: `added_in_diff <= value`.
     pub delta_ceilings: BTreeMap<String, u64>,
 }
@@ -85,6 +93,7 @@ impl Default for FloorsConfig {
             schema_version: FLOORS_SCHEMA_VERSION,
             floors: BTreeMap::new(),
             per_crate: BTreeMap::new(),
+            per_crate_ceilings: BTreeMap::new(),
             delta_ceilings: BTreeMap::new(),
         }
     }
@@ -171,7 +180,20 @@ pub fn current_measurements(workspace_root: &Path) -> BTreeMap<String, u64> {
     out.insert("trace_hlr".into(), hlr);
     out.insert("trace_llr".into(), llr);
     out.insert("trace_test".into(), test);
+
+    out.insert("known_surfaces".into(), count_known_surfaces());
     out
+}
+
+/// Count entries in `evidence::trace::surfaces::KNOWN_SURFACES`.
+///
+/// The surface catalog is hand-curated — shrinking it without a
+/// corresponding HLR update would relax the
+/// `require_hlr_surface_bijection` check silently. The floor is the
+/// guardrail: removing a surface requires raising or lowering the
+/// floor in the same PR.
+pub fn count_known_surfaces() -> u64 {
+    crate::trace::KNOWN_SURFACES.len() as u64
 }
 
 /// Per-crate absolute measurements. Outer key = crate name (directory
@@ -280,11 +302,16 @@ pub fn count_tests(root: &Path) -> u64 {
 /// production library source. Multi-layer filter:
 ///
 /// 1. Skips `crates/*/tests/` (integration tests).
-/// 2. Skips `main.rs` files (the CLI's anyhow envelope layer).
-/// 3. Strips top-level `#[cfg(test)]` module blocks via the
+/// 2. Skips any file named `tests.rs` anywhere in the tree. These
+///    are sibling unit-test modules pulled in via
+///    `#[cfg(test)] #[path = "foo/tests.rs"] mod tests;` — test code
+///    by convention, regardless of how the parent module attaches
+///    them.
+/// 3. Skips `main.rs` files (the CLI's anyhow envelope layer).
+/// 4. Strips top-level `#[cfg(test)]` module blocks via the
 ///    internal `strip_cfg_test_modules` walker.
-/// 4. Skips `//`, `///`, and `//!` comment lines.
-/// 5. Uses the internal `needle_is_outside_string_literal` helper
+/// 5. Skips `//`, `///`, and `//!` comment lines.
+/// 6. Uses the internal `needle_is_outside_string_literal` helper
 ///    to reject occurrences inside plain or raw string literals.
 ///
 /// Remaining edge cases (tracked, not currently blocking):
@@ -300,10 +327,11 @@ pub fn count_library_panics(root: &Path) -> u64 {
     walk_rs_files(root, &mut files);
     let mut total: u64 = 0;
     for file in &files {
-        // Exclude tests/ dirs (integration tests). Windows paths use
-        // `\` natively, so normalize before substring-matching.
+        // Exclude tests/ dirs (integration tests) and any sibling
+        // `tests.rs` facade-module. Windows paths use `\` natively,
+        // so normalize before substring-matching.
         let normalized = file.to_string_lossy().replace('\\', "/");
-        if normalized.contains("/tests/") {
+        if normalized.contains("/tests/") || normalized.ends_with("/tests.rs") {
             continue;
         }
         // Exclude the CLI main.rs (anyhow envelope layer).

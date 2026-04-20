@@ -49,28 +49,49 @@ diagnostic_codes = 82
 terminal_codes = 4
 
 # tool/trace/sys.toml — System Requirements.
-trace_sys = 9
+trace_sys = 10
 # tool/trace/hlr.toml — High-Level Requirements.
-trace_hlr = 37
+trace_hlr = 40
 # tool/trace/llr.toml — Low-Level Requirements.
-trace_llr = 37
+trace_llr = 40
 # tool/trace/tests.toml — Test Cases.
-trace_test = 37
+trace_test = 40
+
+# evidence::trace::surfaces::KNOWN_SURFACES length — hand-curated
+# catalog of CLI verbs + named observable contracts. Matching HLR
+# coverage is enforced by `require_hlr_surface_bijection`; this floor
+# guards against silently shrinking the catalog itself (which would
+# relax the bijection without firing the check).
+known_surfaces = 11
 
 # --------------------------------------------------------------------
-# Per-crate-true dimensions: one `[per_crate.<crate>]` table per
-# in-scope crate. Adding a crate to cert/boundary.toml requires
-# adding its row here too or the bijection check fires.
+# Per-crate-true dimensions: one table per in-scope crate.
+#
+# [per_crate.<crate>]          — absolute floors: current >= value
+# [per_crate_ceilings.<crate>] — absolute ceilings: current <= value
+#
+# Adding a crate to cert/boundary.toml requires adding its row to one
+# of these tables or the bijection check fires. The key-union of the
+# two tables must equal scope.in_scope.
 # --------------------------------------------------------------------
 
 [per_crate.evidence]
 # `#[test]` attribute count inside crates/evidence/**/*.rs.
-test_count = 193
-# panic! / unimplemented!() / todo!() in crates/evidence/src/**
-# outside #[cfg(test)] blocks, doc comments, string literals, and
-# main.rs. Target and current value: 0.
-library_panics = 0
+test_count = 202
 
 [per_crate.cargo-evidence]
 test_count = 73
+
+# Per-crate ceilings. library_panics is a ceiling, not a floor: more
+# panics is always worse. Before PR #49 this key lived in
+# `[per_crate.<crate>]` with a floor, where `current >= 0` trivially
+# passed — turning the gate into a no-op.
+
+[per_crate_ceilings.evidence]
+# panic! / unimplemented!() / todo!() in crates/evidence/src/**
+# outside #[cfg(test)] blocks, sibling `tests.rs` facades, doc
+# comments, string literals, and main.rs.
+library_panics = 0
+
+[per_crate_ceilings.cargo-evidence]
 library_panics = 0

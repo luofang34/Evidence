@@ -4,16 +4,16 @@ This directory dogfoods the tool's own traceability format against
 the tool itself, across the full DO-178C §5.1 chain:
 
 ```
-System Requirements  (sys.toml)   ─▶   9 entries
-High-Level Reqs      (hlr.toml)   ─▶  37 entries  traces_to SYS
-Low-Level Reqs       (llr.toml)   ─▶  37 entries  traces_to HLR
-Test Cases           (tests.toml) ─▶  37 entries  traces_to LLR
+System Requirements  (sys.toml)   ─▶  10 entries
+High-Level Reqs      (hlr.toml)   ─▶  40 entries  traces_to SYS
+Low-Level Reqs       (llr.toml)   ─▶  40 entries  traces_to HLR
+Test Cases           (tests.toml) ─▶  40 entries  traces_to LLR
                                       ────────────
-                                      120 entries total
+                                      130 entries total
 ```
 
 The CI job `trace-self-validate` runs
-`cargo evidence trace --validate --require-hlr-sys-trace --check-test-selectors`
+`cargo evidence trace --validate --require-hlr-sys-trace --require-hlr-surface-bijection --check-test-selectors`
 on every push — default `--trace-roots` discovery picks up this
 directory automatically. A validation failure blocks merge.
 
@@ -60,6 +60,9 @@ SYS groups cluster by load-bearing property:
 | SYS-005 | Refusal when integrity guarantees unmet         | HLR-010, 015                       |
 | SYS-006 | Self-enforcement of the trace contract          | HLR-021, 022, 023, 024             |
 | SYS-007 | Single agent-facing command reports pass/gap    | HLR-025, 026, 027, 028             |
+| SYS-008 | Self-describing diagnostic vocabulary           | HLR-029..034                       |
+| SYS-009 | Ratcheting floors — rigor only moves up         | HLR-035, 036, 037                  |
+| SYS-010 | Trace layer supports genuine decomposition      | HLR-038, 039, 040                  |
 
 Every HLR has at least one LLR; every LLR has at least one Test; every
 Test points at a real `#[test] fn` via `test_selector` (enforced by
@@ -163,6 +166,36 @@ link (`traces_to`) valid but the selector dangling — trace-validate
 did not resolve selectors against the workspace source. Agents
 reading a self-trace bundle couldn't tell the difference between a
 live test pointer and a stale one.
+
+#### [2026-04 · PR #49 · resolved] Trace schema grows decomposition + N:M + surfaces
+
+Context: the trace layer pre-PR-#49 was rigid — HLRs couldn't
+declare which user-visible surfaces they governed, TEST entries
+could map to only one function, and `LlrEntry.derived` was dead
+schema. Audit posture required the schema to express what the
+prose already claimed.
+
+Resolution: three additive schema extensions + one Link-phase rule.
+`HlrEntry.surfaces: Vec<String>` declares claimed CLI verbs and
+named observable contracts; a new `KNOWN_SURFACES` const in
+`evidence::trace::surfaces` is the catalog; the
+`require_hlr_surface_bijection` policy flag asserts both
+directions (every surface claim lives in `KNOWN_SURFACES`; every
+`KNOWN_SURFACES` entry is claimed by at least one HLR). Emits
+`TRACE_HLR_SURFACE_{UNKNOWN,UNCLAIMED}`.
+`TestEntry.test_selectors: Vec<String>` is additive alongside the
+legacy `test_selector: Option<String>`; `all_selectors()` merges,
+dedupes, and sorts. Single-selector entries migrate implicitly —
+no rename required. `LlrEntry.derived = true` + non-empty
+`rationale` is now an unconditional Link-phase rule (DO-178C
+§5.2.2), emits `TRACE_DERIVED_MISSING_RATIONALE`.
+
+CLI surface: `--require-hlr-surface-bijection` on `trace
+--validate`; always-on inside `check`.
+
+Ratchet: new floor `known_surfaces = 11` prevents silently
+shrinking the surface catalog — doing so without an equal HLR
+edit would relax the bijection check without firing.
 
 #### [2026-04 · PR #48 · resolved] Ratcheting floors lock "rigor only goes up"
 
