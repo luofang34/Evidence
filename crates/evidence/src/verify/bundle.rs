@@ -219,7 +219,7 @@ pub fn verify_bundle_with_key(
     check_dal_map(bundle, &index, &mut verify_errors);
 
     // 7. Extra-file detection: walk all files in bundle and flag unexpected ones
-    for entry in walkdir::WalkDir::new(bundle) {
+    for entry in walkdir::WalkDir::new(bundle).follow_links(false) {
         let entry = entry.map_err(VerifyRuntimeError::Walk)?;
         if !entry.file_type().is_file() {
             continue;
