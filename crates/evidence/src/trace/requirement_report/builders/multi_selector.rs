@@ -1,7 +1,6 @@
 //! N:M selector aggregation for `build_test_diag`.
 //!
-//! When a TEST entry carries more than one selector (PR #49's
-//! additive widening: `test_selectors: Vec<String>` alongside the
+//! When a TEST entry carries more than one selector (//! additive widening: `test_selectors: Vec<String>` alongside the
 //! legacy `test_selector: Option<String>`), the pass/fail/skip
 //! aggregation rule is strict — the TEST passes iff every selector
 //! matches a run fn AND every matched fn passed. Split into this
@@ -21,7 +20,7 @@ use super::{ends_with_fn, make_diag};
 /// Aggregate outcome across every selector in the TEST entry.
 /// Caller guarantees `selectors.len() >= 2` (the 1:1 path is
 /// handled inline in `build_test_diag` for message-compatibility
-/// with PR #49-era tests).
+/// with-era tests).
 pub(super) fn status(
     t: &TestEntry,
     uid: &str,

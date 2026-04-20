@@ -196,7 +196,7 @@ pub struct Location {
 /// Machine-readable hint for an automated fixer.
 ///
 /// This PR populates the variants sparsely — it's the wire shape that
-/// matters. PR #5 (`cargo evidence fix --dry-run`) will widen the
+/// matters. (`cargo evidence fix --dry-run`) will widen the
 /// variants; existing agents won't break because [`FixHint::Other`] is
 /// the catch-all per Schema Rule 6.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -255,8 +255,7 @@ pub trait DiagnosticCode: std::fmt::Display {
     }
 
     /// Optional autofix hint. Override when a mechanical fix exists
-    /// (e.g. `TRACE_UID_MISSING` → [`FixHint::AssignUuid`]). PR #5
-    /// will populate most of these.
+    /// (e.g. `TRACE_UID_MISSING` → [`FixHint::AssignUuid`]). // will populate most of these.
     fn fix_hint(&self) -> Option<FixHint> {
         None
     }
@@ -315,8 +314,7 @@ mod tests {
     }
 
     /// Schema Rule 6: a JSON payload with an unknown `kind` must
-    /// deserialize as [`FixHint::Other`] rather than fail, so PR #5
-    /// can widen the enum without breaking existing agents.
+    /// deserialize as [`FixHint::Other`] rather than fail, so // can widen the enum without breaking existing agents.
     #[test]
     fn fix_hint_unknown_kind_falls_back_to_other() {
         let payload = r#"{"kind": "patch_requirement_text", "path": "x", "value": 42}"#;

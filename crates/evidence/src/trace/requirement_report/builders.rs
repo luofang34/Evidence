@@ -87,7 +87,7 @@ pub(super) fn build_test_diag(
         );
     }
 
-    // No selectors — structural but untestable. PR #49's N:M widening
+    // No selectors — structural but untestable. N:M widening
     // means a TEST may carry a singular `test_selector` (legacy), a
     // `test_selectors` Vec, or both; `all_selectors()` merges and
     // dedupes. An empty result after merge is the untestable case.
@@ -119,8 +119,8 @@ pub(super) fn build_test_diag(
 
     // N:M selectors: resolve each against `outcomes`, aggregate by
     // the strict rule (TEST passes iff every selector matches a run
-    // fn AND every matched fn passed). PR #49's decision: strict
-    // resolution — laxity defeats the contract of PR #45's selector
+    // fn AND every matched fn passed). decision: strict
+    // resolution — laxity defeats the contract of selector
     // check.
     //
     // 1:1 fast path (single selector) preserves the pre-N:M messages

@@ -376,3 +376,20 @@ LLR-041's `emits` list. Fires if a new variant lands without the
 matching RULES + LLR edits.
 """
 test_selectors = ["diagnostic_codes_locked::link_error_codes_in_rules_and_claimed"]
+
+[[tests]]
+uid = "1c2ce9ee-2675-4b5d-8eca-550a2b634738"
+id = "TEST-044"
+title = "rot-prone marker gate fires on banned pattern, passes on clean tree"
+owner = "tool"
+traces_to = ["d5fa6b1b-315e-4cce-9a39-085cd266f4ad"]
+description = """
+Positive + negative: a tempdir fixture with a banned pattern
+fires the test; a clean fixture passes. Also asserts the
+workspace's current `.rs` tree is free of the banned patterns.
+"""
+test_selectors = [
+    "rot_prone_markers_locked::current_tree_is_clean",
+    "rot_prone_markers_locked::fires_on_banned_pattern",
+    "rot_prone_markers_locked::passes_on_clean_fixture",
+]

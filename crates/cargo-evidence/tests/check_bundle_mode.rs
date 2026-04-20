@@ -1,11 +1,11 @@
 //! Integration tests for `cargo evidence check` in bundle mode
-//! (PR #46 / LLR-025, TEST-028).
+//! (LLR-025, TEST-028).
 //!
-//! Bundle mode is a passthrough to the existing `verify` pipeline —
-//! decision 5 of the PR #46 plan calls out `check` as the high-level
-//! agent verb and `verify` as the low-level primitive. These tests
-//! pin both that passthrough (same wire shape) and the mode-dispatch
-//! edge cases.
+//! Bundle mode is a passthrough to the existing `verify` pipeline:
+//! `check` is the high-level agent verb, `verify` is the low-level
+//! primitive, and `check <bundle>` must produce the same wire shape
+//! as `verify --format=jsonl <bundle>`. These tests pin both the
+//! passthrough equivalence and the mode-dispatch edge cases.
 
 #![allow(
     clippy::unwrap_used,

@@ -34,7 +34,7 @@ use super::verify::cmd_verify;
 /// `cargo evidence check [--mode=auto|source|bundle] [PATH]`.
 ///
 /// PATH defaults to `.`. See the module docstring for mode semantics
-/// and Decision 1 of PR #46's plan for the precedence table.
+/// and [`resolve_mode`] for the precedence table.
 pub fn cmd_check(mode: CheckMode, path: Option<PathBuf>) -> Result<i32> {
     let path = path.unwrap_or_else(|| PathBuf::from("."));
     let resolved = resolve_mode(mode, &path);
@@ -139,7 +139,7 @@ fn cmd_check_source(workspace_root: &Path) -> Result<i32> {
     };
 
     // Step 3: load trace. Discovery picks tool/trace → cert/trace per
-    // PR #45 LLR-023; fall back to cert/boundary.toml otherwise.
+    // LLR-023; fall back to cert/boundary.toml otherwise.
     let trace_root = super::trace::default_trace_roots()
         .into_iter()
         .next()

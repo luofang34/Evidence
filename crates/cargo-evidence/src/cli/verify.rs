@@ -73,7 +73,7 @@ fn fail_verify(
 /// emits per-requirement `REQ_*` diagnostics in source mode, and
 /// carries `FixHint` variants for mechanical autofix. `verify`
 /// remains supported for CI scripts and shell pipelines that want a
-/// stable bundle-only surface. MCP (PR #50) wraps `check`; `verify`
+/// stable bundle-only surface. MCP wraps `check`; `verify`
 /// is deliberately not exposed over MCP to avoid agents picking
 /// between two commands that overlap in bundle mode.
 pub fn cmd_verify(

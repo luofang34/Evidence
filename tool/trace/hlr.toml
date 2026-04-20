@@ -765,3 +765,28 @@ surfaces = [
     "diagnostic code namespace (regex + reserved suffixes)",
     "structured Link-phase diagnostic codes",
 ]
+
+[[requirements]]
+uid = "0800ac23-b3d6-4e1e-b2d1-50a0349bd586"
+id = "HLR-044"
+title = "CI asserts no new rot-prone marker lands in .rs sources"
+owner = "tool"
+scope = "component"
+description = '''
+A CI integration test walks `.rs` files under
+`crates/**/src/**` and `crates/**/tests/**` and fails on any
+occurrence of the banned rot-prone pattern set: `PR #\d+`
+breadcrumbs, `post-PR` / `pre-PR` / `round[\s-]?\d+` narrative,
+absolute line counts (`sits at ~?\d+ lines`), "newness" markers
+(`newly-introduced`, `just-added` adjectivally), and
+forward-looking proximity hints (`next natural split`). Trace
+TOML files, commit messages, and stable identifiers (`LLR-NNN`,
+`TEST-NNN`) are out of scope — those serve as audit trail or
+provenance. Enforcement mirrors `schema_versions_locked` +
+`diagnostic_codes_locked`: Rust `#[test] fn` walks the tree,
+fails via `assert!` with offending `file:line` listing; no
+`Diagnostic` wire-shape, no new `RULES` entry.
+'''
+verification_methods = ["test"]
+traces_to = ["94cb54a1-53a0-40e3-81a1-e3e8d231b0e7"]
+surfaces = ["comment hygiene gate"]

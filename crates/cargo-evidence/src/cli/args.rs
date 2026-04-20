@@ -248,7 +248,7 @@ pub enum Commands {
     ///
     /// Agents use this to bootstrap their knowledge of the tool's
     /// observable surface without triggering each code. The JSON
-    /// mode is what MCP (PR #50) wraps.
+    /// mode is what MCP wraps.
     Rules {
         /// Emit the manifest as a JSON array to stdout. Without
         /// this flag, a human-readable table is printed instead.
@@ -256,7 +256,7 @@ pub enum Commands {
         json: bool,
     },
 
-    /// Run the ratcheting-floors gate (PR #48 / principle 2).
+    /// Run the ratcheting-floors gate (principle 2).
     ///
     /// Reads `cert/floors.toml`, measures every dimension listed in
     /// `[floors]`, and fails with `FLOORS_BELOW_MIN` if any current
@@ -297,7 +297,7 @@ pub enum Commands {
         require_hlr_sys_trace: bool,
 
         /// Enforce the `HlrEntry.surfaces` ⇔ `KNOWN_SURFACES`
-        /// bijection (PR #49 / HLR-038).
+        /// bijection (HLR-038).
         ///
         /// When set, every `surfaces` claim must be in
         /// `KNOWN_SURFACES`, and every `KNOWN_SURFACES` entry must

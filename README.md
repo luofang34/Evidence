@@ -2,9 +2,8 @@
 
 **Certification evidence generation, verification, and traceability for Rust projects.**
 
-[![Crates.io](https://img.shields.io/crates/v/cargo-evidence.svg)](https://crates.io/crates/cargo-evidence)
-[![CI](https://github.com/user/evidence/actions/workflows/ci.yml/badge.svg)](https://github.com/user/evidence/actions/workflows/ci.yml)
-[![License](https://img.shields.io/crates/l/cargo-evidence.svg)](LICENSE-MIT)
+[![CI](https://github.com/luofang34/Evidence/actions/workflows/ci.yml/badge.svg)](https://github.com/luofang34/Evidence/actions/workflows/ci.yml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 `cargo-evidence` generates self-describing, offline-verifiable evidence bundles
 for safety-critical Rust builds. It captures environment fingerprints,
@@ -447,9 +446,10 @@ cargo evidence rules         # human table
 ```
 
 Each entry carries `code`, `severity`, `domain`, `has_fix_hint`, and
-`terminal`. This is the self-describe endpoint MCP (PR #50) wraps;
-every code here is (a) backed by a `DiagnosticCode::code()` impl or
-by the `TERMINAL_CODES` / `HAND_EMITTED_CLI_CODES` sets, and (b)
+`terminal`. This is the self-describe endpoint the MCP wrapper (when
+published) consumes; every code here is (a) backed by a
+`DiagnosticCode::code()` impl or by the `TERMINAL_CODES` /
+`HAND_EMITTED_CLI_CODES` sets, and (b)
 claimed by at least one LLR's `emits` list in
 `tool/trace/llr.toml`. Four bijection invariants in
 `diagnostic_codes_locked` fail CI if those relationships ever drift

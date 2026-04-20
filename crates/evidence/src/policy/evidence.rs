@@ -124,7 +124,7 @@ pub struct TracePolicy {
     #[serde(default)]
     pub require_hlr_sys_trace: bool,
     /// Enforce the `HlrEntry.surfaces` ⇔ `KNOWN_SURFACES` bijection
-    /// (PR #49 / HLR-038). When `true`, (a) every `HlrEntry.surfaces`
+    /// (HLR-038). When `true`, (a) every `HlrEntry.surfaces`
     /// string must be in `KNOWN_SURFACES`, and (b) every
     /// `KNOWN_SURFACES` entry must be claimed by at least one HLR.
     /// Defaults to `false` so external projects without surface

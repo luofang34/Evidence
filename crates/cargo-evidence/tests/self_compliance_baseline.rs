@@ -1,4 +1,4 @@
-//! Self-compliance baseline gate (PR #47 / LLR-034 / TEST-034).
+//! Self-compliance baseline gate (LLR-034 / TEST-034).
 //!
 //! Runs `cargo evidence generate --skip-tests` on the tool's own
 //! workspace and diffs the produced `compliance/*.json` against the
@@ -8,7 +8,7 @@
 //!
 //! **Why a baseline, not a strict filter.** The original plan called
 //! for asserting every objective is `Met` or `ManualReviewRequired`.
-//! That filter would fail on PR #47's first CI run — many traceability
+//! That filter would fail on first CI run — many traceability
 //! objectives sit at `Partial` today because the current compliance
 //! logic conservatively requires manual review + supporting coverage
 //! we don't yet ship. The baseline approach instead *locks* the

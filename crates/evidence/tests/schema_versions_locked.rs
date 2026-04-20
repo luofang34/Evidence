@@ -175,7 +175,7 @@ fn test_detector_recognizes_versionish_strings() {
     assert!(!is_version_literal(r#""0.0.1"#)); // missing closing quote
 }
 
-/// PR #49 pre-ship pin: every `pub const X: &str = "..."` in
+/// pre-ship pin: every `pub const X: &str = "..."` in
 /// `schema_versions.rs` must equal `"0.0.1"`. Codifies the project
 /// convention that schema versions don't churn before the 1.0 ship;
 /// breaking shape changes rewrite rule text in place. If a future

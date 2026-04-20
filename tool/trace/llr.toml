@@ -941,3 +941,28 @@ typed emits + ~9 newly-typed codes for Link-phase rules that had
 no dedicated code before this PR.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "d5fa6b1b-315e-4cce-9a39-085cd266f4ad"
+id = "LLR-044"
+title = "rot_prone_markers_locked integration test"
+owner = "tool"
+traces_to = ["0800ac23-b3d6-4e1e-b2d1-50a0349bd586"]
+modules = ["evidence::rot_prone_markers_locked"]
+derived = false
+description = '''
+A Rust `#[test] fn` in
+`crates/evidence/tests/rot_prone_markers_locked.rs` walks every
+`.rs` file under `crates/**/src/**` and `crates/**/tests/**`,
+applies a pinned regex pattern set (PR-number breadcrumbs,
+`post-PR` / `pre-PR`, `round[\s-]?\d+`,
+`sits at ~?\d+ lines`, `newly-introduced` / `just-added`,
+`next natural split`), and fails via `assert!` with the offending
+`file:line` listing. No `Diagnostic` wire shape; no `RULES`
+entry. Follows the
+`schema_versions_locked` / `diagnostic_codes_locked` /
+`floors_equal_current_no_slack` pattern — the test's failure
+message is the diagnostic. A `RESERVED_TEXT_REFS` const names
+files where a banned pattern is load-bearing (initially empty).
+'''
+verification_methods = ["test"]

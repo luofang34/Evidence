@@ -14,27 +14,27 @@
 //! - `REQ_SKIP` (warning) — entry intentionally excluded (currently
 //!   only produced for `#[ignore]`-marked tests).
 //!
-//! Dedup semantics (Schema Rule 7 + PR #46 Decision 2): one event per
+//! Dedup semantics (Schema Rule 7 + ): one event per
 //! requirement, not one total. Agents group client-side by
 //! `root_cause_uid`. See
 //! [`Diagnostic::root_cause_uid`](crate::diagnostic::Diagnostic::root_cause_uid).
 //!
-//! ## Aggregation vs pass-through (PR #51 / C6 interaction)
+//! ## Aggregation vs pass-through (C6 interaction)
 //!
-//! PR #51 introduced typed `LinkError` variants and a per-variant
+//! introduced typed `LinkError` variants and a per-variant
 //! JSONL stream on `cargo evidence trace --validate --format=jsonl`.
 //! `check` deliberately does NOT mirror that stream shape. For every
 //! failing LLR under a multi-selector (`test_selectors: Vec<String>`)
 //! setup, `check` emits **one** `REQ_GAP` whose `message` summarizes
 //! which selectors failed — not N `REQ_GAP` events (one per variant).
-//! The "one event per requirement" contract from PR #46 stays.
+//! The "one event per requirement" contract stays.
 //!
 //! Agents that want per-variant codes call `trace --validate
 //! --format=jsonl` directly; agents that want per-requirement
 //! pass/gap call `check`. The two surfaces answer different
 //! questions — "which Link-phase rules fired?" vs "which requirements
 //! are currently satisfied?" — so conflating their shapes into one
-//! stream would make each harder to consume. MCP (PR #53) wraps both.
+//! stream would make each harder to consume. MCP wraps both.
 //!
 //! Pass-through to N `REQ_GAP` per LLR is a follow-up after MCP
 //! reveals a concrete need.
@@ -132,8 +132,7 @@ impl RequirementKind {
 ///
 /// `workspace_root` anchors `resolve_test_selectors` when it walks the
 /// `.rs` source tree. `policy` is only read for its
-/// `require_hlr_sys_trace` flag, matching the same gate that PR #45's
-/// `trace --validate` applies.
+/// `require_hlr_sys_trace` flag, matching the same gate that /// `trace --validate` applies.
 pub fn build_requirement_report(
     trace: &TraceFiles,
     test_outcomes: &BTreeMap<String, TestOutcome>,

@@ -280,10 +280,9 @@ pub fn cmd_trace(
 ///
 /// Discovery order (first existing wins):
 ///
-/// 1. `./tool/trace/` — the tool's own self-trace convention
-///    (PR #44 / PR #44b). Picked first so the self-trace is
-///    always the primary target when run from the tool's own
-///    workspace root.
+/// 1. `./tool/trace/` — the tool's own self-trace convention.
+///    Picked first so the self-trace is always the primary target
+///    when run from the tool's own workspace root.
 /// 2. `./cert/trace/` — the cert-profile bundle-generation
 ///    dogfood convention, inherited from pre-self-trace days.
 /// 3. Fall back to `load_trace_roots(cert/boundary.toml)` which
@@ -311,7 +310,7 @@ pub fn default_trace_roots() -> Vec<String> {
 
 /// Stream one JSONL `Diagnostic` per `LinkError` variant inside the
 /// `TraceValidationError::Link` envelope. Register-phase errors
-/// (kept as `Vec<String>` per PR #51 scope) surface as a single
+/// (kept as `Vec<String>` scope) surface as a single
 /// `TRACE_REGISTER_FAILED` aggregate event with the concatenated
 /// messages in the payload — typed per-variant Register-phase codes
 /// are a separate follow-up.

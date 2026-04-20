@@ -1,5 +1,5 @@
 //! Integration tests for `cargo evidence trace`'s default
-//! `--trace-roots` discovery (PR #44b / LLR-023).
+//! `--trace-roots` discovery (LLR-023).
 //!
 //! When `--trace-roots` is absent, `cmd_trace` auto-discovers
 //! `./tool/trace/` first, then `./cert/trace/`, then falls back to

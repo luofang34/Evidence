@@ -6,7 +6,7 @@
 //! `crates/evidence/tests/file_size_limit.rs`).
 //!
 //! Invariants enforced (Schema Rule 3 + reserved-suffix rule from
-//! Rule 1 + PR #47 bijections):
+//! Rule 1 + bijections):
 //!
 //! - Every walked code matches `^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$`.
 //! - No two variants across the whole library return the same code.
@@ -16,9 +16,9 @@
 //!   [`TERMINAL_CODES`].
 //! - Every [`TERMINAL_CODES`] entry ends in a reserved terminal
 //!   suffix.
-//! - (PR #47) `RULES ⇔ source walked set` bijection.
-//! - (PR #47) `RULES.terminal=true ⇔ TERMINAL_CODES` bijection.
-//! - (PR #47) Every `RULES` code is claimed by at least one
+//! - `RULES ⇔ source walked set` bijection.
+//! - `RULES.terminal=true ⇔ TERMINAL_CODES` bijection.
+//! - Every `RULES` code is claimed by at least one
 //!   `LLR.emits` list, and every `LLR.emits` entry is a real `RULES`
 //!   code.
 //!
@@ -156,10 +156,10 @@ fn diagnostic_codes_locked() {
 }
 
 // ============================================================================
-// PR #47 bijection invariants — source ↔ RULES ↔ LLR.emits closed loop.
+// bijection invariants — source ↔ RULES ↔ LLR.emits closed loop.
 // ============================================================================
 
-/// PR #47 invariant (1): every code returned from a library
+/// invariant (1): every code returned from a library
 /// `DiagnosticCode::code()` impl is declared in [`RULES`].
 #[test]
 fn rules_contains_every_code() {
@@ -177,7 +177,7 @@ fn rules_contains_every_code() {
     );
 }
 
-/// PR #47 invariant (2): every non-terminal, non-hand-emitted
+/// invariant (2): every non-terminal, non-hand-emitted
 /// `RULES` entry is backed by a real `DiagnosticCode::code()` impl.
 #[test]
 fn every_rules_entry_is_implemented() {
@@ -203,7 +203,7 @@ fn every_rules_entry_is_implemented() {
     );
 }
 
-/// PR #47 invariant (3): `RULES.terminal=true` equals `TERMINAL_CODES`.
+/// invariant (3): `RULES.terminal=true` equals `TERMINAL_CODES`.
 #[test]
 fn rules_terminal_set_matches_terminal_codes() {
     let rules_terminals: std::collections::BTreeSet<&str> = evidence::RULES
@@ -227,7 +227,7 @@ fn rules_terminal_set_matches_terminal_codes() {
     );
 }
 
-/// PR #47 invariant (4): every `RULES` code (minus
+/// invariant (4): every `RULES` code (minus
 /// `RESERVED_UNCLAIMED_CODES`) is claimed by at least one
 /// `LLR.emits` list, and every `LLR.emits` string names a real
 /// `RULES` code.
@@ -296,11 +296,11 @@ fn code_regex_validator_catches_known_shapes() {
     assert!(!code_is_valid("0VERIFY"));
 }
 
-/// PR #51 / TEST-043 bijection regression. Every `LinkError::code()`
+/// TEST-043 bijection regression. Every `LinkError::code()`
 /// return must (a) appear in `RULES` and (b) be claimed by at least
 /// one `LLR.emits` list in `tool/trace/llr.toml`. Catches a new
 /// variant landing in `LinkError` without the matching `RULES` +
-/// `LLR.emits` edits — the kind of silent-drift PR #49 hit with the
+/// `LLR.emits` edits — the kind of silent-drift hit with the
 /// three pseudo-codes. The `every_code_is_claimed_by_an_llr`
 /// general test above enforces the full-codebase bijection; this
 /// localized version names `LinkError` specifically so a variant-

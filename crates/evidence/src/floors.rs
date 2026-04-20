@@ -233,7 +233,7 @@ pub fn per_crate_measurements(workspace_root: &Path) -> BTreeMap<String, BTreeMa
     out
 }
 
-/// `evidence::RULES` length — locked by PR #47's bijection invariants,
+/// `evidence::RULES` length — locked by bijection invariants,
 /// so any code addition is already reviewer-visible. The floor makes
 /// deletion reviewer-visible too.
 pub fn count_rules() -> u64 {

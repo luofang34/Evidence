@@ -1,4 +1,4 @@
-# Ratcheting floors for cargo-evidence itself (PR #48 / principle 2).
+# Ratcheting floors for cargo-evidence itself (principle 2).
 #
 # Each entry is a current measurement taken at commit time; the CI
 # floors-gate fails any change where `current < committed_floor`.
@@ -49,20 +49,20 @@ diagnostic_codes = 96
 terminal_codes = 4
 
 # tool/trace/sys.toml — System Requirements.
-trace_sys = 11
+trace_sys = 12
 # tool/trace/hlr.toml — High-Level Requirements.
-trace_hlr = 43
+trace_hlr = 44
 # tool/trace/llr.toml — Low-Level Requirements.
-trace_llr = 43
+trace_llr = 44
 # tool/trace/tests.toml — Test Cases.
-trace_test = 43
+trace_test = 44
 
 # evidence::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
 # coverage is enforced by `require_hlr_surface_bijection`; this floor
 # guards against silently shrinking the catalog itself (which would
 # relax the bijection without firing the check).
-known_surfaces = 12
+known_surfaces = 13
 
 # --------------------------------------------------------------------
 # Per-crate-true dimensions: one table per in-scope crate.
@@ -77,15 +77,15 @@ known_surfaces = 12
 
 [per_crate.evidence]
 # `#[test]` attribute count inside crates/evidence/**/*.rs.
-test_count = 210
+test_count = 213
 
 [per_crate.cargo-evidence]
 test_count = 74
 
-# Per-crate ceilings. library_panics is a ceiling, not a floor: more
-# panics is always worse. Before PR #49 this key lived in
-# `[per_crate.<crate>]` with a floor, where `current >= 0` trivially
-# passed — turning the gate into a no-op.
+# Per-crate ceilings. library_panics is a ceiling, not a floor:
+# more panics is always worse. Placing a ceiling dimension under
+# `[per_crate.<crate>]` (floor semantics) would make `current >= 0`
+# trivially pass, turning the gate into a no-op.
 
 [per_crate_ceilings.evidence]
 # panic! / unimplemented!() / todo!() in crates/evidence/src/**
