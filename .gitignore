@@ -20,7 +20,6 @@ Thumbs.db
 .env.local
 
 .claude
-claude.md
 
 # Evidence bundle output — covers the README's example path
 # (`--out-dir ./evidence`). `--out-dir` is user-chosen, so this rule
