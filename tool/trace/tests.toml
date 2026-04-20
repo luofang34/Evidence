@@ -443,3 +443,24 @@ test_selectors = [
     "trace_id_refs_locked::fires_on_ghost_reference",
     "trace_id_refs_locked::passes_on_clean_fixture",
 ]
+
+[[tests]]
+uid = "8ac6516a-d40f-4fb5-9d7a-7f41a8a9c5ff"
+id = "TEST-047"
+title = "walker-usage gate fires on unallowlisted fs::read_dir, passes on allowlisted file"
+owner = "tool"
+traces_to = ["dfa658f2-e6f3-4931-be56-78e2de986214"]
+description = """
+Positive + negative + current-tree-clean assertions:
+- Fixture that plants a raw `fs::read_dir(` call in an
+  unallowlisted file fires the gate.
+- Fixture placed at an allowlisted path (`tests/verify_jsonl.rs`
+  shape) passes even when it contains the banned substring.
+- The committed workspace tree is free of unallowlisted recursive
+  walkers (the load-bearing regression).
+"""
+test_selectors = [
+    "walker_usage_locked::no_unauthorized_read_dir",
+    "walker_usage_locked::fires_on_unallowlisted_call",
+    "walker_usage_locked::passes_on_allowlisted_file",
+]

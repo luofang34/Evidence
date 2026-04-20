@@ -26,6 +26,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[path = "walker_helpers.rs"]
+mod traversal;
+
 fn is_version_literal(line: &str) -> bool {
     // Pure byte-level scan for a double-quoted `0.0.<digit+>` string.
     // Deliberately avoids the `regex` crate — this is a tiny predicate
@@ -89,23 +92,15 @@ fn is_excluded(rel: &Path) -> bool {
 }
 
 fn walk(root: &Path, hits: &mut Vec<(PathBuf, usize, String)>) {
-    let entries = match fs::read_dir(root) {
-        Ok(r) => r,
-        Err(_) => return,
-    };
-    for entry in entries.flatten() {
+    for entry in traversal::walk(root)
+        .filter_entry(|e| !traversal::is_dir_named(e, &["target"]))
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+    {
         let path = entry.path();
-        if path.is_dir() {
-            // Skip `target/` fast, before enumerating its children.
-            if path.file_name().and_then(|n| n.to_str()) == Some("target") {
-                continue;
-            }
-            walk(&path, hits);
-            continue;
-        }
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
         // Restrict to file types that could legitimately carry a
         // schema version string.
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
         if !matches!(ext, "rs" | "toml" | "json" | "md") {
             continue;
         }
@@ -117,12 +112,12 @@ fn walk(root: &Path, hits: &mut Vec<(PathBuf, usize, String)>) {
         }
         let rel = path
             .strip_prefix(workspace_root())
-            .unwrap_or(&path)
+            .unwrap_or(path)
             .to_path_buf();
         if is_excluded(&rel) {
             continue;
         }
-        let content = match fs::read_to_string(&path) {
+        let content = match fs::read_to_string(path) {
             Ok(c) => c,
             Err(_) => continue,
         };

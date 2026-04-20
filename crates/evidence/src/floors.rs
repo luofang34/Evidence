@@ -213,22 +213,26 @@ pub fn count_known_surfaces() -> u64 {
 pub fn per_crate_measurements(workspace_root: &Path) -> BTreeMap<String, BTreeMap<String, u64>> {
     let mut out: BTreeMap<String, BTreeMap<String, u64>> = BTreeMap::new();
     let crates_root = workspace_root.join("crates");
-    let entries = match fs::read_dir(&crates_root) {
-        Ok(e) => e,
-        Err(_) => return out,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+    let crate_dirs = walkdir::WalkDir::new(&crates_root)
+        .follow_links(false)
+        .min_depth(1)
+        .max_depth(1)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_dir());
+    for entry in crate_dirs {
+        let path = entry.into_path();
+        let Some(name) = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(str::to_string)
+        else {
             continue;
         };
         let mut per = BTreeMap::new();
         per.insert("test_count".into(), count_tests(&path));
         per.insert("library_panics".into(), count_library_panics(&path));
-        out.insert(name.to_string(), per);
+        out.insert(name, per);
     }
     out
 }
@@ -280,8 +284,7 @@ pub fn count_trace_per_layer(workspace_root: &Path) -> (u64, u64, u64, u64) {
 /// `cert/floors.toml` and rely on per-crate CI coverage counters
 /// instead.
 pub fn count_tests(root: &Path) -> u64 {
-    let mut files = Vec::new();
-    walk_rs_files(root, &mut files);
+    let files = walk_rs_files(root);
     let mut total: u64 = 0;
     for file in &files {
         let content = match fs::read_to_string(file) {
@@ -323,8 +326,7 @@ pub fn count_tests(root: &Path) -> u64 {
 /// A hand-curated allowlist at the file level is the escape hatch
 /// if any of these produces a false positive in practice.
 pub fn count_library_panics(root: &Path) -> u64 {
-    let mut files = Vec::new();
-    walk_rs_files(root, &mut files);
+    let files = walk_rs_files(root);
     let mut total: u64 = 0;
     for file in &files {
         // Exclude tests/ dirs (integration tests) and any sibling

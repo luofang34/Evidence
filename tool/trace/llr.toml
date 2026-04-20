@@ -1019,3 +1019,25 @@ Pattern mirrors `schema_versions_locked` /
 `rot_prone_markers_locked`. Meta LLR: `emits = []`.
 '''
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "dfa658f2-e6f3-4931-be56-78e2de986214"
+id = "LLR-047"
+title = "walker_usage_locked integration test"
+owner = "tool"
+traces_to = ["29ea38c7-c1d6-4130-a44e-696a1b10802d"]
+modules = ["evidence::walker_usage_locked"]
+derived = false
+description = '''
+A Rust `#[test] fn` in
+`crates/evidence/tests/walker_usage_locked.rs` walks
+`crates/**/*.rs` via the shared `walker_helpers::walk` primitive,
+scans every line for the substrings `fs::read_dir(` and
+`std::fs::read_dir(`, and fails via `assert!` unless the offending
+file is listed in `ALLOWED_READ_DIR_FILES`. Positive / negative
+dogfood tests cover the gate's fire-on-unallowlisted and
+pass-on-allowlisted paths against synthetic tempdir fixtures. Meta
+LLR: `emits = []` — the test produces an assertion message, not a
+typed `Diagnostic`.
+'''
+verification_methods = ["test"]

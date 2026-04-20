@@ -5,30 +5,29 @@
 //! function of the file tree; the caller in the parent module
 //! aggregates measurements from these helpers.
 
-use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Walk `root` recursively; push every `.rs` path into `out`. Skips
+use walkdir::{DirEntry, WalkDir};
+
+/// Walk `root` recursively and return every `.rs` path. Skips
 /// `target/` trees so a stale `cargo doc` output can't taint the
-/// measurement.
-pub(super) fn walk_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
-    let entries = match fs::read_dir(root) {
-        Ok(r) => r,
-        Err(_) => return,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            if path.file_name().and_then(|n| n.to_str()) == Some("target") {
-                continue;
-            }
-            walk_rs_files(&path, out);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-            out.push(path);
-        }
-    }
+/// measurement. `follow_links(false)` matches the project-wide
+/// traversal convention (no symlink following — see CLAUDE.md
+/// "File-tree traversal").
+pub(super) fn walk_rs_files(root: &Path) -> Vec<PathBuf> {
+    WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| !is_dir_named(e, "target"))
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("rs"))
+        .map(|e| e.into_path())
+        .collect()
+}
+
+fn is_dir_named(e: &DirEntry, name: &str) -> bool {
+    e.file_type().is_dir() && e.file_name().to_str() == Some(name)
 }
 
 /// Strip top-level `#[cfg(test)]\nmod … { … }` blocks from a Rust

@@ -40,6 +40,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[path = "walker_helpers.rs"]
+mod traversal;
+
 /// Maximum allowed line count per `.rs` file.
 const LIMIT: usize = 500;
 
@@ -74,27 +77,16 @@ fn allowlist_entry(rel: &str) -> Option<(usize, &'static str)> {
         .map(|(_, ceiling, reason)| (*ceiling, *reason))
 }
 
-/// Recursively walk `dir`, returning every regular `.rs` file beneath it.
-fn walk_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    let entries = match fs::read_dir(dir) {
-        Ok(r) => r,
-        Err(_) => return,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            // Skip `target/` so we don't descend into cargo's build
-            // output (vendored crate sources, generated bindings, ...).
-            if path.file_name().and_then(|n| n.to_str()) == Some("target") {
-                continue;
-            }
-            walk_rs_files(&path, out);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-            out.push(path);
-        }
-    }
+/// Walk `dir` and return every regular `.rs` file beneath it. Skips
+/// `target/` (cargo's build output: vendored sources, generated
+/// bindings).
+fn walk_rs_files(dir: &Path) -> Vec<PathBuf> {
+    traversal::walk(dir)
+        .filter_entry(|e| !traversal::is_dir_named(e, &["target"]))
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file() && traversal::has_ext(e.path(), "rs"))
+        .map(|e| e.into_path())
+        .collect()
 }
 
 fn count_lines(path: &Path) -> usize {
@@ -113,8 +105,7 @@ fn rs_files_under_line_limit() {
         crates_dir
     );
 
-    let mut rs_files = Vec::new();
-    walk_rs_files(&crates_dir, &mut rs_files);
+    let mut rs_files = walk_rs_files(&crates_dir);
     rs_files.sort();
     assert!(!rs_files.is_empty(), "found no .rs files under crates/");
 

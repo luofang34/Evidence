@@ -839,3 +839,26 @@ template), not a real ref.
 verification_methods = ["test"]
 traces_to = ["b1ddaec0-7981-491e-910f-6d04e1888f63"]
 surfaces = ["trace-ID reference bijection"]
+
+[[requirements]]
+uid = "29ea38c7-c1d6-4130-a44e-696a1b10802d"
+id = "HLR-047"
+title = "CI gate fails on any hand-rolled recursive fs::read_dir walker outside a reviewer-visible allowlist"
+owner = "tool"
+scope = "component"
+description = '''
+A Rust integration test walks `crates/**/*.rs`, scans every line
+for the substrings `fs::read_dir(` or `std::fs::read_dir(`, and
+fails via `assert!` unless the offending file is listed in
+`ALLOWED_READ_DIR_FILES` with written justification. The
+allowlist captures the small set of legitimate
+single-directory non-recursive `fs::read_dir` uses
+(compliance-file listings, bundle-dir pickers). Recursive uses
+must migrate to `walkdir::WalkDir` — the shared primitive that
+pins `follow_links(false)` and unifies subtree pruning via
+`filter_entry`. No `Diagnostic` wire shape, no new `RULES`
+entry — the test's failure message is the diagnostic.
+'''
+verification_methods = ["test"]
+traces_to = ["18188b31-f01d-4902-97a2-4b981b50a1ad"]
+surfaces = ["walker-usage standardization"]

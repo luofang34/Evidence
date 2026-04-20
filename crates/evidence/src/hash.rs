@@ -176,7 +176,7 @@ pub fn write_sha256sums(root: &Path, out_path: &Path) -> Result<(), HashError> {
     let index_path = root.join("index.json");
     let sig_path = root.join("BUNDLE.sig");
     let mut files: Vec<std::path::PathBuf> = Vec::new();
-    for entry in walkdir::WalkDir::new(root) {
+    for entry in walkdir::WalkDir::new(root).follow_links(false) {
         let entry = entry.map_err(HashError::Walk)?;
         if entry.file_type().is_file() {
             // Skip metadata-layer files: these are excluded from the content hash

@@ -58,7 +58,7 @@ fn golden_bundle_has_no_carriage_returns() {
     let fixture = fixture_path();
     assert!(fixture.is_dir(), "fixture missing at {:?}", fixture);
 
-    for entry in walkdir(&fixture) {
+    for entry in walk_files(&fixture) {
         let bytes =
             fs::read(&entry).unwrap_or_else(|e| panic!("reading fixture file {:?}: {}", entry, e));
         if let Some(pos) = bytes.iter().position(|b| *b == b'\r') {
@@ -74,23 +74,14 @@ fn golden_bundle_has_no_carriage_returns() {
     }
 }
 
-fn walkdir(root: &std::path::Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(p) = stack.pop() {
-        let read = match fs::read_dir(&p) {
-            Ok(r) => r,
-            Err(_) => continue,
-        };
-        for entry in read.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else if path.is_file() {
-                out.push(path);
-            }
-        }
-    }
+fn walk_files(root: &std::path::Path) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = walkdir::WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .map(|e| e.into_path())
+        .collect();
     out.sort();
     out
 }
