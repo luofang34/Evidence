@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use serde::Serialize;
 
-use evidence::{EvidencePolicy, Profile};
+use evidence_core::{EvidencePolicy, Profile};
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, detect_profile};
 use super::output::emit_json;

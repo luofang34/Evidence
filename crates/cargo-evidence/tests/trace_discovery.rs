@@ -14,7 +14,7 @@
 )]
 
 use assert_cmd::Command;
-use evidence::schema_versions::TRACE;
+use evidence_core::schema_versions::TRACE;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;

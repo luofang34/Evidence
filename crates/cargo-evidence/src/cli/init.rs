@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use evidence::schema_versions::{BOUNDARY, TRACE};
+use evidence_core::schema_versions::{BOUNDARY, TRACE};
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS};
 

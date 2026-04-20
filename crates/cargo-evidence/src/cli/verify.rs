@@ -6,9 +6,9 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::Serialize;
 
-use evidence::diagnostic::{Diagnostic, DiagnosticCode, Severity};
-use evidence::verify::VerifyRuntimeError;
-use evidence::{VerifyResult, verify_bundle_with_key};
+use evidence_core::diagnostic::{Diagnostic, DiagnosticCode, Severity};
+use evidence_core::verify::VerifyRuntimeError;
+use evidence_core::{VerifyResult, verify_bundle_with_key};
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFormat};
 use super::output::{emit_json, emit_jsonl};
@@ -175,21 +175,31 @@ pub fn cmd_verify(
             // Map each VerifyError to its own VerifyCheck for granular JSON output
             for err in &errors {
                 let name = match err {
-                    evidence::VerifyError::UnexpectedFile(_) => "unexpected_file",
-                    evidence::VerifyError::HmacFailure => "hmac_signature",
-                    evidence::VerifyError::HashMismatch { .. } => "hash_mismatch",
-                    evidence::VerifyError::MissingHashedFile(_) => "missing_file",
-                    evidence::VerifyError::ContentHashMismatch { .. } => "content_hash",
-                    evidence::VerifyError::UnsafePath(_) => "unsafe_path",
-                    evidence::VerifyError::FormatError { .. } => "format_error",
-                    evidence::VerifyError::CrossFileInconsistency { .. } => "cross_file_mismatch",
-                    evidence::VerifyError::DeterministicHashMismatch { .. } => "deterministic_hash",
-                    evidence::VerifyError::ManifestProjectionDrift { .. } => "manifest_projection",
-                    evidence::VerifyError::TraceOutputNotHashed(_) => "trace_output_not_hashed",
-                    evidence::VerifyError::TestSummaryMismatch { .. } => "test_summary_mismatch",
-                    evidence::VerifyError::DalMapMismatch { .. } => "dal_map_mismatch",
-                    evidence::VerifyError::DalMapOrphan { .. } => "dal_map_orphan",
-                    evidence::VerifyError::PrereleaseToolDetected { .. } => {
+                    evidence_core::VerifyError::UnexpectedFile(_) => "unexpected_file",
+                    evidence_core::VerifyError::HmacFailure => "hmac_signature",
+                    evidence_core::VerifyError::HashMismatch { .. } => "hash_mismatch",
+                    evidence_core::VerifyError::MissingHashedFile(_) => "missing_file",
+                    evidence_core::VerifyError::ContentHashMismatch { .. } => "content_hash",
+                    evidence_core::VerifyError::UnsafePath(_) => "unsafe_path",
+                    evidence_core::VerifyError::FormatError { .. } => "format_error",
+                    evidence_core::VerifyError::CrossFileInconsistency { .. } => {
+                        "cross_file_mismatch"
+                    }
+                    evidence_core::VerifyError::DeterministicHashMismatch { .. } => {
+                        "deterministic_hash"
+                    }
+                    evidence_core::VerifyError::ManifestProjectionDrift { .. } => {
+                        "manifest_projection"
+                    }
+                    evidence_core::VerifyError::TraceOutputNotHashed(_) => {
+                        "trace_output_not_hashed"
+                    }
+                    evidence_core::VerifyError::TestSummaryMismatch { .. } => {
+                        "test_summary_mismatch"
+                    }
+                    evidence_core::VerifyError::DalMapMismatch { .. } => "dal_map_mismatch",
+                    evidence_core::VerifyError::DalMapOrphan { .. } => "dal_map_orphan",
+                    evidence_core::VerifyError::PrereleaseToolDetected { .. } => {
                         "prerelease_tool_detected"
                     }
                 };

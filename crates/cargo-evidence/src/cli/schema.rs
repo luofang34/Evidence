@@ -1,6 +1,6 @@
 //! `cargo evidence schema show|validate`.
 //!
-//! Thin wrapper around [`evidence::schema`]: all validation logic
+//! Thin wrapper around [`evidence_core::schema`]: all validation logic
 //! (including the real Draft 2020-12 JSON-Schema enforcement) lives
 //! in the library so downstream consumers of the `evidence` crate
 //! get the same guarantees as the CLI.
@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use evidence::schema::{Schema, validate};
+use evidence_core::schema::{Schema, validate};
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, SchemaName};
 

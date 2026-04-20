@@ -68,7 +68,7 @@ jobs:
             --exclude='schema_versions.rs' \
             --exclude='schema_versions_locked.rs' || true)
           if [ -n "$hits" ]; then
-            echo "::error::schema-version literal found outside evidence::schema_versions:"
+            echo "::error::schema-version literal found outside evidence_core::schema_versions:"
             echo "$hits"
             exit 1
           fi
@@ -160,7 +160,7 @@ jobs:
         # to resolve it as a literal path).
         shell: bash
         run: |
-          cargo package --list -p evidence --allow-dirty > /dev/null
+          cargo package --list -p evidence-core --allow-dirty > /dev/null
           cargo package --list -p cargo-evidence --allow-dirty > /dev/null
 
   trace-self-validate:
@@ -400,7 +400,7 @@ jobs:
           # crates as in-scope, so run A above implicitly proves the
           # positive path. This step proves the enforcement *actually
           # fires* when the config is wrong — writes a temp boundary
-          # that omits `evidence` from the in-scope list and asserts
+          # that omits `evidence-core` from the in-scope list and asserts
           # generate refuses with the expected error. Uses
           # `--boundary` to avoid dirtying the tracked tree.
           cat > "$RUNNER_TEMP/bad-boundary.toml" <<'EOF'

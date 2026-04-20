@@ -189,7 +189,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "clap",
- "evidence",
+ "evidence-core",
  "predicates",
  "serde",
  "serde_json",
@@ -355,7 +355,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "evidence"
+name = "evidence-core"
 version = "0.1.0"
 dependencies = [
  "chrono",

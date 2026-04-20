@@ -14,7 +14,7 @@
 )]
 
 use assert_cmd::Command;
-use evidence::verify::verify_bundle;
+use evidence_core::verify::verify_bundle;
 use std::fs;
 use std::path::PathBuf;
 

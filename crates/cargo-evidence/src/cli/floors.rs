@@ -1,7 +1,7 @@
 //! `cargo evidence floors [--json]` — the ratcheting-floors gate.
 //!
 //! Reads `cert/floors.toml`, computes current measurements via
-//! [`evidence::floors`], and fails with `FLOORS_BELOW_MIN` on any
+//! [`evidence_core::floors`], and fails with `FLOORS_BELOW_MIN` on any
 //! dimension where `current < committed_floor`. Exit 0 on pass,
 //! exit 2 on any violation.
 //!
@@ -19,8 +19,8 @@ use std::path::PathBuf;
 use anyhow::Result;
 use serde::Serialize;
 
-use evidence::floors::{LoadOutcome, per_crate_measurements};
-use evidence::{FloorsConfig, current_measurements};
+use evidence_core::floors::{LoadOutcome, per_crate_measurements};
+use evidence_core::{FloorsConfig, current_measurements};
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
 use super::output::emit_json;

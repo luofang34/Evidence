@@ -10,7 +10,7 @@
 //!    rule. Today: `no_out_of_scope_deps`.
 //!
 //! Each additional rule lands here alongside deleting its branch
-//! from [`evidence::BoundaryPolicy::unimplemented_enabled_rules`].
+//! from [`evidence_core::BoundaryPolicy::unimplemented_enabled_rules`].
 //! The orchestrator needs only one call to
 //! [`enforce_boundary_policy`].
 
@@ -18,7 +18,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use evidence::{BoundaryPolicy, Profile};
+use evidence_core::{BoundaryPolicy, Profile};
 
 use super::fail;
 use super::phases::BoundaryDerived;
@@ -28,7 +28,7 @@ use super::phases::BoundaryDerived;
 /// standard failure envelope on refusal, `Ok(None)` on success.
 ///
 /// When real enforcement ships for a rule, delete its branch in
-/// [`evidence::BoundaryPolicy::unimplemented_enabled_rules`] and
+/// [`evidence_core::BoundaryPolicy::unimplemented_enabled_rules`] and
 /// this gate stops rejecting it without further changes here.
 pub(super) fn assert_policy_implementable(
     policy: &BoundaryPolicy,
@@ -75,9 +75,9 @@ pub(super) fn enforce_boundary_policy(
     // invoked at the workspace root so cwd is correct. Passing "."
     // is documentary for the library API.
     let workspace_root = Path::new(".");
-    match evidence::check_no_out_of_scope_deps(&derived.in_scope_crates, workspace_root) {
+    match evidence_core::check_no_out_of_scope_deps(&derived.in_scope_crates, workspace_root) {
         Ok(()) => Ok(None),
-        Err(evidence::BoundaryCheckError::OutOfScopeDeps { violations, .. }) => {
+        Err(evidence_core::BoundaryCheckError::OutOfScopeDeps { violations, .. }) => {
             let lines: Vec<String> = violations
                 .iter()
                 .map(|v| {

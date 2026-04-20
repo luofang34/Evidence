@@ -3,7 +3,7 @@
 #
 # Single entry point for "run the full gate locally before pushing."
 # Pre-push / pre-PR call this; the `local_ci_mirrors_workflow`
-# integration test in `crates/evidence/tests/` asserts that every
+# integration test in `crates/evidence-core/tests/` asserts that every
 # cargo command gated in the workflow also appears here. If CI adds a
 # new cargo flag, the test fires on the PR that missed it.
 #

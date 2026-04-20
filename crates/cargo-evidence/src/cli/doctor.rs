@@ -36,7 +36,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use evidence::diagnostic::{Diagnostic, Severity};
+use evidence_core::diagnostic::{Diagnostic, Severity};
 
 use super::args::{EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
 use super::output::emit_jsonl;
@@ -52,7 +52,7 @@ const SUBCOMMAND: &str = "doctor";
 /// Fixed deterministic check order. The `doctor_checks_locked` test
 /// asserts every entry here is actually invoked by `cmd_doctor` via
 /// a matching `run_named_check` arm. Severity of a `CheckResult::Fail`
-/// is derived at row-construction time from `evidence::RULES` so the
+/// is derived at row-construction time from `evidence_core::RULES` so the
 /// wire-level severity comes from a single source of truth.
 ///
 /// `boundary config` runs before `trace validity` because the
@@ -160,10 +160,10 @@ fn run_named_check(name: &str, workspace: &Path) -> CheckResult {
 }
 
 /// Look up the canonical severity for a diagnostic code from
-/// `evidence::RULES`. An unregistered code defaults to `Error` so a
+/// `evidence_core::RULES`. An unregistered code defaults to `Error` so a
 /// typo can't silently downgrade a finding.
 fn severity_for_code(code: &str) -> Severity {
-    evidence::RULES
+    evidence_core::RULES
         .iter()
         .find(|r| r.code == code)
         .map(|r| r.severity)
@@ -195,7 +195,7 @@ impl Row {
                 code: None,
             },
             CheckResult::Fail(code, msg) => {
-                // Severity comes from `evidence::RULES` — single
+                // Severity comes from `evidence_core::RULES` — single
                 // source of truth. A code that isn't registered
                 // defaults to Error (so a typo doesn't silently
                 // downgrade).

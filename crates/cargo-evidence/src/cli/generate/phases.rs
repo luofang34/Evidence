@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-use evidence::{
+use evidence_core::{
     BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
     EvidencePolicy, Profile,
     git::{check_shallow_clone, git_ls_files, is_dirty_or_unknown},
@@ -391,14 +391,14 @@ pub(super) fn write_compliance_reports(
     let has_test_results = tests_passed.is_some();
     let has_trace_data = trace_roots.iter().any(|r| Path::new(r).exists());
     for (crate_name, dal) in dal_map {
-        let crate_evidence = evidence::CrateEvidence {
+        let crate_evidence = evidence_core::CrateEvidence {
             has_trace_data,
             trace_validation_passed: true,
             has_test_results,
             tests_passed,
             has_coverage_data: false,
         };
-        let report = evidence::generate_compliance_report(crate_name, *dal, &crate_evidence);
+        let report = evidence_core::generate_compliance_report(crate_name, *dal, &crate_evidence);
         let report_path = compliance_dir.join(format!("{}.json", crate_name));
         fs::write(&report_path, serde_json::to_string_pretty(&report)?)?;
         if !quiet && !json_output {

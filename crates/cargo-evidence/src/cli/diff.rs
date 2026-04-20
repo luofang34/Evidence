@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::Serialize;
 
-use evidence::EvidenceIndex;
+use evidence_core::EvidenceIndex;
 
 use super::args::EXIT_SUCCESS;
 use super::output::emit_json;

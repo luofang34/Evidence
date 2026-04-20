@@ -16,7 +16,7 @@
 #
 # Adding a new entry: land it in the same PR as the feature that
 # makes the dimension measurable, set the floor to the commit-time
-# value, and document the dimension's meaning in evidence::floors.
+# value, and document the dimension's meaning in evidence_core::floors.
 #
 # `schema_version` pins the shape. A break in the shape (removed
 # field, renamed table, incompatible type change) bumps this; an
@@ -26,7 +26,7 @@
 # This file is partitioned into workspace-true dimensions (one
 # global value, `[floors]`) and per-crate-true dimensions (`[per_
 # crate.<crate>]`). The per-crate split defends against a
-# compensation mask — evidence adding a `panic!` while cargo-
+# compensation mask — evidence-core adding a `panic!` while cargo-
 # evidence removes one would leave a workspace-aggregate untouched
 # but is a real rigor regression. The `per_crate.<crate>` key set
 # must equal `cert/boundary.toml`'s `scope.in_scope`; CI enforces
@@ -40,11 +40,11 @@ schema_version = 1
 
 [floors]
 
-# evidence::RULES length — every diagnostic code the tool can emit,
+# evidence_core::RULES length — every diagnostic code the tool can emit,
 # hand-curated. Lives in a single crate, so workspace-wide.
 diagnostic_codes = 110
 
-# evidence::TERMINAL_CODES length — hand-emitted terminals
+# evidence_core::TERMINAL_CODES length — hand-emitted terminals
 # (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR /
 #  DOCTOR_OK / DOCTOR_FAIL).
 terminal_codes = 6
@@ -58,7 +58,7 @@ trace_llr = 49
 # tool/trace/tests.toml — Test Cases.
 trace_test = 49
 
-# evidence::trace::surfaces::KNOWN_SURFACES length — hand-curated
+# evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
 # coverage is enforced by `require_hlr_surface_bijection`; this floor
 # guards against silently shrinking the catalog itself (which would
@@ -76,9 +76,9 @@ known_surfaces = 17
 # two tables must equal scope.in_scope.
 # --------------------------------------------------------------------
 
-[per_crate.evidence]
-# `#[test]` attribute count inside crates/evidence/**/*.rs.
-test_count = 226
+[per_crate.evidence-core]
+# `#[test]` attribute count inside crates/evidence-core/**/*.rs.
+test_count = 231
 
 [per_crate.cargo-evidence]
 test_count = 94
@@ -88,8 +88,8 @@ test_count = 94
 # `[per_crate.<crate>]` (floor semantics) would make `current >= 0`
 # trivially pass, turning the gate into a no-op.
 
-[per_crate_ceilings.evidence]
-# panic! / unimplemented!() / todo!() in crates/evidence/src/**
+[per_crate_ceilings.evidence-core]
+# panic! / unimplemented!() / todo!() in crates/evidence-core/src/**
 # outside #[cfg(test)] blocks, sibling `tests.rs` facades, doc
 # comments, string literals, and main.rs.
 library_panics = 0

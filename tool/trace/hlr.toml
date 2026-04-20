@@ -610,7 +610,7 @@ description = """
 A CI step invokes `cargo evidence floors [--base <ref>]` and fails
 the build if any absolute measurement drops below its floor
 (emitting FLOORS_BELOW_MIN) or any delta ceiling is exceeded. The
-Rust-side measurement lives in `evidence::floors` so the gate is
+Rust-side measurement lives in `evidence_core::floors` so the gate is
 testable locally; bash is confined to the CI wrapper. The existing
 `forbid-dead_code` delta gate is subsumed as one `delta_ceilings`
 entry.

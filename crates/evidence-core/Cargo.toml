@@ -1,0 +1,34 @@
+[package]
+name = "evidence-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Certification evidence generation, verification, and traceability library for safety-critical Rust projects"
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "../../README.md"
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+hex.workspace = true
+jsonschema.workspace = true
+tracing.workspace = true
+toml.workspace = true
+walkdir.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+regex = "1"
+
+[lints]
+workspace = true

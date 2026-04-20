@@ -84,7 +84,7 @@ fn cmd_doctor_invokes_every_required_check() {
 #[test]
 fn every_doctor_code_emitted_in_source() {
     // Meta-bijection: every `DOCTOR_*` code registered in
-    // `evidence::HAND_EMITTED_CLI_CODES` must appear as a literal
+    // `evidence_core::HAND_EMITTED_CLI_CODES` must appear as a literal
     // string in the doctor source tree (`cli/doctor.rs` or
     // `cli/doctor/checks.rs`). Prevents the pseudo-code
     // anti-pattern the trace-schema hardening work closed:
@@ -116,7 +116,7 @@ fn every_doctor_code_emitted_in_source() {
     .expect("read doctor/checks.rs");
     let haystack = format!("{}\n{}", doctor_rs, checks_rs);
 
-    let doctor_codes: Vec<&'static str> = evidence::HAND_EMITTED_CLI_CODES
+    let doctor_codes: Vec<&'static str> = evidence_core::HAND_EMITTED_CLI_CODES
         .iter()
         .copied()
         .filter(|c| c.starts_with("DOCTOR_"))

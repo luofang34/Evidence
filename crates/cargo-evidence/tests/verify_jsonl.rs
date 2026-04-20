@@ -176,10 +176,10 @@ fn verify_runtime_error_ends_with_verify_error_terminal() {
     // — if a future contributor renames the terminal and forgets to
     // update the const, this fails.
     assert!(
-        evidence::TERMINAL_CODES.contains(&last_code),
-        "{:?} not in evidence::TERMINAL_CODES = {:?}",
+        evidence_core::TERMINAL_CODES.contains(&last_code),
+        "{:?} not in evidence_core::TERMINAL_CODES = {:?}",
         last_code,
-        evidence::TERMINAL_CODES,
+        evidence_core::TERMINAL_CODES,
     );
 }
 
@@ -375,8 +375,8 @@ fn assert_unwired_jsonl_contract(subcommand: &str) {
     let term_code = terminal.get("code").and_then(Value::as_str).unwrap();
     assert_eq!(term_code, "CLI_SUBCOMMAND_ERROR");
     assert!(
-        evidence::TERMINAL_CODES.contains(&term_code),
-        "terminal '{}' must be in evidence::TERMINAL_CODES",
+        evidence_core::TERMINAL_CODES.contains(&term_code),
+        "terminal '{}' must be in evidence_core::TERMINAL_CODES",
         term_code,
     );
     assert_eq!(

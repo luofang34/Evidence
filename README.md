@@ -435,7 +435,7 @@ cargo evidence floors --json  # machine-readable, deterministic
 Dimensions currently tracked: diagnostic code count, terminal code
 count, per-layer trace entry counts (SYS/HLR/LLR/Test), `#[test]`
 fn count, library panics. Adding a dimension is a PR that lands the
-measurement helper in `evidence::floors` and the initial floor in
+measurement helper in `evidence_core::floors` and the initial floor in
 `cert/floors.toml`; CI keeps the floor from falling.
 
 **Lowering a floor** requires a `Lower-Floor: <dimension> <reason>`
@@ -463,7 +463,7 @@ a minimal `cert/floors.toml` in your repo:
 # cert/floors.toml — pin whichever dimensions matter for your project
 [floors]
 test_count = 42          # `#[test]` fn count across crates/
-diagnostic_codes = 10    # evidence::RULES.len() if you use it
+diagnostic_codes = 10    # evidence_core::RULES.len() if you use it
 
 [delta_ceilings]
 # Reserved for delta-based gates (new dead-code allows, new library
@@ -570,10 +570,10 @@ Previously tracked items now resolved:
 
 ## Library Usage
 
-The `evidence` crate can be used as a library for custom integration:
+The `evidence-core` crate can be used as a library for custom integration:
 
 ```rust
-use evidence::{
+use evidence_core::{
     EvidenceBuilder, EvidenceBuildConfig, verify_bundle, VerifyResult,
     EnvFingerprint, Profile,
 };
@@ -612,7 +612,7 @@ println!("LLVM: {:?}", env.llvm_version);
 ### Traceability
 
 ```rust
-use evidence::trace::{read_all_trace_files, validate_trace_links, generate_traceability_matrix};
+use evidence_core::trace::{read_all_trace_files, validate_trace_links, generate_traceability_matrix};
 
 // Read trace files from cert/trace/
 let (hlr, llr, tests) = read_all_trace_files("cert/trace")?;

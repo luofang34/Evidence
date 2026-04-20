@@ -17,7 +17,7 @@ name = "cargo-evidence"
 path = "src/main.rs"
 
 [dependencies]
-evidence.workspace = true
+evidence-core.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 serde.workspace = true
