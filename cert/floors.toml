@@ -78,10 +78,10 @@ known_surfaces = 17
 
 [per_crate.evidence-core]
 # `#[test]` attribute count inside crates/evidence-core/**/*.rs.
-test_count = 231
+test_count = 233
 
 [per_crate.cargo-evidence]
-test_count = 94
+test_count = 96
 
 # Per-crate ceilings. library_panics is a ceiling, not a floor:
 # more panics is always worse. Placing a ceiling dimension under
