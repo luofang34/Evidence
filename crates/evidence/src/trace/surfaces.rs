@@ -51,6 +51,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     "root_cause_uid grouping per Schema Rule 7",
     "structured Link-phase diagnostic codes",
     "trace-ID reference bijection",
+    "walker-usage standardization",
 ];
 
 /// Index of the first entry in the contracts group — everything at

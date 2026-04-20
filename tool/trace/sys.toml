@@ -274,3 +274,28 @@ becomes stale.
 '''
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "18188b31-f01d-4902-97a2-4b981b50a1ad"
+id = "SYS-015"
+title = "The tool shall mechanically prevent hand-rolled recursive fs::read_dir walkers across its own source"
+owner = "soi"
+scope = "soi"
+description = '''
+Multiple independent recursive `fs::read_dir` walkers accumulated
+across the tool's own source (five test-side walkers plus two
+production walkers, each with subtly different skip-list rules
+and no shared `follow_links(false)` pin). Divergence is invisible
+to the test suite as long as each walker passes on the current
+tree, but small drift — e.g. a walker that follows symlinks
+where its neighbors don't — opens a path for a measurement in
+one walker to disagree with a measurement in another for the
+same input. `walkdir::WalkDir` is already a production
+dependency; the tool shall use it project-wide for every
+recursive file-tree traversal, with a CI-enforced gate that
+fires on any new hand-rolled `fs::read_dir` outside a
+reviewer-visible allowlist of single-directory non-recursive
+uses.
+'''
+verification_methods = ["test"]
+traces_to = []

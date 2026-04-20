@@ -188,8 +188,7 @@ fn passes_on_allowlisted_file() {
 
     let hits = scan_for_hits(tmp.path());
     assert!(
-        hits.iter()
-            .all(|(f, _, _)| !f.ends_with("verify_jsonl.rs")),
+        hits.iter().all(|(f, _, _)| !f.ends_with("verify_jsonl.rs")),
         "expected allowlisted file to NOT fire the gate; got {:?}",
         hits
     );
