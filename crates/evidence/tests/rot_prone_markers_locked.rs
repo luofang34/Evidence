@@ -52,6 +52,9 @@ use std::path::{Path, PathBuf};
 
 use regex::Regex;
 
+#[path = "walker_helpers.rs"]
+mod traversal;
+
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -132,77 +135,66 @@ fn collect_scan_targets(workspace_root: &Path) -> Vec<PathBuf> {
 }
 
 fn collect_rs(root: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            if matches!(
-                path.file_name().and_then(|n| n.to_str()),
-                Some("target") | Some(".git") | Some("node_modules") | Some("fixtures")
-            ) {
-                continue;
-            }
-            collect_rs(&path, out);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-            out.push(path);
-        }
-    }
+    let files = traversal::walk(root)
+        .filter_entry(|e| {
+            !traversal::is_dir_named(e, &["target", ".git", "node_modules", "fixtures"])
+        })
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file() && traversal::has_ext(e.path(), "rs"))
+        .map(|e| e.into_path());
+    out.extend(files);
 }
 
 /// Walk `.md` files. Skips `target/`, `.git/`, `node_modules/`,
-/// `tool/trace/` (journal = audit provenance).
+/// `tool/trace/` (journal = audit provenance). When invoked from
+/// the workspace root, also skips `cert/` (the toml walker handles
+/// it).
 fn collect_md(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if matches!(
-                name,
-                "target" | ".git" | "node_modules" | "fixtures" | ".claude" | ".githooks"
+    let top_skip: &[&str] = if is_workspace_root { &["cert"] } else { &[] };
+    let files = traversal::walk(root)
+        .filter_entry(|e| {
+            if traversal::is_dir_named(
+                e,
+                &[
+                    "target",
+                    ".git",
+                    "node_modules",
+                    "fixtures",
+                    ".claude",
+                    ".githooks",
+                ],
             ) {
-                continue;
+                return false;
             }
             // Skip tool/trace at any depth: the journal there is
             // audit trail, not rot.
-            if name == "trace" && path.parent().and_then(|p| p.file_name()) == Some("tool".as_ref())
+            if e.file_type().is_dir()
+                && e.file_name().to_str() == Some("trace")
+                && e.path()
+                    .parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
+                    == Some("tool")
             {
-                continue;
+                return false;
             }
-            // Don't recurse into `cert` here — handled by
-            // `collect_toml_under`.
-            if is_workspace_root && name == "cert" {
-                continue;
+            if e.depth() == 1 && !top_skip.is_empty() && traversal::is_dir_named(e, top_skip) {
+                return false;
             }
-            collect_md(&path, out, false);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("md") {
-            out.push(path);
-        }
-    }
+            true
+        })
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file() && traversal::has_ext(e.path(), "md"))
+        .map(|e| e.into_path());
+    out.extend(files);
 }
 
 fn collect_toml_under(root: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_toml_under(&path, out);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("toml") {
-            out.push(path);
-        }
-    }
+    let files = traversal::walk(root)
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file() && traversal::has_ext(e.path(), "toml"))
+        .map(|e| e.into_path());
+    out.extend(files);
 }
 
 fn is_reserved(rel: &str, line_num: usize) -> bool {
