@@ -80,8 +80,8 @@ pub struct FloorsConfig {
     /// deprecated-API uses, etc. A floor and a ceiling share the
     /// same "absolute, checked every CI run" semantics; they differ
     /// only in comparison direction. Same key-set rules as
-    /// [`per_crate`]: each crate name must match `cert/boundary.toml`
-    /// `scope.in_scope`.
+    /// [`FloorsConfig::per_crate`]: each crate name must match
+    /// `cert/boundary.toml` `scope.in_scope`.
     pub per_crate_ceilings: BTreeMap<String, BTreeMap<String, u64>>,
     /// Delta ceilings: `added_in_diff <= value`.
     pub delta_ceilings: BTreeMap<String, u64>,
