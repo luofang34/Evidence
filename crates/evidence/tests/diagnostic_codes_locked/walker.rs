@@ -21,24 +21,13 @@ pub fn workspace_root() -> PathBuf {
 
 /// Walk `root` recursively; return every `.rs` file below it. Skips
 /// `target/` so a `cargo doc` output tree can't taint the search.
-pub fn rs_files(root: &Path, out: &mut Vec<PathBuf>) {
-    let entries = match fs::read_dir(root) {
-        Ok(r) => r,
-        Err(_) => return,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            if path.file_name().and_then(|n| n.to_str()) == Some("target") {
-                continue;
-            }
-            rs_files(&path, out);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-            out.push(path);
-        }
-    }
+pub fn rs_files(root: &Path) -> Vec<PathBuf> {
+    super::traversal::walk(root)
+        .filter_entry(|e| !super::traversal::is_dir_named(e, &["target"]))
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file() && super::traversal::has_ext(e.path(), "rs"))
+        .map(|e| e.into_path())
+        .collect()
 }
 
 /// Strip `//` single-line comments from `text`, preserving newlines
@@ -191,8 +180,7 @@ pub fn ends_in_terminal_suffix(code: &str) -> bool {
 /// parser change is reflected in all four.
 pub fn walked_codes() -> std::collections::BTreeSet<String> {
     let crate_root = workspace_root().join("crates").join("evidence").join("src");
-    let mut files = Vec::new();
-    rs_files(&crate_root, &mut files);
+    let mut files = rs_files(&crate_root);
     files.sort();
     let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     for file in &files {

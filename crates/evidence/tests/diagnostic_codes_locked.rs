@@ -31,6 +31,9 @@
     reason = "test setup failures should panic immediately"
 )]
 
+#[path = "walker_helpers.rs"]
+mod traversal;
+
 // `#[path]` avoids the `mod diagnostic_codes_locked;` naming collision
 // with the outer integration-test file of the same name.
 #[path = "diagnostic_codes_locked/walker.rs"]
@@ -50,8 +53,7 @@ fn diagnostic_codes_locked() {
     let crate_root = workspace_root().join("crates").join("evidence").join("src");
     assert!(crate_root.is_dir(), "src/ not found at {:?}", crate_root);
 
-    let mut files = Vec::new();
-    rs_files(&crate_root, &mut files);
+    let mut files = rs_files(&crate_root);
     files.sort();
 
     let mut seen: BTreeMap<String, Vec<(PathBuf, usize)>> = BTreeMap::new();
