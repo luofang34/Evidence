@@ -163,6 +163,45 @@ jobs:
           cargo package --list -p evidence-core --allow-dirty > /dev/null
           cargo package --list -p cargo-evidence --allow-dirty > /dev/null
 
+  actionlint:
+    # Static analysis of every `.github/workflows/*.yml`. Catches
+    # the class of workflow bug that only surfaces on trigger (bad
+    # secret reference, typo'd input name, invalid `if:` expression,
+    # malformed matrix) — the type of issue that would only bite when
+    # we manually dispatch publish.yml for a real release.
+    #
+    # Fails on actionlint-native errors (parsing, reference, type
+    # mismatches). Shellcheck integration is disabled: shellcheck has
+    # no severity filter at the actionlint-integration layer, so
+    # every `ls`-for-filename style nit would block the gate. A
+    # future tightening PR can re-enable shellcheck once the existing
+    # workflow shell blocks are cleaned up to satisfy it.
+    name: actionlint (workflow lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore actionlint cache
+        id: actionlint-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/actionlint
+          key: actionlint-${{ runner.os }}-latest
+
+      - name: Install actionlint (on cache miss)
+        if: steps.actionlint-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -sL \
+            https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash \
+            | bash -s -- latest "$HOME/.local/bin"
+
+      - name: Expose actionlint on PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run actionlint on all workflow files
+        run: actionlint -color -shellcheck= .github/workflows/*.yml
+
   trace-self-validate:
     # Dogfood the tool's own trace format against its own source.
     # `tool/trace/{sys,hlr,llr,tests}.toml` covers the full DO-178C

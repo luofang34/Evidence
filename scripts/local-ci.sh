@@ -52,6 +52,25 @@ RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links -D rustdoc::private_intra_doc_l
 log "cargo build --workspace --release"
 cargo build --workspace --release
 
+# Workflow static-analysis. Catches typo'd input names, unresolvable
+# secret refs, bad `if:` expressions, malformed matrix — the kind of
+# workflow bug that only surfaces when the trigger actually fires
+# (manual dispatch, tag push). Local preview before push so workflow
+# changes don't eat a CI cycle to learn "that secret name doesn't
+# exist."
+#
+# Soft-skip if actionlint isn't on PATH: a contributor without
+# actionlint installed can still run the script to exercise the cargo
+# gates; CI's actionlint job catches the static-analysis gap. The
+# `local_ci_mirrors_workflow` lock test enforces that the step stays
+# listed here.
+log "actionlint (workflow static analysis)"
+if command -v actionlint >/dev/null 2>&1; then
+    actionlint -shellcheck= .github/workflows/*.yml
+else
+    printf '  actionlint not found on PATH; skipping locally (CI covers)\n'
+fi
+
 # Self-dogfood the rigor audit. The release binary just built
 # runs doctor on the current workspace; any error-severity
 # finding aborts with DOCTOR_FAIL. This matches the CI step in

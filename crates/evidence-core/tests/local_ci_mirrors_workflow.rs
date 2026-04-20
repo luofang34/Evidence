@@ -75,6 +75,8 @@ const REQUIRED_GATES: &[&str] = &[
     "-D rustdoc::private_intra_doc_links",
     // release build
     "cargo build --workspace --release",
+    // workflow static analysis
+    "actionlint",
 ];
 
 #[test]
