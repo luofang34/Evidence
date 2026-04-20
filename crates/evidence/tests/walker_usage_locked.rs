@@ -167,6 +167,95 @@ fn fires_on_unallowlisted_call() {
     );
 }
 
+/// Every `WalkDir::new(` callsite must pin `.follow_links(false)`
+/// within the same call chain — see CLAUDE.md "File-tree
+/// traversal" for the soundness / determinism / loop-safety
+/// rationale. This assertion is the mechanical teeth on the rule.
+///
+/// Scan heuristic: for each line containing `WalkDir::new(`, scan
+/// forward up to 5 non-blank source lines looking for
+/// `.follow_links(false)`. The window ends on a bare `;` line
+/// because that's the statement terminator — no one sensibly
+/// writes a `WalkDir` construction across more than one
+/// statement. A hit inside the window counts; no hit fails.
+///
+/// `.follow_links(true)` explicitly is still flagged (pass only
+/// on `false`).
+#[test]
+fn walkdir_callsites_pin_follow_links_false() {
+    let workspace = workspace_root();
+    let files: Vec<PathBuf> = traversal::walk(&workspace.join("crates"))
+        .filter_entry(|e| {
+            !traversal::is_dir_named(e, &["target", ".git", "node_modules", "fixtures"])
+        })
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file() && traversal::has_ext(e.path(), "rs"))
+        .map(|e| e.into_path())
+        .collect();
+
+    let mut unpinned: Vec<(String, usize)> = Vec::new();
+    for file in files {
+        let rel = file
+            .strip_prefix(&workspace)
+            .unwrap_or(&file)
+            .to_string_lossy()
+            .replace('\\', "/");
+        // This test's own source carries `WalkDir::new(` in
+        // error messages / doc-comment examples. Excluded so the
+        // needle stays literal and the failure message stays
+        // readable. No other file is exempt — adding one requires
+        // amending this list and explaining *why* at the callsite.
+        if rel.ends_with("tests/walker_usage_locked.rs") {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(&file) else {
+            continue;
+        };
+        let lines: Vec<&str> = content.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
+            if !line.contains("WalkDir::new(") {
+                continue;
+            }
+            // Scan forward up to 5 non-blank lines (or a bare
+            // `;` / end-of-file) for `.follow_links(false)`.
+            let mut found = false;
+            let mut seen_nonblank = 0usize;
+            let mut j = i;
+            while j < lines.len() && seen_nonblank < 6 {
+                let window_line = lines[j];
+                if window_line.contains(".follow_links(false)") {
+                    found = true;
+                    break;
+                }
+                if window_line.trim() == ";" && j > i {
+                    break;
+                }
+                if !window_line.trim().is_empty() {
+                    seen_nonblank += 1;
+                }
+                j += 1;
+            }
+            if !found {
+                unpinned.push((rel.clone(), i + 1));
+            }
+        }
+    }
+    unpinned.sort();
+    assert!(
+        unpinned.is_empty(),
+        "found {} WalkDir::new(...) callsite(s) that don't pin `.follow_links(false)`. \
+         A cert tool walking symlinks can include out-of-tree content in bundles \
+         (soundness) and produce different hashes on different checkouts of the \
+         same git state (determinism). Add `.follow_links(false)` to each chain.\n\n{}",
+        unpinned.len(),
+        unpinned
+            .iter()
+            .map(|(f, l)| format!("  {}:{}", f, l))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    );
+}
+
 /// Negative dogfood: a file whose path matches
 /// `ALLOWED_READ_DIR_FILES` passes even when it contains the
 /// banned substring.
