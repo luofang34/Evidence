@@ -212,6 +212,19 @@ jobs:
             --format=jsonl \
             check .
 
+      - name: Self-dogfood `cargo evidence doctor`
+        run: |
+          # Runs doctor's rigor audit on this repo. All six checks
+          # (trace + floors + boundary + CI-integration + merge-style
+          # + override-docs) must pass; any error-severity finding
+          # fails the job with DOCTOR_FAIL. If doctor fires on our
+          # own repo, either our rigor slipped below the published
+          # checklist (fix it) or a check is over-strict (soften it).
+          # Either way, the self-dogfood keeps doctor honest.
+          ./target/release/cargo-evidence evidence \
+            --format=jsonl \
+            doctor
+
       - name: Assert backfill is a no-op on committed trace
         shell: bash
         run: |
