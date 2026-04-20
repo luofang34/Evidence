@@ -419,5 +419,6 @@ test_selectors = [
     "cross_time_determinism::drift_with_override_in_commit_message_passes",
     "cross_time_determinism::missing_prior_artifact_is_skip",
     "cross_time_determinism::override_without_reason_does_not_pass",
-    "cross_time_determinism::malformed_current_bundle_exit_two",
+    "cross_time_determinism::malformed_current_manifest_exit_two",
+    "cross_time_determinism::git_state_fields_are_projected_out",
 ]

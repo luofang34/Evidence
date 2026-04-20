@@ -1054,8 +1054,9 @@ jobs:
             --profile dev
           current_bundle=$(ls -d "$RUNNER_TEMP"/current-out/dev-*/ | head -n1)
           current_bundle=${current_bundle%/}
-          cp "$current_bundle/index.json" "$RUNNER_TEMP/current-index.json"
-          echo "current deterministic_hash: $(jq -r .deterministic_hash "$RUNNER_TEMP/current-index.json")"
+          cp "$current_bundle/deterministic-manifest.json" "$RUNNER_TEMP/current-manifest.json"
+          echo "current toolchain projection:"
+          jq '{rustc, cargo, llvm_version, cargo_lock_hash, rustflags}' "$RUNNER_TEMP/current-manifest.json"
 
       - name: Fetch last successful main-branch artifact
         id: fetch-prior
@@ -1092,14 +1093,15 @@ jobs:
             exit 0
           fi
 
-          if [ ! -f "$RUNNER_TEMP/prior-main/index.json" ]; then
-            echo "::warning::Prior artifact downloaded but index.json is missing; skipping."
+          if [ ! -f "$RUNNER_TEMP/prior-main/deterministic-manifest.json" ]; then
+            echo "::warning::Prior artifact downloaded but deterministic-manifest.json is missing; skipping."
             echo "prior_missing=1" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "prior_missing=0" >> "$GITHUB_OUTPUT"
-          echo "prior deterministic_hash: $(jq -r .deterministic_hash "$RUNNER_TEMP/prior-main/index.json")"
+          echo "prior toolchain projection:"
+          jq '{rustc, cargo, llvm_version, cargo_lock_hash, rustflags}' "$RUNNER_TEMP/prior-main/deterministic-manifest.json"
 
       - name: Lint drift against override
         if: steps.fetch-prior.outputs.prior_missing != '1'
@@ -1113,8 +1115,8 @@ jobs:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           ./scripts/deterministic-baseline-override-lint.sh \
-            "$RUNNER_TEMP/prior-main/index.json" \
-            "$RUNNER_TEMP/current-index.json"
+            "$RUNNER_TEMP/prior-main/deterministic-manifest.json" \
+            "$RUNNER_TEMP/current-manifest.json"
 
       - name: Summary
         if: always()
