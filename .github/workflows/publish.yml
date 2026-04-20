@@ -1,27 +1,31 @@
 name: Publish to crates.io
 
-# Dual-channel publish workflow using crates.io Trusted Publishing
-# (OIDC; no long-lived API token). Two channels:
+# Release-only publish workflow using crates.io Trusted Publishing
+# (OIDC; no long-lived API token).
 #
-# - **dev**: `workflow_dispatch` with channel=dev. Injects a
-#   `-dev.YYYYMMDD` suffix into the workspace version at runtime so
-#   every dev publish is a pre-release cargo won't auto-install.
-#   Intended for bleeding-edge contributors and agents; NOT valid
-#   audit evidence (bundles flag `tool_prerelease: true`).
+# Triggers:
+# - `v*` tag push — normal release flow. The tag's version must match
+#   `Cargo.toml`'s `[workspace.package] version` exactly.
+# - `workflow_dispatch` — manual trigger with `dry_run=true` (default)
+#   for verification, or `dry_run=false` for a re-publish of the
+#   current workspace version without cutting a new tag (rare).
 #
-# - **release**: `v*` tag push OR `workflow_dispatch` with channel=
-#   release. Requires the `production-release` GitHub environment
-#   (reviewer-gated, main-branch restricted). Version is whatever
-#   the workspace `Cargo.toml` pins — no runtime mutation. The
-#   deployer asserts it matches the tag (on tag push) and carries
-#   no `-dev` suffix.
+# Every path goes through the `production-release` GitHub environment
+# (reviewer-gated, deployment branches restricted to `main` +
+# `v*` tags). Trusted publishing pairs this workflow with per-crate
+# publisher entries on crates.io (`environment = production-release`).
 #
-# Trusted publishing pairs this workflow with per-crate publisher
-# entries on crates.io (configured in the web UI after each crate
-# was first registered via the one-time bootstrap workflow). No
-# `CRATES_IO_TOKEN` secret is used or needed; the `rust-lang/crates-
-# io-auth-action` exchanges the GitHub OIDC token for a ~15-min
-# cargo-publish token per job.
+# **No dev channel.** Bleeding-edge installs use git:
+#
+#     cargo install --git https://github.com/luofang34/Evidence \
+#         cargo-evidence
+#
+# Rationale: every crates.io upload is a permanent public record that
+# pollutes the tool's version history for downstream auditors. Daily
+# dev uploads would mix into the cert-relevant release list and
+# dilute the signal. Rust's `cargo install --git` is the standard
+# way to share work-in-progress, and it doesn't cost crates.io a
+# name-space slot per commit.
 
 on:
   push:
@@ -29,36 +33,22 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      channel:
-        description: 'Which channel'
-        required: true
-        type: choice
-        options: [dev, release]
-        default: dev
       dry_run:
         description: 'Dry-run (skip cargo publish; exercise everything else)'
         type: boolean
         default: true
 
 concurrency:
-  # Serialize publishes per channel so two simultaneous dev jobs can't
-  # race on the version-injection / cargo publish steps.
-  group: publish-${{ github.event_name == 'push' && 'release' || inputs.channel }}
+  # Serialize release publishes so a second dispatch during an in-flight
+  # run can't race on the crates.io index-wait step.
+  group: publish-release
   cancel-in-progress: false
 
 jobs:
-  # ============================================================
-  # Dev channel: manual dispatch, version rewritten to
-  # <base>-dev.YYYYMMDD at runtime, published straight to crates.io
-  # without reviewer gate. Pre-release suffix keeps cargo from
-  # auto-installing it on users who haven't explicitly opted in.
-  # ============================================================
-  publish-dev:
-    name: Publish dev channel
-    if: github.event_name == 'workflow_dispatch' && inputs.channel == 'dev'
+  publish:
+    name: Publish release
     runs-on: ubuntu-latest
-    environment: publish-dev   # scopes OIDC claim so crates.io trusted
-                               # publisher entries can match per channel
+    environment: production-release
     permissions:
       id-token: write   # OIDC for trusted publishing
       contents: read
@@ -70,145 +60,7 @@ jobs:
         with:
           toolchain: "1.95"
 
-      - name: Inject dev version suffix
-        id: version
-        shell: bash
-        run: |
-          # Strip any existing pre-release suffix from the workspace
-          # version, then append `-dev.YYYYMMDD`. Both the
-          # [workspace.package] version and the internal workspace
-          # dep line on evidence-core need the new value (cargo resolves
-          # the intra-workspace dep via the workspace version when
-          # publishing).
-          BASE=$(grep -E '^version = ' Cargo.toml | head -1 \
-            | sed 's/^version = "\([^"]*\)"/\1/' | sed 's/-.*//')
-          DATE=$(date -u +%Y%m%d)
-          NEW="${BASE}-dev.${DATE}"
-          echo "new_version=${NEW}" >> "$GITHUB_OUTPUT"
-          echo "Injecting version: ${NEW}"
-          # Update workspace version line (first occurrence only; there
-          # are doc comments that may contain version-like strings).
-          awk -v new="${NEW}" '
-            !done && /^version = / { print "version = \"" new "\""; done=1; next }
-            { print }
-          ' Cargo.toml > Cargo.toml.new && mv Cargo.toml.new Cargo.toml
-          # Update the intra-workspace dep line so cargo-evidence
-          # resolves evidence-core at the new version.
-          awk -v new="${NEW}" '
-            /^evidence-core = / {
-              sub(/version = "[^"]*"/, "version = \"" new "\"")
-            }
-            { print }
-          ' Cargo.toml > Cargo.toml.new && mv Cargo.toml.new Cargo.toml
-          # Regenerate Cargo.lock so `cargo publish` doesn't refuse on
-          # lockfile drift.
-          cargo generate-lockfile
-          # Sanity: confirm the metadata agrees with our injected value.
-          METADATA_VER=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "evidence-core") | .version')
-          if [ "$METADATA_VER" != "$NEW" ]; then
-            echo "::error::metadata version (${METADATA_VER}) != injected (${NEW})"
-            exit 1
-          fi
-
-      - name: Verify -dev.* suffix
-        shell: bash
-        run: |
-          # Mechanical guard: the dev-channel job must never publish a
-          # version without the pre-release suffix. If injection logic
-          # regresses, fail before the publish step.
-          VER="${{ steps.version.outputs.new_version }}"
-          if [[ "$VER" != *-dev.* ]]; then
-            echo "::error::dev channel refuses non-prerelease version: $VER"
-            exit 1
-          fi
-
-      - name: Tarball sanity check
-        shell: bash
-        run: |
-          for crate in evidence-core cargo-evidence; do
-            cargo package --list -p "$crate" --allow-dirty > /tmp/pkg-"$crate".txt
-            if grep -qE '^(tool/trace|cert/baselines)/' /tmp/pkg-"$crate".txt; then
-              echo "::error::Tarball for $crate contains workspace-root paths"
-              grep -E '^(tool/trace|cert/baselines)/' /tmp/pkg-"$crate".txt
-              exit 1
-            fi
-          done
-
-      - name: Authenticate to crates.io via trusted publishing
-        if: ${{ !inputs.dry_run }}
-        id: auth
-        uses: rust-lang/crates-io-auth-action@v1
-
-      - name: Publish evidence-core (dev)
-        if: ${{ !inputs.dry_run }}
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p evidence-core --allow-dirty
-
-      - name: Wait for crates.io to index evidence-core
-        if: ${{ !inputs.dry_run }}
-        shell: bash
-        run: |
-          VER="${{ steps.version.outputs.new_version }}"
-          # Poll the crates.io API for the new version. Trusted
-          # publishing uploads synchronously but index propagation to
-          # the resolver takes a few seconds; without the wait the
-          # cargo-evidence publish step below may fail to resolve the
-          # just-published evidence-core dep.
-          for i in {1..24}; do
-            if curl -sfI "https://crates.io/api/v1/crates/evidence-core/${VER}/download" > /dev/null; then
-              echo "evidence-core ${VER} indexed"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "::error::timed out waiting for evidence-core ${VER} to index"
-          exit 1
-
-      - name: Publish cargo-evidence (dev)
-        if: ${{ !inputs.dry_run }}
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p cargo-evidence --allow-dirty
-
-      - name: Summary
-        if: always()
-        shell: bash
-        run: |
-          VER="${{ steps.version.outputs.new_version }}"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            echo "::notice::Dry-run complete for dev channel (${VER}); no crates.io upload"
-          else
-            echo "::notice::Published ${VER} to crates.io (both crates)"
-          fi
-
-  # ============================================================
-  # Release channel: triggered by `v*` tag push or explicit
-  # `workflow_dispatch` with channel=release. Runs under the
-  # `production-release` environment — reviewer approval required,
-  # restricted to the main branch. Version is whatever the tag /
-  # workspace Cargo.toml says; no runtime mutation.
-  # ============================================================
-  publish-release:
-    name: Publish release channel
-    if: >-
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      (github.event_name == 'workflow_dispatch' && inputs.channel == 'release')
-    runs-on: ubuntu-latest
-    environment: production-release
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust 1.95
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "1.95"
-
-      - name: Verify tag / workspace version parity
+      - name: Verify workspace version
         shell: bash
         run: |
           WORKSPACE_VER=$(grep -E '^version = ' Cargo.toml | head -1 \
@@ -224,12 +76,12 @@ jobs:
               exit 1
             fi
           fi
-          # Release channel refuses -dev.* suffixes. Pre-release tags
-          # like -alpha.N / -rc.N / -beta.N are allowed (they're valid
-          # semver pre-releases that downstream cargo won't auto-
-          # install, just like -dev.N).
+          # Refuse `-dev.*` suffixes regardless of trigger. Pre-release
+          # suffixes like `-alpha.N` / `-rc.N` / `-beta.N` are allowed
+          # (valid semver pre-releases that cargo won't auto-install,
+          # matching the project's version conventions).
           if [[ "$WORKSPACE_VER" == *-dev.* ]]; then
-            echo "::error::release channel refuses -dev.* version: $WORKSPACE_VER"
+            echo "::error::release workflow refuses -dev.* versions: $WORKSPACE_VER"
             exit 1
           fi
 
@@ -250,7 +102,7 @@ jobs:
         id: auth
         uses: rust-lang/crates-io-auth-action@v1
 
-      - name: Publish evidence-core (release)
+      - name: Publish evidence-core
         if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -272,7 +124,7 @@ jobs:
           echo "::error::timed out waiting for evidence-core ${VER} to index"
           exit 1
 
-      - name: Publish cargo-evidence (release)
+      - name: Publish cargo-evidence
         if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -285,7 +137,7 @@ jobs:
           VER=$(grep -E '^version = ' Cargo.toml | head -1 \
             | sed 's/^version = "\([^"]*\)"/\1/')
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
-            echo "::notice::Dry-run complete for release channel (${VER}); no crates.io upload"
+            echo "::notice::Dry-run complete for ${VER}; no crates.io upload"
           else
-            echo "::notice::Published ${VER} to crates.io (release channel, both crates)"
+            echo "::notice::Published ${VER} to crates.io"
           fi
