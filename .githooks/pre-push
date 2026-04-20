@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Pre-push gate — runs `scripts/local-ci.sh` so a push that would fail
+# CI fails locally instead. Installed per-repo via
+# `tools/install-hooks.sh` (sets `core.hooksPath = .githooks`).
+#
+# Bypass for one push: `git push --no-verify`. Use when you
+# intentionally want CI to see a change that fails locally (rare —
+# usually only for platform-specific reproducer work).
+#
+# See `scripts/local-ci.sh` for the gates this enforces.
+
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+script="$repo_root/scripts/local-ci.sh"
+
+if [ ! -x "$script" ]; then
+    printf 'pre-push: %s missing or not executable — skipping\n' "$script" >&2
+    exit 0
+fi
+
+"$script"

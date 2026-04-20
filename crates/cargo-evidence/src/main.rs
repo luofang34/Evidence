@@ -1,8 +1,8 @@
 //! cargo-evidence - Cargo subcommand for build evidence and reproducibility verification.
 //!
 //! This binary is a thin parse-and-dispatch shell. Every subcommand
-//! lives in its own module under [`cli`]; output rendering — text vs
-//! JSON — is centralized in [`cli::output`]. Keep this file short.
+//! lives in its own module under `cli`; output rendering — text vs
+//! JSON — is centralized in `cli::output`. Keep this file short.
 //!
 //! **anyhow usage**: the `disallowed-types = ["anyhow::Error"]`
 //! clippy rule in `clippy.toml` forbids `anyhow::Error` in *library*

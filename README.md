@@ -600,8 +600,8 @@ bundles are reproducible across machines.
 ## Contributing
 
 1. Fork the repository and create a feature branch.
-2. Ensure `cargo test --workspace` passes.
-3. Ensure `cargo clippy --workspace -- -D warnings` is clean.
+2. **First-time setup**: run `./tools/install-hooks.sh` once. This points the repo at `.githooks/` so the `pre-push` hook runs `scripts/local-ci.sh` automatically.
+3. Before pushing, run `./scripts/local-ci.sh`. It mirrors every cargo gate run by `.github/workflows/ci.yml` — including the full `RUSTDOCFLAGS` doc gate (`-D rustdoc::broken_intra_doc_links -D warnings`). Subset commands (`cargo test` or `cargo clippy` alone) are not a substitute; the `local_ci_mirrors_workflow` integration test pins the script's coverage against CI.
 4. Run `cargo evidence generate --out-dir /tmp/evidence` to verify the tool works end-to-end.
 5. Submit a pull request with a clear description of the change.
 
