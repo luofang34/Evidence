@@ -848,8 +848,38 @@ jobs:
           echo "path=$path" >> "$GITHUB_OUTPUT"
           echo "Bundle: $path"
 
-      - name: Verify bundle
-        run: ./target/release/cargo-evidence evidence verify "${{ steps.bundle.outputs.path }}"
+      - name: Verify bundle (prerelease-aware)
+        shell: bash
+        run: |
+          # If cargo-evidence's own crate version carries a pre-release
+          # suffix (e.g. `-alpha.N`, `-rc.N`, `-dev.N`), verify MUST
+          # reject cert-profile bundles it produces — that's the
+          # VERIFY_PRERELEASE_TOOL refusal by design. On a stable
+          # (non-prerelease) version, verify MUST pass. Branch on the
+          # workspace version so this gate reflects the right contract
+          # for each tool version without relaxing it.
+          VER=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "cargo-evidence") | .version')
+          if [[ "$VER" == *-* ]]; then
+            echo "Tool version $VER is pre-release; expecting verify to FAIL with VERIFY_PRERELEASE_TOOL"
+            set +e
+            out=$(./target/release/cargo-evidence evidence verify \
+              "${{ steps.bundle.outputs.path }}" 2>&1)
+            rc=$?
+            set -e
+            printf '%s\n' "$out"
+            if [ $rc -eq 0 ]; then
+              echo "::error::Expected verify to FAIL on cert bundle produced by pre-release tool ($VER); got exit 0"
+              exit 1
+            fi
+            if ! printf '%s' "$out" | grep -qE 'pre-release|prerelease|PRERELEASE'; then
+              echo "::error::verify failed but error text doesn't mention pre-release — unexpected failure reason"
+              exit 1
+            fi
+            echo "OK: verify correctly rejected cert bundle from pre-release tool ($VER)"
+          else
+            ./target/release/cargo-evidence evidence verify "${{ steps.bundle.outputs.path }}"
+          fi
 
       - name: Assert env.json recorded cert-mode invariants
         shell: bash

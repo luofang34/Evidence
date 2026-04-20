@@ -1,0 +1,136 @@
+name: Publish bootstrap (one-time)
+
+# One-time workflow for initial crates.io name reservation of
+# `evidence-core` and `cargo-evidence`. The authorized version is
+# pinned mechanically by the "Verify workspace version" step below
+# (not restated here; the pin is the single source of truth).
+#
+# Scheduled for removal once trusted publishing is configured. Until
+# then, this file is the ONLY authorized publish path — the bootstrap
+# API token lives only in `secrets.CRATES_IO_BOOTSTRAP_TOKEN` (env-
+# scoped to `crates-io-bootstrap`) and is never exported to developer
+# machines.
+#
+# Usage (from a maintainer's terminal, after PR is merged to main):
+#
+#   # 1. Dry-run each crate first. Publish order matters: evidence-core
+#   #    must land on crates.io before cargo-evidence (which depends on
+#   #    it) can resolve its dependency.
+#   gh workflow run publish-bootstrap.yml \
+#       -f crate=evidence-core -f dry_run=true
+#   # (approve in GitHub Actions UI, verify tarball contents in log)
+#
+#   gh workflow run publish-bootstrap.yml \
+#       -f crate=cargo-evidence -f dry_run=true
+#   # (approve, verify)
+#
+#   # 2. Real publish, in order. Wait ~60s between them so crates.io
+#   #    indexes evidence-core before cargo-evidence tries to resolve
+#   #    its registry dependency.
+#   gh workflow run publish-bootstrap.yml \
+#       -f crate=evidence-core -f dry_run=false
+#   # (approve)
+#
+#   gh workflow run publish-bootstrap.yml \
+#       -f crate=cargo-evidence -f dry_run=false
+#   # (approve)
+#
+#   # 3. Immediate cleanup:
+#   #    - crates.io: revoke bootstrap token
+#   #    - configure trusted publishing for each crate on crates.io
+#   #    - gh secret delete CRATES_IO_BOOTSTRAP_TOKEN --env crates-io-bootstrap
+#   #    - delete this workflow file in a follow-up PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      crate:
+        description: 'Which crate to publish'
+        required: true
+        type: choice
+        options:
+          - evidence-core
+          - cargo-evidence
+      dry_run:
+        description: 'Dry-run only (cargo publish --dry-run, no actual upload)'
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  bootstrap:
+    name: Publish ${{ inputs.crate }} (${{ inputs.dry_run && 'dry-run' || 'REAL' }})
+    runs-on: ubuntu-latest
+    environment: crates-io-bootstrap
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.95
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95"
+
+      - name: Verify workspace version is 0.1.0-alpha.1
+        # Mechanical safety: this bootstrap workflow is only authorized
+        # to publish the initial alpha. Any other version — including a
+        # real 0.1.0 release — must go through a different workflow with
+        # a different token and different review gate.
+        run: |
+          VER=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r ".packages[] | select(.name == \"${{ inputs.crate }}\") | .version")
+          if [ "$VER" != "0.1.0-alpha.1" ]; then
+            echo "::error::Bootstrap workflow only publishes 0.1.0-alpha.1, got $VER for ${{ inputs.crate }}"
+            exit 1
+          fi
+          echo "Verified: ${{ inputs.crate }} is at 0.1.0-alpha.1"
+
+      - name: Package dry-run (sanity check before publish)
+        # Always runs, both for dry-run and real publish. Surfaces
+        # tarball-inclusion issues (reach-outside-crate `include_str!`,
+        # unexpected files) before a real publish makes them permanent.
+        run: |
+          cargo package --list -p ${{ inputs.crate }} --allow-dirty > /tmp/pkg-list.txt
+          echo "=== Tarball contents (${{ inputs.crate }}) ==="
+          cat /tmp/pkg-list.txt
+          echo "=== ($(wc -l < /tmp/pkg-list.txt) files) ==="
+          # Guard against accidental inclusion of workspace-root
+          # paths that would indicate a reach-outside-crate regression
+          # (the kind PR #59's `include_str!` fix addressed). Test
+          # fixtures under `tests/fixtures/` are legitimate crate
+          # content and stay in the tarball.
+          if grep -qE '^(tool/trace|cert/baselines)/' /tmp/pkg-list.txt; then
+            echo "::error::Tarball contains workspace-root paths — indicates a reach-outside-crate regression"
+            grep -E '^(tool/trace|cert/baselines)/' /tmp/pkg-list.txt
+            exit 1
+          fi
+
+      - name: Publish dry-run
+        if: ${{ inputs.dry_run }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_BOOTSTRAP_TOKEN }}
+        run: cargo publish --dry-run -p ${{ inputs.crate }}
+
+      - name: Publish (REAL — uploads to crates.io)
+        if: ${{ !inputs.dry_run }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_BOOTSTRAP_TOKEN }}
+        run: cargo publish -p ${{ inputs.crate }}
+
+      - name: Post-publish next steps (reminder)
+        if: ${{ !inputs.dry_run && success() }}
+        run: |
+          cat <<'EOF'
+          ::notice::Published ${{ inputs.crate }} 0.1.0-alpha.1 to crates.io.
+
+          Immediate follow-up:
+            1. If this was cargo-evidence (i.e. both crates now published):
+               - Revoke the bootstrap token at https://crates.io/settings/tokens
+               - Configure trusted publishing on each crate:
+                 https://crates.io/crates/evidence-core/settings
+                 https://crates.io/crates/cargo-evidence/settings
+               - gh secret delete CRATES_IO_BOOTSTRAP_TOKEN --env crates-io-bootstrap --repo luofang34/Evidence
+               - Open a follow-up PR that DELETES .github/workflows/publish-bootstrap.yml
+            2. Verify crates.io listing renders correctly (README, version, license).
+          EOF

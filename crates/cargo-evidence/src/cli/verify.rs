@@ -167,6 +167,53 @@ pub fn cmd_verify(
             Ok(EXIT_SUCCESS)
         }
         Ok(VerifyResult::Fail(errors)) => {
+            // Pre-release tool on dev profile: downgrade to a warning
+            // and pass. Mirrors the JSONL path's profile-aware severity
+            // split so the plain-text path doesn't reject bundles that
+            // JSONL consumers would accept. Any non-prerelease error
+            // (or a prerelease detection on cert/record profile) falls
+            // through to the standard fail handling below.
+            let all_prerelease_on_dev = !errors.is_empty()
+                && errors.iter().all(|e| {
+                    matches!(
+                        e,
+                        evidence_core::VerifyError::PrereleaseToolDetected { profile, .. }
+                            if profile == "dev"
+                    )
+                });
+            if all_prerelease_on_dev {
+                for err in &errors {
+                    if let evidence_core::VerifyError::PrereleaseToolDetected {
+                        engine_crate_version,
+                        ..
+                    } = err
+                    {
+                        eprintln!(
+                            "verify: warning - bundle produced by pre-release tool ({}) on dev profile; non-blocking",
+                            engine_crate_version
+                        );
+                    }
+                }
+                checks.push(VerifyCheck {
+                    name: "bundle_integrity".to_string(),
+                    status: "pass".to_string(),
+                    message: Some(
+                        "pre-release tool warning on dev profile — non-blocking".to_string(),
+                    ),
+                });
+                if json_output {
+                    emit_json(&VerifyOutput {
+                        success: true,
+                        bundle_path: bundle_path.display().to_string(),
+                        checks,
+                        error: None,
+                    })?;
+                } else {
+                    println!("verify: PASS (with warning) - bundle {:?}", bundle_path);
+                }
+                return Ok(EXIT_SUCCESS);
+            }
+
             let reason = errors
                 .iter()
                 .map(|e| e.to_string())

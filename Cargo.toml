@@ -3,7 +3,11 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.0"
+# Pre-release version for initial crates.io name reservation.
+# Cargo will NOT auto-install pre-release versions (requires explicit
+# `--version '<1.0.0-z'` or similar). Keeps early-adopters + audit
+# customers from mistaking an alpha for a cert-ship build.
+version = "0.1.0-alpha.1"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -31,7 +35,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 
 # Internal crates
-evidence-core = { version = "0.1.0", path = "crates/evidence-core" }
+evidence-core = { version = "0.1.0-alpha.1", path = "crates/evidence-core" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -146,6 +146,22 @@ fn run_verify_jsonl(bundle: &std::path::Path) -> (i32, Vec<Value>) {
     (exit, diags)
 }
 
+/// Plain-text mode variant: runs `verify` with neither `--format=jsonl`
+/// nor `--json`, captures exit code + stdout + stderr. Used by the
+/// pair of tests below that pin the default text path's behavior,
+/// ensuring it mirrors the JSONL path's profile-aware severity split.
+fn run_verify_plain(bundle: &std::path::Path) -> (i32, String, String) {
+    let out = cargo_evidence()
+        .args(["evidence", "verify"])
+        .arg(bundle)
+        .output()
+        .expect("spawn");
+    let exit = out.status.code().unwrap_or(-1);
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    (exit, stdout, stderr)
+}
+
 #[test]
 fn dev_profile_warning_passes() {
     let (_tmp, bundle) = build_prerelease_bundle(evidence_core::Profile::Dev);
@@ -195,5 +211,47 @@ fn cert_profile_blocks_with_verify_fail() {
         Some("VERIFY_FAIL"),
         "cert stream must terminate with VERIFY_FAIL; got codes={:?}",
         codes
+    );
+}
+
+/// Plain-text path must mirror the JSONL path's profile-aware
+/// severity split: dev-profile pre-release bundle → pass with a
+/// stderr warning + exit 0. The default output path is what CI
+/// workflows and ad-hoc shell callers hit when they don't pass
+/// `--format=jsonl`; if the two paths disagreed, a bundle that
+/// passes the JSONL path would fail the plain-text path for the
+/// same inputs.
+#[test]
+fn plain_text_dev_profile_passes_with_warning() {
+    let (_tmp, bundle) = build_prerelease_bundle(evidence_core::Profile::Dev);
+    let (exit, stdout, stderr) = run_verify_plain(&bundle);
+    assert_eq!(
+        exit, 0,
+        "dev profile plain-text verify must exit 0; stdout={stdout} stderr={stderr}",
+    );
+    assert!(
+        stdout.contains("PASS") || stdout.contains("pass"),
+        "stdout must indicate pass; got: {stdout}",
+    );
+    assert!(
+        stderr.contains("pre-release") || stderr.contains("prerelease"),
+        "stderr must carry a pre-release warning; got: {stderr}",
+    );
+}
+
+/// Plain-text path on cert/record profile stays an error — the
+/// partition downgrades dev only. Cert bundles from pre-release
+/// tools remain rejected regardless of output format.
+#[test]
+fn plain_text_cert_profile_still_fails() {
+    let (_tmp, bundle) = build_prerelease_bundle(evidence_core::Profile::Cert);
+    let (exit, _stdout, stderr) = run_verify_plain(&bundle);
+    assert_ne!(
+        exit, 0,
+        "cert profile plain-text verify must exit non-zero on pre-release bundle; stderr={stderr}",
+    );
+    assert!(
+        stderr.contains("pre-release") || stderr.contains("prerelease"),
+        "stderr must mention pre-release as the refusal reason; got: {stderr}",
     );
 }
