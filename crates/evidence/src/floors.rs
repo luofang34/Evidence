@@ -280,8 +280,7 @@ pub fn count_trace_per_layer(workspace_root: &Path) -> (u64, u64, u64, u64) {
 /// `cert/floors.toml` and rely on per-crate CI coverage counters
 /// instead.
 pub fn count_tests(root: &Path) -> u64 {
-    let mut files = Vec::new();
-    walk_rs_files(root, &mut files);
+    let files = walk_rs_files(root);
     let mut total: u64 = 0;
     for file in &files {
         let content = match fs::read_to_string(file) {
@@ -323,8 +322,7 @@ pub fn count_tests(root: &Path) -> u64 {
 /// A hand-curated allowlist at the file level is the escape hatch
 /// if any of these produces a false positive in practice.
 pub fn count_library_panics(root: &Path) -> u64 {
-    let mut files = Vec::new();
-    walk_rs_files(root, &mut files);
+    let files = walk_rs_files(root);
     let mut total: u64 = 0;
     for file in &files {
         // Exclude tests/ dirs (integration tests) and any sibling

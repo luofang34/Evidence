@@ -36,6 +36,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use walkdir::{DirEntry, WalkDir};
+
 use super::entries::TestEntry;
 
 /// One unresolvable selector surfaced by [`resolve_test_selectors`].
@@ -55,8 +57,7 @@ pub fn resolve_test_selectors(
     tests: &[TestEntry],
     workspace_root: &Path,
 ) -> Vec<UnresolvedSelector> {
-    let mut rs_files: Vec<PathBuf> = Vec::new();
-    collect_rs_files(workspace_root, &mut rs_files);
+    let rs_files = collect_rs_files(workspace_root);
 
     let mut unresolved = Vec::new();
     for t in tests {
@@ -84,28 +85,24 @@ pub fn resolve_test_selectors(
     unresolved
 }
 
-fn collect_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
-    let entries = match fs::read_dir(root) {
-        Ok(r) => r,
-        Err(_) => return,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            // Skip target/ and .git/ to keep the walk fast.
-            if matches!(
-                path.file_name().and_then(|n| n.to_str()),
-                Some("target") | Some(".git") | Some("node_modules")
-            ) {
-                continue;
-            }
-            collect_rs_files(&path, out);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-            out.push(path);
-        }
-    }
+fn collect_rs_files(root: &Path) -> Vec<PathBuf> {
+    WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| !is_noise_dir(e))
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("rs"))
+        .map(|e| e.into_path())
+        .collect()
+}
+
+fn is_noise_dir(e: &DirEntry) -> bool {
+    e.file_type().is_dir()
+        && matches!(
+            e.file_name().to_str(),
+            Some("target") | Some(".git") | Some("node_modules")
+        )
 }
 
 /// `true` iff any `.rs` file in `files` whose path contains the
@@ -283,8 +280,7 @@ mod tests {
         )
         .expect("write b/lib");
 
-        let mut files: Vec<PathBuf> = Vec::new();
-        collect_rs_files(tmp.path(), &mut files);
+        let files = collect_rs_files(tmp.path());
 
         // Unqualified: resolves (legacy bare-name behavior preserved).
         assert!(any_file_matches(&files, "my_fn", None));
