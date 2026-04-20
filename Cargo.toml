@@ -7,9 +7,9 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/user/evidence"
-homepage = "https://github.com/user/evidence"
-authors = []
+repository = "https://github.com/luofang34/Evidence"
+homepage = "https://github.com/luofang34/Evidence"
+authors = ["luofang <luofang@luofang.org>"]
 keywords = ["certification", "evidence", "traceability", "reproducibility", "safety-critical"]
 categories = ["development-tools", "command-line-utilities"]
 

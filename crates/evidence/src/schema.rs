@@ -168,13 +168,13 @@ impl Schema {
 // Embedded sources
 // ============================================================================
 
-const SCHEMA_INDEX: &str = include_str!("../../../schemas/index.schema.json");
-const SCHEMA_ENV: &str = include_str!("../../../schemas/env.schema.json");
-const SCHEMA_COMMANDS: &str = include_str!("../../../schemas/commands.schema.json");
-const SCHEMA_HASHES: &str = include_str!("../../../schemas/hashes.schema.json");
+const SCHEMA_INDEX: &str = include_str!("../schemas/index.schema.json");
+const SCHEMA_ENV: &str = include_str!("../schemas/env.schema.json");
+const SCHEMA_COMMANDS: &str = include_str!("../schemas/commands.schema.json");
+const SCHEMA_HASHES: &str = include_str!("../schemas/hashes.schema.json");
 const SCHEMA_DETERMINISTIC_MANIFEST: &str =
-    include_str!("../../../schemas/deterministic-manifest.schema.json");
-const SCHEMA_DIAGNOSTIC: &str = include_str!("../../../schemas/diagnostic.schema.json");
+    include_str!("../schemas/deterministic-manifest.schema.json");
+const SCHEMA_DIAGNOSTIC: &str = include_str!("../schemas/diagnostic.schema.json");
 
 // ============================================================================
 // Validation
