@@ -966,3 +966,34 @@ message is the diagnostic. A `RESERVED_TEXT_REFS` const names
 files where a banned pattern is load-bearing (initially empty).
 '''
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "7539445f-e53f-4300-80fa-ecf12948e121"
+id = "LLR-045"
+title = "cross-time-determinism CI job + baseline-override lint"
+owner = "tool"
+traces_to = ["4aad7a9e-ec91-42a6-9360-a4c7f8e50761"]
+modules = [
+    "scripts::cross_time_determinism",
+    "scripts::deterministic_baseline_override_lint",
+]
+derived = false
+description = """
+New CI job `cross-time-determinism` in `.github/workflows/ci.yml`:
+on `pull_request` events downloads the last successful
+`evidence-cross-host` Linux artifact from the main branch via
+`gh run list` + `gh run download`, builds the current PR's
+`cargo-evidence` binary, generates a dev-profile bundle via
+`--skip-tests`, compares `deterministic_hash` between the prior
+artifact's `index.json` and the fresh bundle. A companion bash
+script `scripts/deterministic-baseline-override-lint.sh` greps
+the PR body (or push-mode commit message) for
+`^Override-Deterministic-Baseline: .+` and emits exit 0 when an
+override is present, exit 1 otherwise. The job combines both:
+match → pass silently; mismatch + override → pass with log;
+mismatch without override → fail with both hashes printed.
+Missing prior artifact → skip with warning (exit 0), same
+degradation pattern as `floors-lower-lint.sh` under a fresh
+repo.
+"""
+verification_methods = ["test"]

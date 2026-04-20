@@ -221,6 +221,50 @@ same target). It is the cross-host reproducibility channel. Our CI
 cross-host job asserts `deterministic_hash` parity across Linux,
 macOS, and Windows on every push.
 
+### Cross-time determinism and the `Override-Deterministic-Baseline:` protocol
+
+Cross-host determinism (above) pins reproducibility across N hosts
+at a single commit. The complementary CI job `cross-time-determinism`
+pins the other axis: every PR's **toolchain projection** (rustc,
+cargo, llvm_version, cargo_lock_hash, rust_toolchain_toml, rustflags)
+must match the last successful main-branch build — OR the PR must
+explicitly acknowledge that it intentionally changed a
+reproducibility-affecting input.
+
+Mechanism: the job downloads the last main-branch `xhost-Linux`
+artifact via `gh run download`, extracts `deterministic-manifest.json`,
+and hands both manifests to
+`scripts/deterministic-baseline-override-lint.sh`. The lint
+projects only the six toolchain fields (git_sha / git_branch /
+git_dirty / schema_version / profile are excluded — they differ
+between commits by construction, not because of drift) and
+compares canonicalized JSON.
+
+When the projections match, the job passes silently. When they
+differ, the job requires a line of the form
+
+    Override-Deterministic-Baseline: <one-sentence reason>
+
+in either the PR body OR the head commit message (squash-merge
+convention). Without that line, the job fails with the full
+projection diff + the expected override syntax.
+
+Examples of legitimate override reasons:
+
+    Override-Deterministic-Baseline: bumped serde_json to 1.0.130 for CVE-NNNN-NNNN
+    Override-Deterministic-Baseline: added -C opt-level=3 to RUSTFLAGS
+    Override-Deterministic-Baseline: upgraded rust-toolchain pin to 1.96
+
+If no prior main-branch artifact is available (fresh repo, or 14-day
+artifact retention expired), the job logs a warning and passes —
+the gate is best-effort, never user-hostile.
+
+**Known limitation**: the live-compare gate detects per-PR drift but
+not slow cumulative drift across many individually-justified
+overrides. A committed historical-anchor baseline — pinning
+`{git_sha → deterministic_hash}` for a curated set of milestone
+commits — would close that gap and is tracked as a follow-up.
+
 ### Captured Output Normalization
 
 Every file written by `cargo evidence generate` under the capture directory

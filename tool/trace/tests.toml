@@ -393,3 +393,33 @@ test_selectors = [
     "rot_prone_markers_locked::fires_on_banned_pattern",
     "rot_prone_markers_locked::passes_on_clean_fixture",
 ]
+
+[[tests]]
+uid = "e6740452-a38f-4bee-b7ce-34d1f7227a66"
+id = "TEST-045"
+title = "cross-time determinism lint accepts match, rejects silent drift, honors override"
+owner = "tool"
+traces_to = ["7539445f-e53f-4300-80fa-ecf12948e121"]
+description = """
+Integration tests for the baseline-override lint script.
+Positive (match): two bundles with identical deterministic_hash
+→ exit 0.
+Drift-without-override: differing hashes + empty PR body → exit
+1 with instructions.
+Drift-with-override: differing hashes + PR body containing
+`Override-Deterministic-Baseline: dep bump` → exit 0 with a
+logged notice.
+Missing-prior-artifact fallback: bundle path doesn't exist →
+exit 0 (degraded skip).
+"""
+test_selectors = [
+    "cross_time_determinism::match_exit_zero",
+    "cross_time_determinism::drift_without_override_fails",
+    "cross_time_determinism::drift_with_override_passes",
+    "cross_time_determinism::drift_with_override_in_commit_message_passes",
+    "cross_time_determinism::override_in_commit_when_pr_body_has_unrelated_prose_passes",
+    "cross_time_determinism::missing_prior_artifact_is_skip",
+    "cross_time_determinism::override_without_reason_does_not_pass",
+    "cross_time_determinism::malformed_current_manifest_exit_two",
+    "cross_time_determinism::git_state_fields_are_projected_out",
+]
