@@ -497,6 +497,13 @@
     "terminal": false
   },
   {
+    "code": "TRACE_SELECTOR_UNRESOLVED",
+    "severity": "error",
+    "domain": "trace",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "TRACE_WRONG_TARGET_KIND",
     "severity": "error",
     "domain": "trace",

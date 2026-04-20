@@ -413,7 +413,9 @@ fn unwired_schema_jsonl_is_rejected() {
     assert_unwired_jsonl_contract("schema");
 }
 
-#[test]
-fn unwired_trace_jsonl_is_rejected() {
-    assert_unwired_jsonl_contract("trace");
-}
+// `trace` gained `--format=jsonl` support in PR #51 (per-variant
+// LinkError stream). Previously on the unwired list; now wired,
+// so the matching "unwired rejection" test is deliberately
+// removed. Running `cargo evidence trace --format=jsonl` without
+// `--validate` / `--backfill-uuids` emits `CLI_INVALID_ARGUMENT`
+// (the "no action specified" path), not `CLI_UNSUPPORTED_FORMAT`.

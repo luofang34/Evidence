@@ -908,9 +908,17 @@ iterates `errors` and calls `emit_jsonl` once per variant with
 link_error.to_string()`, and a variant-specific `Location`.
 Legacy `--json` mode keeps the prior aggregate shape (single
 result object with a concatenated `message`) so shell consumers
-that piped through `jq .message` aren't broken.
+that piped through `jq .message` aren't broken. Test-selector
+resolution failures surface as `TRACE_SELECTOR_UNRESOLVED`
+alongside Link-phase variants.
 """
 verification_methods = ["test"]
+emits = [
+    "TRACE_REGISTER_FAILED",
+    "TRACE_SELECTOR_UNRESOLVED",
+    "VERIFY_FAIL",
+    "VERIFY_OK",
+]
 
 [[requirements]]
 uid = "becd7d00-a7e4-435b-9f06-398494529ab7"
