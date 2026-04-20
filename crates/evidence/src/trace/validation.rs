@@ -270,9 +270,8 @@ pub fn validate_trace_links_with_policy(
             for s in &r.surfaces {
                 if !known.contains(s.as_str()) {
                     errors.push(format!(
-                        "TRACE_HLR_SURFACE_UNKNOWN: HLR {} claims surface '{}' which is not in \
-                         KNOWN_SURFACES — either fix the spelling or add the surface to \
-                         crates/evidence/src/trace/surfaces.rs",
+                        "HLR {} claims surface '{}' which is not in KNOWN_SURFACES — either fix \
+                         the spelling or add the surface to crates/evidence/src/trace/surfaces.rs",
                         r.id, s
                     ));
                 }
@@ -282,9 +281,8 @@ pub fn validate_trace_links_with_policy(
         for k in super::surfaces::KNOWN_SURFACES {
             if !claimed.contains(*k) {
                 errors.push(format!(
-                    "TRACE_HLR_SURFACE_UNCLAIMED: KNOWN_SURFACES entry '{}' is not claimed by \
-                     any HLR — add `surfaces = [\"{}\"]` to the governing HLR in \
-                     tool/trace/hlr.toml",
+                    "KNOWN_SURFACES entry '{}' is not claimed by any HLR — add \
+                     `surfaces = [\"{}\"]` to the governing HLR in tool/trace/hlr.toml",
                     k, k
                 ));
             }
@@ -334,17 +332,12 @@ pub fn validate_trace_links_with_policy(
             } else if r.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
                 // PR #49 / HLR-040 / LLR-040: unconditional rule.
                 // DO-178C §5.2.2 requires derived requirements to be
-                // explicitly justified. The previous policy gate
-                // (`require_derived_rationale`) is now a no-op —
-                // stricter behavior wins across downstream projects.
-                // TRACE_DERIVED_MISSING_RATIONALE is the code; the
-                // current Link-phase envelope surfaces all such
-                // violations under TRACE_LINK_FAILED until typed
-                // variants land (C6 follow-up).
-                errors.push(format!(
-                    "TRACE_DERIVED_MISSING_RATIONALE: derived LLR {} missing non-empty rationale",
-                    r.id
-                ));
+                // explicitly justified. All Link-phase violations
+                // currently surface under the single TRACE_LINK_FAILED
+                // envelope; per-sub-rule codes land when
+                // `TraceValidationError::Link` is refactored into
+                // typed sub-errors (C6 follow-up).
+                errors.push(format!("derived LLR {} missing non-empty rationale", r.id));
             }
         } else if r.derived {
             errors.push(format!(

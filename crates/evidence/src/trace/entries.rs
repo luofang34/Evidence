@@ -215,6 +215,13 @@ pub struct TestEntry {
     /// **Legacy shape**: kept for back-compat with the 1:1 TEST-to-fn
     /// convention. New code paths should prefer `test_selectors` for
     /// the N:M case. PR #49 / LLR-039.
+    ///
+    /// **Deprecation timeline**: stays through the pre-1.0 window —
+    /// no schema constants churn until 1.0 ships (see
+    /// `schema_versions.rs`). The 1.0 shape removes this field; a
+    /// pre-1.0 migration PR does the single-fn → `test_selectors =
+    /// ["X"]` rewrite across all in-tree TOML, coordinated with the
+    /// `TRACE` version bump.
     #[serde(default)]
     pub test_selector: Option<String>,
     /// Additional selectors — enables one TEST entry to verify

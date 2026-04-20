@@ -124,15 +124,6 @@ pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "CLI_UNSUPPORTED_FORMAT",
     "FLOORS_BELOW_MIN",
     "FLOORS_LOWERED_WITHOUT_JUSTIFICATION",
-    // PR #49 — emitted from the trace-validation command. Kept in
-    // the hand-emitted bless list rather than adding typed
-    // `TraceValidationError` variants, which would require
-    // restructuring the Link-phase multi-error bag (see C6). The
-    // validator CLI `emit_jsonl`-s these directly; upgrading to
-    // typed variants is a follow-up.
-    "TRACE_DERIVED_MISSING_RATIONALE",
-    "TRACE_HLR_SURFACE_UNCLAIMED",
-    "TRACE_HLR_SURFACE_UNKNOWN",
 ];
 
 /// Codes declared in `RULES` that are intentionally NOT claimed by any
@@ -235,17 +226,6 @@ pub const RULES: &[RuleEntry] = &[
         Severity::Error,
         Domain::Trace,
     ),
-    r(
-        "TRACE_DERIVED_MISSING_RATIONALE",
-        Severity::Error,
-        Domain::Trace,
-    ),
-    r(
-        "TRACE_HLR_SURFACE_UNCLAIMED",
-        Severity::Error,
-        Domain::Trace,
-    ),
-    r("TRACE_HLR_SURFACE_UNKNOWN", Severity::Error, Domain::Trace),
     r("TRACE_LINK_FAILED", Severity::Error, Domain::Trace),
     r("TRACE_PARSE_FAILED", Severity::Error, Domain::Trace),
     r("TRACE_READ_FAILED", Severity::Error, Domain::Trace),

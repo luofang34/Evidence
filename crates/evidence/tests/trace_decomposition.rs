@@ -2,13 +2,17 @@
 //!
 //! Covers the three new Link-phase rules:
 //!
-//! - `HlrEntry.surfaces` ⇔ `KNOWN_SURFACES` bijection
-//!   (TRACE_HLR_SURFACE_UNCLAIMED + TRACE_HLR_SURFACE_UNKNOWN).
+//! - `HlrEntry.surfaces` ⇔ `KNOWN_SURFACES` bijection (unknown +
+//!   unclaimed prose).
 //! - `TestEntry.test_selectors: Vec<String>` with `StringOrVec`
 //!   deserializer (single-string shorthand round-trips to
 //!   multi-element array semantics).
-//! - Derived LLR without rationale fires
-//!   TRACE_DERIVED_MISSING_RATIONALE.
+//! - Derived LLR without rationale fires the derived-rationale rule.
+//!
+//! All three rules currently surface under the single
+//! `TRACE_LINK_FAILED` envelope; per-sub-rule diagnostic codes land
+//! when `TraceValidationError::Link` is refactored into typed
+//! sub-errors (C6 follow-up).
 
 #![allow(
     clippy::unwrap_used,
@@ -102,14 +106,18 @@ fn surfaces_bijection_fires_on_orphan_and_unknown() {
         .expect_err("expected bijection failure");
 
     let msg = format!("{:?}", err);
+    // Pre-C6: Link-phase violations surface under the single
+    // TRACE_LINK_FAILED envelope; the prose identifies the sub-rule.
+    // Once `TraceValidationError::Link` is refactored into typed
+    // sub-errors these assertions flip to `err.code() == "..."`.
     assert!(
-        msg.contains("TRACE_HLR_SURFACE_UNKNOWN"),
-        "expected UNKNOWN for 'NOT_A_REAL_SURFACE'; got:\n{}",
+        msg.contains("NOT_A_REAL_SURFACE") && msg.contains("not in KNOWN_SURFACES"),
+        "expected unknown-surface prose naming 'NOT_A_REAL_SURFACE'; got:\n{}",
         msg
     );
     assert!(
-        msg.contains("TRACE_HLR_SURFACE_UNCLAIMED"),
-        "expected UNCLAIMED for other KNOWN_SURFACES entries; got:\n{}",
+        msg.contains("is not claimed by any HLR"),
+        "expected unclaimed-surface prose; got:\n{}",
         msg
     );
 }
@@ -188,9 +196,11 @@ fn derived_without_rationale_fires() {
         .expect_err("expected derived-rationale failure");
 
     let msg = format!("{:?}", err);
+    // Pre-C6: surfaces under the TRACE_LINK_FAILED envelope; prose
+    // identifies the rule. Flips to `err.code()` after typed variants.
     assert!(
-        msg.contains("TRACE_DERIVED_MISSING_RATIONALE"),
-        "expected TRACE_DERIVED_MISSING_RATIONALE; got:\n{}",
+        msg.contains("derived LLR") && msg.contains("missing non-empty rationale"),
+        "expected derived-rationale prose; got:\n{}",
         msg
     );
 }

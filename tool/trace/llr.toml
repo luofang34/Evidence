@@ -808,16 +808,13 @@ description = """
 and observable contracts. A hand-curated `KNOWN_SURFACES: &[&str]`
 module-level const enumerates the complete surface catalog; a unit
 test asserts it matches the `Commands::*` enum plus hand-listed
-observable contracts. The Link-phase validator emits
-TRACE_HLR_SURFACE_UNCLAIMED for any KNOWN_SURFACES entry with no
-HLR claiming it, and TRACE_HLR_SURFACE_UNKNOWN for any HLR.surfaces
-string not in the catalog.
+observable contracts. The Link-phase validator pushes prose
+findings for any KNOWN_SURFACES entry with no HLR claiming it and
+for any HLR.surfaces string not in the catalog; all such findings
+surface under the current `TRACE_LINK_FAILED` envelope until typed
+sub-errors land (C6 follow-up).
 """
 verification_methods = ["test"]
-emits = [
-    "TRACE_HLR_SURFACE_UNCLAIMED",
-    "TRACE_HLR_SURFACE_UNKNOWN",
-]
 
 [[requirements]]
 uid = "1fd29203-a496-494a-b981-cf6730172f50"
@@ -849,10 +846,10 @@ modules = ["evidence::trace::validation::validate_derived_has_rationale"]
 derived = false
 description = """
 A Link-phase rule that iterates every LLR with `derived == true`
-and asserts `rationale.is_some()` and non-empty. Emits
-TRACE_DERIVED_MISSING_RATIONALE with the LLR's file + toml_path.
-Unconditional — DO-178C §5.2.2 requires the distinction to be
-explicit; no policy flag to disable.
+and asserts `rationale.is_some()` and non-empty. Surfaces under
+the current `TRACE_LINK_FAILED` envelope; per-sub-rule codes land
+when the Link bag is refactored into typed sub-errors (C6
+follow-up). Unconditional — DO-178C §5.2.2 requires the
+distinction to be explicit; no policy flag to disable.
 """
 verification_methods = ["test"]
-emits = ["TRACE_DERIVED_MISSING_RATIONALE"]

@@ -127,6 +127,25 @@ fn build_rows(
         }
     }
 
+    // Per-crate ceilings: same shape as floors but the comparison is
+    // `current <= ceiling`. For dimensions where fewer is better
+    // (library_panics, deprecated-API uses).
+    for (crate_name, per) in &config.per_crate_ceilings {
+        let measured = per_crate.get(crate_name);
+        for (dim, &ceiling) in per {
+            let current = measured.and_then(|m| m.get(dim).copied()).unwrap_or(0);
+            let status = if current <= ceiling { "pass" } else { "fail" };
+            rows.push(FloorRow {
+                name: dim.clone(),
+                kind: "per_crate_ceiling",
+                crate_name: Some(crate_name.clone()),
+                current,
+                floor: ceiling,
+                status,
+            });
+        }
+    }
+
     // Delta ceilings: parsed, reported as "deferred" pending CI
     // commit. Keeps the shape stable for agents reading the JSON
     // output today.
@@ -157,15 +176,15 @@ fn print_human(rows: &[FloorRow]) {
         .unwrap_or(4)
         .max(4);
     println!(
-        "{:<name_w$}  {:<16}  {:>8}  {:>8}  STATUS",
+        "{:<name_w$}  {:<18}  {:>8}  {:>8}  STATUS",
         "DIMENSION",
         "KIND",
         "CURRENT",
-        "FLOOR",
+        "LIMIT",
         name_w = name_w
     );
     println!(
-        "{:-<name_w$}  {:-<16}  {:->8}  {:->8}  {:-<8}",
+        "{:-<name_w$}  {:-<18}  {:->8}  {:->8}  {:-<8}",
         "",
         "",
         "",
@@ -181,7 +200,7 @@ fn print_human(rows: &[FloorRow]) {
             other => other,
         };
         println!(
-            "{:<name_w$}  {:<16}  {:>8}  {:>8}  {}",
+            "{:<name_w$}  {:<18}  {:>8}  {:>8}  {}",
             display_name(r),
             r.kind,
             r.current,
@@ -197,17 +216,17 @@ fn print_human(rows: &[FloorRow]) {
         let pass = rows.iter().filter(|r| r.status == "pass").count();
         if deferred > 0 {
             println!(
-                "{} floor(s) pass. {} delta_ceiling(s) declared but NOT enforced yet — \
+                "{} limit(s) pass. {} delta_ceiling(s) declared but NOT enforced yet — \
                  parsed only for wire-shape stability; the diff-enforcement path lands \
                  in a follow-up commit.",
                 pass, deferred
             );
         } else {
-            println!("{} floor(s) pass.", pass);
+            println!("{} limit(s) pass.", pass);
         }
     } else {
         println!(
-            "FLOORS_BELOW_MIN: {} floor violation(s). Rigor has slipped — \
+            "FLOORS_BELOW_MIN: {} limit violation(s). Rigor has slipped — \
              either restore the measurement or edit cert/floors.toml with \
              a `Lower-Floor:` justification line in the PR body.",
             fails

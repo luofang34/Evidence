@@ -42,7 +42,7 @@ schema_version = 1
 
 # evidence::RULES length — every diagnostic code the tool can emit,
 # hand-curated. Lives in a single crate, so workspace-wide.
-diagnostic_codes = 85
+diagnostic_codes = 82
 
 # evidence::TERMINAL_CODES length — hand-emitted terminals
 # (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR).
@@ -65,19 +65,33 @@ trace_test = 40
 known_surfaces = 11
 
 # --------------------------------------------------------------------
-# Per-crate-true dimensions: one `[per_crate.<crate>]` table per
-# in-scope crate. Adding a crate to cert/boundary.toml requires
-# adding its row here too or the bijection check fires.
+# Per-crate-true dimensions: one table per in-scope crate.
+#
+# [per_crate.<crate>]          — absolute floors: current >= value
+# [per_crate_ceilings.<crate>] — absolute ceilings: current <= value
+#
+# Adding a crate to cert/boundary.toml requires adding its row to one
+# of these tables or the bijection check fires. The key-union of the
+# two tables must equal scope.in_scope.
 # --------------------------------------------------------------------
 
 [per_crate.evidence]
 # `#[test]` attribute count inside crates/evidence/**/*.rs.
-test_count = 199
-# panic! / unimplemented!() / todo!() in crates/evidence/src/**
-# outside #[cfg(test)] blocks, doc comments, string literals, and
-# main.rs. Target and current value: 0.
-library_panics = 0
+test_count = 202
 
 [per_crate.cargo-evidence]
 test_count = 73
+
+# Per-crate ceilings. library_panics is a ceiling, not a floor: more
+# panics is always worse. Before PR #49 this key lived in
+# `[per_crate.<crate>]` with a floor, where `current >= 0` trivially
+# passed — turning the gate into a no-op.
+
+[per_crate_ceilings.evidence]
+# panic! / unimplemented!() / todo!() in crates/evidence/src/**
+# outside #[cfg(test)] blocks, sibling `tests.rs` facades, doc
+# comments, string literals, and main.rs.
+library_panics = 0
+
+[per_crate_ceilings.cargo-evidence]
 library_panics = 0
