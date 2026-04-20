@@ -991,3 +991,137 @@ jobs:
           fi
 
           exit $fail
+
+  cross-time-determinism:
+    # Guards against silent drift of a bundle's `deterministic_hash`
+    # across time — dependency lock bumps, toolchain swaps,
+    # RUSTFLAGS changes. Cross-host determinism (landed) pins parity
+    # across N hosts at one point in time; this job pins parity
+    # across time on one host.
+    #
+    # Flow: download the last successful main-branch
+    # `evidence-cross-host` Linux artifact, extract its
+    # `deterministic_hash`, build the current PR's bundle, compare.
+    # If equal, pass silently. If different + the PR body (or head
+    # commit message) carries `Override-Deterministic-Baseline:
+    # <reason>`, pass with a logged notice. If different without
+    # override, fail with both hashes + the expected override
+    # syntax.
+    #
+    # Degradation: if no prior artifact exists (fresh repo, first
+    # workflow run, or the 14-day retention expired before this
+    # PR opened), skip with a warning. Blocking a PR because CI
+    # history is thin would be user-hostile.
+    #
+    # Linux-only — `deterministic_hash` is cross-host-stable by
+    # design, so one OS is enough to catch drift. Running on three
+    # would burn runner minutes for no additional signal.
+    name: Cross-time determinism (ubuntu-latest)
+    runs-on: ubuntu-latest
+    # No `needs:` — runs in parallel with check.
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust 1.95
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95"
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release -p cargo-evidence
+
+      - name: Generate current bundle
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/current-out"
+          ./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --out-dir "$RUNNER_TEMP/current-out" \
+            --profile dev
+          current_bundle=$(ls -d "$RUNNER_TEMP"/current-out/dev-*/ | head -n1)
+          current_bundle=${current_bundle%/}
+          cp "$current_bundle/index.json" "$RUNNER_TEMP/current-index.json"
+          echo "current deterministic_hash: $(jq -r .deterministic_hash "$RUNNER_TEMP/current-index.json")"
+
+      - name: Fetch last successful main-branch artifact
+        id: fetch-prior
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/prior-main"
+
+          # Find the last successful run of this workflow on main.
+          # If no such run exists, degrade gracefully.
+          last_run=$(gh run list \
+              --branch main \
+              --workflow ci.yml \
+              --status success \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId // empty')
+          if [ -z "$last_run" ]; then
+            echo "::warning::No successful main-branch CI run found; skipping cross-time compare."
+            echo "prior_missing=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Download the xhost-Linux artifact from that run. If
+          # retention expired (14 days), the download errors out
+          # and we degrade to skip.
+          if ! gh run download "$last_run" \
+               --name xhost-Linux \
+               --dir "$RUNNER_TEMP/prior-main" 2>/dev/null; then
+            echo "::warning::Prior main-branch artifact xhost-Linux from run $last_run is unavailable (expired?); skipping compare."
+            echo "prior_missing=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ ! -f "$RUNNER_TEMP/prior-main/index.json" ]; then
+            echo "::warning::Prior artifact downloaded but index.json is missing; skipping."
+            echo "prior_missing=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "prior_missing=0" >> "$GITHUB_OUTPUT"
+          echo "prior deterministic_hash: $(jq -r .deterministic_hash "$RUNNER_TEMP/prior-main/index.json")"
+
+      - name: Lint drift against override
+        if: steps.fetch-prior.outputs.prior_missing != '1'
+        shell: bash
+        env:
+          # On pull_request events, `github.event.pull_request.body`
+          # carries the body; on push events, `github.event.head_commit.message`
+          # carries the head commit message. We plumb both so the
+          # script's dual check works in either mode.
+          PR_BODY: ${{ github.event.pull_request.body }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          ./scripts/deterministic-baseline-override-lint.sh \
+            "$RUNNER_TEMP/prior-main/index.json" \
+            "$RUNNER_TEMP/current-index.json"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.fetch-prior.outputs.prior_missing }}" = "1" ]; then
+            echo "_Cross-time determinism: skipped — no prior main-branch artifact available._" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "_Cross-time determinism: prior main-branch deterministic_hash matched current build._" >> "$GITHUB_STEP_SUMMARY"
+          fi
