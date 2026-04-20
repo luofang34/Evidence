@@ -140,16 +140,29 @@ fn any_file_matches(files: &[PathBuf], fn_name: &str, prefix: Option<&str>) -> b
 /// `<prefix>/` as a directory segment, or matches against the
 /// integration-test convention `tests/<prefix>.rs`. Windows-safe —
 /// normalizes separators first.
+///
+/// Crate names on disk use hyphens (`evidence-core`) while Rust module
+/// paths use underscores (`evidence_core::…`). Cargo's cross-walk
+/// rule is one-way: hyphens in a crate name become underscores in the
+/// module path. To match a selector's leading segment back to a crate
+/// directory, try the hyphen form of the prefix as well.
 fn path_matches_prefix(path: &Path, prefix: &str) -> bool {
     let normalized = path.to_string_lossy().replace('\\', "/");
-    // Filename stem equal to prefix (integration test binaries).
-    if path.file_stem().and_then(|s| s.to_str()) == Some(prefix) {
+    let hyphen_form = prefix.replace('_', "-");
+    let stem = path.file_stem().and_then(|s| s.to_str());
+    let try_one = |candidate: &str| -> bool {
+        if stem == Some(candidate) {
+            return true;
+        }
+        normalized.contains(&format!("/{}/", candidate))
+    };
+    if try_one(prefix) {
         return true;
     }
-    // Directory name equal to prefix (unit tests under `crates/<name>/`
-    // or a module path component).
-    let marker = format!("/{}/", prefix);
-    normalized.contains(&marker)
+    if hyphen_form != prefix && try_one(&hyphen_form) {
+        return true;
+    }
+    false
 }
 
 fn file_has_test_fn(text: &str, fn_name: &str) -> bool {
@@ -288,5 +301,38 @@ mod tests {
         assert!(any_file_matches(&files, "my_fn", Some("crate_b")));
         // Qualified against crate_a: must NOT resolve via crate_b.
         assert!(!any_file_matches(&files, "my_fn", Some("crate_a")));
+    }
+
+    /// Hyphenated crate names (`evidence-core`) expose module paths
+    /// with underscores (`evidence_core::…`). A selector's leading
+    /// segment is always the underscore form; the filesystem
+    /// directory keeps the hyphen. The resolver has to bridge both.
+    #[test]
+    fn prefix_matches_hyphenated_crate_dir_when_selector_uses_underscore() {
+        use std::fs;
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let crate_dir = tmp.path().join("crates").join("evidence-core").join("src");
+        fs::create_dir_all(&crate_dir).expect("mkdir crate");
+        fs::write(
+            crate_dir.join("lib.rs"),
+            "#[test]\nfn hyphen_bridge_test() { assert!(true); }\n",
+        )
+        .expect("write lib");
+
+        let files = collect_rs_files(tmp.path());
+
+        // Selector carries the underscore form; directory carries
+        // the hyphen form. Resolver bridges the two.
+        assert!(any_file_matches(
+            &files,
+            "hyphen_bridge_test",
+            Some("evidence_core")
+        ));
+        // Direct hyphen form still works (belt-and-suspenders).
+        assert!(any_file_matches(
+            &files,
+            "hyphen_bridge_test",
+            Some("evidence-core")
+        ));
     }
 }

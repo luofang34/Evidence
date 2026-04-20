@@ -9,7 +9,7 @@ crates/cargo-evidence/tests/fixtures/golden-dev-bundle/** binary
 # `tests/compliance_fixture.rs` — any EOL translation from
 # `core.autocrlf` on Windows CI would flip LF→CRLF and break the
 # comparison. Same binary treatment as the golden-bundle tree.
-crates/evidence/tests/fixtures/compliance/** binary
+crates/evidence-core/tests/fixtures/compliance/** binary
 
 # Source-tracked files whose bytes flow directly into the
 # `deterministic_hash` projection. `cargo_lock_hash` is SHA-256 of
@@ -21,6 +21,7 @@ crates/evidence/tests/fixtures/compliance/** binary
 Cargo.lock            text eol=lf
 rust-toolchain.toml   text eol=lf
 
-# PR #47 — golden wire-shape fixture. Keep literal bytes so cross-OS
-# checkouts don't mangle line endings and trip the byte-diff test.
+# Golden wire-shape fixture for `cargo evidence rules --json`. Keep
+# literal bytes so cross-OS checkouts don't mangle line endings and
+# trip the byte-diff test.
 crates/cargo-evidence/tests/fixtures/golden_rules.json binary
