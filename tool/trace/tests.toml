@@ -503,26 +503,28 @@ title = "Pre-release tool flag propagates into env.json, blocks verify under cer
 owner = "tool"
 traces_to = ["548b7b36-1d03-487d-a6a1-f2b37bdee2a1"]
 description = """
-Five assertions:
+Four assertions:
 - `is_prerelease_version` correctly classifies `0.1.0-pre.1`,
-  `0.0.1-alpha.2`, `1.0.0-rc.3` as pre-release and
-  `0.1.0`, `1.0.0+build.42` as release (pure detection).
-- `EnvFingerprint` round-trips `tool_prerelease` through
-  serde; absent field deserializes as `false` (backwards
-  compat for pre-PR-#60 bundles).
+  `0.0.1-alpha.2`, `1.0.0-rc.3` as pre-release and `0.1.0`,
+  `1.0.0+build.42` as release (pure detection).
+- `EnvFingerprint` round-trips `tool_prerelease` through serde;
+  absent field deserializes as `false` (backwards compat for
+  older bundles that predate the flag).
 - Verify dev on a bundle with `tool_prerelease = true` exits 0
   and emits `VERIFY_PRERELEASE_TOOL` at warning severity (not
   terminal).
 - Verify cert on the same bundle exits 2 with
   `VERIFY_PRERELEASE_TOOL` error + `VERIFY_FAIL` terminal.
-- Generate --profile cert on a pre-release build emits a
-  warning-severity `VERIFY_PRERELEASE_TOOL` diagnostic during
-  bundle assembly (before verify would fire later).
+
+The generate-time warning banner in `init_builder` is a
+`tracing::warn!` gated on the compile-time const
+`TOOL_IS_PRERELEASE`. Exercising it would require rebuilding
+the CLI with a pre-release `CARGO_PKG_VERSION`; it is verified
+by manual dogfood each time a pre-release publish is cut.
 """
 test_selectors = [
-    "env_prerelease::is_prerelease_version_classifies_semver_shapes",
-    "env_prerelease::env_fingerprint_roundtrip_prerelease_field",
+    "evidence_core::env::capture::prerelease_tests::classifies_semver_shapes",
+    "evidence_core::env::fingerprint::tests::tool_prerelease_explicit_true_roundtrips",
     "verify_prerelease::dev_profile_warning_passes",
     "verify_prerelease::cert_profile_blocks_with_verify_fail",
-    "verify_prerelease::generate_cert_warns_on_prerelease",
 ]
