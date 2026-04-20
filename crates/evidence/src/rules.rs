@@ -345,6 +345,7 @@ pub const RULES: &[RuleEntry] = &[
         Domain::Verify,
     ),
     terminal("VERIFY_OK", Severity::Info),
+    r("VERIFY_PRERELEASE_TOOL", Severity::Error, Domain::Verify),
     r(
         "VERIFY_RUNTIME_BUNDLE_NOT_FOUND",
         Severity::Error,

@@ -109,6 +109,21 @@ pub enum VerifyError {
         /// Which direction of the mismatch fired.
         detail: String,
     },
+    /// Bundle's `env.json` reports `tool_prerelease = true` — the
+    /// engine that produced this bundle was a pre-release build
+    /// (semver-`-` suffix on `CARGO_PKG_VERSION`). The library
+    /// pushes this error on every profile; the CLI downgrades to
+    /// Warning severity on `Profile::Dev` so dev iteration is
+    /// unblocked, keeps Error on Cert/Record (→ `VERIFY_FAIL`
+    /// terminal, exit 2). See SYS-017 / HLR-049.
+    PrereleaseToolDetected {
+        /// Profile read from `index.json` — drives the CLI's
+        /// Dev-vs-Cert/Record severity partition.
+        profile: String,
+        /// Full version string from `index.json.engine_crate_version`
+        /// for the reviewer-visible context.
+        engine_crate_version: String,
+    },
 }
 
 impl std::fmt::Display for VerifyError {
@@ -214,6 +229,19 @@ impl std::fmt::Display for VerifyError {
             VerifyError::DalMapOrphan { crate_name, detail } => {
                 write!(f, "dal_map orphan for '{}': {}", crate_name, detail)
             }
+            VerifyError::PrereleaseToolDetected {
+                profile,
+                engine_crate_version,
+            } => {
+                write!(
+                    f,
+                    "bundle was produced by a pre-release build \
+                     (engine_crate_version = {:?}); cert/record bundles from \
+                     pre-release builds are not valid audit evidence \
+                     (profile = {})",
+                    engine_crate_version, profile
+                )
+            }
         }
     }
 }
@@ -237,6 +265,7 @@ impl DiagnosticCode for VerifyError {
             VerifyError::TestSummaryMismatch { .. } => "VERIFY_TEST_SUMMARY_MISMATCH",
             VerifyError::DalMapMismatch { .. } => "VERIFY_DAL_MAP_MISMATCH",
             VerifyError::DalMapOrphan { .. } => "VERIFY_DAL_MAP_ORPHAN",
+            VerifyError::PrereleaseToolDetected { .. } => "VERIFY_PRERELEASE_TOOL",
         }
     }
 
@@ -274,7 +303,8 @@ impl DiagnosticCode for VerifyError {
             | VerifyError::CrossFileInconsistency { .. }
             | VerifyError::DeterministicHashMismatch { .. }
             | VerifyError::ManifestProjectionDrift { .. }
-            | VerifyError::TestSummaryMismatch { .. } => None,
+            | VerifyError::TestSummaryMismatch { .. }
+            | VerifyError::PrereleaseToolDetected { .. } => None,
         };
 
         file_path.map(|file| Location {

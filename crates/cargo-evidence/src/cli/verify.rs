@@ -189,6 +189,9 @@ pub fn cmd_verify(
                     evidence::VerifyError::TestSummaryMismatch { .. } => "test_summary_mismatch",
                     evidence::VerifyError::DalMapMismatch { .. } => "dal_map_mismatch",
                     evidence::VerifyError::DalMapOrphan { .. } => "dal_map_orphan",
+                    evidence::VerifyError::PrereleaseToolDetected { .. } => {
+                        "prerelease_tool_detected"
+                    }
                 };
                 checks.push(VerifyCheck {
                     name: name.to_string(),

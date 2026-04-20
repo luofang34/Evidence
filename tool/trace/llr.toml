@@ -1132,5 +1132,5 @@ Four coupled sites:
   emits a warning-severity `VERIFY_PRERELEASE_TOOL` in
   cert/record profile when `TOOL_IS_PRERELEASE` is true.
 '''
-emits = []
+emits = ["VERIFY_PRERELEASE_TOOL"]
 verification_methods = ["test"]
