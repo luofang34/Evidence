@@ -42,11 +42,12 @@ schema_version = 1
 
 # evidence::RULES length — every diagnostic code the tool can emit,
 # hand-curated. Lives in a single crate, so workspace-wide.
-diagnostic_codes = 96
+diagnostic_codes = 106
 
 # evidence::TERMINAL_CODES length — hand-emitted terminals
-# (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR).
-terminal_codes = 4
+# (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR /
+#  DOCTOR_OK / DOCTOR_FAIL).
+terminal_codes = 6
 
 # tool/trace/sys.toml — System Requirements.
 trace_sys = 16

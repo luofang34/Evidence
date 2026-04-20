@@ -143,6 +143,7 @@ fn rules_json_every_entry_has_known_severity_and_domain() {
                     | "bundle"
                     | "cli"
                     | "cmd"
+                    | "doctor"
                     | "env"
                     | "floors"
                     | "git"

@@ -1074,5 +1074,16 @@ into a `GENERATE_ERROR` terminal whose diagnostic enumerates the
 per-check codes so the auditor gets full detail without re-
 running doctor.
 '''
-emits = []
+emits = [
+    "DOCTOR_OK",
+    "DOCTOR_FAIL",
+    "DOCTOR_CHECK_PASSED",
+    "DOCTOR_TRACE_INVALID",
+    "DOCTOR_FLOORS_MISSING",
+    "DOCTOR_FLOORS_VIOLATED",
+    "DOCTOR_BOUNDARY_MISSING",
+    "DOCTOR_CI_INTEGRATION_MISSING",
+    "DOCTOR_MERGE_STYLE_RISK",
+    "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
+]
 verification_methods = ["test"]

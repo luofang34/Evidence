@@ -86,6 +86,7 @@ fn domain_label(d: evidence::Domain) -> &'static str {
         evidence::Domain::Bundle => "bundle",
         evidence::Domain::Cli => "cli",
         evidence::Domain::Cmd => "cmd",
+        evidence::Domain::Doctor => "doctor",
         evidence::Domain::Env => "env",
         evidence::Domain::Floors => "floors",
         evidence::Domain::Git => "git",
