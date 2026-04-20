@@ -19,7 +19,7 @@
 )]
 
 use clap::Parser;
-use evidence::diagnostic::{Diagnostic, Severity};
+use evidence_core::diagnostic::{Diagnostic, Severity};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 

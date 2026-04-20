@@ -330,3 +330,39 @@ itself, which is visible in the bundle's `engine_git_sha`.
 '''
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "2758e039-4943-4a9a-ad3d-9e0b0d0da7d8"
+id = "SYS-017"
+title = "Bundles produced by a pre-release build of the tool shall be mechanically rejected as cert/record evidence"
+owner = "soi"
+scope = "soi"
+description = '''
+The tool ships in two flavors: release (`cargo install
+cargo-evidence --version '=X.Y.Z'`) and pre-release
+(`cargo install cargo-evidence --version '<1.0.0-z'`) — the
+latter covers `-pre`, `-alpha`, `-beta`, `-rc`, `-dev` semver
+suffixes. Downstream contributors and agents need to trial the
+full `generate → verify` loop against a pre-release build
+(install friction is the same), but the output of that trial
+must never be usable as real audit evidence: a cert-level
+auditor reading a bundle alone must see a structured flag
+(not just a version string requiring human parsing) and the
+verify command must refuse such bundles loud.
+
+The tool shall embed a `tool_prerelease: bool` field in every
+bundle's `env.json`, set from `env!("CARGO_PKG_VERSION")` at
+build time (any `-` suffix = pre-release per semver §9). The
+`verify` subcommand under `--profile cert` / `record` shall
+emit `VERIFY_PRERELEASE_TOOL` as an error-severity finding and
+fail with `VERIFY_FAIL` whenever the bundle carries
+`tool_prerelease = true`; dev profile shall emit the same code
+at warning severity and still pass. The `generate` subcommand
+in cert/record profile shall additionally emit a warning-
+severity `VERIFY_PRERELEASE_TOOL` at bundle-assembly time so
+the user knows the bundle they are producing will fail its own
+verify. No opt-out short of editing the tool (visible in
+`engine_git_sha`).
+'''
+verification_methods = ["test"]
+traces_to = []

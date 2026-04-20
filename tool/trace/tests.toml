@@ -43,7 +43,7 @@ id = "TEST-005"
 title = "FixHint::Other tolerates unknown kind payload"
 owner = "tool"
 traces_to = ["f0d8f7ed-60fa-4c56-8d71-7145d2bd85dd"]
-test_selector = "evidence::diagnostic::tests::fix_hint_unknown_kind_falls_back_to_other"
+test_selector = "evidence_core::diagnostic::tests::fix_hint_unknown_kind_falls_back_to_other"
 
 [[tests]]
 uid = "1191eb4c-9891-48f3-852b-aaf879d437bc"
@@ -280,10 +280,10 @@ test_selector = "self_compliance_baseline::baseline_matches_current_generation"
 [[tests]]
 uid = "ba385e00-6646-4a41-afe2-0aabdf4dafba"
 id = "TEST-035"
-title = "evidence::floors helpers return the committed current values"
+title = "evidence_core::floors helpers return the committed current values"
 owner = "tool"
 traces_to = ["338d51d5-9068-4984-9826-4b84e698c62a"]
-test_selector = "evidence::floors::tests::current_measurements_satisfy_committed_floors"
+test_selector = "evidence_core::floors::tests::current_measurements_satisfy_committed_floors"
 
 [[tests]]
 uid = "e5ec5aab-828f-4540-8bc6-20c586adf45f"
@@ -494,4 +494,37 @@ test_selectors = [
     "doctor_cmd::sloppy_fixture_fails_with_named_codes",
     "doctor_cmd::cert_generate_blocks_on_doctor_fail",
     "doctor_cmd::current_workspace_passes_doctor",
+]
+
+[[tests]]
+uid = "2856e53c-8c90-42e8-ad9b-3da6f3a14a25"
+id = "TEST-049"
+title = "Pre-release tool flag propagates into env.json, blocks verify under cert/record, passes dev"
+owner = "tool"
+traces_to = ["548b7b36-1d03-487d-a6a1-f2b37bdee2a1"]
+description = """
+Four assertions:
+- `is_prerelease_version` correctly classifies `0.1.0-pre.1`,
+  `0.0.1-alpha.2`, `1.0.0-rc.3` as pre-release and `0.1.0`,
+  `1.0.0+build.42` as release (pure detection).
+- `EnvFingerprint` round-trips `tool_prerelease` through serde;
+  absent field deserializes as `false` (backwards compat for
+  older bundles that predate the flag).
+- Verify dev on a bundle with `tool_prerelease = true` exits 0
+  and emits `VERIFY_PRERELEASE_TOOL` at warning severity (not
+  terminal).
+- Verify cert on the same bundle exits 2 with
+  `VERIFY_PRERELEASE_TOOL` error + `VERIFY_FAIL` terminal.
+
+The generate-time warning banner in `init_builder` is a
+`tracing::warn!` gated on the compile-time const
+`TOOL_IS_PRERELEASE`. Exercising it would require rebuilding
+the CLI with a pre-release `CARGO_PKG_VERSION`; it is verified
+by manual dogfood each time a pre-release publish is cut.
+"""
+test_selectors = [
+    "evidence_core::env::capture::prerelease_tests::classifies_semver_shapes",
+    "evidence_core::env::fingerprint::tests::tool_prerelease_explicit_true_roundtrips",
+    "verify_prerelease::dev_profile_warning_passes",
+    "verify_prerelease::cert_profile_blocks_with_verify_fail",
 ]

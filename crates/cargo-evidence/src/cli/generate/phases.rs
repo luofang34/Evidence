@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-use evidence::{
+use evidence_core::{
     BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
     EvidencePolicy, Profile,
     git::{check_shallow_clone, git_ls_files, is_dirty_or_unknown},
@@ -143,6 +143,22 @@ pub(super) fn init_builder(
     if !quiet && !json_output {
         println!("evidence: generating bundle in {:?}", builder.bundle_dir());
         println!("evidence: profile = {}", profile);
+    }
+    // Pre-release tool → cert/record early warning (SYS-017).
+    // The eventual `verify --profile cert` will fail with
+    // `VERIFY_PRERELEASE_TOOL`; emit the warning now so the user
+    // doesn't learn about it only after the full generate pipeline
+    // runs. Dev profile: silent (dev iteration stays fast).
+    if evidence_core::env::TOOL_IS_PRERELEASE && matches!(profile, Profile::Cert | Profile::Record)
+    {
+        tracing::warn!(
+            "tool_prerelease = true on profile {}: the bundle this run \
+             produces will fail `verify --profile {}` with \
+             VERIFY_PRERELEASE_TOOL. Install a release build to produce \
+             audit-valid cert evidence.",
+            profile,
+            profile
+        );
     }
     Ok(Ok(builder))
 }
@@ -391,14 +407,14 @@ pub(super) fn write_compliance_reports(
     let has_test_results = tests_passed.is_some();
     let has_trace_data = trace_roots.iter().any(|r| Path::new(r).exists());
     for (crate_name, dal) in dal_map {
-        let crate_evidence = evidence::CrateEvidence {
+        let crate_evidence = evidence_core::CrateEvidence {
             has_trace_data,
             trace_validation_passed: true,
             has_test_results,
             tests_passed,
             has_coverage_data: false,
         };
-        let report = evidence::generate_compliance_report(crate_name, *dal, &crate_evidence);
+        let report = evidence_core::generate_compliance_report(crate_name, *dal, &crate_evidence);
         let report_path = compliance_dir.join(format!("{}.json", crate_name));
         fs::write(&report_path, serde_json::to_string_pretty(&report)?)?;
         if !quiet && !json_output {

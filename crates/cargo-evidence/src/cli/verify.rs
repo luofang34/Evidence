@@ -6,9 +6,9 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::Serialize;
 
-use evidence::diagnostic::{Diagnostic, DiagnosticCode, Severity};
-use evidence::verify::VerifyRuntimeError;
-use evidence::{VerifyResult, verify_bundle_with_key};
+use evidence_core::diagnostic::{Diagnostic, DiagnosticCode, Severity};
+use evidence_core::verify::VerifyRuntimeError;
+use evidence_core::{VerifyResult, verify_bundle_with_key};
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFormat};
 use super::output::{emit_json, emit_jsonl};
@@ -175,20 +175,33 @@ pub fn cmd_verify(
             // Map each VerifyError to its own VerifyCheck for granular JSON output
             for err in &errors {
                 let name = match err {
-                    evidence::VerifyError::UnexpectedFile(_) => "unexpected_file",
-                    evidence::VerifyError::HmacFailure => "hmac_signature",
-                    evidence::VerifyError::HashMismatch { .. } => "hash_mismatch",
-                    evidence::VerifyError::MissingHashedFile(_) => "missing_file",
-                    evidence::VerifyError::ContentHashMismatch { .. } => "content_hash",
-                    evidence::VerifyError::UnsafePath(_) => "unsafe_path",
-                    evidence::VerifyError::FormatError { .. } => "format_error",
-                    evidence::VerifyError::CrossFileInconsistency { .. } => "cross_file_mismatch",
-                    evidence::VerifyError::DeterministicHashMismatch { .. } => "deterministic_hash",
-                    evidence::VerifyError::ManifestProjectionDrift { .. } => "manifest_projection",
-                    evidence::VerifyError::TraceOutputNotHashed(_) => "trace_output_not_hashed",
-                    evidence::VerifyError::TestSummaryMismatch { .. } => "test_summary_mismatch",
-                    evidence::VerifyError::DalMapMismatch { .. } => "dal_map_mismatch",
-                    evidence::VerifyError::DalMapOrphan { .. } => "dal_map_orphan",
+                    evidence_core::VerifyError::UnexpectedFile(_) => "unexpected_file",
+                    evidence_core::VerifyError::HmacFailure => "hmac_signature",
+                    evidence_core::VerifyError::HashMismatch { .. } => "hash_mismatch",
+                    evidence_core::VerifyError::MissingHashedFile(_) => "missing_file",
+                    evidence_core::VerifyError::ContentHashMismatch { .. } => "content_hash",
+                    evidence_core::VerifyError::UnsafePath(_) => "unsafe_path",
+                    evidence_core::VerifyError::FormatError { .. } => "format_error",
+                    evidence_core::VerifyError::CrossFileInconsistency { .. } => {
+                        "cross_file_mismatch"
+                    }
+                    evidence_core::VerifyError::DeterministicHashMismatch { .. } => {
+                        "deterministic_hash"
+                    }
+                    evidence_core::VerifyError::ManifestProjectionDrift { .. } => {
+                        "manifest_projection"
+                    }
+                    evidence_core::VerifyError::TraceOutputNotHashed(_) => {
+                        "trace_output_not_hashed"
+                    }
+                    evidence_core::VerifyError::TestSummaryMismatch { .. } => {
+                        "test_summary_mismatch"
+                    }
+                    evidence_core::VerifyError::DalMapMismatch { .. } => "dal_map_mismatch",
+                    evidence_core::VerifyError::DalMapOrphan { .. } => "dal_map_orphan",
+                    evidence_core::VerifyError::PrereleaseToolDetected { .. } => {
+                        "prerelease_tool_detected"
+                    }
                 };
                 checks.push(VerifyCheck {
                     name: name.to_string(),
@@ -315,13 +328,38 @@ fn cmd_verify_jsonl(
         }
         Ok(VerifyResult::Fail(errors)) => {
             // Schema Rule 7: each finding is an independent observation.
-            // Emit one per error, then the aggregate terminal event.
+            // Emit one per error, then the aggregate terminal.
+            //
+            // Severity partition: `VERIFY_PRERELEASE_TOOL` on a
+            // `dev`-profile bundle is a warning — downstream users
+            // trialling the tool with a pre-release install must be
+            // able to generate + verify dev bundles as a sanity
+            // check. On `cert`/`record` profiles the same code is
+            // an error (cert bundles from pre-release tools are
+            // not valid audit evidence). Every other VerifyError
+            // variant stays Error regardless of profile.
+            let mut any_error = false;
             for err in &errors {
-                emit_jsonl(&err.to_diagnostic())?;
+                let mut diag = err.to_diagnostic();
+                if let evidence_core::VerifyError::PrereleaseToolDetected { profile, .. } = err
+                    && profile == "dev"
+                {
+                    diag.severity = Severity::Warning;
+                } else {
+                    any_error = true;
+                }
+                emit_jsonl(&diag)?;
             }
-            let reason = format!("{} finding(s)", errors.len());
-            emit_jsonl(&terminal_fail(&reason))?;
-            Ok(EXIT_VERIFICATION_FAILURE)
+            if any_error {
+                let reason = format!("{} finding(s)", errors.len());
+                emit_jsonl(&terminal_fail(&reason))?;
+                Ok(EXIT_VERIFICATION_FAILURE)
+            } else {
+                emit_jsonl(&terminal_ok(
+                    "pre-release tool warning on dev profile — non-blocking",
+                ))?;
+                Ok(EXIT_SUCCESS)
+            }
         }
         Ok(VerifyResult::Skipped(reason)) => {
             // Advisory event before the terminal — agents can see why

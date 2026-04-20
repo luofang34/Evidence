@@ -20,7 +20,7 @@ fn cargo_evidence() -> Command {
     Command::cargo_bin("cargo-evidence").unwrap()
 }
 
-/// The committed JSON shape MUST match what `evidence::rules_json()`
+/// The committed JSON shape MUST match what `evidence_core::rules_json()`
 /// produces. Re-running through the CLI + parse catches any drift
 /// between the library helper and the CLI wiring.
 #[test]
@@ -34,10 +34,10 @@ fn rules_json_matches_rules_json_helper() {
 
     let from_cli: Value = serde_json::from_str(&cli_stdout).expect("CLI output parses");
     let from_lib: Value =
-        serde_json::from_str(&evidence::rules_json()).expect("library output parses");
+        serde_json::from_str(&evidence_core::rules_json()).expect("library output parses");
     assert_eq!(
         from_cli, from_lib,
-        "CLI rules --json diverged from evidence::rules_json()"
+        "CLI rules --json diverged from evidence_core::rules_json()"
     );
 }
 
@@ -52,7 +52,7 @@ fn rules_json_length_matches_rules_const() {
     let stdout = String::from_utf8(out.stdout).expect("valid utf-8");
     let v: Value = serde_json::from_str(&stdout).expect("parses");
     let arr = v.as_array().expect("top-level array");
-    assert_eq!(arr.len(), evidence::RULES.len());
+    assert_eq!(arr.len(), evidence_core::RULES.len());
 }
 
 /// Human-mode `rules` exits 0 and emits a table header we can pin
@@ -80,7 +80,7 @@ fn rules_human_mode_exits_zero_and_prints_header() {
         "table header missing DOMAIN column"
     );
     assert!(
-        stdout.contains(&format!("{} rule(s) total", evidence::RULES.len())),
+        stdout.contains(&format!("{} rule(s) total", evidence_core::RULES.len())),
         "total count line missing or wrong"
     );
 }

@@ -49,9 +49,9 @@ title = "DiagnosticCode impls use exhaustive match self"
 owner = "tool"
 traces_to = ["9296020e-761f-4d47-9081-7858c699e3f8"]
 modules = [
-    "evidence::diagnostic::DiagnosticCode",
-    "evidence::verify::errors::VerifyError",
-    "evidence::hash::HashError",
+    "evidence_core::diagnostic::DiagnosticCode",
+    "evidence_core::verify::errors::VerifyError",
+    "evidence_core::hash::HashError",
 ]
 derived = false
 description = """
@@ -68,7 +68,7 @@ id = "LLR-004"
 title = "TERMINAL_CODES is the source of truth for terminals"
 owner = "tool"
 traces_to = ["3181e08a-934f-4031-99ec-d55e609399c7"]
-modules = ["evidence::diagnostic::TERMINAL_CODES"]
+modules = ["evidence_core::diagnostic::TERMINAL_CODES"]
 derived = false
 description = """
 pub const TERMINAL_CODES: &[&str] enumerates every hand-emitted
@@ -86,7 +86,7 @@ id = "LLR-005"
 title = "FixHint::Other catches unknown kind via #[serde(other)]"
 owner = "tool"
 traces_to = ["ba4d711e-f3e9-4af5-951c-682755799f18"]
-modules = ["evidence::diagnostic::FixHint"]
+modules = ["evidence_core::diagnostic::FixHint"]
 derived = false
 description = """
 FixHint is a tagged enum with #[serde(tag = "kind")]. An unknown
@@ -103,7 +103,7 @@ id = "LLR-006"
 title = "GitSnapshot::capture queries git once at builder construction"
 owner = "tool"
 traces_to = ["78a03d07-7314-46bc-8b63-776104d99c35"]
-modules = ["evidence::git::GitSnapshot::capture"]
+modules = ["evidence_core::git::GitSnapshot::capture"]
 derived = false
 description = """
 GitSnapshot::capture reads HEAD SHA, branch, and dirty status in one
@@ -128,7 +128,7 @@ id = "LLR-007"
 title = "env_fingerprint records toolchain + host identity"
 owner = "tool"
 traces_to = ["2e3840ff-7803-4ba0-b88d-9cc6ec8b6062"]
-modules = ["evidence::env::capture::env_fingerprint"]
+modules = ["evidence_core::env::capture::env_fingerprint"]
 derived = false
 description = """
 env_fingerprint runs rustc --version, cargo --version, reads
@@ -153,7 +153,7 @@ id = "LLR-008"
 title = "write_sha256sums sorts and normalizes paths"
 owner = "tool"
 traces_to = ["48f569e5-6671-4fb6-b36f-b04b446bd6c1"]
-modules = ["evidence::hash::write_sha256sums"]
+modules = ["evidence_core::hash::write_sha256sums"]
 derived = false
 description = """
 write_sha256sums walks the bundle root, collects file paths, sorts
@@ -177,7 +177,7 @@ id = "LLR-009"
 title = "DeterministicManifest projects host-independent fields"
 owner = "tool"
 traces_to = ["6947e635-4f6b-4833-a101-f896b8ae59c9"]
-modules = ["evidence::env::fingerprint::DeterministicManifest"]
+modules = ["evidence_core::env::fingerprint::DeterministicManifest"]
 derived = false
 description = """
 DeterministicManifest is derived from EnvFingerprint by selecting
@@ -198,7 +198,7 @@ id = "LLR-010"
 title = "EvidenceBuilder::finalize re-reads git SHA"
 owner = "tool"
 traces_to = ["f08c9da9-627c-471e-90af-0c286332a41f"]
-modules = ["evidence::bundle::EvidenceBuilder::finalize"]
+modules = ["evidence_core::bundle::EvidenceBuilder::finalize"]
 derived = false
 description = """
 finalize() calls GitProvider::head_sha() a second time and compares
@@ -232,7 +232,7 @@ id = "LLR-011"
 title = "verify_hash_list rehashes every SHA256SUMS entry"
 owner = "tool"
 traces_to = ["6cabc09d-8556-48f9-800b-7c1111fc0877"]
-modules = ["evidence::verify::bundle::verify_bundle_with_key"]
+modules = ["evidence_core::verify::bundle::verify_bundle_with_key"]
 derived = false
 description = """
 verify_bundle_with_key parses SHA256SUMS, recomputes the SHA-256 of
@@ -262,7 +262,7 @@ id = "LLR-012"
 title = "check_env_vs_index cross-checks duplicated fields"
 owner = "tool"
 traces_to = ["2e7d1836-c8b0-461f-8704-45ddefce31a5"]
-modules = ["evidence::verify::cross_file::check_env_vs_index"]
+modules = ["evidence_core::verify::cross_file::check_env_vs_index"]
 derived = false
 description = """
 check_env_vs_index reads env.json (tolerating tamper-failure via
@@ -279,7 +279,7 @@ id = "LLR-013"
 title = "check_dal_map cross-checks index.json ↔ compliance/"
 owner = "tool"
 traces_to = ["214ab4da-5328-4ace-9626-326dd95894a6"]
-modules = ["evidence::verify::consistency::check_dal_map"]
+modules = ["evidence_core::verify::consistency::check_dal_map"]
 derived = false
 description = """
 check_dal_map iterates index.json.dal_map, reads each
@@ -299,7 +299,7 @@ id = "LLR-014"
 title = "check_trace_outputs_hashed enforces trace-file hashing"
 owner = "tool"
 traces_to = ["fd304d26-ba40-4beb-9ab8-18f2185abbf3"]
-modules = ["evidence::verify::consistency::check_trace_outputs_hashed"]
+modules = ["evidence_core::verify::consistency::check_trace_outputs_hashed"]
 derived = false
 description = """
 check_trace_outputs_hashed iterates index.json.trace_outputs and
@@ -377,11 +377,11 @@ owner = "tool"
 traces_to = ["9ea226b0-852f-4047-a953-2ab0f4778da1"]
 modules = [
     "cargo_evidence::cli::schema::cmd_schema_show",
-    "evidence::schema::Schema::source",
+    "evidence_core::schema::Schema::source",
 ]
 derived = false
 description = """
-cmd_schema_show maps the CLI SchemaName to evidence::schema::Schema
+cmd_schema_show maps the CLI SchemaName to evidence_core::schema::Schema
 and prints the include_str!()'d source verbatim. Schema::for_filename
 deliberately returns None for diagnostic.schema.json so schema
 validate never matches it by filename.
@@ -399,7 +399,7 @@ id = "LLR-019"
 title = "validate_trace_links_with_policy is two-phase"
 owner = "tool"
 traces_to = ["bfa93e37-0469-468b-b89a-d8b165b42168"]
-modules = ["evidence::trace::validation::validate_trace_links_with_policy"]
+modules = ["evidence_core::trace::validation::validate_trace_links_with_policy"]
 derived = false
 description = """
 validate_trace_links_with_policy first registers every SYS / HLR /
@@ -445,8 +445,8 @@ title = "validate_trace_links_with_policy honors require_hlr_sys_trace"
 owner = "tool"
 traces_to = ["3aec2a02-644b-4e58-a718-17ed879372ba"]
 modules = [
-    "evidence::policy::TracePolicy",
-    "evidence::trace::validation::validate_trace_links_with_policy",
+    "evidence_core::policy::TracePolicy",
+    "evidence_core::trace::validation::validate_trace_links_with_policy",
 ]
 derived = false
 description = """
@@ -464,8 +464,8 @@ title = "selector_check::resolve_test_selectors greps source tree"
 owner = "tool"
 traces_to = ["2c6f5903-b666-4f72-97d9-877e9b1ee787"]
 modules = [
-    "evidence::trace::selector_check::resolve_test_selectors",
-    "evidence::trace::validation::TraceValidationError::SelectorUnresolved",
+    "evidence_core::trace::selector_check::resolve_test_selectors",
+    "evidence_core::trace::validation::TraceValidationError::SelectorUnresolved",
 ]
 derived = false
 description = """
@@ -499,7 +499,7 @@ id = "LLR-024"
 title = "ci_self_check greps committed ci.yml for both flags"
 owner = "tool"
 traces_to = ["a86e0c73-4ffd-4f46-8733-ce5cd0abba76"]
-modules = ["evidence::tests::ci_self_check"]
+modules = ["evidence_core::tests::ci_self_check"]
 derived = false
 description = """
 An integration test reads .github/workflows/ci.yml verbatim, locates
@@ -537,8 +537,8 @@ title = "build_requirement_report emits one diag per entry"
 owner = "tool"
 traces_to = ["9766fba0-eac5-4678-a548-b04c799ee527"]
 modules = [
-    "evidence::trace::requirement_report::build_requirement_report",
-    "evidence::trace::requirement_report::RequirementStatus",
+    "evidence_core::trace::requirement_report::build_requirement_report",
+    "evidence_core::trace::requirement_report::RequirementStatus",
 ]
 derived = false
 description = """
@@ -561,7 +561,7 @@ id = "LLR-027"
 title = "fix_hint_for_gap picks the right FixHint variant per sub-case"
 owner = "tool"
 traces_to = ["7c6672c3-5a20-42b6-bf73-04aa6c00a914"]
-modules = ["evidence::trace::requirement_report::fix_hint_for_gap"]
+modules = ["evidence_core::trace::requirement_report::fix_hint_for_gap"]
 derived = false
 description = """
 Internal helper returning Option<FixHint> for a given GAP sub-case:
@@ -580,8 +580,8 @@ title = "parse_cargo_test_output builds a per-test outcome map"
 owner = "tool"
 traces_to = ["c50517f8-23e6-4d1e-814e-c3b0938c3cb8"]
 modules = [
-    "evidence::bundle::testing::parse_cargo_test_output",
-    "evidence::bundle::testing::TestOutcome",
+    "evidence_core::bundle::testing::parse_cargo_test_output",
+    "evidence_core::bundle::testing::TestOutcome",
 ]
 derived = false
 description = """
@@ -602,15 +602,15 @@ title = "RULES const + rules subcommand + rules_json()"
 owner = "tool"
 traces_to = ["17cd860a-cf97-4eba-b54f-1f7d2563e74b"]
 modules = [
-    "evidence::rules::RULES",
-    "evidence::rules::RuleEntry",
-    "evidence::rules::Domain",
-    "evidence::rules::rules_json",
+    "evidence_core::rules::RULES",
+    "evidence_core::rules::RuleEntry",
+    "evidence_core::rules::Domain",
+    "evidence_core::rules::rules_json",
     "cargo_evidence::cli::rules::cmd_rules",
 ]
 derived = false
 description = """
-`evidence::rules` defines `RuleEntry { code, severity, domain,
+`evidence_core::rules` defines `RuleEntry { code, severity, domain,
 has_fix_hint, terminal }`, the `Domain` enum (closed over code
 prefixes), and `pub const RULES: &[RuleEntry]` exhaustively listing
 every emittable code. `rules_json()` returns a deterministic
@@ -649,7 +649,7 @@ title = "Locked-codes invariant: every code is claimed by >=1 LLR.emits"
 owner = "tool"
 traces_to = ["460e5ca4-901f-4086-b660-2e2490dfecdc"]
 modules = [
-    "evidence::trace::entries::LlrEntry::emits",
+    "evidence_core::trace::entries::LlrEntry::emits",
     "diagnostic_codes_locked::every_code_is_claimed_by_an_llr",
 ]
 derived = false
@@ -726,17 +726,17 @@ verification_methods = ["test"]
 [[requirements]]
 uid = "338d51d5-9068-4984-9826-4b84e698c62a"
 id = "LLR-035"
-title = "evidence::floors measurement helpers + cert/floors.toml parser"
+title = "evidence_core::floors measurement helpers + cert/floors.toml parser"
 owner = "tool"
 traces_to = ["4c27ff02-bef9-4cab-afa0-faaf3bf5f3c1"]
 modules = [
-    "evidence::floors::current_measurements",
-    "evidence::floors::count_rules",
-    "evidence::floors::count_terminals",
-    "evidence::floors::count_trace_per_layer",
-    "evidence::floors::count_tests",
-    "evidence::floors::count_library_panics",
-    "evidence::floors::FloorsConfig",
+    "evidence_core::floors::current_measurements",
+    "evidence_core::floors::count_rules",
+    "evidence_core::floors::count_terminals",
+    "evidence_core::floors::count_trace_per_layer",
+    "evidence_core::floors::count_tests",
+    "evidence_core::floors::count_library_panics",
+    "evidence_core::floors::FloorsConfig",
 ]
 derived = false
 description = """
@@ -761,7 +761,7 @@ derived = false
 description = """
 `cargo evidence floors [--base <ref>] [--json]` reads
 cert/floors.toml, computes current measurements via
-`evidence::floors`, compares each entry against its floor / ceiling,
+`evidence_core::floors`, compares each entry against its floor / ceiling,
 and prints a per-dimension table in human mode or a deterministic
 JSON array in `--json` mode. Any dimension below floor or above
 ceiling emits a FLOORS_BELOW_MIN diagnostic naming the dimension,
@@ -798,9 +798,9 @@ title = "HlrEntry.surfaces + KNOWN_SURFACES bijection"
 owner = "tool"
 traces_to = ["80461fe3-aa78-4f86-8320-b298a188f51a"]
 modules = [
-    "evidence::trace::entries::HlrEntry::surfaces",
-    "evidence::trace::surfaces::KNOWN_SURFACES",
-    "evidence::trace::validation::validate_hlr_surfaces",
+    "evidence_core::trace::entries::HlrEntry::surfaces",
+    "evidence_core::trace::surfaces::KNOWN_SURFACES",
+    "evidence_core::trace::validation::validate_hlr_surfaces",
 ]
 derived = false
 description = """
@@ -823,8 +823,8 @@ title = "StringOrVec deserializer for test_selectors"
 owner = "tool"
 traces_to = ["b6d5e15c-ce52-4a32-9f6a-8891e9f76022"]
 modules = [
-    "evidence::trace::entries::TestEntry::test_selectors",
-    "evidence::trace::entries::deserialize_string_or_vec",
+    "evidence_core::trace::entries::TestEntry::test_selectors",
+    "evidence_core::trace::entries::deserialize_string_or_vec",
 ]
 derived = false
 description = """
@@ -842,7 +842,7 @@ id = "LLR-040"
 title = "validate_derived_has_rationale Link-phase rule"
 owner = "tool"
 traces_to = ["a9b74c2e-0644-4f77-a709-63fe66f53cf8"]
-modules = ["evidence::trace::validation::validate_derived_has_rationale"]
+modules = ["evidence_core::trace::validation::validate_derived_has_rationale"]
 derived = false
 description = """
 A Link-phase rule that iterates every LLR with `derived == true`
@@ -861,13 +861,13 @@ title = "LinkError enum with per-variant DiagnosticCode impl"
 owner = "tool"
 traces_to = ["6733cf01-b823-41c0-90e1-476581f413b1"]
 modules = [
-    "evidence::trace::validation::link_errors::LinkError",
-    "evidence::trace::validation::TraceValidationError",
+    "evidence_core::trace::validation::link_errors::LinkError",
+    "evidence_core::trace::validation::TraceValidationError",
 ]
 derived = false
 description = """
 `pub enum LinkError` lives in a sibling
-`crates/evidence/src/trace/validation/link_errors.rs` file (pulled
+`crates/evidence-core/src/trace/validation/link_errors.rs` file (pulled
 in by `validation.rs` as `mod link_errors;`) to keep the facade
 under the 500-line workspace limit. Variants carry payload fields
 (`hlr_id`, `llr_id`, `source_kind`, `link`, `expected`, etc.) that
@@ -926,7 +926,7 @@ id = "LLR-043"
 title = "RULES registers every LinkError variant code; bijection closed"
 owner = "tool"
 traces_to = ["5280cbfc-ea87-4a6d-a2ed-172e9cb48c37"]
-modules = ["evidence::rules::RULES"]
+modules = ["evidence_core::rules::RULES"]
 derived = false
 description = """
 Every `LinkError::code()` return has a matching entry in the
@@ -948,11 +948,11 @@ id = "LLR-044"
 title = "rot_prone_markers_locked integration test"
 owner = "tool"
 traces_to = ["0800ac23-b3d6-4e1e-b2d1-50a0349bd586"]
-modules = ["evidence::rot_prone_markers_locked"]
+modules = ["evidence_core::rot_prone_markers_locked"]
 derived = false
 description = '''
 A Rust `#[test] fn` in
-`crates/evidence/tests/rot_prone_markers_locked.rs` walks every
+`crates/evidence-core/tests/rot_prone_markers_locked.rs` walks every
 `.rs` file under `crates/**/src/**` and `crates/**/tests/**`,
 applies a pinned regex pattern set (PR-number breadcrumbs,
 `post-PR` / `pre-PR`, `round[\s-]?\d+`,
@@ -1004,15 +1004,15 @@ id = "LLR-046"
 title = "trace_id_refs_locked integration test"
 owner = "tool"
 traces_to = ["1be9fb07-2492-4e2a-b9c6-b089b7eac20d"]
-modules = ["evidence::trace_id_refs_locked"]
+modules = ["evidence_core::trace_id_refs_locked"]
 derived = false
 description = '''
 A Rust `#[test] fn` in
-`crates/evidence/tests/trace_id_refs_locked.rs` walks `.rs` under
+`crates/evidence-core/tests/trace_id_refs_locked.rs` walks `.rs` under
 `crates/**/{src,tests}/**`, `.md` (excluding `tool/trace/README.md`),
 and `.toml` outside `tool/trace/`. Greps
 `\b(SYS|HLR|LLR|TEST|DERIVED)-\d+\b`, loads trace IDs via
-`evidence::read_all_trace_files`, partitions grep'd refs by kind,
+`evidence_core::read_all_trace_files`, partitions grep'd refs by kind,
 asserts each exists. Fails via `assert!` with sorted
 `file:line <kind>-<id>` listings; no `Diagnostic` wire shape.
 Pattern mirrors `schema_versions_locked` /
@@ -1026,11 +1026,11 @@ id = "LLR-047"
 title = "walker_usage_locked integration test"
 owner = "tool"
 traces_to = ["29ea38c7-c1d6-4130-a44e-696a1b10802d"]
-modules = ["evidence::walker_usage_locked"]
+modules = ["evidence_core::walker_usage_locked"]
 derived = false
 description = '''
 A Rust `#[test] fn` in
-`crates/evidence/tests/walker_usage_locked.rs` walks
+`crates/evidence-core/tests/walker_usage_locked.rs` walks
 `crates/**/*.rs` via the shared `walker_helpers::walk` primitive,
 scans every line for the substrings `fs::read_dir(` and
 `std::fs::read_dir(`, and fails via `assert!` unless the offending
@@ -1054,7 +1054,7 @@ description = '''
 `cmd_doctor(args) -> Result<()>` in
 `crates/cargo-evidence/src/cli/doctor.rs` runs each rigor check
 in a fixed deterministic order, emitting one `Diagnostic` per
-check via `evidence::diagnostic::emit_jsonl` with a `DOCTOR_*`
+check via `evidence_core::diagnostic::emit_jsonl` with a `DOCTOR_*`
 code. Severity is derived per check: trace / floors / boundary
 failures are `error`; CI / merge-style / override-doc gaps are
 `warning`. A check that passes emits an `info`-severity
@@ -1089,4 +1089,48 @@ emits = [
     "DOCTOR_MERGE_STYLE_UNKNOWN",
     "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
 ]
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "548b7b36-1d03-487d-a6a1-f2b37bdee2a1"
+id = "LLR-049"
+title = "Pre-release detection at build time + verify-side refusal"
+owner = "tool"
+traces_to = ["014adc4d-c545-403c-b4f2-d702a49dff30"]
+modules = [
+    "evidence_core::env::capture",
+    "evidence_core::verify::bundle",
+    "evidence_core::verify::errors",
+    "cargo_evidence::cli::verify",
+    "cargo_evidence::cli::generate::phases",
+]
+derived = false
+description = '''
+Four coupled sites:
+
+- `crates/evidence-core/src/env/capture.rs` adds a module-scope
+  `TOOL_IS_PRERELEASE: bool` computed from
+  `env!("CARGO_PKG_VERSION")` by byte-scanning for `-` in
+  const context. `env_fingerprint` appends `tool_prerelease:
+  TOOL_IS_PRERELEASE` to the returned `EnvFingerprint`.
+- `crates/evidence-core/src/env/fingerprint.rs` grows
+  `tool_prerelease: bool` with `#[serde(default)]` so
+  pre-PR-#60 bundles deserialize as `false`.
+- `crates/evidence-core/src/verify/errors.rs` adds
+  `VerifyError::PrereleaseToolDetected { profile,
+  engine_crate_version }` with `DiagnosticCode` returning
+  `"VERIFY_PRERELEASE_TOOL"`.
+- `crates/evidence-core/src/verify/bundle.rs` reads
+  `env.tool_prerelease` after `check_env_vs_index` and pushes
+  the error on every profile — library stays policy-free.
+- `crates/cargo-evidence/src/cli/verify.rs::cmd_verify_jsonl`
+  partitions the error bag: `VERIFY_PRERELEASE_TOOL` on
+  `Profile::Dev` → Warning stream + `VERIFY_OK` terminal +
+  exit 0; same code on Cert/Record → Error + `VERIFY_FAIL` +
+  exit 2. Every other VerifyError stays error-severity.
+- `crates/cargo-evidence/src/cli/generate/phases.rs::init_builder`
+  emits a warning-severity `VERIFY_PRERELEASE_TOOL` in
+  cert/record profile when `TOOL_IS_PRERELEASE` is true.
+'''
+emits = ["VERIFY_PRERELEASE_TOOL"]
 verification_methods = ["test"]

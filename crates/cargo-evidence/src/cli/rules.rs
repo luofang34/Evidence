@@ -8,7 +8,7 @@
 //! passes `--format=jsonl` (handled by the dispatch guard in
 //! `main.rs`).
 //!
-//! The underlying data lives in [`evidence::RULES`] and is pinned by
+//! The underlying data lives in [`evidence_core::RULES`] and is pinned by
 //! four bijection invariants in `diagnostic_codes_locked`. MCP (PR
 //! #50) wraps the `--json` shape directly.
 
@@ -16,7 +16,7 @@ use anyhow::Result;
 
 use super::args::EXIT_SUCCESS;
 use super::output::emit_json;
-use evidence::RULES;
+use evidence_core::RULES;
 
 /// Entrypoint for `cargo evidence rules`.
 pub fn cmd_rules(json: bool) -> Result<i32> {
@@ -72,30 +72,30 @@ fn emit_rules_human() -> Result<i32> {
     Ok(EXIT_SUCCESS)
 }
 
-fn severity_label(s: evidence::Severity) -> &'static str {
+fn severity_label(s: evidence_core::Severity) -> &'static str {
     match s {
-        evidence::Severity::Info => "info",
-        evidence::Severity::Warning => "warning",
-        evidence::Severity::Error => "error",
+        evidence_core::Severity::Info => "info",
+        evidence_core::Severity::Warning => "warning",
+        evidence_core::Severity::Error => "error",
     }
 }
 
-fn domain_label(d: evidence::Domain) -> &'static str {
+fn domain_label(d: evidence_core::Domain) -> &'static str {
     match d {
-        evidence::Domain::Boundary => "boundary",
-        evidence::Domain::Bundle => "bundle",
-        evidence::Domain::Cli => "cli",
-        evidence::Domain::Cmd => "cmd",
-        evidence::Domain::Doctor => "doctor",
-        evidence::Domain::Env => "env",
-        evidence::Domain::Floors => "floors",
-        evidence::Domain::Git => "git",
-        evidence::Domain::Hash => "hash",
-        evidence::Domain::Policy => "policy",
-        evidence::Domain::Req => "req",
-        evidence::Domain::Schema => "schema",
-        evidence::Domain::Sign => "sign",
-        evidence::Domain::Trace => "trace",
-        evidence::Domain::Verify => "verify",
+        evidence_core::Domain::Boundary => "boundary",
+        evidence_core::Domain::Bundle => "bundle",
+        evidence_core::Domain::Cli => "cli",
+        evidence_core::Domain::Cmd => "cmd",
+        evidence_core::Domain::Doctor => "doctor",
+        evidence_core::Domain::Env => "env",
+        evidence_core::Domain::Floors => "floors",
+        evidence_core::Domain::Git => "git",
+        evidence_core::Domain::Hash => "hash",
+        evidence_core::Domain::Policy => "policy",
+        evidence_core::Domain::Req => "req",
+        evidence_core::Domain::Schema => "schema",
+        evidence_core::Domain::Sign => "sign",
+        evidence_core::Domain::Trace => "trace",
+        evidence_core::Domain::Verify => "verify",
     }
 }

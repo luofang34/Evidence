@@ -24,7 +24,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use evidence::{Profile, env::in_nix_shell};
+use evidence_core::{Profile, env::in_nix_shell};
 
 // ============================================================================
 // Exit Codes

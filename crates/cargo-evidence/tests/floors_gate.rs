@@ -163,9 +163,9 @@ fn malformed_floors_toml_is_a_hard_error() {
 #[test]
 fn per_crate_floors_match_boundary_in_scope() {
     let root = workspace_root();
-    let floors = evidence::FloorsConfig::load(&root.join("cert").join("floors.toml"))
+    let floors = evidence_core::FloorsConfig::load(&root.join("cert").join("floors.toml"))
         .expect("load floors.toml");
-    let boundary = evidence::BoundaryConfig::load(&root.join("cert").join("boundary.toml"))
+    let boundary = evidence_core::BoundaryConfig::load(&root.join("cert").join("boundary.toml"))
         .expect("load boundary.toml");
 
     let in_scope: std::collections::BTreeSet<String> =

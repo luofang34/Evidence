@@ -16,7 +16,7 @@
 version = "0.0.1"
 
 [scope]
-in_scope = ["evidence", "cargo-evidence"]
+in_scope = ["evidence-core", "cargo-evidence"]
 
 # Trace root directories (relative to workspace root)
 trace_roots = ["cert/trace"]

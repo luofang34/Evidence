@@ -7,10 +7,10 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use evidence::FloorsConfig;
-use evidence::floors::{LoadOutcome, current_measurements, per_crate_measurements};
-use evidence::policy::{BoundaryConfig, Dal, EvidencePolicy};
-use evidence::trace::{read_all_trace_files, validate_trace_links_with_policy};
+use evidence_core::FloorsConfig;
+use evidence_core::floors::{LoadOutcome, current_measurements, per_crate_measurements};
+use evidence_core::policy::{BoundaryConfig, Dal, EvidencePolicy};
+use evidence_core::trace::{read_all_trace_files, validate_trace_links_with_policy};
 
 use super::CheckResult;
 

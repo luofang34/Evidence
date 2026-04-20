@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
-use evidence::diagnostic::{Diagnostic, DiagnosticCode, Location, Severity};
-use evidence::{
+use evidence_core::diagnostic::{Diagnostic, DiagnosticCode, Location, Severity};
+use evidence_core::{
     BoundaryConfig, EvidencePolicy, backfill_uuids, load_trace_roots,
     trace::{
         LinkError, TraceFiles, TraceValidationError, read_all_trace_files, resolve_test_selectors,

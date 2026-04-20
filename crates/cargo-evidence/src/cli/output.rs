@@ -20,7 +20,7 @@ use std::io::{self, Write};
 use anyhow::Result;
 use serde::Serialize;
 
-use evidence::Diagnostic;
+use evidence_core::Diagnostic;
 
 /// Serialize `value` as pretty JSON and write it to stdout followed
 /// by a single newline.

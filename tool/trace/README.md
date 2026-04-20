@@ -181,7 +181,7 @@ prose already claimed.
 Resolution: three additive schema extensions + one Link-phase rule.
 `HlrEntry.surfaces: Vec<String>` declares claimed CLI verbs and
 named observable contracts; a new `KNOWN_SURFACES` const in
-`evidence::trace::surfaces` is the catalog; the
+`evidence_core::trace::surfaces` is the catalog; the
 `require_hlr_surface_bijection` policy flag asserts both
 directions (every surface claim lives in `KNOWN_SURFACES`; every
 `KNOWN_SURFACES` entry is claimed by at least one HLR). Emits
@@ -228,7 +228,7 @@ review.
 
 Resolution: `LlrEntry.emits: Vec<String>` declares which diagnostic
 codes each LLR owns. The locked-codes test asserts every code in
-`evidence::RULES` is claimed by at least one LLR (minus an explicit
+`evidence_core::RULES` is claimed by at least one LLR (minus an explicit
 `RESERVED_UNCLAIMED_CODES` set — currently empty) and every
 `emits` string is a real RULES code. Combined with the existing
 LLR↔TEST link (TEST.traces_to) and the TEST↔`#[test] fn` link

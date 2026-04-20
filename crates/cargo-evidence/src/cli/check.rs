@@ -21,11 +21,11 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 
-use evidence::bundle::parse_cargo_test_output_with_outcomes;
-use evidence::diagnostic::{Diagnostic, Severity};
-use evidence::policy::TracePolicy;
-use evidence::trace::{build_requirement_report, read_all_trace_files};
-use evidence::{BoundaryConfig, EvidencePolicy};
+use evidence_core::bundle::parse_cargo_test_output_with_outcomes;
+use evidence_core::diagnostic::{Diagnostic, Severity};
+use evidence_core::policy::TracePolicy;
+use evidence_core::trace::{build_requirement_report, read_all_trace_files};
+use evidence_core::{BoundaryConfig, EvidencePolicy};
 
 use super::args::{CheckMode, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
 use super::output::emit_jsonl;
@@ -105,9 +105,9 @@ fn emit_invalid_argument(path: &Path, reason: &str) -> Result<i32> {
         code: "CLI_INVALID_ARGUMENT".to_string(),
         severity: Severity::Error,
         message: reason.to_string(),
-        location: Some(evidence::diagnostic::Location {
+        location: Some(evidence_core::diagnostic::Location {
             file: Some(path.to_path_buf()),
-            ..evidence::diagnostic::Location::default()
+            ..evidence_core::diagnostic::Location::default()
         }),
         fix_hint: None,
         subcommand: Some("check".to_string()),

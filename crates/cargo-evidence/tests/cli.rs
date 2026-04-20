@@ -114,7 +114,7 @@ fn test_trace_validate_missing_root_warns() {
 
 #[test]
 fn test_trace_validate_valid_traces() {
-    use evidence::schema_versions::TRACE;
+    use evidence_core::schema_versions::TRACE;
 
     let tmp = TempDir::new().unwrap();
     let trace_dir = tmp.path().join("trace");
@@ -380,7 +380,7 @@ no_out_of_scope_deps = false
 forbid_build_rs = true
 forbid_proc_macros = false
 "#,
-            ver = evidence::schema_versions::BOUNDARY
+            ver = evidence_core::schema_versions::BOUNDARY
         ),
     )
     .unwrap();

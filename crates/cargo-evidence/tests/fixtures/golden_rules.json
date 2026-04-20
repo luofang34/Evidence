@@ -693,6 +693,13 @@
     "terminal": true
   },
   {
+    "code": "VERIFY_PRERELEASE_TOOL",
+    "severity": "error",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "VERIFY_RUNTIME_BUNDLE_NOT_FOUND",
     "severity": "error",
     "domain": "verify",
