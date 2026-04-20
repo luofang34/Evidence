@@ -232,6 +232,19 @@ line (`Override-Deterministic-Baseline: <reason>`) appears in the
 PR body. This turns silent determinism drift into a
 mechanically-refused regression, preserving the reproducibility
 contract on which the bundle's audit value depends.
+
+Known limitation: the live-compare gate catches per-PR drift by
+comparing the current PR to the last successful main-branch
+build, but it does NOT catch slow cumulative drift across many
+PRs each of which carries its own justified override. An
+auditor reconstructing the bundle six months later sees the
+current reproducibility inputs, not the chain of intentional
+overrides that led there. A committed-baseline anchor file
+pinning specific historical commits (tip-of-main at
+milestone N) is the follow-up that closes this gap and is
+tracked explicitly in the development plan — not rolled into
+this contract, because the two enforcement surfaces have
+different operational shapes.
 """
 verification_methods = ["test"]
 traces_to = []

@@ -417,6 +417,7 @@ test_selectors = [
     "cross_time_determinism::drift_without_override_fails",
     "cross_time_determinism::drift_with_override_passes",
     "cross_time_determinism::drift_with_override_in_commit_message_passes",
+    "cross_time_determinism::override_in_commit_when_pr_body_has_unrelated_prose_passes",
     "cross_time_determinism::missing_prior_artifact_is_skip",
     "cross_time_determinism::override_without_reason_does_not_pass",
     "cross_time_determinism::malformed_current_manifest_exit_two",

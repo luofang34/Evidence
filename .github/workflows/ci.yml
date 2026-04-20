@@ -1104,7 +1104,7 @@ jobs:
           jq '{rustc, cargo, llvm_version, cargo_lock_hash, rustflags}' "$RUNNER_TEMP/prior-main/deterministic-manifest.json"
 
       - name: Lint drift against override
-        if: steps.fetch-prior.outputs.prior_missing != '1'
+        if: steps.fetch-prior.outputs.prior_missing == '0'
         shell: bash
         env:
           # On pull_request events, `github.event.pull_request.body`

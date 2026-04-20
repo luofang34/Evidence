@@ -80,7 +80,7 @@ known_surfaces = 13
 test_count = 213
 
 [per_crate.cargo-evidence]
-test_count = 82
+test_count = 83
 
 # Per-crate ceilings. library_panics is a ceiling, not a floor:
 # more panics is always worse. Placing a ceiling dimension under

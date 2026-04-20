@@ -281,6 +281,47 @@ fn drift_with_override_in_commit_message_passes() {
     );
 }
 
+/// Load-bearing contract: PR body has unrelated prose AND commit
+/// message carries the override line. The gate must scan BOTH
+/// sources, not short-circuit on the first non-empty one. This
+/// is the realistic PR shape — most PR bodies are not empty.
+#[test]
+fn override_in_commit_when_pr_body_has_unrelated_prose_passes() {
+    if !script_available() {
+        return;
+    }
+    let tmp = TempDir::new().expect("tempdir");
+    let prior = manifest_json(
+        "rustc 1.95.0",
+        "cargo 1.95.0",
+        None,
+        "aa",
+        "ch = 1.95",
+        None,
+    );
+    let current = manifest_json(
+        "rustc 1.95.0",
+        "cargo 1.95.0",
+        None,
+        "bb",
+        "ch = 1.95",
+        None,
+    );
+    let prior_p = write_manifest(&tmp, "prior.json", &prior);
+    let current_p = write_manifest(&tmp, "current.json", &current);
+    // PR body is a normal summary with no override line; the
+    // override lives only in the commit message (e.g., squash-merge
+    // commit body).
+    let body = "## Summary\n\nBumped serde_json to pick up CVE-NNNN-NNNN fix.\n";
+    let msg = "fix: bump serde_json\n\nOverride-Deterministic-Baseline: cve fix for serde_json\n";
+    let (code, stderr) = run_lint(&prior_p, &current_p, Some(body), Some(msg));
+    assert_eq!(
+        code, 0,
+        "override in commit message must count even when PR body has other prose; stderr:\n{}",
+        stderr
+    );
+}
+
 /// Missing prior manifest: the prior main-branch artifact
 /// expired (14-day retention) or simply never existed for a
 /// fresh repo. Script degrades to a logged skip + exit 0 so the

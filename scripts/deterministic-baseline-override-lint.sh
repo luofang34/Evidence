@@ -99,19 +99,19 @@ if [ "$prior_tf" = "$current_tf" ]; then
 fi
 
 # Fields differ — accept only with an explicit override line.
-override_haystack=""
-if [ -n "${PR_BODY:-}" ]; then
-    override_haystack="${PR_BODY}"
-fi
-if [ -z "$override_haystack" ] && [ -n "${COMMIT_MESSAGE:-}" ]; then
-    override_haystack="${COMMIT_MESSAGE}"
-fi
+# Concatenate both haystacks unconditionally: a PR body may be
+# non-empty prose ("fix: bump serde") while the override line
+# lives in the head commit message (squash-merge convention, or
+# a PR body written without the override convention in mind).
+# Matching either source is the intended contract.
+override_haystack="${PR_BODY:-}
+${COMMIT_MESSAGE:-}"
 
-if [ -n "$override_haystack" ]; then
+if [ -n "$(printf '%s' "$override_haystack" | tr -d '[:space:]')" ]; then
     tmp=$(mktemp)
+    trap 'rm -f "$tmp"' EXIT
     printf '%s\n' "$override_haystack" >"$tmp"
     if grep -qE '^Override-Deterministic-Baseline: .+' "$tmp"; then
-        rm -f "$tmp"
         printf 'cross-time-determinism: toolchain fingerprint differs vs prior main but `Override-Deterministic-Baseline:` line is present; accepting.\n' >&2
         # Log the diff anyway so the PR reviewer can see what
         # changed without hunting through two JSON files.
@@ -119,7 +119,6 @@ if [ -n "$override_haystack" ]; then
         printf '+++ current toolchain projection\n%s\n' "$current_tf" >&2
         exit 0
     fi
-    rm -f "$tmp"
 fi
 
 # Silent drift: fail loud with a unified diff.
