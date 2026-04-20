@@ -248,3 +248,29 @@ different operational shapes.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "b1ddaec0-7981-491e-910f-6d04e1888f63"
+id = "SYS-014"
+title = "Every narrative trace-ID reference (SYS/HLR/LLR/TEST/DERIVED-NNN) in source and docs shall resolve to a real entry in tool/trace/"
+owner = "soi"
+scope = "soi"
+description = '''
+PR #52 preserved `LLR-NNN` / `HLR-NNN` / `TEST-NNN` / `SYS-NNN` /
+`DERIVED-NNN` identifiers as human-readable anchors — they carry
+semantic structure (`LLR-026` says "low-level requirement #26,
+look in llr.toml") and replacing them with UUIDs in narrative
+would trade readability for theoretical purity. But narrative
+anchors aren't validated today: a deleted LLR leaves every
+comment referencing it pointing at a ghost; a renumbered entry
+breaks cross-file pointers silently. The existing PR #47
+bijection covers `LLR.emits ⇔ RULES` — a narrower axis than
+"comments and docs reference real trace items." The tool shall
+mechanically assert that every `(SYS|HLR|LLR|TEST|DERIVED)-\d+`
+reference in `.rs` / `.md` / non-`tool/trace` `.toml` sources
+resolves to an `id` field in the corresponding trace file,
+failing CI with the offending `file:line` pairs when a reference
+becomes stale.
+'''
+verification_methods = ["test"]
+traces_to = []

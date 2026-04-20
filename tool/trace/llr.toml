@@ -997,3 +997,25 @@ degradation pattern as `floors-lower-lint.sh` under a fresh
 repo.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "b269e51d-f656-4ecc-832e-8004a287a790"
+id = "LLR-046"
+title = "trace_id_refs_locked integration test"
+owner = "tool"
+traces_to = ["1be9fb07-2492-4e2a-b9c6-b089b7eac20d"]
+modules = ["evidence::trace_id_refs_locked"]
+derived = false
+description = '''
+A Rust `#[test] fn` in
+`crates/evidence/tests/trace_id_refs_locked.rs` walks `.rs` under
+`crates/**/{src,tests}/**`, `.md` (excluding `tool/trace/README.md`),
+and `.toml` outside `tool/trace/`. Greps
+`\b(SYS|HLR|LLR|TEST|DERIVED)-\d+\b`, loads trace IDs via
+`evidence::read_all_trace_files`, partitions grep'd refs by kind,
+asserts each exists. Fails via `assert!` with sorted
+`file:line <kind>-<id>` listings; no `Diagnostic` wire shape.
+Pattern mirrors `schema_versions_locked` /
+`rot_prone_markers_locked`. Meta LLR: `emits = []`.
+'''
+verification_methods = ["test"]

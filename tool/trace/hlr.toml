@@ -815,3 +815,27 @@ artifact history.
 verification_methods = ["test"]
 traces_to = ["3596cc7b-d8ce-46fb-8a92-62c55a40758b"]
 surfaces = ["generate"]
+
+[[requirements]]
+uid = "1be9fb07-2492-4e2a-b9c6-b089b7eac20d"
+id = "HLR-046"
+title = "CI gate asserts every narrative trace-ID reference resolves to a real trace entry"
+owner = "tool"
+scope = "component"
+description = '''
+A Rust integration test walks `.rs` under `crates/**/{src,tests}/**`,
+`.md` files (excluding `tool/trace/README.md`), and non-
+`tool/trace/` `.toml` files. Every match of
+`\b(SYS|HLR|LLR|TEST|DERIVED)-\d+\b` must resolve to an entry
+in the loaded `tool/trace/` set (parsed via
+`read_all_trace_files`), partitioned by kind. Unresolved refs
+fire the gate via `assert!` with the offending `file:line` +
+the ghost identifier; no `Diagnostic` wire shape, no new `RULES`
+entry — mirrors `schema_versions_locked` / `rot_prone_markers_locked`.
+A `RESERVED_TEXT_REFS` escape hatch handles the rare case where a
+narrative mention is an illustrative shape (e.g., `LLR-NNN` as a
+template), not a real ref.
+'''
+verification_methods = ["test"]
+traces_to = ["b1ddaec0-7981-491e-910f-6d04e1888f63"]
+surfaces = ["trace-ID reference bijection"]
