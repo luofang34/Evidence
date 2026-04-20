@@ -151,6 +151,17 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     if let Some(code) = phases::preflight(profile, json_output)? {
         return Ok(code);
     }
+    // Doctor precheck gates cert / record profile bundle generation —
+    // downstream projects can't produce audit evidence without
+    // passing the rigor checklist (trace validity, floors config,
+    // boundary config). Dev profile skips the precheck so iteration
+    // stays fast. See LLR-048 / cli/doctor.rs::precheck_doctor.
+    if matches!(profile, Profile::Cert | Profile::Record) {
+        let workspace = std::env::current_dir()?;
+        if let Err(e) = super::doctor::precheck_doctor(&workspace) {
+            return fail(json_output, profile, e.to_string());
+        }
+    }
     let Some(output_root) = resolve_output_root(out_dir, write_workspace) else {
         return fail(
             json_output,

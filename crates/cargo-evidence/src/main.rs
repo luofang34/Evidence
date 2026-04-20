@@ -28,6 +28,7 @@ mod cli;
 use cli::args::{CargoCli, Commands, EXIT_ERROR, EvidenceArgs, OutputFormat, SchemaCommands};
 use cli::check::cmd_check;
 use cli::diff::cmd_diff;
+use cli::doctor::cmd_doctor;
 use cli::floors::cmd_floors;
 use cli::generate::{GenerateArgs, cmd_generate};
 use cli::init::cmd_init;
@@ -93,6 +94,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
         Some(Commands::Verify { .. }) => "verify",
         Some(Commands::Check { .. }) => "check",
         Some(Commands::Diff { .. }) => "diff",
+        Some(Commands::Doctor) => "doctor",
         Some(Commands::Init { .. }) => "init",
         Some(Commands::Schema { .. }) => "schema",
         Some(Commands::Trace { .. }) => "trace",
@@ -110,7 +112,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
     // TODO(jsonl): add subcommand names here as they gain JSONL
     // support.
     if args.format == OutputFormat::Jsonl
-        && !matches!(subcommand_name, "verify" | "check" | "trace")
+        && !matches!(subcommand_name, "verify" | "check" | "trace" | "doctor")
     {
         return emit_unsupported_jsonl_terminal(subcommand_name);
     }
@@ -145,6 +147,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             cmd_verify(bundle_path, strict, verify_key, format)
         }
         Some(Commands::Check { mode, path }) => cmd_check(mode, path),
+        Some(Commands::Doctor) => cmd_doctor(),
         Some(Commands::Diff {
             bundle_a,
             bundle_b,

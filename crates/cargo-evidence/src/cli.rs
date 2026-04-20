@@ -14,6 +14,7 @@
 pub mod args;
 pub mod check;
 pub mod diff;
+pub mod doctor;
 pub mod floors;
 pub mod generate;
 pub mod init;
