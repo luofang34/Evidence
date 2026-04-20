@@ -1,5 +1,4 @@
-//! Integration test for `scripts/floors-lower-lint.sh` (PR #48 /
-//! LLR-037 / TEST-037).
+//! Integration test for `scripts/floors-lower-lint.sh` (//! LLR-037 / TEST-037).
 //!
 //! The script reads base-vs-HEAD `cert/floors.toml`, finds floor
 //! decreases, and requires a `Lower-Floor: <dimension> <reason>`

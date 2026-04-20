@@ -213,7 +213,8 @@ fn fires_on_banned_pattern() {
         "expected gate to fire on `// PR #42 added this behavior.`; hits were empty"
     );
     assert!(
-        hits.iter().any(|(_, _, label, _)| *label == "PR-number breadcrumb"),
+        hits.iter()
+            .any(|(_, _, label, _)| *label == "PR-number breadcrumb"),
         "expected PR-number breadcrumb hit; got {:?}",
         hits
     );

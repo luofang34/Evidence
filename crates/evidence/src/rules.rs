@@ -12,7 +12,7 @@
 //! The const is deliberately hand-authored: adding a new code forces a
 //! reviewer-visible edit here, and a missing edit fires a specific,
 //! targeted CI failure. Auto-generating `RULES` from source would
-//! remove that friction and defeat the whole point of PR #47.
+//! remove that friction and defeat the whole point of.
 //!
 //! **Ordering.** Entries are sorted alphabetically by `code` so
 //! `rules_json()` output is deterministic. `diagnostic_codes_locked`
@@ -20,8 +20,8 @@
 //!
 //! **Per-code `has_fix_hint`.** A `true` value means "this code CAN
 //! carry a FixHint in at least one emit site" — an audit-trail label,
-//! not a runtime contract. Today only `REQ_GAP` (PR #46) carries
-//! mechanical FixHints. Future widenings (PR #50's MCP autofix)
+//! not a runtime contract. Today only `REQ_GAP` carries
+//! mechanical FixHints. Future widenings (MCP autofix)
 //! extend this.
 
 use serde::Serialize;
@@ -42,7 +42,7 @@ pub enum Domain {
     Cmd,
     /// `ENV_*` — environment probe (rustc / cargo / toolchain).
     Env,
-    /// `FLOORS_*` — ratcheting-floors gate (PR #48).
+    /// `FLOORS_*` — ratcheting-floors gate.
     Floors,
     /// `GIT_*` — git snapshot.
     Git,
@@ -50,7 +50,7 @@ pub enum Domain {
     Hash,
     /// `POLICY_*` — DAL / profile parsing.
     Policy,
-    /// `REQ_*` — per-requirement pass/gap/skip (PR #46).
+    /// `REQ_*` — per-requirement pass/gap/skip.
     Req,
     /// `SCHEMA_*` — JSON Schema validation.
     Schema,

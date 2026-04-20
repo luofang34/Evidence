@@ -1,4 +1,4 @@
-//! Integration tests for the PR #44 SYS layer addition.
+//! Integration tests for the SYS layer addition.
 //!
 //! The tests live here (rather than as a `mod tests` inside
 //! `validation.rs`) because `validation.rs` is already near the
@@ -76,7 +76,7 @@ fn stub_test(uid: &str, id: &str, owner: &str, traces_to: Vec<String>) -> TestEn
 }
 
 /// A complete SYS → HLR → LLR → Test chain validates cleanly.
-/// Guards the PR #44 format extension end-to-end.
+/// Guards the format extension end-to-end.
 #[test]
 fn sys_hlr_llr_test_chain_validates() {
     let sys_uuid = uuid::Uuid::new_v4().to_string();

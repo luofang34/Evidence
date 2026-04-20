@@ -10,8 +10,7 @@
 //! `parse_cargo_test_output_with_outcomes` additionally tracks the
 //! `Running target/debug/deps/<binary>-<hash>` header so per-test result
 //! lines (`test <name> ... ok|FAILED|ignored`) can be mapped to a
-//! fully-qualified key `binary_name::<name>`. That map is what PR #46's
-//! `cargo evidence check` uses to answer "did the test for this
+//! fully-qualified key `binary_name::<name>`. That map is what //! `cargo evidence check` uses to answer "did the test for this
 //! requirement pass in this run?"
 //!
 //! **Interleaving gotcha.** Cargo emits `Running …` to stderr and the

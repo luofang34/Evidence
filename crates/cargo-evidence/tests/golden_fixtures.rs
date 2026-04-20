@@ -3,7 +3,7 @@
 //! a targeted test.
 //!
 //! Today the fixture is the `rules --json` output — the most
-//! important contract to lock because MCP (PR #50) consumes it
+//! important contract to lock because MCP consumes it
 //! directly and a silent wire-shape change would break every
 //! downstream agent. The fixture regenerator lives at
 //! `tools/regen-golden-fixtures.sh` for intentional updates; running
@@ -11,7 +11,7 @@
 //!
 //! Bigger goldens (full `verify` or `check .` output) are deferred —
 //! bundles embed commit-specific hashes, and a source-tree golden
-//! requires freezing a synthetic workspace. PR #51's coverage work
+//! requires freezing a synthetic workspace. coverage work
 //! will provide a stable synthetic source for that second golden.
 
 #![allow(

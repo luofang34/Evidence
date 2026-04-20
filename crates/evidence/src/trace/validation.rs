@@ -42,7 +42,7 @@ pub enum TraceValidationError {
     /// Register-phase failures (missing UIDs/owners, duplicate UIDs
     /// or `(kind, owner, id)` triples, malformed UUID strings). One
     /// string per violation in the `errors` vector. **Not promoted to
-    /// typed variants in PR #51** — scope was Link-phase only; the
+    /// typed variants** — scope was Link-phase only; the
     /// Register phase has similar opaque-prose issues but defers
     /// until MCP surfaces a concrete need.
     #[error("Validation failed with {} errors (fix before linking check)", errors.len())]
@@ -277,7 +277,7 @@ pub fn validate_trace_links_with_policy(
     // Policy-gated checks
 
     // HLR policy + HLR→SYS link validation.
-    // PR #49 / HLR-038 / LLR-038: HLR.surfaces ⇔ KNOWN_SURFACES
+    // HLR-038 / LLR-038: HLR.surfaces ⇔ KNOWN_SURFACES
     // bijection. Every HLR.surfaces string must be in KNOWN_SURFACES;
     // every KNOWN_SURFACES entry must be claimed by ≥1 HLR. Policy-
     // gated so external traces (e.g. the test-harness tempdirs and
@@ -352,7 +352,7 @@ pub fn validate_trace_links_with_policy(
             } else if r.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
                 // DO-178C §5.2.2 — derived requirements must carry a
                 // non-empty rationale. Unconditional rule (no policy
-                // gate); PR #49 / HLR-040.
+                // gate); HLR-040.
                 errors.push(LinkError::DerivedMissingRationale {
                     llr_id: r.id.clone(),
                 });

@@ -91,8 +91,8 @@ impl DiagnosticCode for VerifyRuntimeError {
             }),
             // Remaining variants wrap inner errors without surfacing
             // a path at this layer. `Hash(HashError)` and friends
-            // will grow their own `DiagnosticCode` impls in PR #1b
-            // and the wrapper can forward via `source()` then.
+            // would grow their own `DiagnosticCode` impls and the
+            // wrapper would then forward via `source()`.
             VerifyRuntimeError::ParseIndex(_)
             | VerifyRuntimeError::Walk(_)
             | VerifyRuntimeError::Hash(_)

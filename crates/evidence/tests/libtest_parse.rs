@@ -110,7 +110,7 @@ fn same_fn_name_in_two_binaries_yields_two_distinct_keys() {
     // The fixture deliberately has `shared_fn_name` as both an
     // ignored unit test in cargo_evidence and a passed integration
     // test in verify_jsonl. The binary-prefix rule must distinguish
-    // them so a downstream consumer (PR #46's check) can choose to
+    // them so a downstream consumer (check) can choose to
     // flag ambiguity on the unqualified `shared_fn_name` selector
     // rather than silently pick one.
     let (_summary, outcomes) =

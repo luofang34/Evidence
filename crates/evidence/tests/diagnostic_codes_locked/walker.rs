@@ -187,7 +187,7 @@ pub fn ends_in_terminal_suffix(code: &str) -> bool {
 
 /// Walk the library source and return the set of codes returned from
 /// every `impl DiagnosticCode::code()` arm. Used by both the existing
-/// regex/uniqueness check and the PR #47 bijection invariants so a
+/// regex/uniqueness check and the bijection invariants so a
 /// parser change is reflected in all four.
 pub fn walked_codes() -> std::collections::BTreeSet<String> {
     let crate_root = workspace_root().join("crates").join("evidence").join("src");

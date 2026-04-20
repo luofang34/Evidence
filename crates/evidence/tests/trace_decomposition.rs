@@ -210,7 +210,7 @@ fn surface_unclaimed_fires_with_typed_code() {
 /// `TestEntry` expresses N:M mapping via the `test_selectors` Vec
 /// alongside the legacy `test_selector` field. A single TEST entry
 /// can claim multiple selectors; `all_selectors()` deduplicates and
-/// returns them sorted. Pins the PR #49 additive-widening contract.
+/// returns them sorted. Pins the additive-widening contract.
 #[test]
 fn test_selectors_deserializes_both_shapes() {
     // Legacy shape — only `test_selector`.

@@ -1,5 +1,5 @@
 //! Library-level tests for `build_requirement_report` — the
-//! source-mode core of `cargo evidence check` (PR #46 / LLR-026,
+//! source-mode core of `cargo evidence check` (LLR-026,
 //! LLR-027, TEST-025..027).
 //!
 //! These tests live on the library side (not `crates/cargo-evidence/
@@ -14,7 +14,7 @@
 //!   all-`REQ_PASS`.
 //! - TEST-026: a mutated trace (empty HLR.traces_to) produces
 //!   `REQ_GAP` carrying a `FixHint::AddTomlKey` that points at the
-//!   traces_to field — the autofix contract MCP (PR #50) will depend
+//!   traces_to field — the autofix contract MCP will depend
 //!   on.
 //! - TEST-027: a failing leaf TEST produces `REQ_GAP`s at upstream
 //!   LLR/HLR/SYS entries, each carrying `root_cause_uid` pointing at
@@ -230,7 +230,7 @@ fn check_source_mode_on_clean_workspace() {
 /// `require_hlr_sys_trace` produces `REQ_GAP` with a
 /// `FixHint::AddTomlKey` that names the missing key and suggests a
 /// stub value pointing at a SYS uuid. This is the mechanical-autofix
-/// contract that MCP (PR #50) wraps.
+/// contract that MCP wraps.
 #[test]
 fn req_gap_on_blank_traces_to_has_fixhint() {
     let sys = vec![stub_entry(
@@ -284,7 +284,7 @@ fn req_gap_on_blank_traces_to_has_fixhint() {
 /// TEST-027: A failing leaf TEST propagates `REQ_GAP` up the chain
 /// with `root_cause_uid` pointing at the failing TEST. Four events
 /// for one failure (TEST/LLR/HLR/SYS), agent groups client-side.
-/// This is decision 2 of PR #46: N events with root_cause_uid, not
+/// This is decision 2 of: N events with root_cause_uid, not
 /// 1 + derived.
 #[test]
 fn derived_gaps_carry_root_cause_uid() {

@@ -1,7 +1,7 @@
 //! Integration tests for `cargo evidence rules [--json]`.
 //!
 //! Pins the self-describe surface — the committed shape agents and
-//! MCP (PR #50) consume. Also asserts `--format=jsonl` is rejected
+//! MCP consume. Also asserts `--format=jsonl` is rejected
 //! (rules emits a single JSON blob, not a JSONL stream, so it would
 //! violate Schema Rule 2).
 

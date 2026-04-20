@@ -91,7 +91,7 @@ pub struct HlrEntry {
     /// be subset of [`KNOWN_SURFACES`](crate::trace::KNOWN_SURFACES);
     /// the complementary constraint (every `KNOWN_SURFACES` entry is
     /// claimed by ≥1 HLR) is enforced in the Link-phase validator.
-    /// PR #49 / LLR-038.
+    /// LLR-038.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub surfaces: Vec<String>,
 }
@@ -152,7 +152,7 @@ pub struct LlrEntry {
     pub verification_methods: Vec<String>,
     /// Diagnostic codes this LLR is responsible for — the "this LLR
     /// owns those codes" declaration that closes the
-    /// code↔requirement loop (PR #47 / LLR-031). Every entry must
+    /// code↔requirement loop (LLR-031). Every entry must
     /// appear in [`evidence::RULES`](crate::RULES); every entry in
     /// `RULES` (minus
     /// [`RESERVED_UNCLAIMED_CODES`](crate::RESERVED_UNCLAIMED_CODES))
@@ -214,7 +214,7 @@ pub struct TestEntry {
     ///
     /// **Legacy shape**: kept for back-compat with the 1:1 TEST-to-fn
     /// convention. New code paths should prefer `test_selectors` for
-    /// the N:M case. PR #49 / LLR-039.
+    /// the N:M case. LLR-039.
     ///
     /// **Deprecation timeline**: stays through the pre-1.0 window —
     /// no schema constants churn until 1.0 ships (see
@@ -226,7 +226,7 @@ pub struct TestEntry {
     pub test_selector: Option<String>,
     /// Additional selectors — enables one TEST entry to verify
     /// multiple `#[test] fn`s, or one fn to verify multiple TESTs.
-    /// PR #49 / LLR-039. Used as the additive extension to
+    /// LLR-039. Used as the additive extension to
     /// `test_selector`; the resolver walks both as a union.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub test_selectors: Vec<String>,
@@ -239,7 +239,7 @@ impl TestEntry {
     /// All selectors for this test entry — the legacy singular
     /// `test_selector` merged with the plural `test_selectors`.
     /// Deduped via `BTreeSet` and returned sorted for deterministic
-    /// iteration. PR #49 / LLR-039.
+    /// iteration. LLR-039.
     pub fn all_selectors(&self) -> Vec<String> {
         let mut set: std::collections::BTreeSet<String> =
             self.test_selectors.iter().cloned().collect();
@@ -332,7 +332,7 @@ mod tests {
 
     /// `HlrEntry.traces_to` is `#[serde(default)]`, so a TOML file
     /// without a `traces_to` key still parses — required for
-    /// backwards compatibility with every pre-PR-#44 hlr.toml.
+    /// backwards compatibility with every -#44 hlr.toml.
     #[test]
     fn test_hlr_entry_traces_to_defaults_to_empty() {
         let toml_without_traces_to = r#"

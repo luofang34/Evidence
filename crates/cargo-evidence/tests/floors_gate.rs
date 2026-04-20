@@ -1,5 +1,4 @@
-//! Integration tests for `cargo evidence floors` (PR #48 /
-//! LLR-036 / TEST-036).
+//! Integration tests for `cargo evidence floors` (//! LLR-036 / TEST-036).
 //!
 //! Two scenarios:
 //!
@@ -159,8 +158,7 @@ fn malformed_floors_toml_is_a_hard_error() {
 /// `cert/boundary.toml`. Adding a crate to the workspace requires
 /// adding its per-crate floor row in the same PR; conversely, an
 /// orphan `per_crate.<name>` entry for a removed crate must be
-/// cleaned up. Same contract pattern as PR #47's
-/// `every_code_is_claimed_by_an_llr` — the bijection is the whole
+/// cleaned up. Same contract pattern as /// `every_code_is_claimed_by_an_llr` — the bijection is the whole
 /// point of committing per-crate floors.
 #[test]
 fn per_crate_floors_match_boundary_in_scope() {

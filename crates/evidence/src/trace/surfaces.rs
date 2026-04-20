@@ -16,7 +16,7 @@
 //! same PR. The friction is intentional: it forces the requirement-
 //! to-behavior linkage to be reviewer-visible.
 //!
-//! PR #49 / LLR-038.
+//! LLR-038.
 
 /// Hand-curated catalog of known surfaces. Two groups, each sorted
 /// alphabetically within its group; groups separated by a comment
