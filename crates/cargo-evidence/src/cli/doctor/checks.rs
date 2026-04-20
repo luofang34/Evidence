@@ -49,7 +49,7 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
     // every level because surfaces are project-specific. Our own
     // `cargo evidence trace --validate --require-hlr-surface-bijection`
     // CI step (unchanged) keeps the internal dogfood rigor.
-    let dal = load_default_dal(workspace);
+    let (dal, boundary_loadable) = load_default_dal(workspace);
     let policy = EvidencePolicy::for_dal(dal).trace;
     let sys_reqs = files.sys.requirements.clone();
     let hlr_reqs = files.hlr.requirements.clone();
@@ -60,27 +60,42 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
         .as_ref()
         .map(|d| d.requirements.clone())
         .unwrap_or_default();
+    let fallback_note = if boundary_loadable {
+        String::new()
+    } else {
+        " (assumed DAL-D — boundary unloadable; the actual project \
+         DAL is unknown, so this check may be looser than the real \
+         cert target requires)"
+            .to_string()
+    };
     match validate_trace_links_with_policy(
         &sys_reqs, &hlr_reqs, &llr_reqs, &tests, &derived, &policy,
     ) {
         Ok(()) => CheckResult::Pass,
         Err(e) => CheckResult::Fail(
             "DOCTOR_TRACE_INVALID",
-            format!("tool/trace/ validation failed at DAL-{:?}: {}", dal, e),
+            format!(
+                "tool/trace/ validation failed at DAL-{:?}{}: {}",
+                dal, fallback_note, e
+            ),
         ),
     }
 }
 
 /// Read `cert/boundary.toml` to discover the project's declared
-/// DAL level for trace-policy derivation. Defaults to DAL-D
-/// (the lenient downstream default) if boundary is missing or
-/// unparseable — doctor's `check_boundary` already surfaces the
-/// config problem via its own diagnostic, so we don't double-fire.
-fn load_default_dal(workspace: &Path) -> Dal {
+/// DAL level for trace-policy derivation. Returns `(dal,
+/// boundary_loadable)`: the second field is `false` when we fell
+/// back to DAL-D because the file was missing or unparseable, so
+/// callers can surface the assumption explicitly instead of
+/// silently applying a potentially-wrong policy. `check_boundary`
+/// already fires its own diagnostic on the same input, so we don't
+/// double-fire a hard failure from here.
+fn load_default_dal(workspace: &Path) -> (Dal, bool) {
     let path = workspace.join("cert").join("boundary.toml");
-    BoundaryConfig::load(&path)
-        .map(|cfg| cfg.dal.default_dal)
-        .unwrap_or(Dal::D)
+    match BoundaryConfig::load(&path) {
+        Ok(cfg) => (cfg.dal.default_dal, true),
+        Err(_) => (Dal::D, false),
+    }
 }
 
 pub(super) fn check_floors(workspace: &Path) -> CheckResult {
