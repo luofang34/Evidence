@@ -1142,8 +1142,7 @@ jobs:
           # scan picks them up without signature change.
           if [ -n "${PUSH_COMMITS_MESSAGES:-}" ] && [ "${PUSH_COMMITS_MESSAGES}" != "null" ]; then
             extra=$(printf '%s' "$PUSH_COMMITS_MESSAGES" | jq -r '.[]? // empty' | tr '\n' ' ' || true)
-            COMMIT_MESSAGE="${COMMIT_MESSAGE}
-${extra}"
+            COMMIT_MESSAGE=$(printf '%s\n%s' "$COMMIT_MESSAGE" "$extra")
           fi
           export COMMIT_MESSAGE
           ./scripts/deterministic-baseline-override-lint.sh \
