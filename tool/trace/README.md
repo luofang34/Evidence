@@ -4,13 +4,16 @@ This directory dogfoods the tool's own traceability format against
 the tool itself, across the full DO-178C §5.1 chain:
 
 ```
-System Requirements  (sys.toml)   ─▶  10 entries
-High-Level Reqs      (hlr.toml)   ─▶  40 entries  traces_to SYS
-Low-Level Reqs       (llr.toml)   ─▶  40 entries  traces_to HLR
-Test Cases           (tests.toml) ─▶  40 entries  traces_to LLR
-                                      ────────────
-                                      130 entries total
+System Requirements  (sys.toml)    traces_to = []
+High-Level Reqs      (hlr.toml)    traces_to SYS
+Low-Level Reqs       (llr.toml)    traces_to HLR
+Test Cases           (tests.toml)  traces_to LLR
 ```
+
+Current counts per layer live in `cert/floors.toml`
+(`trace_sys` / `trace_hlr` / `trace_llr` / `trace_test`) under
+strict `floor == current` equality — editing a count here would
+rot the moment the next ratchet-bump PR lands.
 
 The CI job `trace-self-validate` runs
 `cargo evidence trace --validate --require-hlr-sys-trace --require-hlr-surface-bijection --check-test-selectors`
@@ -205,11 +208,12 @@ principle 2 (every rigor addition lands with a floor that only
 moves up) was aspirational, not enforced.
 
 Resolution: `cert/floors.toml` pins current measurements as
-absolute floors (diagnostic codes = 82, terminal codes = 4, per-
-layer trace counts 9/37/37/37, `#[test]` count, library panics).
-`cargo evidence floors` checks them on every CI run. Lowering a
-floor requires a `Lower-Floor: <dimension> <reason>` line in the
-PR body, enforced by `scripts/floors-lower-lint.sh`.
+absolute floors across every ratcheted dimension (diagnostic
+codes, terminal codes, per-layer trace counts, `#[test]` count,
+library panics, known-surfaces catalog). `cargo evidence floors`
+checks them on every CI run. Lowering a floor requires a
+`Lower-Floor: <dimension> <reason>` line in the PR body,
+enforced by `scripts/floors-lower-lint.sh`.
 
 Raising a floor is a PR that edits the TOML. Future rigor-adding
 PRs bump the relevant floor in the same commit; the ratchet moves
@@ -239,11 +243,11 @@ Emitter LLRs list every code they directly return.
 
 ## Ratchet ties
 
-With `cert/floors.toml` (PR #48 landed), the self-trace's per-layer
-minimums pin at `trace_sys = 9`, `trace_hlr = 37`, `trace_llr =
-37`, `trace_test = 37` (total 120). Removing an entry then requires a PR that both edits
-the TOML and lowers the floor, with an explicit justification. The
-intent is that self-trace coverage only grows.
+With `cert/floors.toml` (PR #48 landed), the self-trace's
+per-layer minimums pin `trace_sys`, `trace_hlr`, `trace_llr`,
+and `trace_test`. Removing an entry requires a PR that edits
+the TOML and lowers the floor, with an explicit justification.
+The intent is that self-trace coverage only grows.
 
 Independent enforcement signals on the SYS contract (as of PR #44b):
 
