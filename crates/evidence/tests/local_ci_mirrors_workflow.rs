@@ -18,6 +18,19 @@
 //! run in CI on every push and don't belong in a pre-push loop
 //! (they're base-branch-relative and would gate local pushes on git
 //! history rather than tree state).
+//!
+//! ## Known limits of substring matching
+//!
+//! `.contains(token)` is a cheap structural check that accepts false
+//! greens: a commented-out `# cargo test --workspace` in the YAML
+//! would still satisfy `cargo test --workspace`, and `-D warnings`
+//! appears in multiple contexts (RUSTFLAGS env + clippy args), so
+//! deleting the clippy line while RUSTFLAGS stays set would not
+//! fire. Acceptable today because both files are short (~50-150
+//! lines) and any deletion is reviewer-visible in the diff. **If
+//! either file grows past ~200 lines, upgrade this test** to parse
+//! the YAML `steps:` array and the script's executed commands
+//! (shellcheck-style) instead of substring scanning.
 
 #![allow(
     clippy::unwrap_used,

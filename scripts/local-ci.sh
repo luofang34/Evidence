@@ -7,6 +7,13 @@
 # cargo command gated in the workflow also appears here. If CI adds a
 # new cargo flag, the test fires on the PR that missed it.
 #
+# **Contract**: runs what CI runs, nothing less — but potentially
+# slightly more. Specifically: CI's Doc gate is Linux-only (macOS /
+# Windows runners skip it to save minutes); this script runs the doc
+# gate on every host. Net effect: macOS / Windows contributors catch
+# doc-link drift locally before the ubuntu runner catches it in CI.
+# The extra strictness is a feature, not drift.
+#
 # The script is intentionally flat — no conditional skips, no
 # "quick mode." A subset run is exactly the failure mode PR #49 hit
 # (the `RUSTDOCFLAGS` doc gate was only partially run locally and
