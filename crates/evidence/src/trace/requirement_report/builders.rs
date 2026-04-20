@@ -5,6 +5,8 @@
 //! item here is `pub(super)` — the module is an implementation detail
 //! of [`super::build_requirement_report`].
 
+mod multi_selector;
+
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -45,7 +47,7 @@ pub(super) fn build_test_diag(
 
     // Unresolvable selector — flagged by `resolve_test_selectors`.
     if unresolved_ids.contains(&t.id) {
-        let selector = t.test_selector.clone().unwrap_or_default();
+        let selector = t.all_selectors().join(", ");
         return (
             TestStatus {
                 status: RequirementStatus::Gap,
@@ -54,7 +56,7 @@ pub(super) fn build_test_diag(
             make_diag(
                 RequirementStatus::Gap,
                 format!(
-                    "TEST {} selector '{}' did not resolve to a real #[test] fn",
+                    "TEST {} selector(s) [{}] did not resolve to a real #[test] fn",
                     t.id, selector
                 ),
                 Some(Location {
@@ -67,7 +69,7 @@ pub(super) fn build_test_diag(
                     toml_path: format!("tests[id={}]", t.id),
                     key: "test_selector".into(),
                     value_stub: format!(
-                        "<fully-qualified selector; current '{}' did not resolve>",
+                        "<fully-qualified selector; current [{}] did not resolve>",
                         selector
                     ),
                 }),
@@ -76,39 +78,52 @@ pub(super) fn build_test_diag(
         );
     }
 
-    // No selector — structural but untestable.
-    let selector = match t.test_selector.as_deref() {
-        Some(s) if !s.trim().is_empty() => s,
-        _ => {
-            return (
-                TestStatus {
-                    status: RequirementStatus::Gap,
-                    root_cause_uid: Some(uid.to_string()),
-                },
-                make_diag(
-                    RequirementStatus::Gap,
-                    format!("TEST {} has no `test_selector`", t.id),
-                    Some(Location {
-                        file: Some(PathBuf::from("tests.toml")),
-                        entry_uid: Some(uid.to_string()),
-                        ..Location::default()
-                    }),
-                    Some(FixHint::AddTomlKey {
-                        path: PathBuf::from("tests.toml"),
-                        toml_path: format!("tests[id={}]", t.id),
-                        key: "test_selector".into(),
-                        value_stub: "<crate>::<module>::<fn_name>".into(),
-                    }),
-                    None,
-                ),
-            );
-        }
-    };
+    // No selectors — structural but untestable. PR #49's N:M widening
+    // means a TEST may carry a singular `test_selector` (legacy), a
+    // `test_selectors` Vec, or both; `all_selectors()` merges and
+    // dedupes. An empty result after merge is the untestable case.
+    let selectors = t.all_selectors();
+    if selectors.is_empty() {
+        return (
+            TestStatus {
+                status: RequirementStatus::Gap,
+                root_cause_uid: Some(uid.to_string()),
+            },
+            make_diag(
+                RequirementStatus::Gap,
+                format!("TEST {} has no `test_selector` or `test_selectors`", t.id),
+                Some(Location {
+                    file: Some(PathBuf::from("tests.toml")),
+                    entry_uid: Some(uid.to_string()),
+                    ..Location::default()
+                }),
+                Some(FixHint::AddTomlKey {
+                    path: PathBuf::from("tests.toml"),
+                    toml_path: format!("tests[id={}]", t.id),
+                    key: "test_selector".into(),
+                    value_stub: "<crate>::<module>::<fn_name>".into(),
+                }),
+                None,
+            ),
+        );
+    }
 
-    // Try exact + suffix-fn match.
+    // N:M selectors: resolve each against `outcomes`, aggregate by
+    // the strict rule (TEST passes iff every selector matches a run
+    // fn AND every matched fn passed). PR #49's decision: strict
+    // resolution — laxity defeats the contract of PR #45's selector
+    // check.
+    //
+    // 1:1 fast path (single selector) preserves the pre-N:M messages
+    // so existing integration tests don't need flipping; the Vec
+    // path aggregates across all selectors.
+    if selectors.len() > 1 {
+        return multi_selector::status(t, uid, &selectors, outcomes);
+    }
+    let selector = &selectors[0];
     let matches: Vec<&String> = outcomes
         .keys()
-        .filter(|k| k.as_str() == selector || ends_with_fn(k, selector))
+        .filter(|k| k.as_str() == selector.as_str() || ends_with_fn(k, selector))
         .collect();
     match matches.as_slice() {
         [] => (
