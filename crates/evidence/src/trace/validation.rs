@@ -27,6 +27,9 @@ use super::entries::{DerivedEntry, HlrEntry, LlrEntry, TestEntry};
 use crate::diagnostic::{DiagnosticCode, Severity};
 use crate::policy::TracePolicy;
 
+mod link_errors;
+pub use link_errors::LinkError;
+
 /// Errors returned by [`validate_trace_links`] / [`validate_trace_links_with_policy`].
 ///
 /// Validation collects every problem in a single pass and returns a
@@ -38,14 +41,28 @@ use crate::policy::TracePolicy;
 pub enum TraceValidationError {
     /// Register-phase failures (missing UIDs/owners, duplicate UIDs
     /// or `(kind, owner, id)` triples, malformed UUID strings). One
-    /// variant per violation in the `errors` vector.
+    /// string per violation in the `errors` vector. **Not promoted to
+    /// typed variants in PR #51** — scope was Link-phase only; the
+    /// Register phase has similar opaque-prose issues but defers
+    /// until MCP surfaces a concrete need.
     #[error("Validation failed with {} errors (fix before linking check)", errors.len())]
-    Register { errors: Vec<String> },
+    Register {
+        /// One free-form message per register-phase violation.
+        errors: Vec<String>,
+    },
     /// Link-phase failures: dangling trace refs, cross-owner links
     /// that violate ownership rules, missing verification methods,
-    /// missing rationales on derived LLRs, etc.
+    /// missing rationales on derived LLRs, etc. One
+    /// [`LinkError`] per violation; iterate the vector to emit per-
+    /// variant diagnostics with each variant's stable code.
     #[error("Trace link validation failed with {} errors", errors.len())]
-    Link { errors: Vec<String> },
+    Link {
+        /// Typed sub-errors, one per violation. Use `.code()` on
+        /// each to get the per-variant `TRACE_*` code. Ordering
+        /// matches the pass-through order of the validator; agents
+        /// that want deterministic output sort client-side by code.
+        errors: Vec<LinkError>,
+    },
 }
 
 impl DiagnosticCode for TraceValidationError {
@@ -99,7 +116,7 @@ pub fn validate_trace_links_with_policy(
     derived: &[DerivedEntry],
     policy: &TracePolicy,
 ) -> Result<(), TraceValidationError> {
-    let mut errors: Vec<String> = Vec::new();
+    let mut register_errors: Vec<String> = Vec::new();
 
     // Index: uid -> (kind, owner, id)
     let mut uid_index: BTreeMap<String, (String, String, String)> = BTreeMap::new();
@@ -111,7 +128,7 @@ pub fn validate_trace_links_with_policy(
             ow.clone()
         } else {
             if policy.require_owners {
-                errors.push(format!("[{}:{}] missing 'owner'", kind, id));
+                register_errors.push(format!("[{}:{}] missing 'owner'", kind, id));
             }
             return;
         };
@@ -119,21 +136,21 @@ pub fn validate_trace_links_with_policy(
         let u = match uid {
             Some(u) => {
                 if policy.require_uids && uuid::Uuid::parse_str(u).is_err() {
-                    errors.push(format!("[{}:{}] invalid UID format '{}'", kind, id, u));
+                    register_errors.push(format!("[{}:{}] invalid UID format '{}'", kind, id, u));
                     return;
                 }
                 u.clone()
             }
             None => {
                 if policy.require_uids {
-                    errors.push(format!("[{}:{}] missing UID", kind, id));
+                    register_errors.push(format!("[{}:{}] missing UID", kind, id));
                 }
                 return;
             }
         };
 
         if let Some((prev_kind, prev_owner, prev_id)) = uid_index.get(&u) {
-            errors.push(format!(
+            register_errors.push(format!(
                 "Duplicate UID {}: used by [{}({}):{}] and [{}({}):{}]",
                 u, prev_kind, prev_owner, prev_id, kind, o, id
             ));
@@ -143,7 +160,7 @@ pub fn validate_trace_links_with_policy(
 
         let key = (kind.to_string(), o.clone(), id.clone());
         if let Some(prev_uid) = item_index.get(&key) {
-            errors.push(format!(
+            register_errors.push(format!(
                 "Duplicate Item '{}({}):{}': used by {} and {}",
                 kind, o, id, prev_uid, u
             ));
@@ -168,42 +185,56 @@ pub fn validate_trace_links_with_policy(
         register(&d.uid, &d.owner, &d.id, "DERIVED");
     }
 
-    if !errors.is_empty() {
-        for e in &errors {
+    if !register_errors.is_empty() {
+        for e in &register_errors {
             tracing::error!("  VALIDATION ERROR: {}", e);
         }
-        return Err(TraceValidationError::Register { errors });
+        return Err(TraceValidationError::Register {
+            errors: register_errors,
+        });
     }
 
-    // Link Validation
-    let check_link = |source_kind: &str,
+    // Link Validation — each check returns a typed `LinkError`
+    // variant; the outer loop iterates links and accumulates.
+    let mut errors: Vec<LinkError> = Vec::new();
+
+    let check_link = |source_kind: &'static str,
                       source_id: &str,
                       source_owner: &Option<String>,
                       link: &str,
-                      expected_target_kind: &str|
-     -> Option<String> {
+                      expected_target_kind: &'static str|
+     -> Option<LinkError> {
         // 1. Must be UUID.
         if uuid::Uuid::parse_str(link).is_err() {
-            return Some(format!("Link '{}' in {} is not a UUID", link, source_id));
+            return Some(LinkError::InvalidLinkUuid {
+                source_kind,
+                source_id: source_id.to_string(),
+                link: link.to_string(),
+            });
         }
 
         // 2. Must exist.
         let (target_kind, target_owner, target_id) = match uid_index.get(link) {
             Some(t) => t,
             None => {
-                return Some(format!(
-                    "Link '{}' in {} not found (dangling ref)",
-                    link, source_id
-                ));
+                return Some(LinkError::DanglingLink {
+                    source_kind,
+                    source_id: source_id.to_string(),
+                    link: link.to_string(),
+                    expected_target_kind,
+                });
             }
         };
 
         // 3. Kind check.
         if target_kind != expected_target_kind {
-            return Some(format!(
-                "Link '{}' in {} points to {} but expected {}",
-                link, source_id, target_kind, expected_target_kind
-            ));
+            return Some(LinkError::WrongTargetKind {
+                source_kind,
+                source_id: source_id.to_string(),
+                link: link.to_string(),
+                expected: expected_target_kind,
+                found: target_kind.clone(),
+            });
         }
 
         // 4. Ownership logic.
@@ -213,39 +244,28 @@ pub fn validate_trace_links_with_policy(
             .unwrap_or("UNKNOWN");
         let t_owner = target_owner.as_str();
 
+        let mk_ownership = || LinkError::OwnershipViolation {
+            source_kind,
+            source_id: source_id.to_string(),
+            source_owner: s_owner.to_string(),
+            target_kind: expected_target_kind,
+            target_id: target_id.clone(),
+            target_owner: t_owner.to_string(),
+        };
+
         match (source_kind, expected_target_kind) {
-            ("HLR", "SYS") => {
+            ("HLR", "SYS") | ("LLR", "HLR") => {
                 // Allowed: same owner OR target is "soi"/"project".
-                // Same shape as LLR→HLR: System requirements commonly
-                // have owner `soi` (system-of-interest) since they
-                // sit above component boundaries.
-                if s_owner == t_owner || t_owner == "soi" || t_owner == "project" {
-                    // OK
-                } else {
-                    return Some(format!(
-                        "Ownership violation: HLR({}:{}) -> SYS({}:{}). Cross-owner link forbidden.",
-                        s_owner, source_id, t_owner, target_id
-                    ));
-                }
-            }
-            ("LLR", "HLR") => {
-                // Allowed: same owner OR target is "soi"/"project".
-                if s_owner == t_owner || t_owner == "soi" || t_owner == "project" {
-                    // OK
-                } else {
-                    return Some(format!(
-                        "Ownership violation: LLR({}:{}) -> HLR({}:{}). Cross-crate link forbidden.",
-                        s_owner, source_id, t_owner, target_id
-                    ));
+                // System requirements commonly have owner `soi` (system-
+                // of-interest) since they sit above component boundaries.
+                if !(s_owner == t_owner || t_owner == "soi" || t_owner == "project") {
+                    return Some(mk_ownership());
                 }
             }
             ("TEST", "LLR") => {
                 // Allowed: strictly same owner.
                 if s_owner != t_owner {
-                    return Some(format!(
-                        "Ownership violation: TEST({}:{}) -> LLR({}:{}). Must be same crate.",
-                        s_owner, source_id, t_owner, target_id
-                    ));
+                    return Some(mk_ownership());
                 }
             }
             _ => { /* Checks not implemented for other pairings */ }
@@ -269,29 +289,29 @@ pub fn validate_trace_links_with_policy(
         for r in hlrs {
             for s in &r.surfaces {
                 if !known.contains(s.as_str()) {
-                    errors.push(format!(
-                        "HLR {} claims surface '{}' which is not in KNOWN_SURFACES — either fix \
-                         the spelling or add the surface to crates/evidence/src/trace/surfaces.rs",
-                        r.id, s
-                    ));
+                    errors.push(LinkError::SurfaceUnknown {
+                        hlr_id: r.id.clone(),
+                        surface: s.clone(),
+                    });
                 }
                 claimed.insert(s.clone());
             }
         }
         for k in super::surfaces::KNOWN_SURFACES {
             if !claimed.contains(*k) {
-                errors.push(format!(
-                    "KNOWN_SURFACES entry '{}' is not claimed by any HLR — add \
-                     `surfaces = [\"{}\"]` to the governing HLR in tool/trace/hlr.toml",
-                    k, k
-                ));
+                errors.push(LinkError::SurfaceUnclaimed {
+                    surface: (*k).to_string(),
+                });
             }
         }
     }
 
     for r in hlrs {
         if policy.require_hlr_verification_methods && r.verification_methods.is_empty() {
-            errors.push(format!("HLR missing verification_methods: {}", r.id));
+            errors.push(LinkError::MissingVerificationMethods {
+                kind: "HLR",
+                id: r.id.clone(),
+            });
         }
 
         // HLR.traces_to is optional by default: empty = tool-internal
@@ -300,12 +320,9 @@ pub fn validate_trace_links_with_policy(
         // error — the gate that turns the SYS layer from advisory
         // into load-bearing for projects that opt in.
         if policy.require_hlr_sys_trace && r.traces_to.is_empty() {
-            errors.push(format!(
-                "HLR {} has empty traces_to but policy require_hlr_sys_trace is set: \
-                 add an upward trace to a SYS UID, or unset the policy for \
-                 tool-internal HLRs that have no System parent.",
-                r.id
-            ));
+            errors.push(LinkError::MissingHlrSysTrace {
+                hlr_id: r.id.clone(),
+            });
         }
 
         // Non-empty traces_to must resolve to SYS UIDs and obey
@@ -313,7 +330,11 @@ pub fn validate_trace_links_with_policy(
         let mut seen_links = BTreeSet::new();
         for link in &r.traces_to {
             if !seen_links.insert(link) {
-                errors.push(format!("HLR {} has duplicate trace link '{}'", r.id, link));
+                errors.push(LinkError::DuplicateTraceLink {
+                    source_kind: "HLR",
+                    source_id: r.id.clone(),
+                    link: link.clone(),
+                });
             }
             if let Some(e) = check_link("HLR", &r.id, &r.owner, link, "SYS") {
                 errors.push(e);
@@ -325,35 +346,38 @@ pub fn validate_trace_links_with_policy(
         // LLR policy: derived vs traced.
         if r.traces_to.is_empty() {
             if !r.derived {
-                errors.push(format!(
-                    "LLR {} has no parent links. Must be marked 'derived = true'",
-                    r.id
-                ));
+                errors.push(LinkError::LlrMissingParentLinks {
+                    llr_id: r.id.clone(),
+                });
             } else if r.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
-                // PR #49 / HLR-040 / LLR-040: unconditional rule.
-                // DO-178C §5.2.2 requires derived requirements to be
-                // explicitly justified. All Link-phase violations
-                // currently surface under the single TRACE_LINK_FAILED
-                // envelope; per-sub-rule codes land when
-                // `TraceValidationError::Link` is refactored into
-                // typed sub-errors (C6 follow-up).
-                errors.push(format!("derived LLR {} missing non-empty rationale", r.id));
+                // DO-178C §5.2.2 — derived requirements must carry a
+                // non-empty rationale. Unconditional rule (no policy
+                // gate); PR #49 / HLR-040.
+                errors.push(LinkError::DerivedMissingRationale {
+                    llr_id: r.id.clone(),
+                });
             }
         } else if r.derived {
-            errors.push(format!(
-                "LLR {} is marked derived but has trace links. Contradiction.",
-                r.id
-            ));
+            errors.push(LinkError::ContradictoryDerived {
+                llr_id: r.id.clone(),
+            });
         }
 
         if policy.require_llr_verification_methods && r.verification_methods.is_empty() {
-            errors.push(format!("LLR missing verification_methods: {}", r.id));
+            errors.push(LinkError::MissingVerificationMethods {
+                kind: "LLR",
+                id: r.id.clone(),
+            });
         }
 
         let mut seen_links = BTreeSet::new();
         for link in &r.traces_to {
             if !seen_links.insert(link) {
-                errors.push(format!("LLR {} has duplicate trace link '{}'", r.id, link));
+                errors.push(LinkError::DuplicateTraceLink {
+                    source_kind: "LLR",
+                    source_id: r.id.clone(),
+                    link: link.clone(),
+                });
             }
             if let Some(e) = check_link("LLR", &r.id, &r.owner, link, "HLR") {
                 errors.push(e);
@@ -364,7 +388,11 @@ pub fn validate_trace_links_with_policy(
         let mut seen_links = BTreeSet::new();
         for link in &t.traces_to {
             if !seen_links.insert(link) {
-                errors.push(format!("TEST {} has duplicate trace link '{}'", t.id, link));
+                errors.push(LinkError::DuplicateTraceLink {
+                    source_kind: "TEST",
+                    source_id: t.id.clone(),
+                    link: link.clone(),
+                });
             }
             if let Some(e) = check_link("TEST", &t.id, &t.owner, link, "LLR") {
                 errors.push(e);
@@ -372,12 +400,16 @@ pub fn validate_trace_links_with_policy(
         }
     }
 
-    // Derived requirements validation.
+    // Derived top-level entries. Shares the `DerivedMissingRationale`
+    // code with LLR-derived entries — same semantic, different source
+    // stream; agents keyed on `code` see both.
     for d in derived {
         if policy.require_derived_rationale
             && d.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true)
         {
-            errors.push(format!("Derived requirement {} missing 'rationale'", d.id));
+            errors.push(LinkError::DerivedMissingRationale {
+                llr_id: d.id.clone(),
+            });
         }
     }
 
