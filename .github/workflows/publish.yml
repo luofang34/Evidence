@@ -1,5 +1,16 @@
 name: Publish to crates.io
 
+# Run-name disambiguates the Actions list at a glance: tag-push runs
+# render as "Publish <tag>"; manual dispatches render as "Publish
+# [DRY-RUN]" or "Publish [REAL] (dispatch)" so a dry-run can't be
+# confused with a real publish by someone scanning the history.
+run-name: >-
+  Publish ${{
+    github.event_name == 'push'
+      && github.ref_name
+      || (inputs.dry_run && '[DRY-RUN]' || '[REAL] (dispatch)')
+  }}
+
 # Release-only publish workflow using crates.io Trusted Publishing
 # (OIDC; no long-lived API token).
 #
@@ -46,7 +57,15 @@ concurrency:
 
 jobs:
   publish:
-    name: Publish release
+    # Job name mirrors the run-name mode so the in-run UI (jobs panel,
+    # status checks on PRs) also reflects dry-run vs real without
+    # scrolling into step logs.
+    name: >-
+      ${{
+        github.event_name == 'push'
+          && format('Publish {0}', github.ref_name)
+          || (inputs.dry_run && 'Publish [DRY-RUN]' || 'Publish [REAL] (dispatch)')
+      }}
     runs-on: ubuntu-latest
     environment: production-release
     permissions:
