@@ -59,6 +59,7 @@ const REQUIRED_GATES: &[&str] = &[
     // doc gate
     "cargo doc --workspace --no-deps",
     "-D rustdoc::broken_intra_doc_links",
+    "-D rustdoc::private_intra_doc_links",
     // release build
     "cargo build --workspace --release",
 ];

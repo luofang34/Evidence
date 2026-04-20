@@ -38,8 +38,8 @@ cargo test --workspace
 # `RUSTFLAGS=-D warnings` combined with the workspace-level
 # `missing_docs = "warn"` lint. Keeping both env vars set here
 # matches CI's "Doc gate" step byte-for-byte.
-log "cargo doc --workspace --no-deps (with -D rustdoc::broken_intra_doc_links)"
-RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links -D warnings" \
+log "cargo doc --workspace --no-deps (with broken + private intra-doc link gates)"
+RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links -D rustdoc::private_intra_doc_links -D warnings" \
     cargo doc --workspace --no-deps
 
 log "cargo build --workspace --release"
