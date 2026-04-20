@@ -41,6 +41,10 @@ use std::path::{Path, PathBuf};
 
 use regex::Regex;
 
+#[path = "trace_id_refs_locked/walker.rs"]
+mod walker;
+use walker::collect_scan_targets;
+
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -70,114 +74,6 @@ const RESERVED_TEXT_REFS: &[(&str, &str)] = &[
     // `tool/trace/`.
     ("check_source_tree.rs", "TEST-1"),
 ];
-
-/// Collect all in-scope files.
-///
-/// Scope:
-/// - `crates/**/*.rs` (excluding `target/`, `fixtures/`).
-/// - `**/*.md` at workspace root and under `crates/`, but NOT
-///   `tool/trace/README.md` (journal = audit provenance; stale
-///   refs there would be historical artifacts, not drift).
-/// - `**/*.toml` outside `tool/trace/` — Cargo manifests, cert
-///   baselines, floors.toml. `tool/trace/**/*.toml` is the
-///   ground truth we validate against and is explicitly excluded.
-fn collect_scan_targets(workspace: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    collect_by_ext(&workspace.join("crates"), "rs", &mut out, &[]);
-    collect_md_non_trace(workspace, &mut out, true);
-    collect_toml_non_trace(workspace, &mut out, true);
-    out
-}
-
-fn collect_by_ext(root: &Path, ext: &str, out: &mut Vec<PathBuf>, skip_dirs: &[&str]) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if matches!(
-                name,
-                "target" | ".git" | "node_modules" | "fixtures" | ".claude" | ".githooks"
-            ) || skip_dirs.contains(&name)
-            {
-                continue;
-            }
-            collect_by_ext(&path, ext, out, skip_dirs);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some(ext) {
-            out.push(path);
-        }
-    }
-}
-
-/// Walk `.md` files, skipping `tool/trace/` (journal is audit
-/// provenance).
-fn collect_md_non_trace(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if matches!(
-                name,
-                "target" | ".git" | "node_modules" | "fixtures" | ".claude" | ".githooks"
-            ) {
-                continue;
-            }
-            if name == "trace" && path.parent().and_then(|p| p.file_name()) == Some("tool".as_ref())
-            {
-                continue;
-            }
-            // Don't descend into cert under the workspace root — the
-            // toml walker handles it.
-            if is_workspace_root && name == "cert" {
-                continue;
-            }
-            collect_md_non_trace(&path, out, false);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("md") {
-            out.push(path);
-        }
-    }
-}
-
-/// Walk `.toml` files, skipping `tool/trace/` (the source of
-/// truth) and `target/`.
-fn collect_toml_non_trace(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if matches!(
-                name,
-                "target" | ".git" | "node_modules" | "fixtures" | ".claude" | ".githooks"
-            ) {
-                continue;
-            }
-            if name == "trace" && path.parent().and_then(|p| p.file_name()) == Some("tool".as_ref())
-            {
-                continue;
-            }
-            // Drop into cert/ too, but it's otherwise an ordinary
-            // recurse.
-            let _ = is_workspace_root;
-            collect_toml_non_trace(&path, out, false);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) == Some("toml") {
-            out.push(path);
-        }
-    }
-}
 
 /// Per-kind valid-ID set loaded from `tool/trace/`.
 struct TraceIdSets {
@@ -308,6 +204,26 @@ fn scan_tree(workspace: &Path) -> Vec<GhostRef> {
 ///   strings can contain `#` so the quote-parity scan applies
 ///   there too. Returns `""` when the line has no comment.
 /// - Other: empty (unsupported extension).
+///
+/// # Known limitations
+///
+/// These are acceptable for cargo-evidence's own source (Rust `//`
+/// convention per CLAUDE.md, raw strings vanishingly rare in prose
+/// comments). Downstream forks / reuses should extend before
+/// adoption:
+///
+/// - **Block comments `/* */` are not recognized.** The C / C++ /
+///   bindgen-generated-Rust community uses `/* */` heavily; adding
+///   support requires a cross-line state machine and is out of
+///   scope here. Pinned by a unit test below so future
+///   block-comment support surfaces the docstring update.
+/// - **Unsupported extensions return `""`.** Adding a language
+///   requires extending both this `match` and
+///   `collect_scan_targets`.
+/// - **Rust raw strings `r#"..."#` may confuse the quote-parity
+///   scanner** if they contain `//` or `#`. Downstream projects
+///   with raw-string-heavy code should add a raw-string
+///   tokenizer.
 fn comment_window<'a>(line: &'a str, ext: &str) -> &'a str {
     match ext {
         "md" => line,
@@ -356,6 +272,31 @@ fn is_reserved(rel: &str, full_ref: &str) -> bool {
         .any(|(path_suffix, r)| normalized.ends_with(path_suffix) && *r == full_ref)
 }
 
+/// Populate `<workspace>/tool/trace/` from the real workspace so
+/// `scan_tree(workspace)` resolves ghost refs against the real
+/// `read_all_trace_files` valid-ID set. Unix uses a symlink;
+/// Windows falls back to copying the four toml files (cheap; they
+/// are small).
+fn setup_fake_workspace_with_real_trace(workspace: &Path) {
+    let real = workspace_root();
+    let fake_trace = workspace.join("tool").join("trace");
+    fs::create_dir_all(workspace.join("tool")).expect("mkdir tool");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(real.join("tool").join("trace"), &fake_trace)
+        .expect("symlink trace");
+    #[cfg(not(unix))]
+    {
+        fs::create_dir_all(&fake_trace).expect("mkdir trace");
+        for name in ["sys.toml", "hlr.toml", "llr.toml", "tests.toml"] {
+            fs::copy(
+                real.join("tool").join("trace").join(name),
+                fake_trace.join(name),
+            )
+            .expect("copy trace file");
+        }
+    }
+}
+
 /// Load-bearing regression: the workspace tree has no ghost refs.
 #[test]
 fn current_tree_is_clean() {
@@ -399,34 +340,12 @@ fn fires_on_ghost_reference() {
     )
     .expect("write fixture");
 
-    // We need the real trace to load. The tempdir won't have
-    // tool/trace/, so the scan can't run against it as a
-    // self-contained workspace. Instead we synthesize a minimal
-    // "fake workspace" that symlinks the real tool/trace:
-    let real = workspace_root();
-    let fake_trace = tmp.path().join("tool").join("trace");
-    std::fs::create_dir_all(tmp.path().join("tool")).expect("mkdir tool");
-    #[cfg(unix)]
-    std::os::unix::fs::symlink(real.join("tool").join("trace"), &fake_trace)
-        .expect("symlink trace");
-    #[cfg(not(unix))]
-    {
-        // Windows fallback: copy the four toml files rather than
-        // symlink. Cheap; they're small.
-        std::fs::create_dir_all(&fake_trace).expect("mkdir trace");
-        for name in ["sys.toml", "hlr.toml", "llr.toml", "tests.toml"] {
-            std::fs::copy(
-                real.join("tool").join("trace").join(name),
-                fake_trace.join(name),
-            )
-            .expect("copy trace file");
-        }
-    }
+    setup_fake_workspace_with_real_trace(tmp.path());
 
     let hits = scan_tree(tmp.path());
     assert!(
         !hits.is_empty(),
-        "expected gate to fire on LLR-999 ghost ref; hits were empty"
+        "expected gate to fire on ghost ref; hits were empty"
     );
     assert!(
         hits.iter().any(|(_, _, _, id)| id == "LLR-999"),
@@ -449,23 +368,7 @@ fn passes_on_clean_fixture() {
     )
     .expect("write fixture");
 
-    let real = workspace_root();
-    let fake_trace = tmp.path().join("tool").join("trace");
-    std::fs::create_dir_all(tmp.path().join("tool")).expect("mkdir tool");
-    #[cfg(unix)]
-    std::os::unix::fs::symlink(real.join("tool").join("trace"), &fake_trace)
-        .expect("symlink trace");
-    #[cfg(not(unix))]
-    {
-        std::fs::create_dir_all(&fake_trace).expect("mkdir trace");
-        for name in ["sys.toml", "hlr.toml", "llr.toml", "tests.toml"] {
-            std::fs::copy(
-                real.join("tool").join("trace").join(name),
-                fake_trace.join(name),
-            )
-            .expect("copy trace file");
-        }
-    }
+    setup_fake_workspace_with_real_trace(tmp.path());
 
     let hits = scan_tree(tmp.path());
     assert!(
@@ -473,4 +376,47 @@ fn passes_on_clean_fixture() {
         "expected clean fixture to pass; got hits {:?}",
         hits
     );
+}
+
+/// Unit tests for `comment_window` and `find_comment_start`. These
+/// exercise the quote-parity scanner and UTF-8 iteration directly so
+/// a regression surfaces with a specific name rather than hiding
+/// inside the integration tests' resolver output.
+mod comment_window_tests {
+    use super::*;
+
+    #[test]
+    fn rs_basic_comment() {
+        assert_eq!(comment_window("let x = 1; // c", "rs"), "// c");
+    }
+
+    #[test]
+    fn rs_double_slash_in_string_skipped() {
+        assert_eq!(comment_window(r#"let s = "://";"#, "rs"), "");
+    }
+
+    #[test]
+    fn rs_escaped_quote_handled() {
+        assert_eq!(comment_window("let s = \"\\\"\"; // c", "rs"), "// c");
+    }
+
+    #[test]
+    fn rs_em_dash_doesnt_panic() {
+        let got = comment_window("// \u{2014} non-ascii prose", "rs");
+        assert_eq!(got, "// \u{2014} non-ascii prose");
+    }
+
+    #[test]
+    fn toml_hash_in_string_skipped() {
+        assert_eq!(comment_window(r#"key = "value#1""#, "toml"), "");
+    }
+
+    #[test]
+    fn rs_block_comment_not_recognized() {
+        // Pinned current behavior: `/* */` block comments are not
+        // recognized. If this test fires, someone extended the
+        // scanner; update the `Known limitations` section of
+        // `comment_window`'s docstring accordingly.
+        assert_eq!(comment_window("/* not recognized */", "rs"), "");
+    }
 }
