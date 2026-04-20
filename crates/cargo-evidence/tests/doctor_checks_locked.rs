@@ -82,6 +82,62 @@ fn cmd_doctor_invokes_every_required_check() {
 }
 
 #[test]
+fn every_doctor_code_emitted_in_source() {
+    // Meta-bijection: every `DOCTOR_*` code registered in
+    // `evidence::HAND_EMITTED_CLI_CODES` must appear as a literal
+    // string in the doctor source tree (`cli/doctor.rs` or
+    // `cli/doctor/checks.rs`). Prevents the pseudo-code
+    // anti-pattern the trace-schema hardening work closed:
+    // a code declared in RULES but never actually emitted silently
+    // expands the manifest without improving observable behavior.
+    //
+    // Scope is the doctor subtree because DOCTOR_* codes are
+    // hand-emitted exclusively from there. Terminal codes
+    // (DOCTOR_OK / DOCTOR_FAIL) live in TERMINAL_CODES, not in
+    // HAND_EMITTED_CLI_CODES, so they're naturally out of scope.
+    let doctor_rs = std::fs::read_to_string(
+        workspace_root()
+            .join("crates")
+            .join("cargo-evidence")
+            .join("src")
+            .join("cli")
+            .join("doctor.rs"),
+    )
+    .expect("read doctor.rs");
+    let checks_rs = std::fs::read_to_string(
+        workspace_root()
+            .join("crates")
+            .join("cargo-evidence")
+            .join("src")
+            .join("cli")
+            .join("doctor")
+            .join("checks.rs"),
+    )
+    .expect("read doctor/checks.rs");
+    let haystack = format!("{}\n{}", doctor_rs, checks_rs);
+
+    let doctor_codes: Vec<&'static str> = evidence::HAND_EMITTED_CLI_CODES
+        .iter()
+        .copied()
+        .filter(|c| c.starts_with("DOCTOR_"))
+        .collect();
+    let mut missing: Vec<&'static str> = Vec::new();
+    for code in &doctor_codes {
+        let quoted = format!("\"{}\"", code);
+        if !haystack.contains(&quoted) {
+            missing.push(code);
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "the following DOCTOR_* code(s) are in RULES + HAND_EMITTED_CLI_CODES \
+         but never emitted in doctor source (pseudo-code anti-pattern): {:?}. \
+         Either emit them or remove from the registry.",
+        missing
+    );
+}
+
+#[test]
 fn cmd_generate_calls_doctor_precheck_for_cert_modes() {
     let src_path = workspace_root()
         .join("crates")

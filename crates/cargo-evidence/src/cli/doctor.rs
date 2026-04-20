@@ -50,22 +50,18 @@ use checks::{
 const SUBCOMMAND: &str = "doctor";
 
 /// Fixed deterministic check order. The `doctor_checks_locked` test
-/// asserts every entry here is actually invoked by `cmd_doctor` +
-/// that its severity category is stable.
-const CHECKS: &[(&str, CheckKind)] = &[
-    ("trace validity", CheckKind::Error),
-    ("floors config", CheckKind::Error),
-    ("boundary config", CheckKind::Error),
-    ("CI integration", CheckKind::Warning),
-    ("merge-style policy", CheckKind::Warning),
-    ("override protocol docs", CheckKind::Warning),
+/// asserts every entry here is actually invoked by `cmd_doctor` via
+/// a matching `run_named_check` arm. Severity of a `CheckResult::Fail`
+/// is derived at row-construction time from `evidence::RULES` so the
+/// wire-level severity comes from a single source of truth.
+const CHECKS: &[&str] = &[
+    "trace validity",
+    "floors config",
+    "boundary config",
+    "CI integration",
+    "merge-style policy",
+    "override protocol docs",
 ];
-
-/// Severity category for a given check's failure.
-enum CheckKind {
-    Error,
-    Warning,
-}
 
 /// Entrypoint for `cargo evidence doctor`.
 ///
@@ -85,9 +81,9 @@ pub fn cmd_doctor(json: bool) -> Result<i32> {
     let mut rows: Vec<Row> = Vec::new();
     let mut any_error = false;
 
-    for (name, kind) in CHECKS {
+    for name in CHECKS {
         let result = run_named_check(name, &workspace);
-        let row = Row::from_result(name, kind, result);
+        let row = Row::from_result(name, result);
         if matches!(row.status, Status::Error) {
             any_error = true;
         }
@@ -129,7 +125,7 @@ pub fn cmd_doctor(json: bool) -> Result<i32> {
 /// `GENERATE_ERROR` terminal without rerunning doctor.
 pub fn precheck_doctor(workspace: &Path) -> Result<()> {
     let mut failed_codes: Vec<&'static str> = Vec::new();
-    for (name, _kind) in CHECKS {
+    for name in CHECKS {
         if let CheckResult::Fail(code, _) = run_named_check(name, workspace) {
             failed_codes.push(code);
         }
@@ -157,6 +153,17 @@ fn run_named_check(name: &str, workspace: &Path) -> CheckResult {
     }
 }
 
+/// Look up the canonical severity for a diagnostic code from
+/// `evidence::RULES`. An unregistered code defaults to `Error` so a
+/// typo can't silently downgrade a finding.
+fn severity_for_code(code: &str) -> Severity {
+    evidence::RULES
+        .iter()
+        .find(|r| r.code == code)
+        .map(|r| r.severity)
+        .unwrap_or(Severity::Error)
+}
+
 /// Per-row render state for the two output modes.
 struct Row {
     name: String,
@@ -173,7 +180,7 @@ enum Status {
 }
 
 impl Row {
-    fn from_result(name: &str, kind: &CheckKind, result: CheckResult) -> Self {
+    fn from_result(name: &str, result: CheckResult) -> Self {
         match result {
             CheckResult::Pass => Self {
                 name: name.to_string(),
@@ -182,9 +189,14 @@ impl Row {
                 code: None,
             },
             CheckResult::Fail(code, msg) => {
-                let status = match kind {
-                    CheckKind::Error => Status::Error,
-                    CheckKind::Warning => Status::Warning,
+                // Severity comes from `evidence::RULES` — single
+                // source of truth. A code that isn't registered
+                // defaults to Error (so a typo doesn't silently
+                // downgrade).
+                let status = match severity_for_code(code) {
+                    Severity::Error => Status::Error,
+                    Severity::Warning => Status::Warning,
+                    Severity::Info => Status::Pass,
                 };
                 Self {
                     name: name.to_string(),

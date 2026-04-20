@@ -128,7 +128,9 @@ pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "DOCTOR_BOUNDARY_MISSING",
     "DOCTOR_CHECK_PASSED",
     "DOCTOR_CI_INTEGRATION_MISSING",
+    "DOCTOR_FLOORS_BOUNDARY_MISMATCH",
     "DOCTOR_FLOORS_MISSING",
+    "DOCTOR_FLOORS_SLACK",
     "DOCTOR_FLOORS_VIOLATED",
     "DOCTOR_MERGE_STYLE_RISK",
     "DOCTOR_MERGE_STYLE_UNKNOWN",
@@ -206,7 +208,13 @@ pub const RULES: &[RuleEntry] = &[
         Domain::Doctor,
     ),
     terminal("DOCTOR_FAIL", Severity::Error),
+    r(
+        "DOCTOR_FLOORS_BOUNDARY_MISMATCH",
+        Severity::Warning,
+        Domain::Doctor,
+    ),
     r("DOCTOR_FLOORS_MISSING", Severity::Error, Domain::Doctor),
+    r("DOCTOR_FLOORS_SLACK", Severity::Warning, Domain::Doctor),
     r("DOCTOR_FLOORS_VIOLATED", Severity::Error, Domain::Doctor),
     r("DOCTOR_MERGE_STYLE_RISK", Severity::Warning, Domain::Doctor),
     r(

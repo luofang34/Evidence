@@ -89,10 +89,13 @@ pub(super) fn check_floors(workspace: &Path) -> CheckResult {
     let per_crate = per_crate_measurements(workspace);
 
     let mut breaches: Vec<String> = Vec::new();
+    let mut slack: Vec<String> = Vec::new();
     for (dim, floor) in &config.floors {
         let cur = measurements.get(dim).copied().unwrap_or(0);
         if cur < *floor {
             breaches.push(format!("{} current={} floor={}", dim, cur, floor));
+        } else if cur > *floor {
+            slack.push(format!("{} current={} floor={}", dim, cur, floor));
         }
     }
     for (crate_name, inner) in &config.per_crate {
@@ -104,6 +107,11 @@ pub(super) fn check_floors(workspace: &Path) -> CheckResult {
                 .unwrap_or(0);
             if cur < *floor {
                 breaches.push(format!(
+                    "{}/{} current={} floor={}",
+                    crate_name, dim, cur, floor
+                ));
+            } else if cur > *floor {
+                slack.push(format!(
                     "{}/{} current={} floor={}",
                     crate_name, dim, cur, floor
                 ));
@@ -126,14 +134,70 @@ pub(super) fn check_floors(workspace: &Path) -> CheckResult {
         }
     }
 
-    if breaches.is_empty() {
-        CheckResult::Pass
-    } else {
-        CheckResult::Fail(
+    // Priority cascade: error-severity findings shadow warning-
+    // severity ones. A single CheckResult per check, so pick the
+    // highest-severity signal. Order: VIOLATED (error) → BOUNDARY_
+    // MISMATCH (warning) → SLACK (warning) → Pass.
+    if !breaches.is_empty() {
+        return CheckResult::Fail(
             "DOCTOR_FLOORS_VIOLATED",
             format!("floors breached: {}", breaches.join("; ")),
-        )
+        );
     }
+    if let Some(mismatch) = floors_boundary_mismatch(workspace, &config) {
+        return CheckResult::Fail("DOCTOR_FLOORS_BOUNDARY_MISMATCH", mismatch);
+    }
+    if !slack.is_empty() {
+        return CheckResult::Fail(
+            "DOCTOR_FLOORS_SLACK",
+            format!(
+                "current measurement > committed floor on {} dimension(s). The project's \
+                 internal `floors_equal_current_no_slack` test enforces strict equality; \
+                 downstream adopters should mirror it. Raise the floor to close the gap: {}",
+                slack.len(),
+                slack.join("; ")
+            ),
+        );
+    }
+    CheckResult::Pass
+}
+
+/// Check that `[per_crate.<crate>]` keys in floors.toml match
+/// `[scope].in_scope` in boundary.toml. This is the downstream
+/// mirror of the internal `per_crate_floors_match_boundary_in_scope`
+/// integration test. Returns `None` if the two configs agree or
+/// boundary isn't loadable (in which case `check_boundary` already
+/// fires its own diagnostic).
+fn floors_boundary_mismatch(workspace: &Path, floors: &FloorsConfig) -> Option<String> {
+    use std::collections::BTreeSet;
+    let boundary_path = workspace.join("cert").join("boundary.toml");
+    let boundary = BoundaryConfig::load(&boundary_path).ok()?;
+    let in_scope: BTreeSet<&str> = boundary.scope.in_scope.iter().map(String::as_str).collect();
+    let declared: BTreeSet<&str> = floors
+        .per_crate
+        .keys()
+        .chain(floors.per_crate_ceilings.keys())
+        .map(String::as_str)
+        .collect();
+    if in_scope == declared {
+        return None;
+    }
+    let missing: Vec<&&str> = in_scope.difference(&declared).collect();
+    let extra: Vec<&&str> = declared.difference(&in_scope).collect();
+    let mut parts = Vec::new();
+    if !missing.is_empty() {
+        parts.push(format!(
+            "boundary in_scope lists crate(s) with no per_crate floor: {:?}",
+            missing
+        ));
+    }
+    if !extra.is_empty() {
+        parts.push(format!(
+            "floors.toml [per_crate.*] has crate(s) not in boundary in_scope: {:?}",
+            extra
+        ));
+    }
+    Some(parts.join("; "))
 }
 
 pub(super) fn check_boundary(workspace: &Path) -> CheckResult {
@@ -187,7 +251,7 @@ pub(super) fn check_ci_integration(workspace: &Path) -> CheckResult {
         .collect();
     for path in &entries {
         if let Ok(text) = std::fs::read_to_string(path)
-            && (text.contains("cargo evidence") || text.contains("cargo-evidence"))
+            && workflow_invokes_cargo_evidence(&text)
         {
             return CheckResult::Pass;
         }
@@ -195,12 +259,30 @@ pub(super) fn check_ci_integration(workspace: &Path) -> CheckResult {
     CheckResult::Fail(
         "DOCTOR_CI_INTEGRATION_MISSING",
         format!(
-            "no workflow under {} mentions `cargo evidence` or `cargo-evidence`. \
-             Add a CI step that runs `cargo evidence check` / `doctor` / `floors` \
-             so drift gets caught.",
+            "no workflow under {} invokes `cargo evidence` or `cargo-evidence` via a \
+             `run:` step. Add a CI step that runs `cargo evidence check` / \
+             `doctor` / `floors` so drift gets caught.",
             wf_dir.display()
         ),
     )
+}
+
+/// Tighter match than `text.contains("cargo evidence")`: require
+/// the invocation to appear within ~200 chars of a `run:` key so
+/// prose mentions in workflow comments or README-embedded YAML
+/// don't register as "CI integration present."
+fn workflow_invokes_cargo_evidence(text: &str) -> bool {
+    let needles = ["cargo evidence", "cargo-evidence"];
+    // Split on "run:" and inspect the head of each resulting segment
+    // (skip the first — it's text BEFORE any `run:` key). Slicing
+    // with `split` is UTF-8-safe; a fixed byte window isn't.
+    for segment in text.split("run:").skip(1) {
+        let window: String = segment.chars().take(200).collect();
+        if needles.iter().any(|n| window.contains(n)) {
+            return true;
+        }
+    }
+    false
 }
 
 pub(super) fn check_merge_style(workspace: &Path) -> CheckResult {
@@ -219,33 +301,14 @@ pub(super) fn check_merge_style(workspace: &Path) -> CheckResult {
         return CheckResult::Pass;
     }
 
-    // (b) History probe — count merge-commits in recent main history.
-    let out = Command::new("git")
-        .args(["log", "-n", "20", "--format=%s", "main"])
-        .current_dir(workspace)
-        .output();
-    let stdout = match out {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).into_owned(),
-        Ok(o) => {
-            return CheckResult::Fail(
-                "DOCTOR_MERGE_STYLE_UNKNOWN",
-                format!(
-                    "git log on main branch failed (exit {:?}); merge-style policy \
-                     could not be audited. Run `git log -n 20 main` manually to \
-                     diagnose, then re-run doctor.",
-                    o.status.code()
-                ),
-            );
-        }
+    // (b) History probe — count merge-commits in recent history
+    //     of the default branch. Try `main` first (modern default),
+    //     fall back to `master` (older repos, GitHub repos created
+    //     before late-2020). If neither resolves, fire UNKNOWN.
+    let stdout = match git_log_default_branch(workspace) {
+        Ok(s) => s,
         Err(e) => {
-            return CheckResult::Fail(
-                "DOCTOR_MERGE_STYLE_UNKNOWN",
-                format!(
-                    "git unavailable ({}); merge-style policy could not be audited. \
-                     Install git or re-run doctor in a repo clone.",
-                    e
-                ),
-            );
+            return CheckResult::Fail("DOCTOR_MERGE_STYLE_UNKNOWN", e);
         }
     };
     let lines: Vec<&str> = stdout.lines().collect();
@@ -278,6 +341,45 @@ pub(super) fn check_merge_style(workspace: &Path) -> CheckResult {
     )
 }
 
+/// Run `git log -n 20 --format=%s` against the repo's default
+/// branch. Tries `main` then `master`; if both fail, returns a
+/// descriptive error (surfaced as `DOCTOR_MERGE_STYLE_UNKNOWN`).
+fn git_log_default_branch(workspace: &Path) -> Result<String, String> {
+    let candidates = ["main", "master"];
+    let mut last_err: Option<String> = None;
+    for branch in &candidates {
+        let out = Command::new("git")
+            .args(["log", "-n", "20", "--format=%s", branch])
+            .current_dir(workspace)
+            .output();
+        match out {
+            Ok(o) if o.status.success() => {
+                return Ok(String::from_utf8_lossy(&o.stdout).into_owned());
+            }
+            Ok(o) => {
+                last_err = Some(format!(
+                    "`git log {}` exited non-zero (code {:?})",
+                    branch,
+                    o.status.code()
+                ));
+            }
+            Err(e) => {
+                return Err(format!(
+                    "git unavailable ({}); merge-style policy could not be audited. \
+                     Install git or re-run doctor in a repo clone.",
+                    e
+                ));
+            }
+        }
+    }
+    Err(format!(
+        "neither `main` nor `master` branch is available ({}); merge-style \
+         policy could not be audited. This repo either uses a non-standard \
+         default branch name or has no main-line history yet.",
+        last_err.unwrap_or_else(|| "no git output captured".to_string())
+    ))
+}
+
 /// True iff any workflow file under `.github/workflows` references
 /// `github.event.commits`, indicating the override-haystack plumbing
 /// that neutralizes merge-commit-style risk.
@@ -307,10 +409,28 @@ fn workflow_plumbs_commits_array(workspace: &Path) -> bool {
 
 pub(super) fn check_override_protocol(workspace: &Path) -> CheckResult {
     const NEEDLE: &str = "Override-Deterministic-Baseline:";
-    let candidates = [
+    let mut candidates: Vec<PathBuf> = vec![
         workspace.join("README.md"),
         workspace.join("CONTRIBUTING.md"),
     ];
+    // Also walk `docs/` (to depth 3) for any `.md` file — real
+    // projects often document conventions in `docs/contributing/*`,
+    // `docs/cert/*`, etc. Two filenames alone is too narrow.
+    let docs_dir = workspace.join("docs");
+    if docs_dir.is_dir() {
+        candidates.extend(
+            walkdir::WalkDir::new(&docs_dir)
+                .follow_links(false)
+                .max_depth(3)
+                .into_iter()
+                .filter_map(Result::ok)
+                .filter(|e| {
+                    e.file_type().is_file()
+                        && e.path().extension().and_then(|x| x.to_str()) == Some("md")
+                })
+                .map(|e| e.into_path()),
+        );
+    }
     for path in &candidates {
         if let Ok(text) = std::fs::read_to_string(path)
             && text.contains(NEEDLE)
@@ -321,10 +441,10 @@ pub(super) fn check_override_protocol(workspace: &Path) -> CheckResult {
     CheckResult::Fail(
         "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
         format!(
-            "no README.md or CONTRIBUTING.md mentions `{}` — contributors \
-             won't know the protocol for intentional reproducibility-input \
-             changes. Add a section documenting the override syntax \
-             (mechanism, examples, what triggers it).",
+            "no README.md, CONTRIBUTING.md, or `docs/**/*.md` mentions `{}` — \
+             contributors won't know the protocol for intentional \
+             reproducibility-input changes. Add a section documenting the \
+             override syntax (mechanism, examples, what triggers it).",
             NEEDLE
         ),
     )

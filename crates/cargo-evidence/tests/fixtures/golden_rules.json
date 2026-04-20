@@ -182,8 +182,22 @@
     "terminal": true
   },
   {
+    "code": "DOCTOR_FLOORS_BOUNDARY_MISMATCH",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "DOCTOR_FLOORS_MISSING",
     "severity": "error",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_FLOORS_SLACK",
+    "severity": "warning",
     "domain": "doctor",
     "has_fix_hint": false,
     "terminal": false
