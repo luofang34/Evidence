@@ -43,15 +43,26 @@ fn lint_script() -> PathBuf {
         .join("deterministic-baseline-override-lint.sh")
 }
 
-/// Sandbox-friendliness: if the script isn't present at the
-/// expected path (Nix `buildRustPackage` copies only the crate's
-/// src, leaving `../../scripts/` out of the sandbox), skip
-/// gracefully. The CI path runs the gate from the real checkout,
-/// so the guardrail still fires where it matters.
+/// Sandbox-friendliness: skip gracefully when either (a) the
+/// script isn't present at the expected path — Nix
+/// `buildRustPackage` copies only the crate's src, leaving
+/// `../../scripts/` out of the sandbox — or (b) `jq` isn't on
+/// PATH, which is the case in the Nix build sandbox that hides
+/// host utilities by default. The CI runner path has both and
+/// exercises the gate fully; this guard only affects local
+/// sandboxed rebuilds.
 ///
 /// Returns `true` iff the script is runnable.
 fn script_available() -> bool {
-    lint_script().is_file()
+    if !lint_script().is_file() {
+        return false;
+    }
+    // `jq` check: bail if `which jq` fails.
+    Command::new("jq")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 /// Minimal `deterministic-manifest.json` stub carrying the six
