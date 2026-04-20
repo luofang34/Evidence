@@ -212,3 +212,26 @@ it's narrative, it belongs in the commit message, not the code.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "3596cc7b-d8ce-46fb-8a92-62c55a40758b"
+id = "SYS-013"
+title = "The deterministic_hash of the tool's own bundle shall stay stable across time between PR-boundary checkpoints, with silent drift mechanically prevented"
+owner = "soi"
+scope = "soi"
+description = """
+Cross-host determinism (SYS-003, landed) proves that N hosts
+building the SAME commit produce the same `deterministic_hash` at
+a SINGLE point in time. It doesn't catch drift across time —
+dependency lock-file changes, toolchain bumps, RUSTFLAGS
+adjustments, or any edit to a determinism-affecting input in a
+PR. The tool shall detect when the current PR's
+`deterministic_hash` diverges from the last successful
+main-branch build and block the PR unless an explicit override
+line (`Override-Deterministic-Baseline: <reason>`) appears in the
+PR body. This turns silent determinism drift into a
+mechanically-refused regression, preserving the reproducibility
+contract on which the bundle's audit value depends.
+"""
+verification_methods = ["test"]
+traces_to = []
