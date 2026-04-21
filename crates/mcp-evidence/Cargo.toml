@@ -1,0 +1,40 @@
+[package]
+name = "mcp-evidence"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "MCP (Model Context Protocol) server exposing cargo-evidence to AI agents"
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "../../README.md"
+
+[[bin]]
+name = "mcp-evidence"
+path = "src/main.rs"
+
+[lib]
+name = "mcp_evidence"
+path = "src/lib.rs"
+
+[dependencies]
+evidence-core.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+rmcp = { version = "=1.5.0", features = ["server", "macros", "transport-io", "schemars"] }
+schemars = { version = "1.0", features = ["chrono04"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "process", "time"] }
+
+[dev-dependencies]
+assert_cmd = "2.1.2"
+tempfile = "3.24.0"
+
+[lints]
+workspace = true

@@ -46,6 +46,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     // terminology used in schemas/diagnostic.schema.json).
     "CLI_SUBCOMMAND_ERROR terminal",
     "VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR terminal contract",
+    "agent MCP surface",
     "comment hygiene gate",
     "diagnostic code namespace (regex + reserved suffixes)",
     "jsonl stream per Schema Rule 2",

@@ -281,7 +281,7 @@ id = "SYS-015"
 title = "The tool shall mechanically prevent hand-rolled recursive fs::read_dir walkers across its own source"
 owner = "soi"
 scope = "soi"
-description = '''
+description = """
 Multiple independent recursive `fs::read_dir` walkers accumulated
 across the tool's own source (five test-side walkers plus two
 production walkers, each with subtly different skip-list rules
@@ -296,7 +296,7 @@ recursive file-tree traversal, with a CI-enforced gate that
 fires on any new hand-rolled `fs::read_dir` outside a
 reviewer-visible allowlist of single-directory non-recursive
 uses.
-'''
+"""
 verification_methods = ["test"]
 traces_to = []
 
@@ -306,7 +306,7 @@ id = "SYS-016"
 title = "The tool shall provide a mechanical rigor-audit subcommand that blocks cert-profile bundle generation on any FAIL finding"
 owner = "soi"
 scope = "soi"
-description = '''
+description = """
 cargo-evidence's internal discipline — the Override-Deterministic-
 Baseline protocol, the floors ratchet, walker standardization,
 the locked-test ecology, merge-style assumptions — lives in this
@@ -327,7 +327,7 @@ doctor before bundle assembly and abort on any FAIL — producing
 a cert-profile bundle shall be mechanically impossible without
 passing the audit. No opt-out short of editing cargo-evidence
 itself, which is visible in the bundle's `engine_git_sha`.
-'''
+"""
 verification_methods = ["test"]
 traces_to = []
 
@@ -337,7 +337,7 @@ id = "SYS-017"
 title = "Bundles produced by a pre-release build of the tool shall be mechanically rejected as cert/record evidence"
 owner = "soi"
 scope = "soi"
-description = '''
+description = """
 The tool ships in two flavors: release (`cargo install
 cargo-evidence --version '=X.Y.Z'`) and pre-release
 (`cargo install cargo-evidence --version '<1.0.0-z'`) — the
@@ -363,6 +363,35 @@ severity `VERIFY_PRERELEASE_TOOL` at bundle-assembly time so
 the user knows the bundle they are producing will fail its own
 verify. No opt-out short of editing the tool (visible in
 `engine_git_sha`).
-'''
+"""
+verification_methods = ["test"]
+traces_to = []
+
+[[requirements]]
+uid = "385c2c4c-748c-4486-bd8c-7622b12c9273"
+id = "SYS-018"
+title = "Agent-facing verbs shall be callable over the Model Context Protocol without shelling out"
+owner = "soi"
+scope = "soi"
+description = """
+The agent-facing verbs (`check`, `rules`, `doctor`) are the
+tool's high-frequency surface (principle 5 of the plan). Today
+agents call them by spawning `cargo evidence <verb>
+--format=jsonl`, re-parsing stdout, and carrying exit-code
+semantics in their prompt. That plumbing belongs in the tool,
+not in the agent host.
+
+The tool shall expose the same three verbs as MCP tool calls
+over stdio so that Claude Desktop, Claude Code, and any other
+MCP-speaking host can register them via `claude mcp add` and
+invoke them as schema-validated first-class tool calls with
+structured responses. The MCP surface shall not introduce new
+diagnostic vocabulary — it is a pass-through wrapper whose
+responses contain the same `Diagnostic` events already emitted
+by the CLI (plus a per-call `exit_code` + `terminal` for
+convenience). `verify` shall not be exposed — it is a
+low-level primitive reserved for CI scripts and debugging, and
+`check` wraps it in bundle mode.
+"""
 verification_methods = ["test"]
 traces_to = []

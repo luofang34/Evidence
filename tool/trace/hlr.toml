@@ -846,7 +846,7 @@ id = "HLR-047"
 title = "CI gate fails on any hand-rolled recursive fs::read_dir walker outside a reviewer-visible allowlist"
 owner = "tool"
 scope = "component"
-description = '''
+description = """
 A Rust integration test walks `crates/**/*.rs`, scans every line
 for the substrings `fs::read_dir(` or `std::fs::read_dir(`, and
 fails via `assert!` unless the offending file is listed in
@@ -858,7 +858,7 @@ must migrate to `walkdir::WalkDir` — the shared primitive that
 pins `follow_links(false)` and unifies subtree pruning via
 `filter_entry`. No `Diagnostic` wire shape, no new `RULES`
 entry — the test's failure message is the diagnostic.
-'''
+"""
 verification_methods = ["test"]
 traces_to = ["18188b31-f01d-4902-97a2-4b981b50a1ad"]
 surfaces = ["walker-usage standardization"]
@@ -869,7 +869,7 @@ id = "HLR-048"
 title = "cargo evidence doctor audits downstream rigor via a checklist of typed diagnostic codes"
 owner = "tool"
 scope = "component"
-description = '''
+description = """
 New subcommand `cargo evidence doctor` runs a mechanical rigor
 audit against the caller's repo. Each check emits exactly one
 `Diagnostic` with a stable `DOCTOR_*` code and a severity
@@ -899,7 +899,7 @@ MVP checks:
 doctor internally before bundle assembly and aborts on any
 `error`-severity finding. `--profile dev` does not invoke
 doctor — dev iteration stays fast.
-'''
+"""
 verification_methods = ["test"]
 traces_to = ["abba0183-f506-4fe5-81d1-afdc3bcac1ca"]
 surfaces = ["doctor"]
@@ -910,7 +910,7 @@ id = "HLR-049"
 title = "Pre-release builds embed a tool_prerelease flag in env.json and verify refuses such bundles under cert/record"
 owner = "tool"
 scope = "component"
-description = '''
+description = """
 `env!("CARGO_PKG_VERSION")` at build time decides the flag:
 any `-` suffix (semver pre-release identifier per §9) sets
 `tool_prerelease = true` in the bundle's `env.json`. The schema
@@ -936,7 +936,52 @@ regardless of profile.
 warning-severity `VERIFY_PRERELEASE_TOOL` at bundle-assembly
 time so the user sees the problem before trying to verify. Dev
 profile generate skips the emit — dev iteration stays fast.
-'''
+"""
 verification_methods = ["test"]
 traces_to = ["2758e039-4943-4a9a-ad3d-9e0b0d0da7d8"]
 surfaces = ["pre-release safety gate"]
+
+[[requirements]]
+uid = "20b4b691-f89f-4453-85f3-9eba5299935e"
+id = "HLR-050"
+title = "Thin MCP server wraps check, rules, and doctor via subprocess over stdio"
+owner = "tool"
+scope = "component"
+description = """
+A new workspace crate `mcp-evidence` (binary + thin lib) shall
+expose three MCP tools over stdio transport: `evidence_check`,
+`evidence_rules`, `evidence_doctor`. Each tool spawns the
+corresponding `cargo evidence <verb>` subcommand under
+`--format=jsonl` (or `--json` for `rules`, which is blob-only
+per CLI_UNSUPPORTED_FORMAT rejection), collects stdout + exit
+code, and returns a structured response containing the parsed
+diagnostic events, the terminal code, and the exit code.
+
+Subprocess is the architectural choice: the CLI's jsonl
+output is the stable contract (pinned by
+`crates/cargo-evidence/tests/verify_jsonl.rs`,
+`rules_cmd.rs`, `doctor_cmd.rs`). Wrapping the CLI avoids
+duplicating severity policy and keeps `mcp-evidence` a thin
+wrapper that versions in lockstep with the CLI. The MCP layer
+does not own any `Diagnostic` codes in `evidence_core::RULES`
+— it is pass-through. Its only layer-local failure signals
+(`BinaryNotFound`, `MalformedJsonl`, `CHECK_TIMEOUT`) surface
+as structured errors in the MCP tool response, not as new
+codes in the CLI's public vocabulary.
+
+`evidence_check` shall accept an optional `workspace_path`
+plus optional `mode` (`"auto"|"source"|"bundle"`, mirroring
+`cargo evidence check --mode`). `evidence_doctor` shall accept
+an optional `workspace_path`. `evidence_rules` takes no
+arguments. Default `workspace_path` is the server process's
+CWD. All spawns run with `CARGO_TERM_COLOR=never` +
+`NO_COLOR=1` to prevent ANSI escapes breaking JSONL parse.
+
+A 10-minute timeout bounds each spawn (`cargo test
+--workspace` in source-mode check can legitimately take
+several minutes); exceeding it yields a synthetic
+`CHECK_TIMEOUT` terminal and exit_code=1.
+"""
+verification_methods = ["test"]
+traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
+surfaces = ["agent MCP surface"]
