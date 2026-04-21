@@ -265,11 +265,17 @@ pub fn verify_bundle_with_key(
         );
     }
 
-    // Return collected errors or pass
+    // Return collected errors or pass. No library-layer logging
+    // on the fail path: the CLI owns severity presentation (both
+    // jsonl and human paths have their own per-error rendering,
+    // and the jsonl partition in `cmd_verify_jsonl` + the prose
+    // partition in `cmd_verify` can downgrade individual errors
+    // — e.g. `VERIFY_PRERELEASE_TOOL` on Dev profile — to
+    // Warning + `VERIFY_OK` + exit 0). A `tracing::error!` here
+    // fires before the CLI partition runs and leaks `ERROR
+    // VERIFY ERROR:` to stderr even when the outcome is a
+    // warning with exit 0.
     if !verify_errors.is_empty() {
-        for e in &verify_errors {
-            tracing::error!("  VERIFY ERROR: {}", e);
-        }
         return Ok(VerifyResult::Fail(verify_errors));
     }
 

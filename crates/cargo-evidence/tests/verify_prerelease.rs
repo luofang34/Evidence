@@ -237,6 +237,21 @@ fn plain_text_dev_profile_passes_with_warning() {
         stderr.contains("pre-release") || stderr.contains("prerelease"),
         "stderr must carry a pre-release warning; got: {stderr}",
     );
+    // The library must NOT leak `tracing::error!("VERIFY ERROR:
+    // …")` through to stderr on a downgrade-to-warning path —
+    // the CLI partition owns severity presentation, and a
+    // library-layer error log fires before the partition runs.
+    // Seeing `ERROR` from tracing_subscriber on a Warning-outcome
+    // run is a regression.
+    assert!(
+        !stderr.contains("VERIFY ERROR"),
+        "stderr must NOT contain 'VERIFY ERROR' on a dev-profile warning path \
+         — the library's log leaked past the CLI severity partition; got: {stderr}",
+    );
+    assert!(
+        !stderr.contains("ERROR"),
+        "stderr must NOT contain 'ERROR' on a warning-outcome run; got: {stderr}",
+    );
 }
 
 /// Plain-text path on cert/record profile stays an error — the
