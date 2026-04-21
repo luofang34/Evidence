@@ -27,7 +27,7 @@ use evidence_core::policy::TracePolicy;
 use evidence_core::trace::{build_requirement_report, read_all_trace_files};
 use evidence_core::{BoundaryConfig, EvidencePolicy};
 
-use super::args::{CheckMode, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
+use super::args::{CheckMode, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFormat};
 use super::output::emit_jsonl;
 use super::verify::cmd_verify;
 
@@ -35,14 +35,31 @@ use super::verify::cmd_verify;
 ///
 /// PATH defaults to `.`. See the module docstring for mode semantics
 /// and [`resolve_mode`] for the precedence table.
-pub fn cmd_check(mode: CheckMode, path: Option<PathBuf>) -> Result<i32> {
+///
+/// `format` controls the output shape:
+/// - `OutputFormat::Human` (default): per-requirement `[✓]` / `[⚠]`
+///   / `[✗]` lines on stdout, phase-progress prose on stderr, final
+///   summary line. What a developer sees interactively.
+/// - `OutputFormat::Json` or `OutputFormat::Jsonl`: streaming JSONL
+///   diagnostics on stdout (one object per line, newline-flushed),
+///   terminal diagnostic last. What agents see. Both non-human
+///   formats collapse to the same JSONL stream — `check` never had
+///   a single-blob JSON shape and adding one is out of scope here.
+pub fn cmd_check(mode: CheckMode, path: Option<PathBuf>, format: OutputFormat) -> Result<i32> {
     let path = path.unwrap_or_else(|| PathBuf::from("."));
     let resolved = resolve_mode(mode, &path);
     match resolved {
-        ResolvedMode::Source => cmd_check_source(&path),
-        ResolvedMode::Bundle => cmd_check_bundle(path),
-        ResolvedMode::Invalid(reason) => emit_invalid_argument(&path, &reason),
+        ResolvedMode::Source => cmd_check_source(&path, format),
+        ResolvedMode::Bundle => cmd_check_bundle(path, format),
+        ResolvedMode::Invalid(reason) => emit_invalid_argument(&path, &reason, format),
     }
+}
+
+/// `true` iff output should be JSONL-streamed (machine mode). Any
+/// non-Human format currently collapses here; when/if `check` gains
+/// a true single-blob Json mode, split this.
+fn is_machine_format(format: OutputFormat) -> bool {
+    !matches!(format, OutputFormat::Human)
 }
 
 enum ResolvedMode {
@@ -100,8 +117,8 @@ fn resolve_mode(mode: CheckMode, path: &Path) -> ResolvedMode {
     }
 }
 
-fn emit_invalid_argument(path: &Path, reason: &str) -> Result<i32> {
-    emit_jsonl(&Diagnostic {
+fn emit_invalid_argument(path: &Path, reason: &str, format: OutputFormat) -> Result<i32> {
+    let diag = Diagnostic {
         code: "CLI_INVALID_ARGUMENT".to_string(),
         severity: Severity::Error,
         message: reason.to_string(),
@@ -112,34 +129,54 @@ fn emit_invalid_argument(path: &Path, reason: &str) -> Result<i32> {
         fix_hint: None,
         subcommand: Some("check".to_string()),
         root_cause_uid: None,
-    })?;
-    emit_jsonl(&terminal_check_fail(reason))?;
+    };
+    let terminal = terminal_check_fail(reason);
+    if is_machine_format(format) {
+        emit_jsonl(&diag)?;
+        emit_jsonl(&terminal)?;
+    } else {
+        render_human_diagnostics(std::slice::from_ref(&diag), &terminal);
+    }
     Ok(EXIT_VERIFICATION_FAILURE)
 }
 
-fn cmd_check_bundle(path: PathBuf) -> Result<i32> {
-    // Pipe through cmd_verify in JSONL format. Bundle mode is a
-    // passthrough by design — one command, one wire shape for agents.
-    cmd_verify(path, false, None, super::args::OutputFormat::Jsonl)
+fn cmd_check_bundle(path: PathBuf, format: OutputFormat) -> Result<i32> {
+    // Pipe through cmd_verify preserving the caller's format
+    // choice. Bundle mode is a thin passthrough — human-mode
+    // check on a bundle shows verify's human output; jsonl-mode
+    // check gets verify's JSONL stream byte-for-byte.
+    cmd_verify(path, false, None, format)
 }
 
-fn cmd_check_source(workspace_root: &Path) -> Result<i32> {
-    // Step 1: run `cargo test --workspace --no-fail-fast`, capture
+fn cmd_check_source(workspace_root: &Path, format: OutputFormat) -> Result<i32> {
+    let machine = is_machine_format(format);
+
+    // Phase 1: run `cargo test --workspace --no-fail-fast`, capture
     // stdout. We explicitly don't --format=json (that's nightly-only
-    // and would force a toolchain bump).
+    // and would force a toolchain bump). This is the slow phase —
+    // on a ~30-crate workspace it can take minutes. Emit a stderr
+    // progress marker on the human path so the user sees "still
+    // working"; jsonl stays stderr-silent per Schema Rule 2.
+    if !machine {
+        eprintln!("check: running `cargo test --workspace`…");
+    }
     let test_stdout = run_cargo_test(workspace_root)?;
 
-    // Step 2: parse into per-test outcome map.
+    // Phase 2: parse into per-test outcome map.
     let Some((_summary, outcomes)) = parse_cargo_test_output_with_outcomes(&test_stdout) else {
         return emit_invalid_argument(
             workspace_root,
             "cargo test produced no parseable `test result:` line \
              (is this a Rust workspace with testable crates?)",
+            format,
         );
     };
 
-    // Step 3: load trace. Discovery picks tool/trace → cert/trace per
+    // Phase 3: load trace. Discovery picks tool/trace → cert/trace per
     // LLR-023; fall back to cert/boundary.toml otherwise.
+    if !machine {
+        eprintln!("check: validating trace…");
+    }
     let trace_root = super::trace::default_trace_roots()
         .into_iter()
         .next()
@@ -147,7 +184,7 @@ fn cmd_check_source(workspace_root: &Path) -> Result<i32> {
     let trace = read_all_trace_files(&trace_root)
         .with_context(|| format!("reading trace files under '{}'", trace_root))?;
 
-    // Step 4: policy. DAL-derived default + same `require_hlr_sys_trace`
+    // Phase 4: policy. DAL-derived default + same `require_hlr_sys_trace`
     // behavior as `trace --validate` so `check` enforces the same
     // contract.
     let boundary = BoundaryConfig::load_or_default(&PathBuf::from("cert/boundary.toml"));
@@ -161,30 +198,67 @@ fn cmd_check_source(workspace_root: &Path) -> Result<i32> {
     policy.require_hlr_sys_trace = true;
     policy.require_hlr_surface_bijection = true;
 
-    // Step 5: build + emit per-requirement diagnostics.
-    let diagnostics = build_requirement_report(&trace, &outcomes, workspace_root, &policy);
-    let mut any_gap = false;
-    for diag in &diagnostics {
-        if diag.code == "REQ_GAP" {
-            any_gap = true;
-        }
-        emit_jsonl(diag)?;
+    // Phase 5: build + emit per-requirement diagnostics.
+    if !machine {
+        eprintln!("check: aggregating results…");
     }
+    let diagnostics = build_requirement_report(&trace, &outcomes, workspace_root, &policy);
+    let any_gap = diagnostics.iter().any(|d| d.code == "REQ_GAP");
 
-    // Step 6: terminal.
-    if any_gap {
-        emit_jsonl(&terminal_check_fail(&format!(
+    let terminal = if any_gap {
+        terminal_check_fail(&format!(
             "{} requirement(s) currently in GAP",
             diagnostics.iter().filter(|d| d.code == "REQ_GAP").count()
-        )))?;
-        Ok(EXIT_VERIFICATION_FAILURE)
+        ))
     } else {
-        emit_jsonl(&terminal_check_ok(&format!(
+        terminal_check_ok(&format!(
             "{} requirement(s) satisfied",
             diagnostics.iter().filter(|d| d.code == "REQ_PASS").count()
-        )))?;
+        ))
+    };
+
+    if machine {
+        for diag in &diagnostics {
+            emit_jsonl(diag)?;
+        }
+        emit_jsonl(&terminal)?;
+    } else {
+        render_human_diagnostics(&diagnostics, &terminal);
+    }
+
+    if any_gap {
+        Ok(EXIT_VERIFICATION_FAILURE)
+    } else {
         Ok(EXIT_SUCCESS)
     }
+}
+
+/// Render per-requirement diagnostics as `[✓]` / `[⚠]` / `[✗]`
+/// tagged lines on stdout, followed by the terminal's message as
+/// a final summary line. Invoked when `format == Human`.
+///
+/// Requirement ID (`TEST-NNN` / `HLR-NNN` / …) is extracted from
+/// the diagnostic's message prefix when available — the message
+/// shape is `"TEST TEST-050 passed (selector…)"` for REQ_PASS and
+/// `"TEST TEST-050: selector(s) did not run…"` for REQ_GAP. If
+/// parsing fails (e.g. CLI_INVALID_ARGUMENT on an empty-dir run)
+/// the whole message becomes the line.
+fn render_human_diagnostics(diagnostics: &[Diagnostic], terminal: &Diagnostic) {
+    for diag in diagnostics {
+        let tag = match diag.severity {
+            Severity::Info => "[✓]",
+            Severity::Warning => "[⚠]",
+            Severity::Error => "[✗]",
+        };
+        println!("{} {}", tag, diag.message);
+    }
+    println!();
+    let tag = match terminal.severity {
+        Severity::Info => "check:",
+        Severity::Warning => "check (warning):",
+        Severity::Error => "check: FAIL —",
+    };
+    println!("{} {}", tag, terminal.message);
 }
 
 fn run_cargo_test(workspace_root: &Path) -> Result<String> {
