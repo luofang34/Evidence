@@ -528,3 +528,49 @@ test_selectors = [
     "verify_prerelease::dev_profile_warning_passes",
     "verify_prerelease::cert_profile_blocks_with_verify_fail",
 ]
+
+[[tests]]
+uid = "539ac44a-c3d1-455e-9e6a-0d45d1c7528a"
+id = "TEST-050"
+title = "mcp-evidence smoke tests exercise rules, doctor, and check over the MCP surface"
+owner = "tool"
+traces_to = ["65b81ee1-b646-490e-8c1b-c2f9ad183970"]
+description = """
+Five assertions that pin the MCP wrapper's pass-through
+contract to the published CLI:
+
+- `evidence_rules` round-trips the rules manifest; the
+  returned `count` equals `evidence_core::RULES.len()`.
+  Catches any future drift between CLI output shape and the
+  library source-of-truth const via the full MCP surface.
+- `evidence_rules` returns `exit_code == 0` on success —
+  pins the exit-code wiring so later changes to rmcp
+  result-conversion don't silently drop the signal.
+- `evidence_doctor` on the tool's own repository returns
+  `terminal == "DOCTOR_OK"` and `exit_code == 0`. Mirrors
+  the CLI's `doctor_cmd::current_workspace_passes_doctor`
+  through the MCP layer.
+- `evidence_check` (source mode) on an empty tempdir returns
+  a structured failure — `terminal` is either
+  `"VERIFY_FAIL"` or `"CLI_INVALID_ARGUMENT"`, exit_code
+  is 2. Specifically does NOT panic or return an rmcp
+  transport error: a failed underlying command must still
+  produce a well-formed MCP tool response.
+- `evidence_check` (source mode) on the tool's own repository
+  returns `terminal == "VERIFY_OK"`. Opt-in via
+  `MCP_RUN_LONG_CHECK=1` env / `cargo test -- --ignored`
+  because it spawns `cargo test --workspace` under nested
+  cargo-test contexts (historical `target/` lock contention;
+  see `crates/cargo-evidence/src/cli/check.rs:191-196`).
+
+The rmcp integration uses in-process client/server pairs if
+exposed at 1.5.0; falls back to spawning the release binary
+via `assert_cmd` if not.
+"""
+test_selectors = [
+    "mcp_surface::evidence_rules_count_matches_library_const",
+    "mcp_surface::evidence_rules_exit_code_zero_on_success",
+    "mcp_surface::evidence_doctor_on_self_repo_passes",
+    "mcp_surface::evidence_check_source_on_empty_dir_fails_gracefully",
+    "mcp_surface::evidence_check_source_on_self_repo_is_opt_in",
+]

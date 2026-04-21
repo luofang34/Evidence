@@ -1028,7 +1028,7 @@ owner = "tool"
 traces_to = ["29ea38c7-c1d6-4130-a44e-696a1b10802d"]
 modules = ["evidence_core::walker_usage_locked"]
 derived = false
-description = '''
+description = """
 A Rust `#[test] fn` in
 `crates/evidence-core/tests/walker_usage_locked.rs` walks
 `crates/**/*.rs` via the shared `walker_helpers::walk` primitive,
@@ -1039,7 +1039,7 @@ dogfood tests cover the gate's fire-on-unallowlisted and
 pass-on-allowlisted paths against synthetic tempdir fixtures. Meta
 LLR: `emits = []` — the test produces an assertion message, not a
 typed `Diagnostic`.
-'''
+"""
 verification_methods = ["test"]
 
 [[requirements]]
@@ -1050,7 +1050,7 @@ owner = "tool"
 traces_to = ["57992e98-fb1e-4248-b340-6dd454db95c1"]
 modules = ["cargo_evidence::cli::doctor"]
 derived = false
-description = '''
+description = """
 `cmd_doctor(args) -> Result<()>` in
 `crates/cargo-evidence/src/cli/doctor.rs` runs each rigor check
 in a fixed deterministic order, emitting one `Diagnostic` per
@@ -1073,7 +1073,8 @@ when the audit fails, and the main dispatch translates the error
 into a `GENERATE_ERROR` terminal whose diagnostic enumerates the
 per-check codes so the auditor gets full detail without re-
 running doctor.
-'''
+"""
+verification_methods = ["test"]
 emits = [
     "DOCTOR_OK",
     "DOCTOR_FAIL",
@@ -1089,7 +1090,6 @@ emits = [
     "DOCTOR_MERGE_STYLE_UNKNOWN",
     "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
 ]
-verification_methods = ["test"]
 
 [[requirements]]
 uid = "548b7b36-1d03-487d-a6a1-f2b37bdee2a1"
@@ -1105,7 +1105,7 @@ modules = [
     "cargo_evidence::cli::generate::phases",
 ]
 derived = false
-description = '''
+description = """
 Four coupled sites:
 
 - `crates/evidence-core/src/env/capture.rs` adds a module-scope
@@ -1131,6 +1131,75 @@ Four coupled sites:
 - `crates/cargo-evidence/src/cli/generate/phases.rs::init_builder`
   emits a warning-severity `VERIFY_PRERELEASE_TOOL` in
   cert/record profile when `TOOL_IS_PRERELEASE` is true.
-'''
+"""
+verification_methods = ["test"]
 emits = ["VERIFY_PRERELEASE_TOOL"]
+
+[[requirements]]
+uid = "65b81ee1-b646-490e-8c1b-c2f9ad183970"
+id = "LLR-050"
+title = "mcp-evidence crate exposes three rmcp tools over stdio"
+owner = "tool"
+traces_to = ["20b4b691-f89f-4453-85f3-9eba5299935e"]
+modules = [
+    "mcp_evidence::lib",
+    "mcp_evidence::subprocess",
+]
+derived = false
+description = """
+New workspace crate `crates/mcp-evidence`. Shape:
+
+- `Cargo.toml` depends on `rmcp = "=1.5.0"` with features
+  `["server", "macros", "transport-io", "schemars"]`, plus
+  `tokio` (features `macros`, `rt-multi-thread`, `io-std`,
+  `process`), `serde`, `serde_json`, `schemars`, `tracing`,
+  `tracing-subscriber`, `thiserror`, `anyhow` (main only),
+  `evidence-core` (workspace). `publish = true`.
+- `src/main.rs` (~30 LOC): tracing_subscriber init → stderr
+  (never stdout — stdio MCP owns stdout). Parses `--help`
+  and `--version`; no other args. Calls
+  `Server::default().serve(stdio()).await?.waiting().await?`.
+- `src/lib.rs`: `#[derive(Clone, Default)] pub struct Server;`
+  with a `#[tool_router(server_handler)]` impl block exposing
+  three `#[tool]` async methods: `evidence_check`,
+  `evidence_rules`, `evidence_doctor`. Each method takes
+  `Parameters<Request>` and returns
+  `Result<CallToolResult, McpError>`.
+- `src/subprocess.rs` (pub(crate)):
+  `async fn run_evidence(args: &[&str], cwd: &Path)
+  -> Result<Captured, RunError>`. Binary resolution: `$CARGO`
+  env var first, then `cargo` on `$PATH` invoking the
+  `evidence` subcommand. Spawns with
+  `CARGO_TERM_COLOR=never` + `NO_COLOR=1`. Inherits `$PATH`,
+  `$CARGO_HOME`, `$RUSTUP_HOME`. Wraps spawn in
+  `tokio::time::timeout(Duration::from_secs(600), ...)`.
+  `RunError` is a `thiserror` enum with variants
+  `BinaryNotFound`, `Spawn(io::Error)`, `NonUtf8Output`,
+  `MalformedJsonl`.
+- `src/schema.rs`: tool input/output structs with
+  `#[derive(Deserialize, Serialize, JsonSchema)]`. Input types
+  `CheckRequest`, `DoctorRequest`, `RulesRequest` (empty).
+  Output type `JsonlToolResponse { exit_code: i32,
+  terminal: String, diagnostics: Vec<serde_json::Value>,
+  summary: BTreeMap<String, u32> }` for check + doctor;
+  `RulesToolResponse { exit_code: i32,
+  rules: Vec<serde_json::Value>, count: usize }` for rules.
+  `diagnostics: Vec<serde_json::Value>` (not typed to
+  `evidence_core::Diagnostic`) avoids a re-serialize cycle and
+  sidesteps adding `JsonSchema` to `evidence_core`.
+- `crates/mcp-evidence/tests/mcp_surface.rs`: integration
+  tests driving the server via rmcp's in-process client (if
+  exposed at 1.5.0) or by spawning the binary with
+  `assert_cmd`. Covers `rules_count_matches_library_const`,
+  `doctor_on_self_repo_passes`,
+  `check_source_on_empty_dir_fails_gracefully`,
+  `check_source_on_self_repo_is_opt_in` (#[ignore]'d under
+  `MCP_RUN_LONG_CHECK=1`), `rules_exit_code_zero_on_success`.
+- `cert/boundary.toml` gains `mcp-evidence` in
+  `scope.in_scope`. `cert/floors.toml` gains
+  `[per_crate.mcp-evidence] test_count = N` and
+  `[per_crate_ceilings.mcp-evidence] library_panics = 0`,
+  with `trace_{sys,hlr,llr,test}` and `known_surfaces`
+  bumped by 1 each.
+"""
 verification_methods = ["test"]
