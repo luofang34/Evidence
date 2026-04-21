@@ -177,6 +177,14 @@ jobs:
       # format: `<crate> = "<ver>"  # <desc>`. A grep for the exact
       # version string is the probe. 90 retries × 5s = 7.5 min
       # headroom for first-time upload fan-out.
+      #
+      # `--color never` is required: the workflow's env block pins
+      # `CARGO_TERM_COLOR: always` (so build/test output shows colors
+      # in the UI), which wraps cargo search's crate-name output in
+      # ANSI escapes — `\033[1m\033[92mevidence-core\033[0m = "0.1.0"` —
+      # breaking the `^evidence-core` grep anchor. The explicit flag
+      # on this call shadows the env for this step only; no other
+      # step loses its colored output.
       - name: Wait for crates.io to index evidence-core
         if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         shell: bash
@@ -184,7 +192,7 @@ jobs:
           VER=$(grep -E '^version = ' Cargo.toml | head -1 \
             | sed 's/^version = "\([^"]*\)"/\1/')
           for i in {1..90}; do
-            if cargo search evidence-core --limit 1 2>/dev/null \
+            if cargo search --color never evidence-core --limit 1 2>/dev/null \
                 | grep -qE "^evidence-core = \"${VER}\""; then
               echo "evidence-core ${VER} indexed"
               exit 0
