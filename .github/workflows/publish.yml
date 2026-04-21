@@ -121,19 +121,40 @@ jobs:
         id: auth
         uses: rust-lang/crates-io-auth-action@v1
 
-      - name: Publish evidence-core
+      # Idempotency guard. The two-crate pipeline can partially succeed
+      # (evidence-core uploads, then the index-wait times out, then
+      # cargo-evidence never runs). On retry, `cargo publish` would
+      # fail with "crate version already exists" and stop the workflow
+      # — so the fix is to probe crates.io first and skip the upload
+      # when the version is already present. This also makes
+      # re-dispatch safe when a transient crates.io hiccup (5xx, slow
+      # index fan-out) aborts a run midway.
+      - name: Publish evidence-core (skip if already on crates.io)
         if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p evidence-core
+        shell: bash
+        run: |
+          VER=$(grep -E '^version = ' Cargo.toml | head -1 \
+            | sed 's/^version = "\([^"]*\)"/\1/')
+          if curl -sfI "https://crates.io/api/v1/crates/evidence-core/${VER}/download" > /dev/null; then
+            echo "::notice::evidence-core ${VER} already on crates.io; skipping publish"
+          else
+            cargo publish -p evidence-core
+          fi
 
+      # Index latency on a first-time crate upload can exceed two
+      # minutes during crates.io fan-out to edge caches (the earlier
+      # 24×5s = 120s ceiling tripped v0.1.0). 90 retries at 5s gives
+      # 7.5 min of headroom; the loop still exits immediately once
+      # indexed, so normal runs stay fast.
       - name: Wait for crates.io to index evidence-core
         if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         shell: bash
         run: |
           VER=$(grep -E '^version = ' Cargo.toml | head -1 \
             | sed 's/^version = "\([^"]*\)"/\1/')
-          for i in {1..24}; do
+          for i in {1..90}; do
             if curl -sfI "https://crates.io/api/v1/crates/evidence-core/${VER}/download" > /dev/null; then
               echo "evidence-core ${VER} indexed"
               exit 0
@@ -143,11 +164,19 @@ jobs:
           echo "::error::timed out waiting for evidence-core ${VER} to index"
           exit 1
 
-      - name: Publish cargo-evidence
+      - name: Publish cargo-evidence (skip if already on crates.io)
         if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p cargo-evidence
+        shell: bash
+        run: |
+          VER=$(grep -E '^version = ' Cargo.toml | head -1 \
+            | sed 's/^version = "\([^"]*\)"/\1/')
+          if curl -sfI "https://crates.io/api/v1/crates/cargo-evidence/${VER}/download" > /dev/null; then
+            echo "::notice::cargo-evidence ${VER} already on crates.io; skipping publish"
+          else
+            cargo publish -p cargo-evidence
+          fi
 
       - name: Summary
         if: always()
