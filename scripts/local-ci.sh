@@ -87,6 +87,11 @@ log "cargo evidence doctor (self-dogfood)"
 # `evidence_rules_count_matches_library_const`, but from a
 # shell so a broken release build surfaces immediately.
 log "mcp-evidence smoke (stdio handshake + evidence_rules)"
+# mcp-evidence internally spawns `cargo evidence <verb>`. Cargo
+# resolves the `evidence` subcommand by searching $PATH for a
+# `cargo-evidence` binary. Prepend the local target dir so the
+# freshly-built binary wins over any globally-installed version.
+export PATH="$PWD/target/release:$PATH"
 EXPECTED_RULES_COUNT=$(./target/release/cargo-evidence evidence rules --json \
     | python3 -c 'import sys, json; print(len(json.load(sys.stdin)))')
 MCP_COUNT=$(printf '%s\n' \
