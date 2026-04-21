@@ -1,6 +1,6 @@
 //! HMAC-SHA256 signing of a bundle's `SHA256SUMS` + `index.json` envelope.
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use std::fs;
 use std::path::{Path, PathBuf};

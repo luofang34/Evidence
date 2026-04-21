@@ -214,7 +214,7 @@ pub fn validate(schema: Schema, instance: &Value) -> Result<(), SchemaError> {
         errors.len()
     );
     for err in &errors {
-        msg.push_str(&format!("\n  at {}: {}", err.instance_path, err));
+        msg.push_str(&format!("\n  at {}: {}", err.instance_path(), err));
     }
     Err(SchemaError::InstanceInvalid(msg))
 }
