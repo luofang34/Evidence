@@ -132,7 +132,11 @@ pub(crate) async fn run_evidence(args: &[&str], cwd: &Path) -> Result<Captured, 
 /// callers always get a well-formed response.
 pub(crate) fn parse_jsonl(
     stdout: &[u8],
-) -> (String, Vec<serde_json::Value>, std::collections::BTreeMap<String, u32>) {
+) -> (
+    String,
+    Vec<serde_json::Value>,
+    std::collections::BTreeMap<String, u32>,
+) {
     let text = String::from_utf8_lossy(stdout);
     let mut events: Vec<serde_json::Value> = Vec::new();
     let mut summary: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();

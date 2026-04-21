@@ -50,20 +50,20 @@ diagnostic_codes = 110
 terminal_codes = 6
 
 # tool/trace/sys.toml — System Requirements.
-trace_sys = 17
+trace_sys = 18
 # tool/trace/hlr.toml — High-Level Requirements.
-trace_hlr = 49
+trace_hlr = 50
 # tool/trace/llr.toml — Low-Level Requirements.
-trace_llr = 49
+trace_llr = 50
 # tool/trace/tests.toml — Test Cases.
-trace_test = 49
+trace_test = 50
 
 # evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
 # coverage is enforced by `require_hlr_surface_bijection`; this floor
 # guards against silently shrinking the catalog itself (which would
 # relax the bijection without firing the check).
-known_surfaces = 17
+known_surfaces = 18
 
 # --------------------------------------------------------------------
 # Per-crate-true dimensions: one table per in-scope crate.
@@ -83,6 +83,9 @@ test_count = 234
 [per_crate.cargo-evidence]
 test_count = 98
 
+[per_crate.mcp-evidence]
+test_count = 8
+
 # Per-crate ceilings. library_panics is a ceiling, not a floor:
 # more panics is always worse. Placing a ceiling dimension under
 # `[per_crate.<crate>]` (floor semantics) would make `current >= 0`
@@ -95,4 +98,7 @@ test_count = 98
 library_panics = 0
 
 [per_crate_ceilings.cargo-evidence]
+library_panics = 0
+
+[per_crate_ceilings.mcp-evidence]
 library_panics = 0

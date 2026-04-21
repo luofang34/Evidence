@@ -282,6 +282,38 @@ jobs:
             --format=jsonl \
             doctor
 
+      - name: Self-dogfood `mcp-evidence` (stdio handshake)
+        shell: bash
+        run: |
+          # Build the MCP server then drive a scripted init +
+          # tools/call(evidence_rules) round-trip. Pins the full
+          # rmcp stack (handshake, routing, Parameters<T> decode,
+          # Json<T> response) against the release binary. Asserts
+          # the returned count matches the CLI's rules --json —
+          # same invariant as the integration test
+          # `evidence_rules_count_matches_library_const`, from a
+          # shell so a release-build regression surfaces here.
+          cargo build --release -p mcp-evidence
+          EXPECTED=$(./target/release/cargo-evidence evidence rules --json \
+              | python3 -c 'import sys, json; print(len(json.load(sys.stdin)))')
+          GOT=$(printf '%s\n' \
+              '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+              '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' \
+              '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evidence_rules","arguments":{}}}' \
+              | ./target/release/mcp-evidence 2>/dev/null \
+              | python3 -c 'import sys, json
+for line in sys.stdin:
+    d = json.loads(line)
+    sc = d.get("result", {}).get("structuredContent")
+    if sc is not None:
+        print(sc["count"])
+        break')
+          if [ "$GOT" != "$EXPECTED" ]; then
+            echo "::error::mcp-evidence count=$GOT mismatched CLI count=$EXPECTED"
+            exit 1
+          fi
+          echo "mcp-evidence evidence_rules round-trip OK (count=$GOT)"
+
       - name: Assert backfill is a no-op on committed trace
         shell: bash
         run: |

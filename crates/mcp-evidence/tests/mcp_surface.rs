@@ -23,16 +23,35 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use serde_json::{Value, json};
 
-/// Spawn the release binary with piped stdio. Release (not debug)
-/// is the target for smoke tests that also validate the published
-/// artifact shape.
+/// Spawn the built `mcp-evidence` binary with piped stdio.
+///
+/// The MCP wrapper internally calls `cargo evidence <verb>`,
+/// which cargo resolves via `$PATH` to the `cargo-evidence`
+/// binary. During `cargo test`, we want that spawn to pick up
+/// the *locally-built* `cargo-evidence` (in `target/<profile>/`)
+/// rather than whatever version the developer has installed via
+/// `cargo install` — the installed copy may be stale and is
+/// irrelevant to this test. `assert_cmd::cargo::cargo_bin`
+/// returns paths under `target/<profile>/`; its parent is the
+/// right dir to prepend to `PATH`.
 fn spawn_server() -> Child {
     let bin = assert_cmd::cargo::cargo_bin("mcp-evidence");
     assert!(
         bin.exists(),
         "mcp-evidence binary missing at {bin:?} — run `cargo build -p mcp-evidence` first"
     );
-    Command::new(bin)
+    let target_dir = bin
+        .parent()
+        .expect("mcp-evidence binary has a parent dir")
+        .to_path_buf();
+    let existing_path = std::env::var_os("PATH").unwrap_or_default();
+    let mut new_path = std::ffi::OsString::from(&target_dir);
+    if !existing_path.is_empty() {
+        new_path.push(":");
+        new_path.push(&existing_path);
+    }
+    Command::new(&bin)
+        .env("PATH", new_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -69,7 +88,7 @@ fn session(frames: &[Value], expect_responses: usize) -> Vec<Value> {
         responses.push(serde_json::from_str::<Value>(trimmed).expect("parse response"));
     }
 
-    let _ = child.wait();
+    child.wait().ok();
     responses
 }
 
@@ -160,7 +179,10 @@ fn evidence_rules_exit_code_zero_on_success() {
         .pointer("/result/isError")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    assert!(!is_error, "tool call unexpectedly flagged isError: {call_resp}");
+    assert!(
+        !is_error,
+        "tool call unexpectedly flagged isError: {call_resp}"
+    );
 }
 
 /// TEST-050 selector: the MCP wrapper correctly pipes the CLI's

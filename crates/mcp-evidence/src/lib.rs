@@ -28,9 +28,7 @@ use rmcp::{
 pub mod schema;
 mod subprocess;
 
-use schema::{
-    CheckRequest, DoctorRequest, JsonlToolResponse, RulesRequest, RulesToolResponse,
-};
+use schema::{CheckRequest, DoctorRequest, JsonlToolResponse, RulesRequest, RulesToolResponse};
 use subprocess::{parse_jsonl, run_evidence};
 
 /// MCP server handle. Stateless — every tool call resolves its
@@ -74,8 +72,7 @@ impl Server {
         &self,
         _params: Parameters<RulesRequest>,
     ) -> Result<Json<RulesToolResponse>, String> {
-        let cwd = std::env::current_dir()
-            .map_err(|e| format!("cannot resolve server CWD: {e}"))?;
+        let cwd = std::env::current_dir().map_err(|e| format!("cannot resolve server CWD: {e}"))?;
         let captured = run_evidence(&["rules", "--json"], &cwd)
             .await
             .map_err(|e| e.to_string())?;
@@ -132,8 +129,8 @@ impl Server {
     /// [--mode <auto|source|bundle>]`. Source mode spawns
     /// `cargo test --workspace` under the hood and can take
     /// several minutes on large workspaces; the spawn is bounded
-    /// by a 10-minute timeout (see
-    /// [`crate::subprocess::SPAWN_TIMEOUT`]).
+    /// by a 10-minute timeout (`SPAWN_TIMEOUT` in the
+    /// `subprocess` module).
     ///
     /// Agents use this as their primary validation call; `verify`
     /// is intentionally NOT exposed over MCP — `check` in bundle
@@ -194,8 +191,7 @@ impl Default for Server {
 /// checks and emits structured errors on missing paths.
 ///
 pub(crate) fn resolve_workspace(path: Option<&str>) -> Result<PathBuf, String> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| format!("cannot resolve server CWD: {e}"))?;
+    let cwd = std::env::current_dir().map_err(|e| format!("cannot resolve server CWD: {e}"))?;
     match path {
         None => Ok(cwd),
         Some(p) => {
