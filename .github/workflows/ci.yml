@@ -296,18 +296,17 @@ jobs:
           cargo build --release -p mcp-evidence
           EXPECTED=$(./target/release/cargo-evidence evidence rules --json \
               | python3 -c 'import sys, json; print(len(json.load(sys.stdin)))')
+          # One-liner Python to avoid YAML-parsing a multi-line
+          # script inside the `run: |` block. Reads each JSON-RPC
+          # response line, finds the first one with structuredContent,
+          # prints the count field, and exits.
+          EXTRACT='import sys,json;print(next(json.loads(l).get("result",{}).get("structuredContent",{}).get("count") for l in sys.stdin if json.loads(l).get("result",{}).get("structuredContent")))'
           GOT=$(printf '%s\n' \
               '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
               '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' \
               '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evidence_rules","arguments":{}}}' \
               | ./target/release/mcp-evidence 2>/dev/null \
-              | python3 -c 'import sys, json
-for line in sys.stdin:
-    d = json.loads(line)
-    sc = d.get("result", {}).get("structuredContent")
-    if sc is not None:
-        print(sc["count"])
-        break')
+              | python3 -c "$EXTRACT")
           if [ "$GOT" != "$EXPECTED" ]; then
             echo "::error::mcp-evidence count=$GOT mismatched CLI count=$EXPECTED"
             exit 1
