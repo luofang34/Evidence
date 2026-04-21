@@ -228,3 +228,114 @@ fn evidence_doctor_on_self_repo_passes() {
         );
     }
 }
+
+/// TEST-050 selector: an evidence_check on an empty directory
+/// must return a well-formed structured MCP response (not a
+/// transport error) with the expected failure terminal. The CLI
+/// emits `CLI_INVALID_ARGUMENT` + `VERIFY_FAIL` in this
+/// condition; the MCP wrapper should surface both cleanly.
+#[test]
+fn evidence_check_source_on_empty_dir_fails_gracefully() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let mut frames = init_frames();
+    frames.push(json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "evidence_check",
+            "arguments": {
+                "workspace_path": tmp.path().to_str().expect("utf-8 path"),
+                "mode": "auto"
+            }
+        }
+    }));
+
+    let responses = session(&frames, 2);
+    assert_eq!(responses.len(), 2, "responses: {responses:?}");
+
+    let call_resp = &responses[1];
+    let structured = call_resp
+        .pointer("/result/structuredContent")
+        .unwrap_or_else(|| panic!("missing structuredContent: {call_resp}"));
+
+    // Terminal should be a failure terminal. The CLI happens to
+    // emit VERIFY_FAIL for an empty dir (with CLI_INVALID_ARGUMENT
+    // as the first diagnostic), but we pin the *shape* not the
+    // exact failure wording so the assertion survives CLI-side
+    // wording tweaks.
+    let terminal = structured["terminal"].as_str().unwrap_or("");
+    assert!(
+        terminal.ends_with("_FAIL") || terminal.ends_with("_ERROR"),
+        "expected a failure terminal (*_FAIL or *_ERROR); got {terminal:?}; structured={structured}"
+    );
+    let exit = structured["exit_code"].as_i64().unwrap_or(0);
+    assert_ne!(
+        exit, 0,
+        "failure run must not exit 0; structured={structured}"
+    );
+    // Response shape must still be well-formed — structuredContent
+    // present, diagnostics array, no rmcp-layer error flag.
+    let is_error = call_resp
+        .pointer("/result/isError")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    assert!(
+        !is_error,
+        "MCP result should NOT have isError==true on a failing subcommand; the failure \
+         is encoded in the structured response. Got: {call_resp}"
+    );
+}
+
+/// TEST-050 selector (opt-in): a full `evidence_check` source-mode
+/// run on the self-repo passes with `VERIFY_OK`. Expensive —
+/// spawns `cargo test --workspace` under the MCP process which
+/// is itself running under `cargo test`. Historically causes
+/// `target/` lock contention (see
+/// `crates/cargo-evidence/src/cli/check.rs:191-196`). Gated
+/// behind `MCP_RUN_LONG_CHECK=1` so normal CI skips it; run
+/// manually with
+/// `MCP_RUN_LONG_CHECK=1 cargo test -p mcp-evidence -- --ignored`.
+#[test]
+#[ignore = "nested cargo-test; opt-in via MCP_RUN_LONG_CHECK=1"]
+fn evidence_check_source_on_self_repo_is_opt_in() {
+    if std::env::var_os("MCP_RUN_LONG_CHECK").is_none() {
+        return;
+    }
+
+    let workspace_root = std::env::var("CARGO_MANIFEST_DIR")
+        .map(std::path::PathBuf::from)
+        .expect("CARGO_MANIFEST_DIR")
+        .parent()
+        .expect("crates/")
+        .parent()
+        .expect("workspace root")
+        .to_path_buf();
+
+    let mut frames = init_frames();
+    frames.push(json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "evidence_check",
+            "arguments": {
+                "workspace_path": workspace_root.to_str().expect("utf-8 path"),
+                "mode": "source"
+            }
+        }
+    }));
+
+    let responses = session(&frames, 2);
+    let call_resp = &responses[1];
+    let structured = call_resp
+        .pointer("/result/structuredContent")
+        .unwrap_or_else(|| panic!("missing structuredContent: {call_resp}"));
+
+    assert_eq!(
+        structured["terminal"].as_str(),
+        Some("VERIFY_OK"),
+        "expected VERIFY_OK terminal; structured={structured}"
+    );
+    assert_eq!(structured["exit_code"].as_i64(), Some(0));
+}

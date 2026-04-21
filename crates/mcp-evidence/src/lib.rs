@@ -28,7 +28,9 @@ use rmcp::{
 pub mod schema;
 mod subprocess;
 
-use schema::{DoctorRequest, JsonlToolResponse, RulesRequest, RulesToolResponse};
+use schema::{
+    CheckRequest, DoctorRequest, JsonlToolResponse, RulesRequest, RulesToolResponse,
+};
 use subprocess::{parse_jsonl, run_evidence};
 
 /// MCP server handle. Stateless — every tool call resolves its
@@ -112,6 +114,61 @@ impl Server {
     ) -> Result<Json<JsonlToolResponse>, String> {
         let cwd = resolve_workspace(req.workspace_path.as_deref())?;
         let captured = run_evidence(&["doctor", "--format=jsonl"], &cwd)
+            .await
+            .map_err(|e| e.to_string())?;
+        let (terminal, diagnostics, summary) = parse_jsonl(&captured.stdout);
+        Ok(Json(JsonlToolResponse {
+            exit_code: captured.exit_code,
+            terminal,
+            diagnostics,
+            summary,
+        }))
+    }
+
+    /// `evidence_check` — one-shot pass/gap validation of a
+    /// workspace (source tree) or an evidence bundle.
+    ///
+    /// Wraps `cargo evidence check --format=jsonl
+    /// [--mode <auto|source|bundle>]`. Source mode spawns
+    /// `cargo test --workspace` under the hood and can take
+    /// several minutes on large workspaces; the spawn is bounded
+    /// by a 10-minute timeout (see
+    /// [`crate::subprocess::SPAWN_TIMEOUT`]).
+    ///
+    /// Agents use this as their primary validation call; `verify`
+    /// is intentionally NOT exposed over MCP — `check` in bundle
+    /// mode delegates to `verify` internally.
+    #[tool(
+        name = "evidence_check",
+        description = "One-shot pass/gap validation of a workspace or bundle. Spawns \
+                       `cargo evidence check --format=jsonl`; streams one REQ_PASS / \
+                       REQ_GAP / REQ_SKIP per requirement then terminates with VERIFY_OK \
+                       (exit 0) or VERIFY_FAIL (exit 2). Source mode runs `cargo test \
+                       --workspace` — can take several minutes. Bundle mode delegates to \
+                       the `verify` pipeline."
+    )]
+    pub async fn evidence_check(
+        &self,
+        Parameters(req): Parameters<CheckRequest>,
+    ) -> Result<Json<JsonlToolResponse>, String> {
+        let cwd = resolve_workspace(req.workspace_path.as_deref())?;
+        let mut args: Vec<String> = vec!["check".into(), "--format=jsonl".into()];
+        if let Some(mode) = req.mode.as_deref() {
+            // Validate the mode up front to give the agent a
+            // clean error instead of shipping nonsense to the CLI.
+            match mode {
+                "auto" | "source" | "bundle" => {
+                    args.push(format!("--mode={mode}"));
+                }
+                other => {
+                    return Err(format!(
+                        "invalid mode {other:?}; expected one of \"auto\" | \"source\" | \"bundle\""
+                    ));
+                }
+            }
+        }
+        let args_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let captured = run_evidence(&args_refs, &cwd)
             .await
             .map_err(|e| e.to_string())?;
         let (terminal, diagnostics, summary) = parse_jsonl(&captured.stdout);
