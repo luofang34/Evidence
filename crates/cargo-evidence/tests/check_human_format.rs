@@ -52,11 +52,12 @@ fn default_stdout_is_not_jsonl() {
     let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
     // Expected outcome: CLI_INVALID_ARGUMENT path, exit 2, two
     // content lines + a blank line in between.
-    assert_ne!(out.status.code(), Some(0), "empty dir must fail; stdout={stdout}");
-    let content_lines: Vec<&str> = stdout
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .collect();
+    assert_ne!(
+        out.status.code(),
+        Some(0),
+        "empty dir must fail; stdout={stdout}"
+    );
+    let content_lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
     assert!(
         !content_lines.is_empty(),
         "expected at least one stdout line; got: {stdout:?}"
@@ -99,10 +100,7 @@ fn jsonl_format_still_emits_jsonl() {
         .output()
         .expect("spawn");
     let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
-    let content_lines: Vec<&str> = stdout
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .collect();
+    let content_lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
     assert!(
         !content_lines.is_empty(),
         "expected at least one stdout line under --format=jsonl; got: {stdout:?}"
