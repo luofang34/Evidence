@@ -572,5 +572,4 @@ test_selectors = [
     "mcp_surface::evidence_rules_exit_code_zero_on_success",
     "mcp_surface::evidence_doctor_on_self_repo_passes",
     "mcp_surface::evidence_check_source_on_empty_dir_fails_gracefully",
-    "mcp_surface::evidence_check_source_on_self_repo_is_opt_in",
 ]

@@ -32,10 +32,6 @@ pub(crate) struct Captured {
     pub exit_code: i32,
     /// Raw stdout bytes. Callers parse as UTF-8 + JSONL.
     pub stdout: Vec<u8>,
-    /// Raw stderr bytes. Informational for the caller; the CLI's
-    /// stdout-strict contract keeps structured output on stdout.
-    #[allow(dead_code)]
-    pub stderr: Vec<u8>,
 }
 
 /// Errors raised by [`run_evidence`] when the subprocess
@@ -111,7 +107,6 @@ pub(crate) async fn run_evidence(args: &[&str], cwd: &Path) -> Result<Captured, 
         Ok::<Captured, RunError>(Captured {
             exit_code: output.status.code().unwrap_or(-1),
             stdout: output.stdout,
-            stderr: output.stderr,
         })
     };
 

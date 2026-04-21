@@ -44,12 +44,16 @@ fn spawn_server() -> Child {
         .parent()
         .expect("mcp-evidence binary has a parent dir")
         .to_path_buf();
-    let existing_path = std::env::var_os("PATH").unwrap_or_default();
-    let mut new_path = std::ffi::OsString::from(&target_dir);
-    if !existing_path.is_empty() {
-        new_path.push(":");
-        new_path.push(&existing_path);
+    // Construct the new PATH with platform-correct separator:
+    // `:` on Unix, `;` on Windows. `std::env::join_paths` handles
+    // that and rejects entries containing the separator (e.g. a
+    // weirdly-named directory), which is the right failure mode
+    // here — a malformed PATH is worth failing loud, not silent.
+    let mut entries: Vec<std::path::PathBuf> = vec![target_dir];
+    if let Some(existing) = std::env::var_os("PATH") {
+        entries.extend(std::env::split_paths(&existing));
     }
+    let new_path = std::env::join_paths(entries).expect("valid PATH entries");
     Command::new(&bin)
         .env("PATH", new_path)
         .stdin(Stdio::piped())
