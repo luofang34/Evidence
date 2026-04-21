@@ -28,8 +28,8 @@ use rmcp::{
 pub mod schema;
 mod subprocess;
 
-use schema::{RulesRequest, RulesToolResponse};
-use subprocess::run_evidence;
+use schema::{DoctorRequest, JsonlToolResponse, RulesRequest, RulesToolResponse};
+use subprocess::{parse_jsonl, run_evidence};
 
 /// MCP server handle. Stateless — every tool call resolves its
 /// workspace path independently and spawns a fresh subprocess.
@@ -86,6 +86,42 @@ impl Server {
             count,
         }))
     }
+
+    /// `evidence_doctor` — audit a workspace's rigor adoption.
+    ///
+    /// Runs `cargo evidence doctor --format=jsonl` in the
+    /// requested workspace (or the server's CWD if omitted) and
+    /// returns the per-check diagnostics plus the `DOCTOR_OK` /
+    /// `DOCTOR_FAIL` terminal. Agents use this to gate generate-
+    /// cert invocations on downstream projects — all six checks
+    /// (boundary config, trace validity, floors config, CI
+    /// integration, merge-style policy, override-docs) must pass
+    /// or cert profile refuses.
+    #[tool(
+        name = "evidence_doctor",
+        description = "Audit a workspace's rigor adoption: trace validity, floors config, \
+                       boundary config, CI integration, merge-style policy, override-protocol \
+                       docs. Returns exit_code 0 on DOCTOR_OK (no error-severity findings), 2 \
+                       on DOCTOR_FAIL (one or more blockers). Warnings still return exit_code 0 \
+                       under standalone invocation; cert-profile generate escalates warnings \
+                       separately."
+    )]
+    pub async fn evidence_doctor(
+        &self,
+        Parameters(req): Parameters<DoctorRequest>,
+    ) -> Result<Json<JsonlToolResponse>, String> {
+        let cwd = resolve_workspace(req.workspace_path.as_deref())?;
+        let captured = run_evidence(&["doctor", "--format=jsonl"], &cwd)
+            .await
+            .map_err(|e| e.to_string())?;
+        let (terminal, diagnostics, summary) = parse_jsonl(&captured.stdout);
+        Ok(Json(JsonlToolResponse {
+            exit_code: captured.exit_code,
+            terminal,
+            diagnostics,
+            summary,
+        }))
+    }
 }
 
 impl Default for Server {
@@ -100,8 +136,6 @@ impl Default for Server {
 /// without canonicalization — the CLI itself handles existence
 /// checks and emits structured errors on missing paths.
 ///
-/// Commit 4 (doctor) and commit 5 (check) consume this helper.
-#[allow(dead_code, reason = "consumed by commits 4 and 5 (doctor + check)")]
 pub(crate) fn resolve_workspace(path: Option<&str>) -> Result<PathBuf, String> {
     let cwd = std::env::current_dir()
         .map_err(|e| format!("cannot resolve server CWD: {e}"))?;

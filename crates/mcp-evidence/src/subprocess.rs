@@ -130,7 +130,6 @@ pub(crate) async fn run_evidence(args: &[&str], cwd: &Path) -> Result<Captured, 
 /// parsed as a `serde_json::Value`; parse failures collapse the
 /// whole response to a synthesized `"MALFORMED_JSONL"` entry so
 /// callers always get a well-formed response.
-#[allow(dead_code, reason = "consumed by commits 4 and 5 (doctor + check)")]
 pub(crate) fn parse_jsonl(
     stdout: &[u8],
 ) -> (String, Vec<serde_json::Value>, std::collections::BTreeMap<String, u32>) {

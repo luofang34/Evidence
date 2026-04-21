@@ -162,3 +162,69 @@ fn evidence_rules_exit_code_zero_on_success() {
         .unwrap_or(false);
     assert!(!is_error, "tool call unexpectedly flagged isError: {call_resp}");
 }
+
+/// TEST-050 selector: the MCP wrapper correctly pipes the CLI's
+/// doctor rigor audit through — the workspace_path argument is
+/// honored, the JSONL stream is parsed into a structured
+/// response, and the terminal code reaches the agent. Mirrors
+/// the CLI's `doctor_cmd::current_workspace_passes_doctor`
+/// through the MCP layer.
+///
+/// Expensive: the doctor subprocess actually walks the workspace.
+/// Fast enough (<2s on dev hardware) to keep non-opt-in.
+#[test]
+fn evidence_doctor_on_self_repo_passes() {
+    let workspace_root = std::env::var("CARGO_MANIFEST_DIR")
+        .map(std::path::PathBuf::from)
+        .expect("CARGO_MANIFEST_DIR")
+        .parent()
+        .expect("crates/")
+        .parent()
+        .expect("workspace root")
+        .to_path_buf();
+
+    let mut frames = init_frames();
+    frames.push(json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "evidence_doctor",
+            "arguments": {"workspace_path": workspace_root.to_str().expect("utf-8 path")}
+        }
+    }));
+
+    let responses = session(&frames, 2);
+    assert_eq!(responses.len(), 2, "responses: {responses:?}");
+
+    let call_resp = &responses[1];
+    let structured = call_resp
+        .pointer("/result/structuredContent")
+        .unwrap_or_else(|| panic!("missing structuredContent: {call_resp}"));
+
+    assert_eq!(
+        structured["terminal"].as_str(),
+        Some("DOCTOR_OK"),
+        "expected DOCTOR_OK terminal; structured={structured}"
+    );
+    assert_eq!(
+        structured["exit_code"].as_i64(),
+        Some(0),
+        "expected exit_code == 0; structured={structured}"
+    );
+    // No error-severity findings — DOCTOR_OK requires it. Warnings
+    // are tolerated (e.g. DOCTOR_FLOORS_BOUNDARY_MISMATCH fires
+    // whenever a boundary crate lacks a per_crate floor entry —
+    // which is transiently the case between `boundary.toml` and
+    // `floors.toml` edits).
+    let diagnostics = structured["diagnostics"]
+        .as_array()
+        .unwrap_or_else(|| panic!("diagnostics not array: {structured}"));
+    for diag in diagnostics {
+        let severity = diag["severity"].as_str().unwrap_or("");
+        assert_ne!(
+            severity, "error",
+            "unexpected error-severity diagnostic on DOCTOR_OK run: {diag}"
+        );
+    }
+}
