@@ -7,7 +7,7 @@
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
-use std::io;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
@@ -120,10 +120,21 @@ pub fn sha256_file(path: &Path) -> Result<String, HashError> {
         source,
     })?;
     let mut hasher = Sha256::new();
-    io::copy(&mut file, &mut hasher).map_err(|source| HashError::Read {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    // sha2 0.11 removed the `io::Write` impl on `Sha256`, so `io::copy`
+    // is no longer an option. Read in fixed-size chunks and feed the
+    // hasher directly. Buffer stays on the stack; memory footprint is
+    // the same as the pre-0.11 path.
+    let mut buf = [0u8; 8192];
+    loop {
+        let n = file.read(&mut buf).map_err(|source| HashError::Read {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
     Ok(hex::encode(hasher.finalize()))
 }
 
