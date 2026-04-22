@@ -623,6 +623,20 @@
     "terminal": false
   },
   {
+    "code": "VERIFY_BUNDLE_INCOMPLETE",
+    "severity": "warning",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "VERIFY_BUNDLE_INCOMPLETELY_CLAIMED",
+    "severity": "error",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "VERIFY_CONTENT_HASH_MISMATCH",
     "severity": "error",
     "domain": "verify",
@@ -763,7 +777,21 @@
     "terminal": false
   },
   {
+    "code": "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
+    "severity": "error",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "VERIFY_TEST_SUMMARY_MISMATCH",
+    "severity": "error",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "VERIFY_TOOL_COMMANDS_FAILED_SILENTLY",
     "severity": "error",
     "domain": "verify",
     "has_fix_hint": false,

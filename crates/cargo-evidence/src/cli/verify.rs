@@ -13,6 +13,9 @@ use evidence_core::{VerifyResult, verify_bundle_with_key};
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFormat};
 use super::output::{emit_json, emit_jsonl};
 
+mod incomplete_bundle;
+use incomplete_bundle::maybe_emit_bundle_incomplete_warning;
+
 #[derive(Serialize)]
 struct VerifyOutput {
     success: bool,
@@ -174,12 +177,8 @@ pub fn cmd_verify(
             Ok(EXIT_SUCCESS)
         }
         Ok(VerifyResult::Fail(errors)) => {
-            // Pre-release tool on dev profile: downgrade to a warning
-            // and pass. Mirrors the JSONL path's profile-aware severity
-            // split so the plain-text path doesn't reject bundles that
-            // JSONL consumers would accept. Any non-prerelease error
-            // (or a prerelease detection on cert/record profile) falls
-            // through to the standard fail handling below.
+            // Pre-release tool on dev profile: downgrade to warning +
+            // pass. Mirrors the JSONL path's severity split.
             let all_prerelease_on_dev = !errors.is_empty()
                 && errors.iter().all(|e| {
                     matches!(
@@ -255,6 +254,15 @@ pub fn cmd_verify(
                     evidence_core::VerifyError::DalMapOrphan { .. } => "dal_map_orphan",
                     evidence_core::VerifyError::PrereleaseToolDetected { .. } => {
                         "prerelease_tool_detected"
+                    }
+                    evidence_core::VerifyError::BundleIncompletelyClaimed { .. } => {
+                        "bundle_incompletely_claimed"
+                    }
+                    evidence_core::VerifyError::ToolCommandsFailedSilently { .. } => {
+                        "tool_commands_failed_silently"
+                    }
+                    evidence_core::VerifyError::TestSummaryAbsentOnFailedRun { .. } => {
+                        "test_summary_absent_on_failed_run"
                     }
                 };
                 checks.push(VerifyCheck {
@@ -374,6 +382,15 @@ fn cmd_verify_jsonl(
 
     match verify_bundle_with_key(&bundle_path, key_bytes.as_deref()) {
         Ok(VerifyResult::Pass) => {
+            // A dev-profile bundle can legitimately land in
+            // Pass with `bundle_complete: false` + recorded
+            // tool-command failures — the library only pushes
+            // errors for cert/record. Surface the incomplete-
+            // bundle signal as a Warning diagnostic so agents +
+            // humans see it alongside VERIFY_OK, without
+            // blocking verification (dev snapshots of broken
+            // builds are a legitimate debugging artifact).
+            maybe_emit_bundle_incomplete_warning(&bundle_path)?;
             emit_jsonl(&terminal_ok(&format!(
                 "bundle verified at {:?}",
                 bundle_path
@@ -381,17 +398,11 @@ fn cmd_verify_jsonl(
             Ok(EXIT_SUCCESS)
         }
         Ok(VerifyResult::Fail(errors)) => {
-            // Schema Rule 7: each finding is an independent observation.
-            // Emit one per error, then the aggregate terminal.
-            //
-            // Severity partition: `VERIFY_PRERELEASE_TOOL` on a
-            // `dev`-profile bundle is a warning — downstream users
-            // trialling the tool with a pre-release install must be
-            // able to generate + verify dev bundles as a sanity
-            // check. On `cert`/`record` profiles the same code is
-            // an error (cert bundles from pre-release tools are
-            // not valid audit evidence). Every other VerifyError
-            // variant stays Error regardless of profile.
+            // Schema Rule 7: one diagnostic per finding, then the
+            // aggregate terminal. `VERIFY_PRERELEASE_TOOL` on dev
+            // profile downgrades to Warning (non-blocking for
+            // pre-release-tool trial runs); every other variant
+            // stays Error regardless of profile.
             let mut any_error = false;
             for err in &errors {
                 let mut diag = err.to_diagnostic();

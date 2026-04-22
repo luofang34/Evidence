@@ -1,18 +1,10 @@
 //! Phase functions for `cargo evidence generate`.
 //!
 //! Each phase is a small, single-purpose helper called in order by
-//! [`super::cmd_generate`]. Phases that can short-circuit the whole
-//! command — preflight gates and strict-mode trace-validation failure
-//! — return `Result<Option<i32>>` so the orchestrator can `return
-//! Ok(code)` without a second layer of nesting. Phases that only do
-//! I/O return `Result<()>`; `capture_and_write_env` returns the
-//! captured `EnvFingerprint` so the success envelope can echo
-//! `git_sha`; `copy_trace_and_build_matrix` returns the matrix paths
-//! so finalize can register them as bundle `trace_outputs`.
-//!
-//! Visibility is `pub(super)`: these are private helpers for the
-//! `generate` module's orchestrator. Unit-testable logic lives in
-//! `generate.rs` next to its tests.
+//! [`super::cmd_generate`]. Short-circuiting phases (preflight
+//! gates, strict-mode trace-validation failure) return
+//! `Result<Option<i32>>`; I/O-only phases return `Result<()>`.
+//! Visibility is `pub(super)`.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -271,13 +263,11 @@ pub(super) fn run_tests_and_capture(
             }
         }
         Err(e) => {
-            // run_capture returns Err only on spawn failure
-            // (cmd.output() itself errored); non-zero-exit goes
-            // through the Ok arm and is recorded inside
-            // run_capture. For spawn failures we record the
-            // failure explicitly so verify still sees the bundle
-            // as incomplete — no diagnostic shadowing between the
-            // two paths.
+            // run_capture returns Err only on subprocess spawn
+            // failure; non-zero exit goes through the Ok arm
+            // and is recorded inside run_capture. Record spawn
+            // failures here so verify sees the bundle as
+            // incomplete either way.
             builder.record_command_failure(evidence_core::ToolCommandFailure {
                 command_name: "cargo test --workspace".to_string(),
                 exit_code: -1,

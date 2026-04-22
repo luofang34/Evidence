@@ -16,6 +16,7 @@
 //! without caring about the split.
 
 mod bundle;
+mod completeness;
 mod consistency;
 mod cross_file;
 mod engine_source;

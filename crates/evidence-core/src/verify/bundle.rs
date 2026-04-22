@@ -153,13 +153,8 @@ pub fn verify_bundle_with_key(
     let index: EvidenceIndex =
         serde_json::from_str(&index_content).map_err(VerifyRuntimeError::ParseIndex)?;
 
-    if !index.bundle_complete {
-        verify_errors.push(VerifyError::ContentHashMismatch {
-            index_hash: "bundle_complete=false".to_string(),
-            actual_hash: "bundle_complete=true required".to_string(),
-        });
-        return Ok(VerifyResult::Fail(verify_errors));
-    }
+    // 3a. Cross-check bundle_complete ↔ tool_command_failures ↔ test_summary.
+    super::completeness::check_bundle_completeness(&index, &mut verify_errors);
 
     // 3b. Validate index.json field formats (semantic checks beyond serde)
     validate_index_fields(&index, &mut verify_errors);
