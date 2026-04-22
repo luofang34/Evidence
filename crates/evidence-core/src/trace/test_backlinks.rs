@@ -79,7 +79,6 @@ fn selector_matches_qualified(selectors: &[String], qualified: &str) -> bool {
 )]
 mod tests {
     use super::*;
-    use crate::trace::entries::Schema;
 
     fn test_entry(uid: &str, selectors: &[&str], traces_to: &[&str]) -> TestEntry {
         TestEntry {
@@ -109,12 +108,6 @@ mod tests {
             requirement_uids: Vec::new(),
         }
     }
-
-    // Silence unused-import warning when Schema isn't
-    // referenced in this module (keeps the import visible for
-    // future test-entry field additions).
-    #[allow(dead_code)]
-    const _SCHEMA: Option<Schema> = None;
 
     /// Exact-match: selector equals `{module_path}::{name}`.
     #[test]
