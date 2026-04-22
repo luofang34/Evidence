@@ -1,5 +1,5 @@
 [package]
-name = "mcp-evidence"
+name = "evidence-mcp"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,11 +13,11 @@ categories.workspace = true
 readme = "../../README.md"
 
 [[bin]]
-name = "mcp-evidence"
+name = "evidence-mcp"
 path = "src/main.rs"
 
 [lib]
-name = "mcp_evidence"
+name = "evidence_mcp"
 path = "src/lib.rs"
 
 [dependencies]

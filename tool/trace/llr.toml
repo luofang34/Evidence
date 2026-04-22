@@ -1174,16 +1174,16 @@ emits = ["VERIFY_PRERELEASE_TOOL", "ENV_ENGINE_RELEASE_PROVENANCE"]
 [[requirements]]
 uid = "65b81ee1-b646-490e-8c1b-c2f9ad183970"
 id = "LLR-050"
-title = "mcp-evidence crate exposes three rmcp tools over stdio"
+title = "evidence-mcp crate exposes three rmcp tools over stdio"
 owner = "tool"
 traces_to = ["20b4b691-f89f-4453-85f3-9eba5299935e"]
 modules = [
-    "mcp_evidence::lib",
-    "mcp_evidence::subprocess",
+    "evidence_mcp::lib",
+    "evidence_mcp::subprocess",
 ]
 derived = false
 description = """
-New workspace crate `crates/mcp-evidence`. Shape:
+New workspace crate `crates/evidence-mcp`. Shape:
 
 - `Cargo.toml` depends on `rmcp = "=1.5.0"` with features
   `["server", "macros", "transport-io", "schemars"]`, plus
@@ -1223,7 +1223,7 @@ New workspace crate `crates/mcp-evidence`. Shape:
   `diagnostics: Vec<serde_json::Value>` (not typed to
   `evidence_core::Diagnostic`) avoids a re-serialize cycle and
   sidesteps adding `JsonSchema` to `evidence_core`.
-- `crates/mcp-evidence/tests/mcp_surface.rs`: integration
+- `crates/evidence-mcp/tests/mcp_surface.rs`: integration
   tests driving the server via rmcp's in-process client (if
   exposed at 1.5.0) or by spawning the binary with
   `assert_cmd`. Covers `rules_count_matches_library_const`,
@@ -1231,10 +1231,10 @@ New workspace crate `crates/mcp-evidence`. Shape:
   `check_source_on_empty_dir_fails_gracefully`,
   `check_source_on_self_repo_is_opt_in` (#[ignore]'d under
   `MCP_RUN_LONG_CHECK=1`), `rules_exit_code_zero_on_success`.
-- `cert/boundary.toml` gains `mcp-evidence` in
+- `cert/boundary.toml` gains `evidence-mcp` in
   `scope.in_scope`. `cert/floors.toml` gains
-  `[per_crate.mcp-evidence] test_count = N` and
-  `[per_crate_ceilings.mcp-evidence] library_panics = 0`,
+  `[per_crate.evidence-mcp] test_count = N` and
+  `[per_crate_ceilings.evidence-mcp] library_panics = 0`,
   with `trace_{sys,hlr,llr,test}` and `known_surfaces`
   bumped by 1 each.
 """

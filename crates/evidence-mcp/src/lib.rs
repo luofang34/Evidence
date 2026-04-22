@@ -7,7 +7,7 @@
 //!
 //! The CLI's JSONL output shape is the stable contract (tested by
 //! `crates/cargo-evidence/tests/verify_jsonl.rs` and siblings).
-//! `mcp_evidence` does not introduce new diagnostic codes — every
+//! `evidence_mcp` does not introduce new diagnostic codes — every
 //! `.code` string in a tool response already exists in
 //! `evidence_core::RULES`. Tool-layer failure signals
 //! (`BinaryNotFound`, `MalformedJsonl`, `CHECK_TIMEOUT`) surface as

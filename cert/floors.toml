@@ -83,7 +83,7 @@ test_count = 254
 [per_crate.cargo-evidence]
 test_count = 115
 
-[per_crate.mcp-evidence]
+[per_crate.evidence-mcp]
 test_count = 8
 
 # Per-crate ceilings. library_panics is a ceiling, not a floor:
@@ -100,5 +100,5 @@ library_panics = 0
 [per_crate_ceilings.cargo-evidence]
 library_panics = 0
 
-[per_crate_ceilings.mcp-evidence]
+[per_crate_ceilings.evidence-mcp]
 library_panics = 0
