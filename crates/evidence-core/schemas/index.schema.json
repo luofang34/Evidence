@@ -136,6 +136,20 @@
       "additionalProperties": false,
       "description": "Parsed summary of cargo test output, if tests were executed"
     },
+    "tool_command_failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "command_name": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "stderr_tail": { "type": "string" }
+        },
+        "required": ["command_name", "exit_code", "stderr_tail"],
+        "additionalProperties": false
+      },
+      "description": "Captured-subprocess failures from the generate pipeline. Non-empty iff bundle_complete=false. Each entry records a non-zero-exit subprocess (cargo test, cargo check, etc.)."
+    },
     "dal_map": {
       "type": "object",
       "additionalProperties": {

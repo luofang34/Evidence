@@ -124,6 +124,48 @@ pub enum VerifyError {
         /// for the reviewer-visible context.
         engine_crate_version: String,
     },
+    /// `index.json.bundle_complete == true` but
+    /// `tool_command_failures` is non-empty. Tamper signal or
+    /// builder bug — these two fields are wired strict-
+    /// consistent at generate time (bundle_complete is DERIVED
+    /// from tool_command_failures.is_empty()), so a bundle with
+    /// the two disagreeing was hand-edited or produced by a
+    /// broken generator.
+    BundleIncompletelyClaimed {
+        /// How many recorded failures the tampered bundle
+        /// carried — surfaces the count so an auditor can
+        /// cross-reference `index.json.tool_command_failures`.
+        failure_count: usize,
+    },
+    /// Bundle is `cert` / `record` profile but carries recorded
+    /// captured-subprocess failures. Cert/record bundles must
+    /// not ship with any `tool_command_failures` entries: by
+    /// definition they are provably-incomplete evidence and
+    /// cannot be cert-grade.
+    ToolCommandsFailedSilently {
+        /// Profile read from `index.json` — always `"cert"` or
+        /// `"record"` when this error fires (dev profile with
+        /// failures is a Warning at the CLI layer, not a
+        /// VerifyError).
+        profile: String,
+        /// The failing commands, in the order
+        /// `tool_command_failures` recorded them. Agent-visible
+        /// so a tooling consumer can show which subprocesses
+        /// broke without re-reading the index.
+        commands: Vec<String>,
+    },
+    /// `tool_command_failures` contains a cargo-test entry but
+    /// `index.json.test_summary` is absent. Either the failure
+    /// happened before any parseable stdout (compile-fail → no
+    /// `test result:` line) but the builder should still have
+    /// recorded an empty summary, OR the test_summary field was
+    /// hand-edited out. Sanity check that the two fields stay
+    /// wired together.
+    TestSummaryAbsentOnFailedRun {
+        /// Command name from the `tool_command_failures` entry
+        /// that triggered this invariant check.
+        command_name: String,
+    },
 }
 
 impl std::fmt::Display for VerifyError {
@@ -242,30 +284,67 @@ impl std::fmt::Display for VerifyError {
                     engine_crate_version, profile
                 )
             }
+            VerifyError::BundleIncompletelyClaimed { failure_count } => {
+                write!(
+                    f,
+                    "bundle_complete=true but {} captured-subprocess failure(s) \
+                     are recorded in tool_command_failures; the bundle was \
+                     hand-edited or produced by a broken generator",
+                    failure_count
+                )
+            }
+            VerifyError::ToolCommandsFailedSilently { profile, commands } => {
+                write!(
+                    f,
+                    "profile='{}' bundle carries {} recorded captured-subprocess \
+                     failure(s) ({}); cert/record bundles must have \
+                     tool_command_failures == []",
+                    profile,
+                    commands.len(),
+                    commands.join(", ")
+                )
+            }
+            VerifyError::TestSummaryAbsentOnFailedRun { command_name } => {
+                write!(
+                    f,
+                    "tool_command_failures records '{}' but index.json.test_summary \
+                     is absent — the two fields must be consistent",
+                    command_name
+                )
+            }
         }
     }
 }
 
 impl DiagnosticCode for VerifyError {
+    // `#[rustfmt::skip]` keeps every arm on one line — the
+    // `diagnostic_codes_locked` walker matches `=> "CODE"`
+    // directly and doesn't follow `=> { "CODE" }` block forms.
+    // Long variant names wrap into block form by default, so
+    // the attribute pins single-line form for every arm.
+    #[rustfmt::skip]
     fn code(&self) -> &'static str {
         // Exhaustive match: adding a new `VerifyError` variant without
         // a stable code here fails compilation — Schema Rule 3.
         match self {
-            VerifyError::UnexpectedFile(_) => "VERIFY_UNEXPECTED_FILE",
-            VerifyError::HmacFailure => "VERIFY_HMAC_FAILURE",
-            VerifyError::HashMismatch { .. } => "VERIFY_HASH_MISMATCH",
-            VerifyError::MissingHashedFile(_) => "VERIFY_MISSING_HASHED_FILE",
-            VerifyError::ContentHashMismatch { .. } => "VERIFY_CONTENT_HASH_MISMATCH",
-            VerifyError::UnsafePath(_) => "VERIFY_UNSAFE_PATH",
-            VerifyError::FormatError { .. } => "VERIFY_INVALID_FORMAT",
-            VerifyError::CrossFileInconsistency { .. } => "VERIFY_CROSS_FILE_INCONSISTENCY",
-            VerifyError::DeterministicHashMismatch { .. } => "VERIFY_DETERMINISTIC_HASH_MISMATCH",
-            VerifyError::ManifestProjectionDrift { .. } => "VERIFY_MANIFEST_PROJECTION_DRIFT",
-            VerifyError::TraceOutputNotHashed(_) => "VERIFY_TRACE_OUTPUT_NOT_HASHED",
-            VerifyError::TestSummaryMismatch { .. } => "VERIFY_TEST_SUMMARY_MISMATCH",
-            VerifyError::DalMapMismatch { .. } => "VERIFY_DAL_MAP_MISMATCH",
-            VerifyError::DalMapOrphan { .. } => "VERIFY_DAL_MAP_ORPHAN",
-            VerifyError::PrereleaseToolDetected { .. } => "VERIFY_PRERELEASE_TOOL",
+            VerifyError::UnexpectedFile(_)                  => "VERIFY_UNEXPECTED_FILE",
+            VerifyError::HmacFailure                        => "VERIFY_HMAC_FAILURE",
+            VerifyError::HashMismatch { .. }                => "VERIFY_HASH_MISMATCH",
+            VerifyError::MissingHashedFile(_)               => "VERIFY_MISSING_HASHED_FILE",
+            VerifyError::ContentHashMismatch { .. }         => "VERIFY_CONTENT_HASH_MISMATCH",
+            VerifyError::UnsafePath(_)                      => "VERIFY_UNSAFE_PATH",
+            VerifyError::FormatError { .. }                 => "VERIFY_INVALID_FORMAT",
+            VerifyError::CrossFileInconsistency { .. }      => "VERIFY_CROSS_FILE_INCONSISTENCY",
+            VerifyError::DeterministicHashMismatch { .. }   => "VERIFY_DETERMINISTIC_HASH_MISMATCH",
+            VerifyError::ManifestProjectionDrift { .. }     => "VERIFY_MANIFEST_PROJECTION_DRIFT",
+            VerifyError::TraceOutputNotHashed(_)            => "VERIFY_TRACE_OUTPUT_NOT_HASHED",
+            VerifyError::TestSummaryMismatch { .. }         => "VERIFY_TEST_SUMMARY_MISMATCH",
+            VerifyError::DalMapMismatch { .. }              => "VERIFY_DAL_MAP_MISMATCH",
+            VerifyError::DalMapOrphan { .. }                => "VERIFY_DAL_MAP_ORPHAN",
+            VerifyError::PrereleaseToolDetected { .. }      => "VERIFY_PRERELEASE_TOOL",
+            VerifyError::BundleIncompletelyClaimed { .. }   => "VERIFY_BUNDLE_INCOMPLETELY_CLAIMED",
+            VerifyError::ToolCommandsFailedSilently { .. }  => "VERIFY_TOOL_COMMANDS_FAILED_SILENTLY",
+            VerifyError::TestSummaryAbsentOnFailedRun { .. }=> "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
         }
     }
 
@@ -304,7 +383,10 @@ impl DiagnosticCode for VerifyError {
             | VerifyError::DeterministicHashMismatch { .. }
             | VerifyError::ManifestProjectionDrift { .. }
             | VerifyError::TestSummaryMismatch { .. }
-            | VerifyError::PrereleaseToolDetected { .. } => None,
+            | VerifyError::PrereleaseToolDetected { .. }
+            | VerifyError::BundleIncompletelyClaimed { .. }
+            | VerifyError::ToolCommandsFailedSilently { .. }
+            | VerifyError::TestSummaryAbsentOnFailedRun { .. } => None,
         };
 
         file_path.map(|file| Location {

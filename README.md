@@ -365,13 +365,18 @@ cargo evidence verify /tmp/evidence/cert-20260207-*/  --json
 
 Checks performed:
 1. Bundle directory exists and contains all required files
-2. `index.json` parses correctly and `bundle_complete` is `true`
+2. `index.json` parses correctly; bundle-completeness cross-check:
+   - `bundle_complete` is `true` iff `tool_command_failures == []` (tamper signal: `VERIFY_BUNDLE_INCOMPLETELY_CLAIMED`);
+   - on `cert` / `record` profile, `tool_command_failures` must be empty (`VERIFY_TOOL_COMMANDS_FAILED_SILENTLY`);
+   - on `dev` profile, `bundle_complete: false` is allowed and surfaces as `VERIFY_BUNDLE_INCOMPLETE` (Warning, non-blocking) so snapshots of half-broken local builds remain inspectable.
 3. All trace outputs referenced in the index exist
 4. Every entry in `SHA256SUMS` matches the actual file hash
 5. `index.json` is NOT listed in `SHA256SUMS` (metadata-layer invariant)
 6. `content_hash` matches the SHA-256 of `SHA256SUMS`
 
 Exit codes: `0` = pass, `1` = error, `2` = verification failure.
+
+When `cargo test` (or any captured subprocess) exits non-zero during `generate`, the builder records a `ToolCommandFailure { command_name, exit_code, stderr_tail }` entry on the bundle's `index.json`, and `bundle_complete` flips to `false`. On `cert` / `record` profile this also propagates as a non-zero exit from `generate` itself (`EXIT_VERIFICATION_FAILURE`, 2), so automation sees the signal without parsing the bundle.
 
 ### `cargo evidence diff`
 

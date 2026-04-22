@@ -23,14 +23,13 @@ pub enum Domain {
     Boundary,
     /// `BUNDLE_*` — bundle lifecycle (generate).
     Bundle,
-    /// `CHECK_*` — `cargo evidence check` subcommand-specific
-    /// codes (e.g. runtime failures in the cargo-test subprocess).
+    /// `CHECK_*` — `cargo evidence check` subcommand.
     Check,
-    /// `CLI_*` — CLI-layer hand-emitted codes (not from the library).
+    /// `CLI_*` — CLI-layer hand-emitted codes.
     Cli,
     /// `CMD_*` — subprocess execution.
     Cmd,
-    /// `DOCTOR_*` — rigor-audit subcommand (`cargo evidence doctor`).
+    /// `DOCTOR_*` — rigor-audit subcommand.
     Doctor,
     /// `ENV_*` — environment probe (rustc / cargo / toolchain).
     Env,
@@ -48,7 +47,7 @@ pub enum Domain {
     Schema,
     /// `SIGN_*` — signing / HMAC key IO.
     Sign,
-    /// `TESTS_*` — per-test outcome capture + `test_outcomes.jsonl`.
+    /// `TESTS_*` — per-test outcome capture.
     Tests,
     /// `TRACE_*` — trace-file validation.
     Trace,
@@ -57,11 +56,8 @@ pub enum Domain {
 }
 
 impl Domain {
-    /// Derive a [`Domain`] from a code prefix. Returns `None` for any
-    /// code whose prefix doesn't match a known domain — the
-    /// bijection test asserts every RULES entry's prefix matches its
-    /// declared domain, so an unmapped prefix fires a targeted
-    /// failure.
+    /// Derive a [`Domain`] from a code prefix. `None` for any
+    /// unknown prefix — bijection test catches unmapped codes.
     pub fn from_code(code: &str) -> Option<Self> {
         let prefix = code.split('_').next().unwrap_or(code);
         Some(match prefix {
@@ -96,25 +92,15 @@ pub struct RuleEntry {
     pub severity: Severity,
     /// Top-level domain, derived from prefix.
     pub domain: Domain,
-    /// Whether the emit-site MAY populate `fix_hint`. Audit label
-    /// only — runtime populate is per-emit-site logic.
+    /// Whether the emit-site MAY populate `fix_hint`.
     pub has_fix_hint: bool,
     /// Hand-emitted terminal (Schema Rule 1). If true, also in
-    /// [`TERMINAL_CODES`](crate::TERMINAL_CODES); ends in `_OK` /
-    /// `_FAIL` / `_ERROR`.
+    /// [`TERMINAL_CODES`](crate::TERMINAL_CODES).
     pub terminal: bool,
 }
 
-/// Codes the CLI emits by hand (as `Diagnostic { code: "…".into(), … }`)
-/// that are NOT terminals. Library-side impls don't return these —
-/// they live in `cargo-evidence`'s CLI modules. Pinned here because
-/// `diagnostic_codes_locked` walks only `crates/evidence-core/src`, so CLI
-/// emits need an explicit bless list for the bijection.
-///
-/// Terminals (`VERIFY_OK`, `VERIFY_FAIL`, `VERIFY_ERROR`,
-/// `CLI_SUBCOMMAND_ERROR`) live in
-/// [`TERMINAL_CODES`](crate::TERMINAL_CODES) — keep these two lists
-/// disjoint.
+/// Codes the CLI emits by hand that are NOT terminals. Pinned
+/// here because `diagnostic_codes_locked` walks only `evidence-core/src`.
 pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "CHECK_TEST_RUNTIME_FAILURE",
     "CLI_INVALID_ARGUMENT",
@@ -133,20 +119,16 @@ pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "FLOORS_BELOW_MIN",
     "FLOORS_LOWERED_WITHOUT_JUSTIFICATION",
     "TRACE_SELECTOR_UNRESOLVED",
+    "VERIFY_BUNDLE_INCOMPLETE",
 ];
 
-/// Codes declared in `RULES` that are intentionally NOT claimed by any
-/// LLR's `emits` list. Must stay empty or be justified here in
-/// writing: the bijection test uses this set as its only allowed
-/// gap between `RULES` and `⋃(LLR.emits)`.
+/// Codes in `RULES` that are intentionally NOT claimed by any LLR's
+/// `emits` list. Must stay empty or carry a written justification here.
 pub const RESERVED_UNCLAIMED_CODES: &[&str] = &[];
 
-/// Hand-curated manifest of every code the tool can emit. Sorted
-/// alphabetically by `code` for deterministic serialization.
-///
-/// Additions: append the entry, re-sort, update the LLR in
-/// `tool/trace/llr.toml` whose `emits` list owns this code (or add
-/// one), and add a test exercising the emit path.
+/// Hand-curated manifest of every emittable code. Sorted by `code`.
+/// Additions: append, re-sort, claim in the relevant LLR's `emits`,
+/// add a test exercising the emit.
 pub const RULES: &[RuleEntry] = &[
     r(
         "BOUNDARY_CARGO_METADATA_FAILED",
@@ -314,6 +296,16 @@ pub const RULES: &[RuleEntry] = &[
     r("TRACE_SELECTOR_UNRESOLVED", Severity::Error, Domain::Trace),
     r("TRACE_WRONG_TARGET_KIND", Severity::Error, Domain::Trace),
     r(
+        "VERIFY_BUNDLE_INCOMPLETE",
+        Severity::Warning,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_BUNDLE_INCOMPLETELY_CLAIMED",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
         "VERIFY_CONTENT_HASH_MISMATCH",
         Severity::Error,
         Domain::Verify,
@@ -362,7 +354,17 @@ pub const RULES: &[RuleEntry] = &[
     r("VERIFY_RUNTIME_SIGNING", Severity::Error, Domain::Verify),
     r("VERIFY_RUNTIME_WALK", Severity::Error, Domain::Verify),
     r(
+        "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
         "VERIFY_TEST_SUMMARY_MISMATCH",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_TOOL_COMMANDS_FAILED_SILENTLY",
         Severity::Error,
         Domain::Verify,
     ),
@@ -477,12 +479,9 @@ impl Domain {
     }
 }
 
-/// Serialize [`RULES`] as a JSON array suitable for agents consuming
-/// `cargo evidence rules --json`. Output is deterministic (alphabetical
-/// by `code`, matching the const's committed order).
+/// Serialize [`RULES`] as a JSON array for `cargo evidence rules
+/// --json`. Deterministic (alphabetical by `code`).
 pub fn rules_json() -> String {
-    // `RULES` is compile-time; every field serializes infallibly. The
-    // `allow` documents that the only failure mode is impossible.
     #[allow(
         clippy::expect_used,
         reason = "RULES is a const with infallibly-serializable field types"

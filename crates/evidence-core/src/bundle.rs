@@ -20,15 +20,18 @@
 mod builder;
 mod capture;
 mod command;
+mod command_failure;
 mod error;
 mod index;
 mod outcome_record;
+mod run_capture;
 mod signing;
 mod test_summary;
 mod time;
 
 pub use builder::{EvidenceBuildConfig, EvidenceBuilder};
 pub use command::CommandRecord;
+pub use command_failure::{STDERR_TAIL_LINES, ToolCommandFailure, tail_stderr};
 pub use error::BuilderError;
 pub use index::EvidenceIndex;
 pub use outcome_record::{TestOutcomeRecord, TestsError};

@@ -232,7 +232,10 @@ id = "LLR-011"
 title = "verify_hash_list rehashes every SHA256SUMS entry"
 owner = "tool"
 traces_to = ["6cabc09d-8556-48f9-800b-7c1111fc0877"]
-modules = ["evidence_core::verify::bundle::verify_bundle_with_key"]
+modules = [
+    "evidence_core::verify::bundle::verify_bundle_with_key",
+    "evidence_core::verify::completeness::check_bundle_completeness",
+]
 derived = false
 description = """
 verify_bundle_with_key parses SHA256SUMS, recomputes the SHA-256 of
@@ -240,6 +243,18 @@ each listed file with streaming io::copy, and pushes VerifyError
 variants onto the findings vec for mismatches, missing files, and
 unexpected-but-unlisted files. All findings accumulate (no early
 bail).
+
+check_bundle_completeness cross-checks the three fields the
+builder wires strict-consistent at finalize time: `bundle_complete`,
+`tool_command_failures`, and `test_summary`. bundle_complete=true
+with non-empty tool_command_failures fires
+VERIFY_BUNDLE_INCOMPLETELY_CLAIMED (tamper/builder-bug signal).
+bundle_complete=false on cert/record profile fires
+VERIFY_TOOL_COMMANDS_FAILED_SILENTLY. A cargo-test failure with
+no test_summary fires VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN.
+The CLI emits VERIFY_BUNDLE_INCOMPLETE (Warning) on dev-profile
+bundles with bundle_complete=false so local iteration stays
+unblocked while the completeness signal is still visible.
 """
 verification_methods = ["test"]
 emits = [
@@ -254,6 +269,10 @@ emits = [
     "VERIFY_RUNTIME_READ_FILE",
     "VERIFY_RUNTIME_SIGNING",
     "VERIFY_RUNTIME_WALK",
+    "VERIFY_BUNDLE_INCOMPLETE",
+    "VERIFY_BUNDLE_INCOMPLETELY_CLAIMED",
+    "VERIFY_TOOL_COMMANDS_FAILED_SILENTLY",
+    "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
 ]
 
 [[requirements]]

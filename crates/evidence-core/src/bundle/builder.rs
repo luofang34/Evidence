@@ -13,11 +13,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::capture::normalize_captured_text;
 use super::command::CommandRecord;
+use super::command_failure::ToolCommandFailure;
 use super::error::BuilderError;
 use super::index::EvidenceIndex;
 use super::outcome_record::TestOutcomeRecord;
+use super::run_capture::run_capture as do_run_capture;
 use super::test_summary::TestSummary;
 use super::time::{utc_compact_stamp, utc_now_rfc3339};
 use crate::git::{GitSnapshot, RealGitProvider};
@@ -58,6 +59,12 @@ pub struct EvidenceBuilder {
     /// `tests/test_outcomes.jsonl` artifact at finalize-adjacent
     /// time (see [`Self::write_test_outcomes`]).
     test_outcomes: Vec<TestOutcomeRecord>,
+    /// Captured-subprocess failures — non-zero exits from any
+    /// `run_capture`'d command (cargo test, cargo check, etc.).
+    /// Drives [`EvidenceIndex::bundle_complete`] (empty ⇒
+    /// `true`) and the verify-time cross-check that a cert/
+    /// record bundle carries no recorded failures.
+    tool_command_failures: Vec<ToolCommandFailure>,
 }
 
 impl EvidenceBuilder {
@@ -168,7 +175,29 @@ impl EvidenceBuilder {
             outputs: BTreeMap::new(),
             test_summary: None,
             test_outcomes: Vec::new(),
+            tool_command_failures: Vec::new(),
         })
+    }
+
+    /// Record a captured-subprocess failure. Called by
+    /// [`Self::run_capture`] on non-zero exit and by phase
+    /// orchestrators that caught a [`BuilderError::RunCommand`]
+    /// spawn failure.
+    ///
+    /// Non-empty `tool_command_failures` flips
+    /// [`EvidenceIndex::bundle_complete`] to `false` at
+    /// [`Self::finalize`] time; verify cross-checks that
+    /// cert/record bundles never ship with recorded failures.
+    pub fn record_command_failure(&mut self, failure: ToolCommandFailure) {
+        self.tool_command_failures.push(failure);
+    }
+
+    /// Read-only view of the captured-subprocess failures.
+    /// Callers (the CLI's generate-exit-code logic) use this to
+    /// decide whether to propagate a non-zero exit on cert/
+    /// record profile even when the bundle assembled cleanly.
+    pub fn tool_command_failures(&self) -> &[ToolCommandFailure] {
+        &self.tool_command_failures
     }
 
     /// Get the bundle directory path.
@@ -195,100 +224,29 @@ impl EvidenceBuilder {
         self.commands.push(record);
     }
 
-    /// Run a command, capture its output, and write stdout/stderr to the bundle.
+    /// Run a command, capture its output, write stdout/stderr
+    /// to the bundle, and record any non-zero exit on
+    /// `self.tool_command_failures`. Library layer — no
+    /// presentation logging (CLI owns severity/format).
     pub fn run_capture(
         &mut self,
-        mut cmd: Command,
+        cmd: Command,
         rel_dir: &str,
         output_name_base: &str,
         display_name: &str,
     ) -> Result<(Vec<u8>, Vec<u8>), BuilderError> {
-        let cwd = std::env::current_dir()
-            .map_err(BuilderError::CurrentDir)?
-            .display()
-            .to_string();
-        let argv = {
-            let mut v = Vec::new();
-            v.push(cmd.get_program().to_string_lossy().to_string());
-            v.extend(cmd.get_args().map(|a| a.to_string_lossy().to_string()));
-            v
-        };
-
-        tracing::info!("evidence: running {}...", display_name);
-        let output = cmd.output().map_err(|source| BuilderError::RunCommand {
-            display_name: display_name.to_string(),
-            source,
-        })?;
-        let exit_code = output.status.code().unwrap_or(-1);
-
-        if !output.status.success() {
-            tracing::error!("{} failed with exit code {}", display_name, exit_code);
-            tracing::error!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+        let outcome = do_run_capture(
+            cmd,
+            rel_dir,
+            output_name_base,
+            display_name,
+            &self.bundle_dir,
+        )?;
+        self.commands.push(outcome.record);
+        if let Some(failure) = outcome.failure {
+            self.tool_command_failures.push(failure);
         }
-
-        let (stdout_path, stderr_path) = if rel_dir.is_empty() {
-            (
-                Some(format!("{}.json", output_name_base)),
-                Some(format!("{}_stderr.txt", output_name_base)),
-            )
-        } else {
-            (
-                Some(format!("{}/{}_stdout.txt", rel_dir, output_name_base)),
-                Some(format!("{}/{}_stderr.txt", rel_dir, output_name_base)),
-            )
-        };
-
-        // Captured text is CRLF→LF normalized before being written so the
-        // same logical run on Windows and Linux produces byte-identical
-        // files (and therefore a stable content_hash). See README
-        // "Captured Output Normalization" for the user-facing contract.
-        let stdout_norm = normalize_captured_text(&output.stdout);
-        let stderr_norm = normalize_captured_text(&output.stderr);
-
-        if let Some(ref sp) = stdout_path {
-            let abs = self.bundle_dir.join(sp);
-            if let Some(parent) = abs.parent() {
-                fs::create_dir_all(parent).map_err(|source| BuilderError::Io {
-                    op: "creating",
-                    path: parent.to_path_buf(),
-                    source,
-                })?;
-            }
-            fs::write(&abs, &stdout_norm).map_err(|source| BuilderError::Io {
-                op: "writing stdout to",
-                path: abs.clone(),
-                source,
-            })?;
-        }
-        if let Some(ref ep) = stderr_path {
-            let abs = self.bundle_dir.join(ep);
-            if let Some(parent) = abs.parent() {
-                fs::create_dir_all(parent).map_err(|source| BuilderError::Io {
-                    op: "creating",
-                    path: parent.to_path_buf(),
-                    source,
-                })?;
-            }
-            fs::write(&abs, &stderr_norm).map_err(|source| BuilderError::Io {
-                op: "writing stderr to",
-                path: abs.clone(),
-                source,
-            })?;
-        }
-
-        let rec = CommandRecord {
-            argv,
-            cwd,
-            exit_code,
-            stdout_path,
-            stderr_path,
-        };
-
-        self.commands.push(rec);
-        // Return the normalized bytes so callers see exactly what the
-        // bundle recorded — avoids subtle Windows/Linux divergence in
-        // downstream parsers like `parse_cargo_test_output`.
-        Ok((stdout_norm, stderr_norm))
+        Ok((outcome.stdout_norm, outcome.stderr_norm))
     }
 
     /// Write the inputs hashes file.
@@ -471,10 +429,11 @@ impl EvidenceBuilder {
                     )
                 })
                 .collect(),
-            bundle_complete: true,
+            bundle_complete: self.tool_command_failures.is_empty(),
             content_hash,
             deterministic_hash,
             test_summary: self.test_summary.clone(),
+            tool_command_failures: self.tool_command_failures.clone(),
             dal_map: self
                 .config
                 .dal_map
