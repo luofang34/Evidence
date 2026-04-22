@@ -146,7 +146,10 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             let format = OutputFormat::resolve(args.format, args.json || json);
             cmd_verify(bundle_path, strict, verify_key, format)
         }
-        Some(Commands::Check { mode, path }) => cmd_check(mode, path),
+        Some(Commands::Check { mode, path }) => {
+            let format = OutputFormat::resolve(args.format, args.json);
+            cmd_check(mode, path, format, args.quiet)
+        }
         Some(Commands::Doctor { json }) => {
             // Global `--format=jsonl` (or `--json`) flips to JSONL
             // mode; default is the human `[✓]/[⚠]/[✗]` summary.

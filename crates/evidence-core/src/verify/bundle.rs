@@ -265,11 +265,12 @@ pub fn verify_bundle_with_key(
         );
     }
 
-    // Return collected errors or pass
+    // No library-layer `tracing::error!` on the fail path: the
+    // CLI owns severity presentation and can downgrade individual
+    // errors (e.g. `VERIFY_PRERELEASE_TOOL` on Dev) to Warning +
+    // exit 0. Logging here would leak `ERROR` to stderr before
+    // the CLI partition runs.
     if !verify_errors.is_empty() {
-        for e in &verify_errors {
-            tracing::error!("  VERIFY ERROR: {}", e);
-        }
         return Ok(VerifyResult::Fail(verify_errors));
     }
 
