@@ -42,7 +42,7 @@ schema_version = 1
 
 # evidence_core::RULES length — every diagnostic code the tool can emit,
 # hand-curated. Lives in a single crate, so workspace-wide.
-diagnostic_codes = 110
+diagnostic_codes = 111
 
 # evidence_core::TERMINAL_CODES length — hand-emitted terminals
 # (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR /
@@ -81,7 +81,7 @@ known_surfaces = 18
 test_count = 238
 
 [per_crate.cargo-evidence]
-test_count = 102
+test_count = 108
 
 [per_crate.mcp-evidence]
 test_count = 8

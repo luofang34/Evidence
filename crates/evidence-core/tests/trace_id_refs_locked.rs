@@ -76,6 +76,11 @@ const RESERVED_TEXT_REFS: &[(&str, &str)] = &[
     // fixture in `check_source_tree.rs`. Not a cross-reference to
     // `tool/trace/`.
     ("check_source_tree.rs", "TEST-1"),
+    // `check_source_correctness.rs` seeds a downstream tempdir
+    // fixture with a synthetic `DOWNSTREAM-`-prefixed trace ID;
+    // the scanner strips the prefix and sees a bare single-digit
+    // test ref. Not a cross-reference to `tool/trace/`.
+    ("check_source_correctness.rs", "TEST-1"),
 ];
 
 /// Per-kind valid-ID set loaded from `tool/trace/`.

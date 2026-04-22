@@ -84,6 +84,7 @@ fn domain_label(d: evidence_core::Domain) -> &'static str {
     match d {
         evidence_core::Domain::Boundary => "boundary",
         evidence_core::Domain::Bundle => "bundle",
+        evidence_core::Domain::Check => "check",
         evidence_core::Domain::Cli => "cli",
         evidence_core::Domain::Cmd => "cmd",
         evidence_core::Domain::Doctor => "doctor",

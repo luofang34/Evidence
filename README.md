@@ -524,11 +524,14 @@ candidate.
 
 ### Tool Qualification Level
 
-- **Classification:** Development tool + Verification tool
-- **TQL assessment:** TQL-4 minimum, TQL-3 depending on DAL
+- **Classification:** Development tool + Verification tool.
+- **Qualification status:** Not qualified. The tool has not undergone DO-330
+  qualification; no Tool Qualification Plan, Tool Qualification Data, or
+  independent assessor review exists. Treat any TQL number you may see in older
+  notes as an aspirational target, not a current claim.
 - **Self-verification concern:** The tool generates AND verifies its own bundles.
-  For independent verification, a separate tool or manual SHA-256 check of
-  `SHA256SUMS` is recommended.
+  For independent verification, run `sha256sum -c SHA256SUMS` against the bundle
+  with a separate utility, or use a different verifier.
 
 ### ADR-001: Evidence Engine Invariants
 

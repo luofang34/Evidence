@@ -178,34 +178,80 @@ fn cmd_check_source(workspace_root: &Path, format: OutputFormat, quiet: bool) ->
     if show_progress {
         eprintln!("check: running `cargo test --workspace`…");
     }
-    let test_stdout = run_cargo_test(workspace_root)?;
+    let test_run = run_cargo_test(workspace_root)?;
 
-    // Phase 2: parse into per-test outcome map.
-    let Some((_summary, outcomes)) = parse_cargo_test_output_with_outcomes(&test_stdout) else {
-        return emit_invalid_argument(
-            workspace_root,
-            "cargo test produced no parseable `test result:` line \
-             (is this a Rust workspace with testable crates?)",
-            format,
-        );
+    // Phase 2: parse into per-test outcome map, then disambiguate
+    // on (parse-success, exit-success):
+    //
+    //   (Some(parsed), _)       → normal path. Tests ran; per-test
+    //                             outcomes drive REQ_PASS/REQ_GAP.
+    //                             `exit_success` is false here
+    //                             whenever any test failed — that's
+    //                             the common case, not a runtime bug.
+    //   (None,      true)       → cargo exited 0 but produced no
+    //                             `test result:` line. Weird shape
+    //                             (e.g. empty workspace) — stays
+    //                             CLI_INVALID_ARGUMENT (current).
+    //   (None,     false)       → cargo exited non-zero AND no parse.
+    //                             Genuine runtime failure — build
+    //                             error, subprocess crash, missing
+    //                             dep. Emit the new
+    //                             CHECK_TEST_RUNTIME_FAILURE path.
+    let outcomes = match parse_cargo_test_output_with_outcomes(&test_run.combined) {
+        Some((_summary, outcomes)) => outcomes,
+        None if test_run.exit_success => {
+            return emit_invalid_argument(
+                workspace_root,
+                "cargo test produced no parseable `test result:` line \
+                 (is this a Rust workspace with testable crates?)",
+                format,
+            );
+        }
+        None => {
+            let diag = check_test_runtime_failure_diagnostic(&test_run);
+            let terminal = terminal_check_fail(&format!(
+                "cargo test exited {} without producing parseable output",
+                test_run
+                    .exit_code
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| "on signal".to_string())
+            ));
+            if is_machine_format(format) {
+                emit_jsonl(&diag)?;
+                emit_jsonl(&terminal)?;
+            } else {
+                render_human_diagnostics(std::slice::from_ref(&diag), &terminal);
+            }
+            return Ok(EXIT_VERIFICATION_FAILURE);
+        }
     };
 
     // Phase 3: load trace. Discovery picks tool/trace → cert/trace per
-    // LLR-023; fall back to cert/boundary.toml otherwise.
+    // LLR-023; fall back to cert/boundary.toml otherwise. Every path
+    // resolves against `workspace_root` — the argument to
+    // `check --mode=source <PATH>` — NOT the process CWD. An auditor
+    // invoking `check --mode=source /downstream` from a parent
+    // directory gets `/downstream/tool/trace/` discovered, not the
+    // caller's own.
     if show_progress {
         eprintln!("check: validating trace…");
     }
-    let trace_root = super::trace::default_trace_roots()
+    let trace_root = super::trace::default_trace_roots(workspace_root)
         .into_iter()
         .next()
-        .unwrap_or_else(|| "cert/trace".to_string());
+        .unwrap_or_else(|| {
+            workspace_root
+                .join("cert/trace")
+                .to_string_lossy()
+                .into_owned()
+        });
     let trace = read_all_trace_files(&trace_root)
         .with_context(|| format!("reading trace files under '{}'", trace_root))?;
 
     // Phase 4: policy. DAL-derived default + same `require_hlr_sys_trace`
     // behavior as `trace --validate` so `check` enforces the same
     // contract.
-    let boundary = BoundaryConfig::load_or_default(&PathBuf::from("cert/boundary.toml"));
+    let boundary = BoundaryConfig::load_or_default(&workspace_root.join("cert/boundary.toml"));
     let dal = boundary
         .dal_map()
         .values()
@@ -279,7 +325,24 @@ fn render_human_diagnostics(diagnostics: &[Diagnostic], terminal: &Diagnostic) {
     println!("{} {}", tag, terminal.message);
 }
 
-fn run_cargo_test(workspace_root: &Path) -> Result<String> {
+/// Captured output + exit status from the `cargo test` subprocess.
+///
+/// `exit_success` is load-bearing for the parse-failure
+/// disambiguation in `cmd_check_source`: `cargo test` exits 101
+/// whenever any test fails (the normal REQ_GAP path), so a bare
+/// "exit != 0 → runtime failure" mapping would flip every
+/// failing-tests run to a single opaque `CHECK_TEST_RUNTIME_FAILURE`
+/// terminal. The reliable disambiguation is "did parsing produce
+/// any `test result:` line?" — if yes, use the normal path even
+/// when exit is non-zero; if no AND exit is non-zero, the child
+/// crashed or build failed.
+struct CargoTestRun {
+    combined: String,
+    exit_success: bool,
+    exit_code: Option<i32>,
+}
+
+fn run_cargo_test(workspace_root: &Path) -> Result<CargoTestRun> {
     // Running `cargo test` from a subprocess of `cargo test` (as would
     // happen in our own integration tests) risks target/ lock
     // contention. Caller is responsible for arranging a sensible
@@ -304,10 +367,43 @@ fn run_cargo_test(workspace_root: &Path) -> Result<String> {
         .current_dir(workspace_root)
         .output()
         .with_context(|| format!("spawning `cargo test` in {}", workspace_root.display()))?;
-    let mut buf = String::new();
-    buf.push_str(&String::from_utf8_lossy(&out.stdout));
-    buf.push_str(&String::from_utf8_lossy(&out.stderr));
-    Ok(buf)
+    let mut combined = String::new();
+    combined.push_str(&String::from_utf8_lossy(&out.stdout));
+    combined.push_str(&String::from_utf8_lossy(&out.stderr));
+    Ok(CargoTestRun {
+        combined,
+        exit_success: out.status.success(),
+        exit_code: out.status.code(),
+    })
+}
+
+/// Build a `CHECK_TEST_RUNTIME_FAILURE` diagnostic carrying the
+/// cargo exit code and the tail of stderr so an agent or human
+/// sees the underlying cause without re-running the subprocess.
+fn check_test_runtime_failure_diagnostic(run: &CargoTestRun) -> Diagnostic {
+    // Clamp stderr tail to a reasonable size — the full combined
+    // buffer can be many kilobytes on a workspace with a loud
+    // build failure. ~2KB keeps the message human-readable while
+    // preserving the actual error text.
+    let tail_len = 2048.min(run.combined.len());
+    let tail = &run.combined[run.combined.len() - tail_len..];
+    let exit = run
+        .exit_code
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "signal".to_string());
+    Diagnostic {
+        code: "CHECK_TEST_RUNTIME_FAILURE".to_string(),
+        severity: Severity::Error,
+        message: format!(
+            "cargo test exited with status {exit} and produced no parseable \
+             `test result:` line — build failure or runtime crash. Tail of \
+             combined stdout+stderr:\n{tail}"
+        ),
+        location: None,
+        fix_hint: None,
+        subcommand: Some("check".to_string()),
+        root_cause_uid: None,
+    }
 }
 
 fn terminal_check_ok(message: &str) -> Diagnostic {
