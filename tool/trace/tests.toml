@@ -607,9 +607,9 @@ artifact, and the compliance wire-up:
   `failure_message`; stays `Partial` otherwise.
 """
 test_selectors = [
-    "evidence_core::bundle::test_summary::tests::parse_failure_block_captures_message",
-    "evidence_core::bundle::test_summary::tests::parse_tolerates_missing_failure_block",
-    "evidence_core::tests::outcome_record::tests::jsonl_roundtrip",
-    "evidence_core::compliance::tests::a7_3_upgrades_on_full_failure_coverage",
-    "test_outcomes_jsonl_shape::bundle_contains_jsonl_with_expected_keys",
+    "evidence_core::bundle::test_summary::detailed::tests::parse_failure_block_captures_message",
+    "evidence_core::bundle::test_summary::detailed::tests::parse_tolerates_missing_failure_block",
+    "evidence_core::bundle::outcome_record::tests::jsonl_roundtrip",
+    "evidence_core::compliance::status::tests::a7_3_upgrades_to_met_with_per_test_outcomes",
+    "evidence_core::bundle::outcome_record::tests::write_outcomes_jsonl_end_to_end",
 ]

@@ -518,7 +518,7 @@ candidate.
 |--------------------------------------------|---------|---------------------------------------------|
 | Software Configuration Index (SCI)         | Partial | Git SHA + env fingerprint captured           |
 | Software Environment Config Index (SECI)   | Partial | rustc, cargo, LLVM, libc, OS; missing Cargo.lock hash, RUSTFLAGS |
-| Software Verification Results (SVR)        | Minimal | Exit codes only; no structured pass/fail     |
+| Software Verification Results (SVR)        | Partial | Per-test `{name, module_path, passed, ignored, failure_message?}` in `tests/test_outcomes.jsonl`; duration missing (libtest stable limitation) |
 | Traceability Data                          | Yes     | Bidirectional HLR <-> LLR <-> Test           |
 | SCM Records                                | No      | Not yet implemented                          |
 
@@ -550,13 +550,16 @@ The six invariants that govern this tool's design:
 
 These items are tracked and not yet resolved:
 
-1. **No structured SVR capture** -- exit codes and `TestSummary` are recorded but
-   per-test-case structured verification results are not.
-2. **No derived requirements safety report** -- derived LLRs are validated but no
+1. **No derived requirements safety report** -- derived LLRs are validated but no
    summary report is generated for safety analysis.
 
 Previously tracked items now resolved:
 
+- ~~No structured SVR capture~~ → per-test outcome atoms in
+  `tests/test_outcomes.jsonl` via the enriched libtest parser
+  (captures panic/assertion text from `---- <test> stdout ----`
+  failure blocks). A-7 Obj-3/Obj-4 upgrade from Partial → Met
+  when present + aggregate `tests_passed == true`.
 - ~~No cryptographic signing~~ → HMAC-SHA256 via `sign_bundle()` + `BUNDLE.sig`
 - ~~No extra-file detection~~ → `verify.rs` walks bundle and flags unexpected files
 - ~~Incomplete SCI/SECI~~ → `Cargo.lock` hash, `RUSTFLAGS`, `rust-toolchain.toml` captured

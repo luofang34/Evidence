@@ -224,4 +224,52 @@ mod tests {
                 .contains("assertion")
         );
     }
+
+    /// `write_outcomes_jsonl` end-to-end: produces a jsonl file
+    /// under `<bundle_dir>/tests/`, one line per record,
+    /// trailing newline on each, required keys present, every
+    /// line parses back to the original struct.
+    #[test]
+    fn write_outcomes_jsonl_end_to_end() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let records = vec![
+            TestOutcomeRecord {
+                name: "a".to_string(),
+                module_path: "mod1".to_string(),
+                passed: true,
+                ignored: false,
+                failure_message: None,
+                duration_ms: None,
+            },
+            TestOutcomeRecord {
+                name: "b".to_string(),
+                module_path: "mod1".to_string(),
+                passed: false,
+                ignored: false,
+                failure_message: Some("boom".to_string()),
+                duration_ms: None,
+            },
+        ];
+        let path = write_outcomes_jsonl(tmp.path(), &records)
+            .expect("write ok")
+            .expect("path present");
+        let body = std::fs::read_to_string(&path).expect("read back");
+        let lines: Vec<&str> = body.lines().collect();
+        assert_eq!(lines.len(), 2, "one line per record; got {body:?}");
+        for (i, line) in lines.iter().enumerate() {
+            let back: TestOutcomeRecord = serde_json::from_str(line).expect("line parses");
+            assert_eq!(back, records[i]);
+            // Required keys present (and in the struct-field
+            // order serde emits).
+            assert!(line.contains("\"name\""));
+            assert!(line.contains("\"module_path\""));
+            assert!(line.contains("\"passed\""));
+            assert!(line.contains("\"ignored\""));
+        }
+        // Empty-records case → Ok(None), no file.
+        let empty_tmp = tempfile::TempDir::new().expect("tempdir");
+        let none_path = write_outcomes_jsonl(empty_tmp.path(), &[]).expect("write ok on empty");
+        assert!(none_path.is_none());
+        assert!(!empty_tmp.path().join("tests/test_outcomes.jsonl").exists());
+    }
 }
