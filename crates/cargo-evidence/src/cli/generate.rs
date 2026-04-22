@@ -9,6 +9,7 @@
 //! below, and the I/O-bound phase bodies are covered end-to-end by
 //! the `cargo-evidence evidence generate` integration tests.
 
+mod envelope;
 mod phases;
 mod policy;
 
@@ -234,7 +235,14 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
 
     let bundle_path =
         phases::finalize_and_sign(builder, trace_outputs, sign_key, quiet, json_output)?;
-    phases::emit_success_envelope(json_output, quiet, &bundle_path, profile, &env_fp)?;
+    phases::emit_success_envelope(
+        json_output,
+        quiet,
+        &bundle_path,
+        profile,
+        &env_fp,
+        recorded_failures,
+    )?;
 
     if recorded_failures > 0 && matches!(profile, Profile::Cert | Profile::Record) {
         tracing::warn!(

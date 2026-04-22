@@ -23,7 +23,7 @@ use evidence_core::{
     },
 };
 
-use super::{GenerateOutput, fail, split_trace_roots_flag};
+use super::{fail, split_trace_roots_flag};
 use crate::cli::output::emit_json;
 
 /// Per-crate derivations extracted from `boundary.toml`, needed by
@@ -473,23 +473,26 @@ pub(super) fn finalize_and_sign(
 // ============================================================================
 
 /// Emit the success envelope — JSON (one document, stdout) or a
-/// `bundle created at …` line — matching the failure envelope shape
-/// from [`fail`].
+/// `bundle created at …` line. `recorded_failures` drives the
+/// `success` field: `success == 0` ⇔ `bundle_complete == true`
+/// ⇔ the envelope's `success: true`. See
+/// [`super::envelope::build_success_envelope`] for the shape.
 pub(super) fn emit_success_envelope(
     json_output: bool,
     quiet: bool,
     bundle_path: &Path,
     profile: Profile,
     env_fp: &EnvFingerprint,
+    recorded_failures: usize,
 ) -> Result<()> {
     if json_output {
-        emit_json(&GenerateOutput {
-            success: true,
-            bundle_path: Some(bundle_path.display().to_string()),
-            profile: profile.to_string(),
-            git_sha: Some(env_fp.git_sha.clone()),
-            error: None,
-        })?;
+        let out = super::envelope::build_success_envelope(
+            bundle_path,
+            profile,
+            env_fp,
+            recorded_failures,
+        );
+        emit_json(&out)?;
     } else if !quiet {
         println!("evidence: bundle created at {:?}", bundle_path);
     }
