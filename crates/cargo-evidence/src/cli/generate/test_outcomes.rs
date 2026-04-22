@@ -27,8 +27,24 @@ pub(super) fn enrich_and_write_test_outcomes(
         if !Path::new(root).exists() {
             continue;
         }
-        if let Ok(tf) = read_all_trace_files(root) {
-            all_tests.extend(tf.tests.tests);
+        match read_all_trace_files(root) {
+            Ok(tf) => all_tests.extend(tf.tests.tests),
+            Err(e) => {
+                // Trace-validation phase ran earlier; a fresh
+                // error here implies TOCTOU (mid-run edit) or a
+                // disk-level issue. Enrichment degrades to
+                // empty `requirement_uids` rather than failing
+                // the whole generate, but the signal is worth
+                // surfacing — the pre-validation pass already
+                // would have reported a hard failure if the
+                // root was genuinely broken at start-of-run.
+                tracing::debug!(
+                    trace_root = %root,
+                    error = %e,
+                    "test-outcome enrichment: could not re-read trace root; \
+                     requirement_uids will be empty for matching tests"
+                );
+            }
         }
     }
     builder.enrich_test_outcomes_with_llrs(&all_tests);
