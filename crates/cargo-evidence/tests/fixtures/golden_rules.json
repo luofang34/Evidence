@@ -245,6 +245,13 @@
     "terminal": false
   },
   {
+    "code": "DOCTOR_TRACE_EMPTY",
+    "severity": "error",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "DOCTOR_TRACE_INVALID",
     "severity": "error",
     "domain": "doctor",

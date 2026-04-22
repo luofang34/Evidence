@@ -402,3 +402,90 @@ fn current_workspace_passes_doctor() {
         codes
     );
 }
+
+/// **DAL-A empty-trace silent-pass gate.** `check_trace` used to
+/// load only `<workspace>/tool/trace`, and
+/// `validate_trace_links_with_policy` on an empty-everything tree
+/// is trivially valid (no HLR to iterate → DAL-A's
+/// `require_hlr_sys_trace` has nothing to fail on). Result:
+/// `[✓] trace validity` + `DOCTOR_OK` on a DAL-A project with zero
+/// trace data. The explicit DAL ≥ C empty-trace gate fires
+/// `DOCTOR_TRACE_EMPTY` instead, so a cert-grade target without
+/// trace data cannot silently-pass.
+#[test]
+fn dal_a_empty_trace_fires_doctor_trace_empty() {
+    let tmp = TempDir::new().expect("tempdir");
+    let root = tmp.path();
+
+    // Populate `tool/trace/` with valid TOML but zero requirements.
+    // This is the scenario commit 4 specifically catches — a
+    // readable but empty trace tree, distinct from
+    // `DOCTOR_TRACE_INVALID` which fires on unreadable / missing
+    // roots.
+    fs::create_dir_all(root.join("tool").join("trace")).unwrap();
+    for (name, content) in [
+        (
+            "hlr.toml",
+            "requirements = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
+             [meta]\ndocument_id = \"DS-HLR\"\nrevision = \"1.0\"\n",
+        ),
+        (
+            "sys.toml",
+            "requirements = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
+             [meta]\ndocument_id = \"DS-SYS\"\nrevision = \"1.0\"\n",
+        ),
+        (
+            "llr.toml",
+            "requirements = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
+             [meta]\ndocument_id = \"DS-LLR\"\nrevision = \"1.0\"\n",
+        ),
+        (
+            "tests.toml",
+            "tests = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
+             [meta]\ndocument_id = \"DS-TESTS\"\nrevision = \"1.0\"\n",
+        ),
+    ] {
+        fs::write(root.join("tool").join("trace").join(name), content).unwrap();
+    }
+
+    // DAL-A boundary.
+    fs::create_dir_all(root.join("cert")).unwrap();
+    fs::write(
+        root.join("cert").join("boundary.toml"),
+        "[schema]\nversion = \"0.0.1\"\n\n[scope]\nin_scope = [\"downstream\"]\n\
+         trace_roots = [\"tool/trace\"]\n\n[policy]\nno_out_of_scope_deps = false\n\
+         forbid_build_rs = false\nforbid_proc_macros = false\n\n\
+         [dal]\ndefault_dal = \"A\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("cert").join("floors.toml"),
+        "schema_version = 1\n\n[floors]\n\n[per_crate.downstream]\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join(".github").join("workflows")).unwrap();
+    fs::write(
+        root.join(".github").join("workflows").join("ci.yml"),
+        "name: CI\non: push\njobs:\n  check:\n    runs-on: ubuntu-latest\n    \
+         steps:\n      - run: cargo evidence check\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("README.md"),
+        "# Downstream\n\n`Override-Deterministic-Baseline: <reason>` in PR body for overrides.\n",
+    )
+    .unwrap();
+
+    let (exit, diags) = run_doctor(root);
+    let codes: Vec<&str> = diags.iter().map(|d| d["code"].as_str().unwrap()).collect();
+    assert!(
+        codes.contains(&"DOCTOR_TRACE_EMPTY"),
+        "DAL-A + empty trace must fire DOCTOR_TRACE_EMPTY; codes={:?}",
+        codes
+    );
+    assert_ne!(
+        exit, 0,
+        "DAL-A + empty trace must fail doctor; diags={:?}",
+        diags
+    );
+}

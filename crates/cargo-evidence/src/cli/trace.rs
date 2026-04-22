@@ -340,7 +340,24 @@ pub fn default_trace_roots(workspace_root: &Path) -> Vec<String> {
         "trace: no on-disk trace root convention found; falling back to {}",
         boundary_path.display()
     );
-    load_trace_roots(&boundary_path)
+    // The auto-discovered convention paths (tool/trace,
+    // cert/trace) rebase against `workspace_root`; rebase
+    // explicitly-configured `scope.trace_roots` entries the
+    // same way so `check --mode=source /downstream` with
+    // `trace_roots = ["custom/trace"]` in
+    // /downstream/cert/boundary.toml resolves against the
+    // argument, not the caller's CWD.
+    let raw = load_trace_roots(&boundary_path);
+    raw.into_iter()
+        .map(|s| {
+            let p = Path::new(&s);
+            if p.is_absolute() || is_cwd {
+                s
+            } else {
+                workspace_root.join(p).to_string_lossy().into_owned()
+            }
+        })
+        .collect()
 }
 
 /// Stream one JSONL `Diagnostic` per `LinkError` variant inside the
