@@ -88,6 +88,39 @@ fn default_stdout_contains_check_tag() {
     );
 }
 
+/// `--quiet` (or `-q`) suppresses the stderr phase-progress
+/// markers (`check: running cargo test…` / `check: validating
+/// trace…` / `check: aggregating results…`). The stdout human
+/// output is untouched — `--quiet` is about noise, not results.
+///
+/// Runs against the empty-tempdir failure path (same as the other
+/// tests here) to keep the test fast. The CLI_INVALID_ARGUMENT
+/// path doesn't reach `cmd_check_source` where the phase markers
+/// live, but `--quiet` must still not leak ANY of the phase-marker
+/// strings on stderr regardless of the path.
+#[test]
+fn quiet_flag_suppresses_phase_progress_markers() {
+    let tmp = TempDir::new().expect("tempdir");
+    let out = cargo_evidence()
+        .args(["evidence", "--quiet", "check"])
+        .arg(tmp.path())
+        .output()
+        .expect("spawn");
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(
+        !stderr.contains("check: running"),
+        "--quiet failed to suppress phase marker; stderr={stderr:?}",
+    );
+    assert!(
+        !stderr.contains("check: validating"),
+        "--quiet failed to suppress phase marker; stderr={stderr:?}",
+    );
+    assert!(
+        !stderr.contains("check: aggregating"),
+        "--quiet failed to suppress phase marker; stderr={stderr:?}",
+    );
+}
+
 /// `--format=jsonl` still emits valid JSONL. Every non-empty stdout
 /// line parses as a JSON object — the agent-facing contract stays
 /// intact even after the human renderer landed.

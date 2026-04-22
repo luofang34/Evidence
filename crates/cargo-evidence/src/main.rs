@@ -148,7 +148,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
         }
         Some(Commands::Check { mode, path }) => {
             let format = OutputFormat::resolve(args.format, args.json);
-            cmd_check(mode, path, format)
+            cmd_check(mode, path, format, args.quiet)
         }
         Some(Commands::Doctor { json }) => {
             // Global `--format=jsonl` (or `--json`) flips to JSONL

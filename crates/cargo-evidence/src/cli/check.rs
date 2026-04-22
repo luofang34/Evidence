@@ -45,11 +45,25 @@ use super::verify::cmd_verify;
 ///   terminal diagnostic last. What agents see. Both non-human
 ///   formats collapse to the same JSONL stream — `check` never had
 ///   a single-blob JSON shape and adding one is out of scope here.
-pub fn cmd_check(mode: CheckMode, path: Option<PathBuf>, format: OutputFormat) -> Result<i32> {
+///
+/// `quiet` suppresses the stderr phase-progress markers (`check:
+/// running cargo test…` / `check: validating trace…` / `check:
+/// aggregating results…`) on the human path. It does not change
+/// the stdout output — the per-requirement lines and the final
+/// summary are still rendered. Agents pass `--quiet` when running
+/// `check` as a subprocess; humans running interactively leave it
+/// off to get the "still working" signal during the slow
+/// cargo-test phase.
+pub fn cmd_check(
+    mode: CheckMode,
+    path: Option<PathBuf>,
+    format: OutputFormat,
+    quiet: bool,
+) -> Result<i32> {
     let path = path.unwrap_or_else(|| PathBuf::from("."));
     let resolved = resolve_mode(mode, &path);
     match resolved {
-        ResolvedMode::Source => cmd_check_source(&path, format),
+        ResolvedMode::Source => cmd_check_source(&path, format, quiet),
         ResolvedMode::Bundle => cmd_check_bundle(path, format),
         ResolvedMode::Invalid(reason) => emit_invalid_argument(&path, &reason, format),
     }
@@ -148,16 +162,20 @@ fn cmd_check_bundle(path: PathBuf, format: OutputFormat) -> Result<i32> {
     cmd_verify(path, false, None, format)
 }
 
-fn cmd_check_source(workspace_root: &Path, format: OutputFormat) -> Result<i32> {
+fn cmd_check_source(workspace_root: &Path, format: OutputFormat, quiet: bool) -> Result<i32> {
     let machine = is_machine_format(format);
+    // Emit phase-progress markers only on the human path AND only
+    // when the user hasn't asked for silence. Agents (JSONL) get
+    // stderr-silent per Schema Rule 2; humans passing `--quiet`
+    // explicitly asked for the same treatment (e.g. scripts
+    // wrapping `check` that already drive their own progress bar).
+    let show_progress = !machine && !quiet;
 
     // Phase 1: run `cargo test --workspace --no-fail-fast`, capture
     // stdout. We explicitly don't --format=json (that's nightly-only
     // and would force a toolchain bump). This is the slow phase —
-    // on a ~30-crate workspace it can take minutes. Emit a stderr
-    // progress marker on the human path so the user sees "still
-    // working"; jsonl stays stderr-silent per Schema Rule 2.
-    if !machine {
+    // on a ~30-crate workspace it can take minutes.
+    if show_progress {
         eprintln!("check: running `cargo test --workspace`…");
     }
     let test_stdout = run_cargo_test(workspace_root)?;
@@ -174,7 +192,7 @@ fn cmd_check_source(workspace_root: &Path, format: OutputFormat) -> Result<i32> 
 
     // Phase 3: load trace. Discovery picks tool/trace → cert/trace per
     // LLR-023; fall back to cert/boundary.toml otherwise.
-    if !machine {
+    if show_progress {
         eprintln!("check: validating trace…");
     }
     let trace_root = super::trace::default_trace_roots()
@@ -199,7 +217,7 @@ fn cmd_check_source(workspace_root: &Path, format: OutputFormat) -> Result<i32> 
     policy.require_hlr_surface_bijection = true;
 
     // Phase 5: build + emit per-requirement diagnostics.
-    if !machine {
+    if show_progress {
         eprintln!("check: aggregating results…");
     }
     let diagnostics = build_requirement_report(&trace, &outcomes, workspace_root, &policy);
