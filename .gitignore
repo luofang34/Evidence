@@ -32,4 +32,4 @@ Thumbs.db
 # Nix build output symlinks produced by `nix build`. Safe to ignore —
 # they are GC roots into /nix/store, not artifacts worth tracking.
 /result
-/result-*
+/result-**.actual
