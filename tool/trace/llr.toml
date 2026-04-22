@@ -1291,3 +1291,54 @@ emits = [
     "TESTS_OK",
     "TESTS_OUTCOME_PARSE_FAILED",
 ]
+
+[[requirements]]
+uid = "4bd86c6c-1743-4a78-9d17-c284b3ad8e04"
+id = "LLR-052"
+title = "resolve_llr_backlinks enriches TestOutcomeRecord + check_llr_test_selectors asserts reverse"
+owner = "tool"
+traces_to = ["e4f127fb-38c5-4f77-971f-143f774716f8"]
+modules = [
+    "evidence_core::trace::test_backlinks::resolve_llr_backlinks",
+    "evidence_core::bundle::outcome_record::TestOutcomeRecord",
+    "evidence_core::verify::llr_selectors::check_llr_test_selectors",
+    "cargo_evidence::cli::generate::test_outcomes::enrich_and_write_test_outcomes",
+]
+derived = false
+description = """
+`evidence_core::trace::test_backlinks::resolve_llr_backlinks`
+mutates a slice of `TestOutcomeRecord` in place, filling each
+record's `requirement_uids` with the deduplicated union of
+`TestEntry.traces_to` across every TestEntry whose
+`all_selectors()` matches `{module_path}::{name}` (exact or
+`::`-boundary prefix, sibling-module-no-match pinned by test).
+
+`cargo_evidence::cli::generate::test_outcomes::enrich_and_write_test_outcomes`
+accumulates `TestEntry` across every configured trace root,
+calls `EvidenceBuilder::enrich_test_outcomes_with_llrs`, then
+writes `tests/test_outcomes.jsonl` with the populated records.
+Runs in Phase 6b after trace validation.
+
+`evidence_core::verify::llr_selectors::check_llr_test_selectors`
+reads `bundle/trace/llr.toml` + `tests/test_outcomes.jsonl`
+inside `verify_bundle_with_key`, accumulates the set of
+`requirement_uids` across all records, then for every LLR with
+`verification_methods.contains("test")` AND a non-None `uid`,
+asserts the uid is present in the set. Missing → push
+`VerifyError::LlrTestSelectorUnresolved { llr_uid, llr_id }`.
+Skip silently when the JSONL file is absent (older bundles).
+Empty-string uids are treated the same as `None` for
+defense-in-depth against corrupt trace data.
+
+`cargo_evidence::cli::verify::skipped_notices::maybe_emit_llr_check_skipped_no_outcomes`
+emits `VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES` (Info) on the
+`VerifyResult::Pass` path when `tests/test_outcomes.jsonl` is
+absent — the library-side check silently returned; this notice
+surfaces that skip so an auditor can distinguish "check ran and
+passed" from "check didn't run."
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
+    "VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
+]

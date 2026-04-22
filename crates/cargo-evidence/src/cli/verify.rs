@@ -14,7 +14,9 @@ use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFor
 use super::output::{emit_json, emit_jsonl};
 
 mod incomplete_bundle;
+mod skipped_notices;
 use incomplete_bundle::maybe_emit_bundle_incomplete_warning;
+use skipped_notices::maybe_emit_llr_check_skipped_no_outcomes;
 
 #[derive(Serialize)]
 struct VerifyOutput {
@@ -227,43 +229,28 @@ pub fn cmd_verify(
                 .join("; ");
             // Map each VerifyError to its own VerifyCheck for granular JSON output
             for err in &errors {
+                use evidence_core::VerifyError as VE;
+                #[rustfmt::skip]
                 let name = match err {
-                    evidence_core::VerifyError::UnexpectedFile(_) => "unexpected_file",
-                    evidence_core::VerifyError::HmacFailure => "hmac_signature",
-                    evidence_core::VerifyError::HashMismatch { .. } => "hash_mismatch",
-                    evidence_core::VerifyError::MissingHashedFile(_) => "missing_file",
-                    evidence_core::VerifyError::ContentHashMismatch { .. } => "content_hash",
-                    evidence_core::VerifyError::UnsafePath(_) => "unsafe_path",
-                    evidence_core::VerifyError::FormatError { .. } => "format_error",
-                    evidence_core::VerifyError::CrossFileInconsistency { .. } => {
-                        "cross_file_mismatch"
-                    }
-                    evidence_core::VerifyError::DeterministicHashMismatch { .. } => {
-                        "deterministic_hash"
-                    }
-                    evidence_core::VerifyError::ManifestProjectionDrift { .. } => {
-                        "manifest_projection"
-                    }
-                    evidence_core::VerifyError::TraceOutputNotHashed(_) => {
-                        "trace_output_not_hashed"
-                    }
-                    evidence_core::VerifyError::TestSummaryMismatch { .. } => {
-                        "test_summary_mismatch"
-                    }
-                    evidence_core::VerifyError::DalMapMismatch { .. } => "dal_map_mismatch",
-                    evidence_core::VerifyError::DalMapOrphan { .. } => "dal_map_orphan",
-                    evidence_core::VerifyError::PrereleaseToolDetected { .. } => {
-                        "prerelease_tool_detected"
-                    }
-                    evidence_core::VerifyError::BundleIncompletelyClaimed { .. } => {
-                        "bundle_incompletely_claimed"
-                    }
-                    evidence_core::VerifyError::ToolCommandsFailedSilently { .. } => {
-                        "tool_commands_failed_silently"
-                    }
-                    evidence_core::VerifyError::TestSummaryAbsentOnFailedRun { .. } => {
-                        "test_summary_absent_on_failed_run"
-                    }
+                    VE::UnexpectedFile(_)               => "unexpected_file",
+                    VE::HmacFailure                     => "hmac_signature",
+                    VE::HashMismatch { .. }             => "hash_mismatch",
+                    VE::MissingHashedFile(_)            => "missing_file",
+                    VE::ContentHashMismatch { .. }      => "content_hash",
+                    VE::UnsafePath(_)                   => "unsafe_path",
+                    VE::FormatError { .. }              => "format_error",
+                    VE::CrossFileInconsistency { .. }   => "cross_file_mismatch",
+                    VE::DeterministicHashMismatch { .. } => "deterministic_hash",
+                    VE::ManifestProjectionDrift { .. }  => "manifest_projection",
+                    VE::TraceOutputNotHashed(_)         => "trace_output_not_hashed",
+                    VE::TestSummaryMismatch { .. }      => "test_summary_mismatch",
+                    VE::DalMapMismatch { .. }           => "dal_map_mismatch",
+                    VE::DalMapOrphan { .. }             => "dal_map_orphan",
+                    VE::PrereleaseToolDetected { .. }   => "prerelease_tool_detected",
+                    VE::BundleIncompletelyClaimed { .. } => "bundle_incompletely_claimed",
+                    VE::ToolCommandsFailedSilently { .. } => "tool_commands_failed_silently",
+                    VE::TestSummaryAbsentOnFailedRun { .. } => "test_summary_absent_on_failed_run",
+                    VE::LlrTestSelectorUnresolved { .. } => "llr_test_selector_unresolved",
                 };
                 checks.push(VerifyCheck {
                     name: name.to_string(),
@@ -391,6 +378,7 @@ fn cmd_verify_jsonl(
             // blocking verification (dev snapshots of broken
             // builds are a legitimate debugging artifact).
             maybe_emit_bundle_incomplete_warning(&bundle_path)?;
+            maybe_emit_llr_check_skipped_no_outcomes(&bundle_path)?;
             emit_jsonl(&terminal_ok(&format!(
                 "bundle verified at {:?}",
                 bundle_path

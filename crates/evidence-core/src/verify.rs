@@ -21,6 +21,7 @@ mod consistency;
 mod cross_file;
 mod engine_source;
 mod errors;
+mod llr_selectors;
 mod paths;
 
 pub use bundle::{VerifyRuntimeError, verify_bundle, verify_bundle_with_key};

@@ -156,6 +156,10 @@ pub fn verify_bundle_with_key(
     // 3a. Cross-check bundle_complete ↔ tool_command_failures ↔ test_summary.
     super::completeness::check_bundle_completeness(&index, &mut verify_errors);
 
+    // 3a'. Reverse traceability: every test-verified LLR must
+    // have at least one test record claiming its uid.
+    super::llr_selectors::check_llr_test_selectors(bundle, &mut verify_errors);
+
     // 3b. Validate index.json field formats (semantic checks beyond serde)
     validate_index_fields(&index, &mut verify_errors);
 

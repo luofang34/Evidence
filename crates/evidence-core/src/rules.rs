@@ -88,6 +88,7 @@ pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "INIT_TEMPLATE_WRITTEN",
     "TRACE_SELECTOR_UNRESOLVED",
     "VERIFY_BUNDLE_INCOMPLETE",
+    "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
 ];
 
 /// Codes in `RULES` intentionally NOT claimed by any LLR's `emits`
@@ -321,6 +322,16 @@ pub const RULES: &[RuleEntry] = &[
     r("VERIFY_HMAC_FAILURE", Severity::Error, Domain::Verify),
     r("VERIFY_INVALID_FORMAT", Severity::Error, Domain::Verify),
     r(
+        "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
+        Severity::Info,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
         "VERIFY_MANIFEST_PROJECTION_DRIFT",
         Severity::Error,
         Domain::Verify,
@@ -435,45 +446,7 @@ const fn terminal(code: &'static str, severity: Severity) -> RuleEntry {
     }
 }
 
-impl Domain {
-    /// `const fn` twin of [`Domain::from_code`] used inside the
-    /// `terminal(…)` constructor.
-    const fn from_code_const(code: &str) -> Option<Self> {
-        // Prefix is the segment before the first underscore.
-        let bytes = code.as_bytes();
-        let mut i = 0;
-        while i < bytes.len() && bytes[i] != b'_' {
-            i += 1;
-        }
-        let prefix = match std::str::from_utf8(bytes.split_at(i).0) {
-            Ok(s) => s,
-            Err(_) => return None,
-        };
-        // `str::eq` isn't const, so compare byte-wise.
-        match prefix.as_bytes() {
-            b"BOUNDARY" => Some(Self::Boundary),
-            b"BUNDLE" => Some(Self::Bundle),
-            b"CHECK" => Some(Self::Check),
-            b"CLI" => Some(Self::Cli),
-            b"CMD" => Some(Self::Cmd),
-            b"DOCTOR" => Some(Self::Doctor),
-            b"ENV" => Some(Self::Env),
-            b"FLOORS" => Some(Self::Floors),
-            b"GENERATE" => Some(Self::Generate),
-            b"GIT" => Some(Self::Git),
-            b"INIT" => Some(Self::Init),
-            b"HASH" => Some(Self::Hash),
-            b"POLICY" => Some(Self::Policy),
-            b"REQ" => Some(Self::Req),
-            b"SCHEMA" => Some(Self::Schema),
-            b"SIGN" => Some(Self::Sign),
-            b"TESTS" => Some(Self::Tests),
-            b"TRACE" => Some(Self::Trace),
-            b"VERIFY" => Some(Self::Verify),
-            _ => None,
-        }
-    }
-}
+mod domain_map;
 
 /// Serialize [`RULES`] as a JSON array for `cargo evidence rules
 /// --json`. Deterministic (alphabetical by `code`).

@@ -1030,3 +1030,32 @@ stays a schema-reserved follow-up.
 verification_methods = ["test"]
 traces_to = ["8069de78-71cc-4acb-a1f8-9e3519ccf1ce"]
 surfaces = ["per-test outcome capture"]
+
+[[requirements]]
+uid = "e4f127fb-38c5-4f77-971f-143f774716f8"
+id = "HLR-052"
+title = "Bundle records per-test requirement_uids; verify asserts every LLR is test-verified"
+owner = "tool"
+scope = "component"
+description = """
+`TestOutcomeRecord.requirement_uids: Vec<String>` lists the LLR
+UIDs each test satisfies, computed at generate time by joining
+each test's `{module_path}::{name}` against every
+`TestEntry.test_selectors` and collecting the matched
+`TestEntry.traces_to`. The field is `#[serde(default,
+skip_serializing_if = "Vec::is_empty")]` so older bundles
+deserialize transparently and records with no back-links
+serialize absent.
+
+`verify` cross-checks the reverse direction: for each LLR in
+`bundle/trace/llr.toml` whose `verification_methods` includes
+`"test"` and whose `uid` is present, `tests/test_outcomes.jsonl`
+must contain at least one record whose `requirement_uids`
+contains that `uid`. A missing match emits
+`VERIFY_LLR_TEST_SELECTOR_UNRESOLVED` (Error) naming the LLR's
+id + uid. Bundles that predate `tests/test_outcomes.jsonl` or
+have no LLRs with `uid` are skipped (absent ≠ known-empty).
+"""
+verification_methods = ["test"]
+traces_to = ["5478751b-b547-49b7-b2fc-ae3963668a81"]
+surfaces = ["per-test ↔ LLR back-link"]

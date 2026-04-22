@@ -51,6 +51,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     "diagnostic code namespace (regex + reserved suffixes)",
     "jsonl stream per Schema Rule 2",
     "per-test outcome capture",
+    "per-test ↔ LLR back-link",
     "pre-release safety gate",
     "root_cause_uid grouping per Schema Rule 7",
     "structured Link-phase diagnostic codes",

@@ -425,3 +425,32 @@ it pass this run?).
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "5478751b-b547-49b7-b2fc-ae3963668a81"
+id = "SYS-020"
+title = "Bundle shall carry bidirectional requirement ↔ test traceability at atom level"
+owner = "soi"
+scope = "soi"
+description = """
+DO-178C Annex A Table A-6 Obj-3 ("Test cases selected based on
+normal range of operation" / Obj-4 "Test cases selected based
+on robustness") requires demonstrating that each test case is
+linked to a specific requirement AND that each requirement has
+at least one verifying test case. Forward linkage (test →
+requirement) alone is insufficient: a dangling LLR with
+`test_selectors = ["foo::bar"]` but no `#[test] fn foo::bar`
+silently passes a test-selector syntactic check at trace-
+validate time, then produces zero test-outcome records that
+claim this LLR — invisible to auditors reading
+`tests/test_outcomes.jsonl`.
+
+The tool shall emit per-test outcome records tagged with the
+LLR UIDs each test verifies (`requirement_uids: Vec<String>`
+on `TestOutcomeRecord`), AND verify shall reject a bundle
+whose recorded LLRs have `verification_methods` including
+`"test"` but whose `uid` appears in no record's
+`requirement_uids`. The two halves close the loop.
+"""
+verification_methods = ["test"]
+traces_to = []
