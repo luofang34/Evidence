@@ -13,7 +13,6 @@
 )]
 
 use std::path::Path;
-use std::process::Command;
 
 use assert_cmd::Command as AssertCommand;
 use tempfile::TempDir;
@@ -25,41 +24,12 @@ fn cargo_evidence(cwd: &Path) -> AssertCommand {
     cmd
 }
 
-fn seed_git_repo(dir: &Path) {
-    // The init / validate flow doesn't strictly require git, but
-    // downstream readers of trace_roots expect a usable working
-    // directory. Initialize an empty repo with one commit so
-    // anything that queries git state gets consistent answers.
-    Command::new("git")
-        .current_dir(dir)
-        .arg("init")
-        .arg("-q")
-        .output()
-        .expect("git init");
-    Command::new("git")
-        .current_dir(dir)
-        .args(["config", "user.email", "test@example.com"])
-        .output()
-        .expect("git config email");
-    Command::new("git")
-        .current_dir(dir)
-        .args(["config", "user.name", "tester"])
-        .output()
-        .expect("git config name");
-    Command::new("git")
-        .current_dir(dir)
-        .args(["commit", "--allow-empty", "-q", "-m", "seed"])
-        .output()
-        .expect("git commit");
-}
-
 /// Fresh `cargo evidence init` produces templates that `trace
 /// --validate` rejects until `trace --backfill-uuids` runs. After
 /// backfill, validate returns clean (VERIFY_OK terminal, exit 0).
 #[test]
 fn init_then_backfill_then_validate_is_clean() {
     let tmp = TempDir::new().expect("tempdir");
-    seed_git_repo(tmp.path());
 
     cargo_evidence(tmp.path())
         .args(["evidence", "init"])
@@ -114,7 +84,6 @@ fn init_then_backfill_then_validate_is_clean() {
 #[test]
 fn second_backfill_is_noop() {
     let tmp = TempDir::new().expect("tempdir");
-    seed_git_repo(tmp.path());
 
     cargo_evidence(tmp.path())
         .args(["evidence", "init"])
