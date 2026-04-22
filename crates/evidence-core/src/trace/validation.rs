@@ -185,10 +185,13 @@ pub fn validate_trace_links_with_policy(
         register(&d.uid, &d.owner, &d.id, "DERIVED");
     }
 
+    // No library-layer `tracing::error!` on the fail path: CLI owns
+    // presentation. `cli::trace::cmd_trace` already emits human-mode
+    // stderr messages and JSONL diagnostics for every Register and
+    // Link error; a library log here is redundant and leaks `ERROR
+    // VALIDATION ERROR:` through tracing_subscriber's default WARN
+    // filter even under JSONL's stderr-silent contract.
     if !register_errors.is_empty() {
-        for e in &register_errors {
-            tracing::error!("  VALIDATION ERROR: {}", e);
-        }
         return Err(TraceValidationError::Register {
             errors: register_errors,
         });
@@ -425,10 +428,9 @@ pub fn validate_trace_links_with_policy(
         );
     }
 
+    // Same rationale as the Register-phase branch above: CLI owns
+    // presentation of typed LinkError variants.
     if !errors.is_empty() {
-        for e in &errors {
-            tracing::error!("  LINK ERROR: {}", e);
-        }
         return Err(TraceValidationError::Link { errors });
     }
 
