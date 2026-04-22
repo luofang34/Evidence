@@ -65,7 +65,12 @@ fn workspace_root() -> PathBuf {
 }
 
 /// Files where `tracing::error!` is allowed in `evidence-core/src`.
-/// Suffix-match against the workspace-relative path.
+/// **Strict equality** against the workspace-relative path (with
+/// separator normalized to `/`). Suffix matching would silently
+/// admit an entry like `some_other_project/crates/evidence-core/
+/// src/bundle/builder.rs` if the workspace root ever pointed
+/// somewhere unexpected — the exact class of expansion this gate
+/// is meant to prevent.
 ///
 /// Today: the cargo-test subprocess wrapper in `bundle/builder.rs`
 /// dumps the spawned process's stderr + non-zero exit code when a
@@ -87,9 +92,7 @@ const NEEDLE: &str = "tracing::error!(";
 
 fn is_allowed(rel: &str) -> bool {
     let normalized = rel.replace('\\', "/");
-    ALLOWED_FILES
-        .iter()
-        .any(|p| normalized == *p || normalized.ends_with(p))
+    ALLOWED_FILES.iter().any(|p| normalized == *p)
 }
 
 /// True iff the needle at `needle_idx` is inside a `//` line comment
@@ -179,6 +182,76 @@ fn fires_on_unallowlisted_call() {
     assert!(
         !hits.is_empty(),
         "positive dogfood: planted `tracing::error!(` call wasn't detected",
+    );
+}
+
+/// Pin the allowlist's strict-equality behavior: a path that
+/// happens to *end with* an allowlisted suffix (but has a
+/// different prefix) must still fire. Otherwise a vendored or
+/// mirrored copy of `evidence-core` under another workspace root
+/// would silently inherit the exemption.
+#[test]
+fn allowlist_is_strict_equality_not_suffix() {
+    let tmp = tempfile::TempDir::new().expect("tempdir");
+    // Craft a path like `vendored/crates/evidence-core/src/bundle/builder.rs`
+    // — suffix-matches the allowed entry but shouldn't be exempt.
+    let nested = tmp
+        .path()
+        .join("vendored")
+        .join("crates")
+        .join("evidence-core")
+        .join("src")
+        .join("bundle");
+    std::fs::create_dir_all(&nested).expect("mkdir -p");
+    std::fs::write(
+        nested.join("builder.rs"),
+        "pub fn f() { tracing::error!(\"nope\"); }\n",
+    )
+    .expect("write fixture");
+
+    // Need a matching crates/evidence-core/src layout under the
+    // tmp workspace root for the scanner's walk to pick the
+    // planted file up at all.
+    let src = tmp.path().join("crates").join("evidence-core").join("src");
+    std::fs::create_dir_all(&src).expect("mkdir src");
+    // Symlink the nested bundle/ into the scanner's expected
+    // `crates/evidence-core/src/bundle/` location — on Unix the
+    // scanner follows? No, `walkdir` via our shared helper pins
+    // `follow_links(false)`. Instead, physically copy the file
+    // into the scanner's walk path so it's visited but with the
+    // prefixed `rel` path.
+    let scanned_bundle = src.join("bundle");
+    std::fs::create_dir_all(&scanned_bundle).expect("mkdir scanned bundle");
+    std::fs::write(
+        scanned_bundle.join("builder.rs"),
+        "pub fn f() { tracing::error!(\"nope\"); }\n",
+    )
+    .expect("write scanned builder");
+
+    let hits = scan_for_hits(tmp.path());
+    // The scanned path is `crates/evidence-core/src/bundle/builder.rs`
+    // relative to tmp.path() — strict-equal to the allowlist entry,
+    // so it IS allowed. Assert that here as the positive control.
+    let scanned_rel = "crates/evidence-core/src/bundle/builder.rs";
+    assert!(
+        !hits.iter().any(|(f, _, _)| f == scanned_rel),
+        "strict-equal allowlist match must exempt the canonical path; \
+         unexpected hits: {hits:?}"
+    );
+
+    // Now assert the suffix-case. `walkdir` won't visit
+    // `vendored/…` unless it's under the scanned `crates/evidence-core/src/`
+    // root, which it isn't — so this test doesn't need a second
+    // scan_for_hits call. The strict-equality rule is exercised
+    // by the positive case above; what we want to pin is that
+    // the `is_allowed` helper itself rejects the suffix case.
+    assert!(
+        !is_allowed("vendored/crates/evidence-core/src/bundle/builder.rs"),
+        "is_allowed must reject a suffix-match (strict equality only)",
+    );
+    assert!(
+        is_allowed("crates/evidence-core/src/bundle/builder.rs"),
+        "is_allowed must accept the canonical path as strict-equal",
     );
 }
 

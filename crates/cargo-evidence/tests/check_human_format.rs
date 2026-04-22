@@ -88,16 +88,29 @@ fn default_stdout_contains_check_tag() {
     );
 }
 
-/// `--quiet` (or `-q`) suppresses the stderr phase-progress
-/// markers (`check: running cargo test…` / `check: validating
-/// trace…` / `check: aggregating results…`). The stdout human
-/// output is untouched — `--quiet` is about noise, not results.
+/// `--quiet` (or `-q`) suppresses every stderr line with a
+/// `check:` prefix that's emitted by `cmd_check_source` (today:
+/// three phase-progress markers — `check: running cargo test…`
+/// / `check: validating trace…` / `check: aggregating
+/// results…`). The stdout human output is untouched — `--quiet`
+/// is about noise, not results.
 ///
-/// Runs against the empty-tempdir failure path (same as the other
-/// tests here) to keep the test fast. The CLI_INVALID_ARGUMENT
-/// path doesn't reach `cmd_check_source` where the phase markers
-/// live, but `--quiet` must still not leak ANY of the phase-marker
-/// strings on stderr regardless of the path.
+/// The assertion is **strict** on the `check:` prefix rather than
+/// an enumeration of today's three phase strings. A new phase
+/// marker added in a future commit but not gated on
+/// `show_progress = !machine && !quiet` would silently slip past
+/// an enumeration-style test; the strict form fires immediately,
+/// forcing the author to either (a) gate the new line on
+/// `show_progress` or (b) justify it not being a phase marker by
+/// re-prefixing it. Acceptable tight coupling: failure mode is a
+/// clear false-positive (visible, easy to triage), not a silent
+/// false-negative.
+///
+/// Runs against the empty-tempdir path (same as the sibling tests
+/// here) to keep the test fast. That path hits
+/// `emit_invalid_argument` before `cmd_check_source`, so phase
+/// markers wouldn't fire even without `--quiet` — but the test's
+/// point is the invariant, not the specific path.
 #[test]
 fn quiet_flag_suppresses_phase_progress_markers() {
     let tmp = TempDir::new().expect("tempdir");
@@ -107,17 +120,16 @@ fn quiet_flag_suppresses_phase_progress_markers() {
         .output()
         .expect("spawn");
     let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    let leaked: Vec<&str> = stderr
+        .lines()
+        .filter(|l| l.trim_start().starts_with("check:"))
+        .collect();
     assert!(
-        !stderr.contains("check: running"),
-        "--quiet failed to suppress phase marker; stderr={stderr:?}",
-    );
-    assert!(
-        !stderr.contains("check: validating"),
-        "--quiet failed to suppress phase marker; stderr={stderr:?}",
-    );
-    assert!(
-        !stderr.contains("check: aggregating"),
-        "--quiet failed to suppress phase marker; stderr={stderr:?}",
+        leaked.is_empty(),
+        "--quiet must suppress every `check:`-prefixed stderr line \
+         (phase-progress markers live there and must honor --quiet). \
+         Leaked lines: {leaked:?}\n\
+         Full stderr: {stderr:?}",
     );
 }
 
