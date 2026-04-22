@@ -415,3 +415,70 @@ fn test_failure_keeps_normal_req_gap_path_not_runtime_failure() {
             .unwrap_or_else(|e| panic!("non-JSON line in --format=jsonl stream: {line:?}: {e}"));
     }
 }
+
+/// **Boundary-trace-roots rebase regression (PR #75 finding 1).**
+/// PR #72 fixed the CONVENTION paths (`tool/trace`, `cert/trace`)
+/// to rebase against `<PATH>` instead of CWD, but the boundary-
+/// fallback path in `default_trace_roots` still returned entries
+/// verbatim. A downstream project with `trace_roots = ["custom/trace"]`
+/// in its `cert/boundary.toml` would silently resolve against the
+/// caller's CWD and emit VERIFY_OK with 0 requirements.
+///
+/// Setup: downstream tempdir has NO `tool/trace/` (so the
+/// convention auto-discovery misses), has `cert/boundary.toml`
+/// configuring `trace_roots = ["custom/trace"]`, and has the real
+/// trace files under `custom/trace/`. Invoke from a caller CWD
+/// with a DIFFERENT trace tree (the Evidence repo). The JSONL
+/// stream must mention the downstream's IDs.
+#[test]
+fn check_source_rebases_boundary_trace_roots() {
+    let downstream = TempDir::new().expect("tempdir");
+    seed_minimal_cargo_workspace(downstream.path());
+    // Note: NO tool/trace here — forces the fallback through
+    // `load_trace_roots(cert/boundary.toml)`.
+    fs::create_dir_all(downstream.path().join("cert")).unwrap();
+    fs::write(
+        downstream.path().join("cert/boundary.toml"),
+        r#"[scope]
+in_scope = ["downstream-fixture"]
+trace_roots = ["custom/trace"]
+"#,
+    )
+    .unwrap();
+    seed_minimal_trace(&downstream.path().join("custom/trace"));
+
+    let caller_cwd = std::env::var("CARGO_MANIFEST_DIR")
+        .map(std::path::PathBuf::from)
+        .expect("CARGO_MANIFEST_DIR")
+        .parent()
+        .expect("crates/")
+        .parent()
+        .expect("workspace root")
+        .to_path_buf();
+
+    let out = cargo_evidence()
+        .args(["evidence", "--format=jsonl", "check", "--mode=source"])
+        .arg(downstream.path())
+        .current_dir(&caller_cwd)
+        .output()
+        .expect("spawn");
+
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+
+    // Positive: the DOWNSTREAM-* IDs must appear (the boundary-
+    // configured `custom/trace` got rebased against `<PATH>` and
+    // the real trace files were loaded).
+    assert!(
+        stdout.contains("DOWNSTREAM-HLR-1")
+            || stdout.contains("DOWNSTREAM-LLR-1")
+            || stdout.contains("DOWNSTREAM-TEST-1"),
+        "expected DOWNSTREAM-* IDs from `custom/trace` rebased against <PATH>; \
+         got stdout={stdout}",
+    );
+    // Negative: the caller's TEST-001 canary must NOT appear.
+    assert!(
+        !stdout.contains("TEST-001"),
+        "caller CWD's TEST-001 leaked into check output — boundary \
+         trace_roots were not rebased. stdout={stdout}",
+    );
+}
