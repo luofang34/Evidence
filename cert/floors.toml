@@ -81,7 +81,7 @@ known_surfaces = 18
 test_count = 238
 
 [per_crate.cargo-evidence]
-test_count = 102
+test_count = 103
 
 [per_crate.mcp-evidence]
 test_count = 8

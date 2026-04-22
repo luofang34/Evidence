@@ -191,21 +191,31 @@ fn cmd_check_source(workspace_root: &Path, format: OutputFormat, quiet: bool) ->
     };
 
     // Phase 3: load trace. Discovery picks tool/trace → cert/trace per
-    // LLR-023; fall back to cert/boundary.toml otherwise.
+    // LLR-023; fall back to cert/boundary.toml otherwise. Every path
+    // resolves against `workspace_root` — the argument to
+    // `check --mode=source <PATH>` — NOT the process CWD. An auditor
+    // invoking `check --mode=source /downstream` from a parent
+    // directory gets `/downstream/tool/trace/` discovered, not the
+    // caller's own.
     if show_progress {
         eprintln!("check: validating trace…");
     }
-    let trace_root = super::trace::default_trace_roots()
+    let trace_root = super::trace::default_trace_roots(workspace_root)
         .into_iter()
         .next()
-        .unwrap_or_else(|| "cert/trace".to_string());
+        .unwrap_or_else(|| {
+            workspace_root
+                .join("cert/trace")
+                .to_string_lossy()
+                .into_owned()
+        });
     let trace = read_all_trace_files(&trace_root)
         .with_context(|| format!("reading trace files under '{}'", trace_root))?;
 
     // Phase 4: policy. DAL-derived default + same `require_hlr_sys_trace`
     // behavior as `trace --validate` so `check` enforces the same
     // contract.
-    let boundary = BoundaryConfig::load_or_default(&PathBuf::from("cert/boundary.toml"));
+    let boundary = BoundaryConfig::load_or_default(&workspace_root.join("cert/boundary.toml"));
     let dal = boundary
         .dal_map()
         .values()
