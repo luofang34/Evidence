@@ -330,6 +330,52 @@ fn build_failure_emits_check_test_runtime_failure_not_cli_invalid_argument() {
     );
 }
 
+/// **Verify exit-code symmetry regression.** The non-JSONL
+/// `cmd_verify` path used to return `EXIT_VERIFICATION_FAILURE`
+/// (2) for a missing bundle while the JSONL path returned
+/// `EXIT_ERROR` (1) for the same condition. Scripts switching
+/// `--format` got different signals for identical state. The
+/// harmonized rule: `EXIT_ERROR` universally for I/O / runtime
+/// fault (bundle not found, file unreadable); `EXIT_VERIFICATION_
+/// FAILURE` reserved for verify-ran-and-found-problems-in-an-
+/// existing-bundle.
+#[test]
+fn verify_missing_bundle_exit_code_consistent_across_formats() {
+    let tmp = TempDir::new().expect("tempdir");
+    let missing = tmp.path().join("nonexistent-bundle");
+
+    let human_out = cargo_evidence()
+        .args(["evidence", "verify"])
+        .arg(&missing)
+        .output()
+        .expect("spawn human");
+
+    let jsonl_out = cargo_evidence()
+        .args(["evidence", "--format=jsonl", "verify"])
+        .arg(&missing)
+        .output()
+        .expect("spawn jsonl");
+
+    assert_eq!(
+        human_out.status.code(),
+        jsonl_out.status.code(),
+        "missing-bundle exit code diverges across formats: \
+         human={:?} jsonl={:?}",
+        human_out.status.code(),
+        jsonl_out.status.code(),
+    );
+
+    // Both must be EXIT_ERROR (1), not EXIT_VERIFICATION_FAILURE
+    // (2). The missing-bundle case is an I/O fault.
+    assert_eq!(
+        human_out.status.code(),
+        Some(1),
+        "missing-bundle must exit 1 (I/O fault), not 2 \
+         (verification failure). Got: {:?}",
+        human_out.status.code(),
+    );
+}
+
 /// **Failing-test guardrail.** Tests that fail normally (build
 /// succeeded, `test result: FAILED. N passed; M failed`) must
 /// keep the existing REQ_PASS/REQ_GAP per-test path — NOT route

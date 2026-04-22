@@ -92,7 +92,14 @@ pub fn cmd_verify(
     let json_output = format == OutputFormat::Json;
     let mut checks = Vec::new();
 
-    // Check bundle exists
+    // Bundle-path existence is an I/O / runtime fault, not a
+    // verification finding. Harmonize with the JSONL path at
+    // `cmd_verify_jsonl` below: both return `EXIT_ERROR` (1) here.
+    // `EXIT_VERIFICATION_FAILURE` (2) stays reserved for "verify
+    // ran successfully against a real bundle and found problems
+    // inside it" (hash mismatch, missing declared files,
+    // cross-file inconsistency, etc.). Same condition, same exit
+    // code across `--format={human,json,jsonl}`.
     if !bundle_path.exists() {
         let err_msg = format!("bundle not found: {:?}", bundle_path);
         return fail_verify(
@@ -105,7 +112,7 @@ pub fn cmd_verify(
             }],
             "error:",
             err_msg,
-            EXIT_VERIFICATION_FAILURE,
+            EXIT_ERROR,
         );
     }
 

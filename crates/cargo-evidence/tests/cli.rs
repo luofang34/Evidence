@@ -304,8 +304,14 @@ fn test_generate_help() {
 // Verify: exit codes and JSON output
 // ============================================================================
 
+/// Missing-bundle is an I/O fault, not a verification finding.
+/// Exit code is `EXIT_ERROR` (1), harmonized across
+/// `--format={human,json,jsonl}`. The exit-1 convention is pinned
+/// further by
+/// `check_source_correctness::verify_missing_bundle_exit_code_consistent_across_formats`
+/// which exercises the cross-format symmetry explicitly.
 #[test]
-fn test_verify_nonexistent_exit_code_2() {
+fn test_verify_nonexistent_bundle_exits_error() {
     let tmp = TempDir::new().unwrap();
     cargo_evidence()
         .arg("evidence")
@@ -313,7 +319,7 @@ fn test_verify_nonexistent_exit_code_2() {
         .arg("nonexistent-bundle")
         .current_dir(tmp.path())
         .assert()
-        .code(2)
+        .code(1)
         .stderr(predicate::str::contains("bundle not found"));
 }
 
@@ -327,7 +333,7 @@ fn test_verify_json_nonexistent() {
         .arg("nonexistent-bundle")
         .current_dir(tmp.path())
         .assert()
-        .code(2)
+        .code(1)
         .stdout(predicate::str::contains("\"success\": false"));
 }
 
