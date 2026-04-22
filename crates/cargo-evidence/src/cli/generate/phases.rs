@@ -271,10 +271,22 @@ pub(super) fn run_tests_and_capture(
             }
         }
         Err(e) => {
+            // run_capture returns Err only on spawn failure
+            // (cmd.output() itself errored); non-zero-exit goes
+            // through the Ok arm and is recorded inside
+            // run_capture. For spawn failures we record the
+            // failure explicitly so verify still sees the bundle
+            // as incomplete — no diagnostic shadowing between the
+            // two paths.
+            builder.record_command_failure(evidence_core::ToolCommandFailure {
+                command_name: "cargo test --workspace".to_string(),
+                exit_code: -1,
+                stderr_tail: e.to_string(),
+            });
             if strict {
                 return Err(anyhow::Error::new(e).context("running cargo test"));
             }
-            eprintln!("warning: cargo test failed: {}", e);
+            tracing::warn!("cargo test could not be spawned: {}", e);
         }
     }
     Ok(())
