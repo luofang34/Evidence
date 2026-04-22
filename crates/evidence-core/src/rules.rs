@@ -1,85 +1,48 @@
 //! Hand-curated manifest of every diagnostic code the tool can emit.
-//!
-//! `RULES` is the single source of truth for "what can the tool say?"
-//! Exposed via `cargo evidence rules --json`; pinned by four bijection
-//! invariants in `diagnostic_codes_locked`:
-//! (1) `RULES ⇔ DiagnosticCode::code()` (library walk);
-//! (2) `RULES ⇔ TERMINAL_CODES` for terminals;
-//! (3) `RULES ⇔ HAND_EMITTED_CLI_CODES` for non-terminal CLI emits;
-//! (4) `⋃(LLR.emits) ⇔ RULES.code` — the code↔requirement loop.
-//!
-//! Entries sorted alphabetically by `code`. `has_fix_hint` is an
-//! audit-trail label, not a runtime contract.
+//! `RULES` is the single source of truth; exposed via
+//! `cargo evidence rules --json`. Pinned by four bijection invariants
+//! in `diagnostic_codes_locked`: RULES ⇔ DiagnosticCode::code(),
+//! RULES ⇔ TERMINAL_CODES, RULES ⇔ HAND_EMITTED_CLI_CODES, and
+//! ⋃(LLR.emits) ⇔ RULES.code. Entries sorted alphabetically by `code`.
 
 use serde::Serialize;
 
 use crate::diagnostic::Severity;
 
 /// Top-level domain of a diagnostic code, derived from its prefix.
+/// Variants correspond 1:1 to the code-prefix strings handled by
+/// [`Domain::from_code`]. Variant names are self-documenting.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Domain {
-    /// `BOUNDARY_*` — workspace-scope / `cert/boundary.toml`.
     Boundary,
-    /// `BUNDLE_*` — bundle lifecycle (generate).
     Bundle,
-    /// `CHECK_*` — `cargo evidence check` subcommand.
     Check,
-    /// `CLI_*` — CLI-layer hand-emitted codes.
     Cli,
-    /// `CMD_*` — subprocess execution.
     Cmd,
-    /// `DOCTOR_*` — rigor-audit subcommand.
     Doctor,
-    /// `ENV_*` — environment probe (rustc / cargo / toolchain).
     Env,
-    /// `FLOORS_*` — ratcheting-floors gate.
     Floors,
-    /// `GIT_*` — git snapshot.
+    Generate,
     Git,
-    /// `HASH_*` — content-hashing subsystem.
     Hash,
-    /// `POLICY_*` — DAL / profile parsing.
+    Init,
     Policy,
-    /// `REQ_*` — per-requirement pass/gap/skip.
     Req,
-    /// `SCHEMA_*` — JSON Schema validation.
     Schema,
-    /// `SIGN_*` — signing / HMAC key IO.
     Sign,
-    /// `TESTS_*` — per-test outcome capture.
     Tests,
-    /// `TRACE_*` — trace-file validation.
     Trace,
-    /// `VERIFY_*` — bundle verification.
     Verify,
 }
 
 impl Domain {
     /// Derive a [`Domain`] from a code prefix. `None` for any
     /// unknown prefix — bijection test catches unmapped codes.
+    /// Thin wrapper over `from_code_const` so the two stay in sync.
     pub fn from_code(code: &str) -> Option<Self> {
-        let prefix = code.split('_').next().unwrap_or(code);
-        Some(match prefix {
-            "BOUNDARY" => Self::Boundary,
-            "BUNDLE" => Self::Bundle,
-            "CHECK" => Self::Check,
-            "CLI" => Self::Cli,
-            "CMD" => Self::Cmd,
-            "DOCTOR" => Self::Doctor,
-            "ENV" => Self::Env,
-            "FLOORS" => Self::Floors,
-            "GIT" => Self::Git,
-            "HASH" => Self::Hash,
-            "POLICY" => Self::Policy,
-            "REQ" => Self::Req,
-            "SCHEMA" => Self::Schema,
-            "SIGN" => Self::Sign,
-            "TESTS" => Self::Tests,
-            "TRACE" => Self::Trace,
-            "VERIFY" => Self::Verify,
-            _ => return None,
-        })
+        Self::from_code_const(code)
     }
 }
 
@@ -118,14 +81,27 @@ pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "DOCTOR_TRACE_EMPTY",
     "DOCTOR_TRACE_INVALID",
     "FLOORS_BELOW_MIN",
+    "FLOORS_DIMENSION_OK",
     "FLOORS_LOWERED_WITHOUT_JUSTIFICATION",
+    "INIT_CERT_DIR_EXISTS",
+    "INIT_TEMPLATE_WRITTEN",
     "TRACE_SELECTOR_UNRESOLVED",
     "VERIFY_BUNDLE_INCOMPLETE",
 ];
 
-/// Codes in `RULES` that are intentionally NOT claimed by any LLR's
-/// `emits` list. Must stay empty or carry a written justification here.
-pub const RESERVED_UNCLAIMED_CODES: &[&str] = &[];
+/// Codes in `RULES` intentionally NOT claimed by any LLR's `emits`
+/// list. `INIT_*` + `GENERATE_OK` + `GENERATE_FAIL` ride the
+/// universal-JSONL surface; cmd_init and cmd_generate don't yet
+/// have dedicated HLR/LLR chains — a follow-up PR adds them and
+/// empties this list. Same trade-off DOCTOR_* used pre-LLR-048.
+pub const RESERVED_UNCLAIMED_CODES: &[&str] = &[
+    "GENERATE_FAIL",
+    "GENERATE_OK",
+    "INIT_CERT_DIR_EXISTS",
+    "INIT_FAIL",
+    "INIT_OK",
+    "INIT_TEMPLATE_WRITTEN",
+];
 
 /// Hand-curated manifest of every emittable code. Sorted by `code`.
 /// Additions: append, re-sort, claim in the relevant LLR's `emits`,
@@ -211,7 +187,12 @@ pub const RULES: &[RuleEntry] = &[
     r("ENV_STRICT_CARGO_REQUIRED", Severity::Error, Domain::Env),
     r("ENV_STRICT_RUSTC_REQUIRED", Severity::Error, Domain::Env),
     floors("FLOORS_BELOW_MIN", Severity::Error),
+    floors("FLOORS_DIMENSION_OK", Severity::Info),
+    terminal("FLOORS_FAIL", Severity::Error),
     floors("FLOORS_LOWERED_WITHOUT_JUSTIFICATION", Severity::Error),
+    terminal("FLOORS_OK", Severity::Info),
+    terminal("GENERATE_FAIL", Severity::Error),
+    terminal("GENERATE_OK", Severity::Info),
     r("GIT_CMD_FAILED", Severity::Error, Domain::Git),
     r("GIT_NON_UTF8_PATH", Severity::Error, Domain::Git),
     r("GIT_OTHER", Severity::Error, Domain::Git),
@@ -226,6 +207,10 @@ pub const RULES: &[RuleEntry] = &[
     r("HASH_READ_FAILED", Severity::Error, Domain::Hash),
     r("HASH_WALK_FAILED", Severity::Error, Domain::Hash),
     r("HASH_WRITE_FAILED", Severity::Error, Domain::Hash),
+    r("INIT_CERT_DIR_EXISTS", Severity::Error, Domain::Init),
+    terminal("INIT_FAIL", Severity::Error),
+    terminal("INIT_OK", Severity::Info),
+    r("INIT_TEMPLATE_WRITTEN", Severity::Info, Domain::Init),
     r("POLICY_UNKNOWN_DAL", Severity::Error, Domain::Policy),
     r("POLICY_UNKNOWN_PROFILE", Severity::Error, Domain::Policy),
     req_gap("REQ_GAP"),
@@ -462,12 +447,15 @@ impl Domain {
         match prefix.as_bytes() {
             b"BOUNDARY" => Some(Self::Boundary),
             b"BUNDLE" => Some(Self::Bundle),
+            b"CHECK" => Some(Self::Check),
             b"CLI" => Some(Self::Cli),
             b"CMD" => Some(Self::Cmd),
             b"DOCTOR" => Some(Self::Doctor),
             b"ENV" => Some(Self::Env),
             b"FLOORS" => Some(Self::Floors),
+            b"GENERATE" => Some(Self::Generate),
             b"GIT" => Some(Self::Git),
+            b"INIT" => Some(Self::Init),
             b"HASH" => Some(Self::Hash),
             b"POLICY" => Some(Self::Policy),
             b"REQ" => Some(Self::Req),

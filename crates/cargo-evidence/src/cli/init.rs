@@ -1,13 +1,15 @@
 //! `cargo evidence init`.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
+use evidence_core::diagnostic::{Diagnostic, Severity};
 use evidence_core::schema_versions::{BOUNDARY, TRACE};
 
-use super::args::{EXIT_ERROR, EXIT_SUCCESS};
+use super::args::{EXIT_ERROR, EXIT_SUCCESS, OutputFormat};
+use super::output::emit_jsonl;
 
 /// Render the `boundary.toml` template.
 ///
@@ -130,13 +132,31 @@ fail_on_dirty = true
 /// `cargo evidence init` handler: scaffold a `cert/` layout
 /// (boundary.toml + per-profile stubs) for a fresh project. Refuses
 /// to overwrite an existing `cert/` tree unless `force` is set.
-pub fn cmd_init(force: bool) -> Result<i32> {
+pub fn cmd_init(force: bool, format: OutputFormat) -> Result<i32> {
+    let jsonl = format == OutputFormat::Jsonl;
     let cert_dir = PathBuf::from("cert");
     let profiles_dir = cert_dir.join("profiles");
 
     // Check if cert directory exists and not forcing
     if cert_dir.exists() && !force {
-        eprintln!("error: cert/ directory already exists. Use --force to overwrite.");
+        if jsonl {
+            emit_jsonl(&Diagnostic {
+                code: "INIT_CERT_DIR_EXISTS".to_string(),
+                severity: Severity::Error,
+                message: "cert/ directory already exists. Use --force to overwrite.".to_string(),
+                location: None,
+                fix_hint: None,
+                subcommand: Some("init".to_string()),
+                root_cause_uid: None,
+            })?;
+            emit_jsonl(&init_terminal(
+                "INIT_FAIL",
+                Severity::Error,
+                "init refused: cert/ exists and --force not set",
+            ))?;
+        } else {
+            eprintln!("error: cert/ directory already exists. Use --force to overwrite.");
+        }
         return Ok(EXIT_ERROR);
     }
 
@@ -144,11 +164,14 @@ pub fn cmd_init(force: bool) -> Result<i32> {
     fs::create_dir_all(&profiles_dir)?;
     fs::create_dir_all(cert_dir.join("trace"))?;
 
+    let mut written = 0u64;
+
     // Write boundary.toml
     let boundary_path = cert_dir.join("boundary.toml");
     if !boundary_path.exists() || force {
         fs::write(&boundary_path, boundary_template())?;
-        println!("created: {:?}", boundary_path);
+        emit_template_written(jsonl, &boundary_path)?;
+        written += 1;
     }
 
     // Write profile configs
@@ -162,7 +185,8 @@ pub fn cmd_init(force: bool) -> Result<i32> {
         let path = profiles_dir.join(name);
         if !path.exists() || force {
             fs::write(&path, content)?;
-            println!("created: {:?}", path);
+            emit_template_written(jsonl, &path)?;
+            written += 1;
         }
     }
 
@@ -296,15 +320,56 @@ safety_impact = "none"
         let path = trace_dir.join(name);
         if !path.exists() || force {
             fs::write(&path, &content)?;
-            println!("created: {:?}", path);
+            emit_template_written(jsonl, &path)?;
+            written += 1;
         }
     }
 
-    println!("\nInitialized evidence tracking in cert/");
-    println!("\nNext steps:");
-    println!("  1. Edit cert/boundary.toml to define in-scope crates");
-    println!("  2. Add requirements to cert/trace/ (hlr.toml, llr.toml, tests.toml)");
-    println!("  3. Run: cargo evidence generate --out-dir evidence");
+    if jsonl {
+        emit_jsonl(&init_terminal(
+            "INIT_OK",
+            Severity::Info,
+            &format!("init wrote {} template file(s) under cert/", written),
+        ))?;
+    } else {
+        println!("\nInitialized evidence tracking in cert/");
+        println!("\nNext steps:");
+        println!("  1. Edit cert/boundary.toml to define in-scope crates");
+        println!("  2. Add requirements to cert/trace/ (hlr.toml, llr.toml, tests.toml)");
+        println!("  3. Run: cargo evidence generate --out-dir evidence");
+    }
 
     Ok(EXIT_SUCCESS)
+}
+
+fn emit_template_written(jsonl: bool, path: &Path) -> Result<()> {
+    if jsonl {
+        emit_jsonl(&Diagnostic {
+            code: "INIT_TEMPLATE_WRITTEN".to_string(),
+            severity: Severity::Info,
+            message: format!("created {}", path.display()),
+            location: Some(evidence_core::Location {
+                file: Some(path.to_path_buf()),
+                ..evidence_core::Location::default()
+            }),
+            fix_hint: None,
+            subcommand: Some("init".to_string()),
+            root_cause_uid: None,
+        })?;
+    } else {
+        println!("created: {:?}", path);
+    }
+    Ok(())
+}
+
+fn init_terminal(code: &'static str, severity: Severity, message: &str) -> Diagnostic {
+    Diagnostic {
+        code: code.to_string(),
+        severity,
+        message: message.to_string(),
+        location: None,
+        fix_hint: None,
+        subcommand: Some("init".to_string()),
+        root_cause_uid: None,
+    }
 }

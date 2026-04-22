@@ -394,24 +394,17 @@ fn assert_unwired_jsonl_contract(subcommand: &str) {
 }
 
 #[test]
-fn unwired_generate_jsonl_is_rejected() {
-    assert_unwired_jsonl_contract("generate");
-}
-
-#[test]
 fn unwired_diff_jsonl_is_rejected() {
     assert_unwired_jsonl_contract("diff");
-}
-
-#[test]
-fn unwired_init_jsonl_is_rejected() {
-    assert_unwired_jsonl_contract("init");
 }
 
 #[test]
 fn unwired_schema_jsonl_is_rejected() {
     assert_unwired_jsonl_contract("schema");
 }
+// `generate`, `init`, and `floors` are wired subcommands per the
+// universal-JSONL surface; their JSONL-contract tests live in
+// their own integration files.
 
 // `trace` supports `--format=jsonl` (per-variant LinkError stream);
 // running without `--validate` / `--backfill-uuids` emits

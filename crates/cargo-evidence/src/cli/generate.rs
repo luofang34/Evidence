@@ -18,6 +18,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use serde::Serialize;
 
+use evidence_core::diagnostic::{Diagnostic, Severity};
 use evidence_core::{EvidencePolicy, Profile};
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, detect_profile};
@@ -58,6 +59,22 @@ pub(super) fn fail(json_output: bool, profile: Profile, msg: impl Into<String>) 
     Ok(EXIT_ERROR)
 }
 
+/// JSONL-mode `fail`: emit a single `GENERATE_FAIL` terminal with the
+/// failure message so agents see the outcome + reason.
+pub(super) fn fail_jsonl(profile: Profile, msg: impl Into<String>) -> Result<i32> {
+    use super::output::emit_jsonl;
+    emit_jsonl(&Diagnostic {
+        code: "GENERATE_FAIL".to_string(),
+        severity: Severity::Error,
+        message: format!("generate failed (profile={}): {}", profile, msg.into()),
+        location: None,
+        fix_hint: None,
+        subcommand: Some("generate".to_string()),
+        root_cause_uid: None,
+    })?;
+    Ok(EXIT_ERROR)
+}
+
 // ============================================================================
 // CLI argument group
 // ============================================================================
@@ -85,6 +102,11 @@ pub struct GenerateArgs {
     pub quiet: bool,
     /// Emit a JSON envelope on stdout instead of human-readable text.
     pub json_output: bool,
+    /// Emit a JSONL stream on stdout (`GENERATE_OK` / `GENERATE_FAIL`
+    /// terminal). When true, internal phases run with `quiet=true`
+    /// and `json_output=false` so the JSONL stream stays
+    /// stdout-strict (Schema Rule 2).
+    pub jsonl_output: bool,
 }
 
 // ============================================================================
@@ -146,7 +168,25 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         skip_tests,
         quiet,
         json_output,
+        jsonl_output,
     } = args;
+
+    // JSONL mode is stdout-strict (Schema Rule 2): no internal
+    // phase helper may print human or JSON-envelope text. Force
+    // quiet + clear json_output so they stay silent, then this
+    // orchestrator owns the stream.
+    let (quiet, json_output) = if jsonl_output {
+        (true, false)
+    } else {
+        (quiet, json_output)
+    };
+    let fail_dispatch = |profile: Profile, msg: String| -> Result<i32> {
+        if jsonl_output {
+            fail_jsonl(profile, msg)
+        } else {
+            fail(json_output, profile, msg)
+        }
+    };
 
     let profile = resolve_profile(profile_arg.as_deref())?;
     // Doctor precheck gates cert / record profile bundle generation —
@@ -163,17 +203,16 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     if matches!(profile, Profile::Cert | Profile::Record) {
         let workspace = std::env::current_dir()?;
         if let Err(e) = super::doctor::precheck_doctor(&workspace) {
-            return fail(json_output, profile, e.to_string());
+            return fail_dispatch(profile, e.to_string());
         }
     }
     if let Some(code) = phases::preflight(profile, json_output)? {
         return Ok(code);
     }
     let Some(output_root) = resolve_output_root(out_dir, write_workspace) else {
-        return fail(
-            json_output,
+        return fail_dispatch(
             profile,
-            "--out-dir is required unless --write-workspace is specified",
+            "--out-dir is required unless --write-workspace is specified".to_string(),
         );
     };
 
@@ -235,22 +274,62 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
 
     let bundle_path =
         phases::finalize_and_sign(builder, trace_outputs, sign_key, quiet, json_output)?;
-    phases::emit_success_envelope(
-        json_output,
-        quiet,
-        &bundle_path,
-        profile,
-        &env_fp,
-        recorded_failures,
-    )?;
+    if !jsonl_output {
+        phases::emit_success_envelope(
+            json_output,
+            quiet,
+            &bundle_path,
+            profile,
+            &env_fp,
+            recorded_failures,
+        )?;
+    }
 
     if recorded_failures > 0 && matches!(profile, Profile::Cert | Profile::Record) {
-        tracing::warn!(
-            "{} captured command(s) exited non-zero; cert/record bundle marked \
-             bundle_complete=false — generate returning non-zero exit to signal",
-            recorded_failures
-        );
+        if jsonl_output {
+            super::output::emit_jsonl(&Diagnostic {
+                code: "GENERATE_FAIL".to_string(),
+                severity: Severity::Error,
+                message: format!(
+                    "profile={}: {} captured command(s) exited non-zero; \
+                     bundle_complete=false",
+                    profile, recorded_failures
+                ),
+                location: Some(evidence_core::Location {
+                    file: Some(bundle_path),
+                    ..evidence_core::Location::default()
+                }),
+                fix_hint: None,
+                subcommand: Some("generate".to_string()),
+                root_cause_uid: None,
+            })?;
+        } else {
+            tracing::warn!(
+                "{} captured command(s) exited non-zero; cert/record bundle marked \
+                 bundle_complete=false — generate returning non-zero exit to signal",
+                recorded_failures
+            );
+        }
         return Ok(EXIT_VERIFICATION_FAILURE);
+    }
+
+    if jsonl_output {
+        super::output::emit_jsonl(&Diagnostic {
+            code: "GENERATE_OK".to_string(),
+            severity: Severity::Info,
+            message: format!(
+                "generate produced bundle at {} (profile={})",
+                bundle_path.display(),
+                profile
+            ),
+            location: Some(evidence_core::Location {
+                file: Some(bundle_path),
+                ..evidence_core::Location::default()
+            }),
+            fix_hint: None,
+            subcommand: Some("generate".to_string()),
+            root_cause_uid: None,
+        })?;
     }
     Ok(EXIT_SUCCESS)
 }
