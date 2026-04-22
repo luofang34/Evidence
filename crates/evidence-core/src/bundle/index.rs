@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::policy::Profile;
 
+use super::command_failure::ToolCommandFailure;
 use super::test_summary::TestSummary;
 
 /// Default for `EvidenceIndex::engine_build_source` when deserializing
@@ -103,6 +104,15 @@ pub struct EvidenceIndex {
     /// Parsed test results summary, if cargo test was executed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub test_summary: Option<TestSummary>,
+    /// Captured-subprocess failures from the generate pipeline
+    /// (cargo test exiting non-zero, cargo check failing, etc.).
+    /// Non-empty ⇒ [`Self::bundle_complete`] is `false`; verify
+    /// refuses cert/record bundles carrying recorded failures.
+    /// `#[serde(default)]` lets older bundles deserialize as
+    /// an empty Vec — they were `bundle_complete: true` by
+    /// construction and will continue to validate as such.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_command_failures: Vec<ToolCommandFailure>,
     /// Per-crate DAL assignments. Key is crate name, value is DAL level string.
     /// Empty map for bundles generated before DAL support was added.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -143,6 +153,7 @@ mod tests {
             content_hash: "deadbeef".repeat(8),
             deterministic_hash: "cafebabe".repeat(8),
             test_summary: None,
+            tool_command_failures: Vec::new(),
             dal_map: BTreeMap::new(),
         };
         assert!(idx.bundle_complete);

@@ -119,6 +119,7 @@ fn build_prerelease_bundle(profile: evidence_core::Profile) -> (TempDir, PathBuf
         content_hash,
         deterministic_hash,
         test_summary: None,
+        tool_command_failures: Vec::new(),
         dal_map: BTreeMap::new(),
     };
     fs::write(
