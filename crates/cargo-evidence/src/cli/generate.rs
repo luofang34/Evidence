@@ -9,6 +9,7 @@
 //! below, and the I/O-bound phase bodies are covered end-to-end by
 //! the `cargo-evidence evidence generate` integration tests.
 
+mod coverage_phase;
 mod envelope;
 mod phases;
 mod policy;
@@ -99,6 +100,10 @@ pub struct GenerateArgs {
     pub sign_key: Option<PathBuf>,
     /// Skip the `cargo test` invocation during generation.
     pub skip_tests: bool,
+    /// Structural-coverage level to capture (or `None` to apply
+    /// the profile-derived default). See [`crate::cli::args::CoverageChoice`]
+    /// + HLR-053.
+    pub coverage: Option<crate::cli::args::CoverageChoice>,
     /// Suppress non-error stdout.
     pub quiet: bool,
     /// Emit a JSON envelope on stdout instead of human-readable text.
@@ -167,6 +172,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         trace_roots_arg,
         sign_key,
         skip_tests,
+        coverage,
         quiet,
         json_output,
         jsonl_output,
@@ -243,6 +249,28 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     phases::run_tests_and_capture(&mut builder, skip_tests, strict, quiet, json_output)?;
     builder.write_outputs()?;
     builder.write_commands()?;
+
+    // Phase 5b — structural coverage via cargo-llvm-cov. When
+    // the effective choice is `none` this returns `Skipped`
+    // without spawning anything. Cert/record + missing binary
+    // short-circuits to GENERATE_FAIL.
+    let effective_coverage = coverage_phase::resolve_choice(coverage, profile);
+    let coverage_outcome = coverage_phase::run_coverage_phase(
+        &builder,
+        effective_coverage,
+        profile,
+        quiet,
+        jsonl_output,
+    )?;
+    if matches!(
+        coverage_outcome,
+        coverage_phase::CoverageOutcome::LlvmCovMissingCert
+    ) {
+        return fail_dispatch(
+            profile,
+            "cargo-llvm-cov missing; cert/record profiles require structural coverage".to_string(),
+        );
+    }
 
     let policy = EvidencePolicy::for_dal(derived.max_dal);
     if let Some(code) = phases::validate_trace_links_phase(

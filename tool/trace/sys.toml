@@ -454,3 +454,34 @@ whose recorded LLRs have `verification_methods` including
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "5c6e07f1-da4a-4aec-9647-426304deadb5"
+id = "SYS-021"
+title = "Bundle shall carry structural coverage evidence when cert profile is used"
+owner = "soi"
+scope = "soi"
+description = """
+DO-178C Annex A Table A-7 Obj-5 ("Test coverage of software
+structure — statement coverage") and Obj-6 ("Test coverage of
+software structure — decision coverage") require structural
+coverage measurements at DAL-C (Obj-5) and DAL-B (Obj-5 + 6).
+Without a coverage artifact in the bundle, an auditor has no
+mechanical way to confirm that the test suite exercises every
+executable statement / branch; the cert submission would rely
+on verbal assertion, which does not satisfy DO-178C §6.4.4.
+
+The tool shall, on demand, run an instrumented test pass and
+emit a structured coverage report inside the bundle
+(`coverage/coverage_summary.json` + `coverage/lcov.info`)
+covering statement-level line data and, when requested, branch
+data. The wire schema shall reserve shape for pattern-decision
+and MC/DC additions without breaking consumers.
+
+MC/DC measurement is explicitly out of scope for the stable-
+Rust implementation — rust-lang/rust#124144 is nightly-only
+and incomplete. DAL-A MC/DC evidence, when needed, must come
+from an auxiliary qualified tool and is tracked separately.
+"""
+verification_methods = ["test"]
+traces_to = []

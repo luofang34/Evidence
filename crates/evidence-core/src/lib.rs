@@ -61,7 +61,10 @@ pub use compliance::{
     Applicability, ComplianceReport, ComplianceSummary, CrateEvidence, OBJECTIVES, ObjectiveStatus,
     ObjectiveStatusKind, generate_compliance_report,
 };
-pub use coverage::{CoverageLevel, CoverageSummary};
+pub use coverage::{
+    ConditionCoverage, CoverageLevel, CoverageReport, DecisionCoverage, FileMeasurement,
+    LineCoverage, LlvmCovParseError, Measurement, parse_llvm_cov_export,
+};
 pub use diagnostic::{Diagnostic, DiagnosticCode, FixHint, Location, Severity, TERMINAL_CODES};
 pub use env::{DeterministicManifest, EnvFingerprint, Host};
 pub use floors::{FloorsConfig, LoadOutcome, current_measurements};
