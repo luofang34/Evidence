@@ -96,7 +96,13 @@ impl DiagnosticCode for TestsError {
     }
 
     fn severity(&self) -> Severity {
-        Severity::Error
+        // Warning, not Error: on cert/record profile any Error
+        // diagnostic blocks bundle finalization, which would
+        // contradict the variant's docstring — "the bundle still
+        // ships with the aggregate view; the specific failure
+        // message just isn't attached." A libtest-format drift
+        // shouldn't stop the bundle from shipping.
+        Severity::Warning
     }
 
     fn location(&self) -> Option<Location> {

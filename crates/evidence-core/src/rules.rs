@@ -1,19 +1,15 @@
 //! Hand-curated manifest of every diagnostic code the tool can emit.
 //!
 //! `RULES` is the single source of truth for "what can the tool say?"
-//! Exposed to agents via `cargo evidence rules --json`; pinned by four
-//! bijection invariants in `diagnostic_codes_locked`:
-//! (1) `RULES ⇔ DiagnosticCode::code()` returns (library walk);
-//! (2) `RULES ⇔ TERMINAL_CODES` for terminal-flagged entries;
+//! Exposed via `cargo evidence rules --json`; pinned by four bijection
+//! invariants in `diagnostic_codes_locked`:
+//! (1) `RULES ⇔ DiagnosticCode::code()` (library walk);
+//! (2) `RULES ⇔ TERMINAL_CODES` for terminals;
 //! (3) `RULES ⇔ HAND_EMITTED_CLI_CODES` for non-terminal CLI emits;
 //! (4) `⋃(LLR.emits) ⇔ RULES.code` — the code↔requirement loop.
-//! Hand-authored; adding a code requires a reviewer-visible edit here.
 //!
-//! **Ordering.** Entries sorted alphabetically by `code` for
-//! deterministic `rules_json()` output; `diagnostic_codes_locked`
-//! asserts the sort order. **Per-code `has_fix_hint`** is an
-//! audit-trail label ("this code CAN carry a FixHint somewhere"),
-//! not a runtime contract.
+//! Entries sorted alphabetically by `code`. `has_fix_hint` is an
+//! audit-trail label, not a runtime contract.
 
 use serde::Serialize;
 
@@ -100,13 +96,12 @@ pub struct RuleEntry {
     pub severity: Severity,
     /// Top-level domain, derived from prefix.
     pub domain: Domain,
-    /// Whether the emit-site MAY populate `fix_hint` for this code.
-    /// Audit label only — runtime populate is per-emit-site logic.
+    /// Whether the emit-site MAY populate `fix_hint`. Audit label
+    /// only — runtime populate is per-emit-site logic.
     pub has_fix_hint: bool,
-    /// Whether this code is a hand-emitted terminal (Schema Rule 1).
-    /// If true, the code also appears in
-    /// [`TERMINAL_CODES`](crate::TERMINAL_CODES) and ends in
-    /// `_OK` / `_FAIL` / `_ERROR`.
+    /// Hand-emitted terminal (Schema Rule 1). If true, also in
+    /// [`TERMINAL_CODES`](crate::TERMINAL_CODES); ends in `_OK` /
+    /// `_FAIL` / `_ERROR`.
     pub terminal: bool,
 }
 
@@ -260,7 +255,11 @@ pub const RULES: &[RuleEntry] = &[
     r("SIGN_READ_FAILED", Severity::Error, Domain::Sign),
     r("SIGN_WRITE_FAILED", Severity::Error, Domain::Sign),
     terminal("TESTS_OK", Severity::Info),
-    r("TESTS_OUTCOME_PARSE_FAILED", Severity::Error, Domain::Tests),
+    r(
+        "TESTS_OUTCOME_PARSE_FAILED",
+        Severity::Warning,
+        Domain::Tests,
+    ),
     r("TRACE_BACKFILL_READ_FAILED", Severity::Error, Domain::Trace),
     r(
         "TRACE_BACKFILL_SERIALIZE_FAILED",

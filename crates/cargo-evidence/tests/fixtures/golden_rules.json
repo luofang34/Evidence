@@ -470,7 +470,7 @@
   },
   {
     "code": "TESTS_OUTCOME_PARSE_FAILED",
-    "severity": "error",
+    "severity": "warning",
     "domain": "tests",
     "has_fix_hint": false,
     "terminal": false
