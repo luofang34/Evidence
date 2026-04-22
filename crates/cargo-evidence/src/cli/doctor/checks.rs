@@ -104,7 +104,7 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
 /// boundary_loadable)`: `false` ⇒ fell back to DAL-D because the
 /// file was missing or unparseable. `check_boundary` already
 /// fires its own diagnostic on the same input.
-fn load_default_dal(workspace: &Path) -> (Dal, bool) {
+pub(super) fn load_default_dal(workspace: &Path) -> (Dal, bool) {
     let path = workspace.join("cert").join("boundary.toml");
     match BoundaryConfig::load(&path) {
         Ok(cfg) => (cfg.dal.default_dal, true),

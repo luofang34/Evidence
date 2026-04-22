@@ -17,7 +17,8 @@ use std::process::{Command, Stdio};
 use anyhow::{Context, Result};
 use evidence_core::bundle::EvidenceBuilder;
 use evidence_core::{
-    CoverageLevel, Diagnostic, Location, Profile, Severity, parse_llvm_cov_export,
+    CoverageLevel, CoverageReport, Dal, DalCoverageThresholds, Diagnostic, Location, Measurement,
+    Profile, Severity, parse_llvm_cov_export,
 };
 use tempfile::TempDir;
 
@@ -27,13 +28,20 @@ use crate::cli::output::emit_jsonl;
 /// Outcome of [`run_coverage_phase`]. The caller uses it to
 /// decide whether to keep processing (skipped / emitted) or
 /// short-circuit to a `GENERATE_FAIL` terminal (cert/record +
-/// binary missing).
+/// binary missing, or cert/record + threshold violated).
 pub enum CoverageOutcome {
     /// Flag was `none` or profile-derived default was `none` —
     /// skipped entirely. No diagnostic emitted.
     Skipped,
-    /// Coverage report written to bundle.
+    /// Coverage report written to bundle; DAL thresholds met or
+    /// not enforced (dev profile).
     Emitted,
+    /// Coverage report written, but one or more DAL-policy
+    /// thresholds were below the required minimum. Caller
+    /// aborts with `GENERATE_FAIL` on cert/record; dev profile
+    /// still produces a bundle (the diagnostic is visible in
+    /// the JSONL stream).
+    BelowThresholdCert,
     /// `cargo-llvm-cov` not on PATH under dev profile — Warning
     /// emitted, generation continues without coverage evidence.
     LlvmCovMissingDev,
@@ -54,9 +62,10 @@ pub fn resolve_choice(cli: Option<CoverageChoice>, profile: Profile) -> Coverage
 
 /// Run Phase 5b.
 pub fn run_coverage_phase(
-    builder: &EvidenceBuilder,
+    builder: &mut EvidenceBuilder,
     choice: CoverageChoice,
     profile: Profile,
+    max_dal: Dal,
     quiet: bool,
     jsonl_output: bool,
 ) -> Result<CoverageOutcome> {
@@ -67,8 +76,12 @@ pub fn run_coverage_phase(
 
     let tmp = TempDir::new().context("creating coverage tempdir")?;
     let json_path = tmp.path().join("llvm-cov.json");
+    let lcov_path = tmp.path().join("llvm-cov.lcov");
 
-    match spawn_llvm_cov(&json_path) {
+    // Phase 1: run instrumented tests without emitting a report
+    // (leaves profdata files for `report` to consume twice —
+    // once per format, avoiding a second test run).
+    match spawn_llvm_cov_no_report() {
         Ok(()) => {}
         Err(LlvmCovSpawnError::BinaryMissing) => {
             let is_cert = matches!(profile, Profile::Cert | Profile::Record);
@@ -85,10 +98,15 @@ pub fn run_coverage_phase(
             });
         }
         Err(LlvmCovSpawnError::NonZeroExit(code)) => {
-            anyhow::bail!("cargo-llvm-cov exited non-zero ({code})");
+            anyhow::bail!("cargo-llvm-cov --no-report exited non-zero ({code})");
         }
         Err(LlvmCovSpawnError::Other(e)) => return Err(e),
     }
+    // Phase 2: extract both JSON + lcov from the cached profdata.
+    // Neither can fail BinaryMissing here (we just succeeded with
+    // the same binary) so we treat any failure as a hard error.
+    spawn_llvm_cov_report(&["--json", "--output-path"], &json_path)?;
+    spawn_llvm_cov_report(&["--lcov", "--output-path"], &lcov_path)?;
 
     let json = std::fs::read_to_string(&json_path).context("reading cargo-llvm-cov JSON output")?;
     let workspace_root = std::env::current_dir().context("reading current dir")?;
@@ -108,10 +126,116 @@ pub fn run_coverage_phase(
         serde_json::to_string_pretty(&report).context("serializing CoverageReport")?,
     )
     .with_context(|| format!("writing {summary_path:?}"))?;
+    let lcov_dest = coverage_dir.join("lcov.info");
+    std::fs::copy(&lcov_path, &lcov_dest)
+        .with_context(|| format!("copying {lcov_path:?} → {lcov_dest:?}"))?;
 
     emit_coverage_ok(&report, jsonl_output, quiet)?;
 
+    // Store the report on the builder so the downstream
+    // compliance phase reads aggregate percents for A-7
+    // Obj-5/Obj-6 evaluation.
+    builder.set_coverage_report(report.clone());
+
+    // DAL-policy threshold enforcement (cert/record only — dev
+    // profile surfaces the report but never blocks on it).
+    let enforce_thresholds = matches!(profile, Profile::Cert | Profile::Record);
+    if enforce_thresholds {
+        let thresholds = max_dal.coverage_thresholds();
+        let violations = threshold_violations(&report, thresholds);
+        if !violations.is_empty() {
+            for v in &violations {
+                emit_below_threshold(v, jsonl_output, quiet)?;
+            }
+            return Ok(CoverageOutcome::BelowThresholdCert);
+        }
+    }
+
     Ok(CoverageOutcome::Emitted)
+}
+
+/// Observed aggregate percentage per-level in `report`, compared
+/// against `thresholds`. One [`ThresholdViolation`] per
+/// dimension that falls short.
+#[derive(Debug, Clone)]
+struct ThresholdViolation {
+    dimension: &'static str,
+    current_percent: f64,
+    threshold_percent: u8,
+}
+
+fn threshold_violations(
+    report: &CoverageReport,
+    thresholds: DalCoverageThresholds,
+) -> Vec<ThresholdViolation> {
+    let mut violations = Vec::new();
+    if let Some(min) = thresholds.statement_percent
+        && let Some(m) = measurement_for(report, CoverageLevel::Statement)
+    {
+        let pct = aggregate_percent(m);
+        if pct < f64::from(min) {
+            violations.push(ThresholdViolation {
+                dimension: "statement",
+                current_percent: pct,
+                threshold_percent: min,
+            });
+        }
+    }
+    if let Some(min) = thresholds.branch_percent
+        && let Some(m) = measurement_for(report, CoverageLevel::Branch)
+    {
+        let pct = aggregate_percent(m);
+        if pct < f64::from(min) {
+            violations.push(ThresholdViolation {
+                dimension: "branch",
+                current_percent: pct,
+                threshold_percent: min,
+            });
+        }
+    }
+    violations
+}
+
+fn measurement_for(report: &CoverageReport, level: CoverageLevel) -> Option<&Measurement> {
+    report.measurements.iter().find(|m| m.level == level)
+}
+
+fn aggregate_percent(m: &Measurement) -> f64 {
+    let total: u64 = m.per_file.iter().map(|f| f.lines.total).sum();
+    if total == 0 {
+        return 0.0;
+    }
+    let covered: u64 = m.per_file.iter().map(|f| f.lines.covered).sum();
+    // Avoid lossy f64 conversion: both sides are typically well
+    // under 2^53, so as-cast is fine in practice. The assertion
+    // documents the expectation for future readers.
+    let covered_f = covered as f64;
+    let total_f = total as f64;
+    (covered_f / total_f) * 100.0
+}
+
+fn emit_below_threshold(v: &ThresholdViolation, jsonl_output: bool, quiet: bool) -> Result<()> {
+    let message = format!(
+        "coverage below DAL threshold: {} = {:.2}%, required ≥ {}%",
+        v.dimension, v.current_percent, v.threshold_percent
+    );
+    if jsonl_output {
+        crate::cli::output::emit_jsonl(&Diagnostic {
+            code: "COVERAGE_BELOW_THRESHOLD".to_string(),
+            severity: Severity::Error,
+            message,
+            location: Some(Location {
+                file: Some(PathBuf::from("coverage/coverage_summary.json")),
+                ..Location::default()
+            }),
+            fix_hint: None,
+            subcommand: Some("generate".to_string()),
+            root_cause_uid: None,
+        })?;
+    } else if !quiet {
+        eprintln!("coverage: ERROR: {message}");
+    }
+    Ok(())
 }
 
 fn levels_for_choice(choice: CoverageChoice) -> Vec<CoverageLevel> {
@@ -129,18 +253,49 @@ enum LlvmCovSpawnError {
     Other(anyhow::Error),
 }
 
-fn spawn_llvm_cov(json_out: &Path) -> Result<(), LlvmCovSpawnError> {
+/// Phase-1 spawn: instrumented test run, no report emitted.
+/// Leaves profdata files in `target/llvm-cov-target` for the
+/// `report` sub-invocations to consume.
+fn spawn_llvm_cov_no_report() -> Result<(), LlvmCovSpawnError> {
     let result = Command::new("cargo")
         .arg("llvm-cov")
         .arg("--workspace")
         .arg("--no-cfg-coverage")
-        .arg("--json")
-        .arg("--output-path")
-        .arg(json_out)
+        .arg("--no-report")
         .env("CARGO_TERM_COLOR", "never")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output();
+    interpret_output(result)
+}
+
+/// Phase-2 spawn: `cargo llvm-cov report` with a format flag.
+/// Reads the cached profdata — fast (no rebuild, no test run).
+fn spawn_llvm_cov_report(fmt_args: &[&str], output_path: &Path) -> Result<()> {
+    let result = Command::new("cargo")
+        .arg("llvm-cov")
+        .arg("report")
+        .args(fmt_args)
+        .arg(output_path)
+        .env("CARGO_TERM_COLOR", "never")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+    match interpret_output(result) {
+        Ok(()) => Ok(()),
+        Err(LlvmCovSpawnError::BinaryMissing) => {
+            anyhow::bail!("cargo-llvm-cov vanished between --no-report and report phases")
+        }
+        Err(LlvmCovSpawnError::NonZeroExit(code)) => {
+            anyhow::bail!("cargo llvm-cov report exited non-zero ({code})")
+        }
+        Err(LlvmCovSpawnError::Other(e)) => Err(e),
+    }
+}
+
+fn interpret_output(
+    result: std::io::Result<std::process::Output>,
+) -> Result<(), LlvmCovSpawnError> {
     match result {
         Ok(out) if out.status.success() => Ok(()),
         Ok(out) => {

@@ -137,6 +137,15 @@ pub struct CrateEvidence {
     /// predate the per-test capture, dev-profile runs that skip
     /// tests, libtest output that couldn't be parsed).
     pub has_per_test_outcomes: bool,
+    /// Aggregate statement-coverage percentage from the
+    /// `coverage/coverage_summary.json` artifact (when present).
+    /// `None` means coverage was not captured on this run; some
+    /// value means the report is available for the A-7 Obj-5
+    /// evaluator to compare against the DAL threshold.
+    pub coverage_statement_percent: Option<f64>,
+    /// Aggregate branch-coverage percentage. Same semantics as
+    /// [`Self::coverage_statement_percent`] for A-7 Obj-6.
+    pub coverage_branch_percent: Option<f64>,
 }
 
 #[cfg(test)]

@@ -36,12 +36,12 @@ fn rigorous_fixture_passes() {
     let (exit, diags) = run_doctor(tmp.path());
     assert_eq!(exit, 0, "rigorous fixture should exit 0; diags={:?}", diags);
     let codes: Vec<&str> = diags.iter().map(|d| d["code"].as_str().unwrap()).collect();
-    // Exactly 7 lines: 6 checks + 1 terminal. No DOCTOR_FAIL, no
+    // Exactly 8 lines: 7 checks + 1 terminal. No DOCTOR_FAIL, no
     // error-severity DOCTOR_* in the stream.
     assert_eq!(
         codes.len(),
-        7,
-        "expected 6 check diagnostics + 1 terminal = 7 lines; got codes={:?}",
+        8,
+        "expected 7 check diagnostics + 1 terminal = 8 lines; got codes={:?}",
         codes
     );
     let errors: Vec<&&str> = diags

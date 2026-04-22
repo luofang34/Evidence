@@ -71,8 +71,8 @@ pub use floors::{FloorsConfig, LoadOutcome, current_measurements};
 pub use git::{GitSnapshot, RealGitProvider, check_shallow_clone, is_dirty_or_unknown};
 pub use hash::{sha256, sha256_file};
 pub use policy::{
-    BoundaryConfig, BoundaryPolicy, Dal, DalConfig, EvidencePolicy, Profile, TracePolicy,
-    load_trace_roots,
+    BoundaryConfig, BoundaryPolicy, Dal, DalConfig, DalCoverageThresholds, EvidencePolicy, Profile,
+    TracePolicy, load_trace_roots,
 };
 pub use rules::{
     Domain, HAND_EMITTED_CLI_CODES, RESERVED_UNCLAIMED_CODES, RULES, RuleEntry, rules_json,

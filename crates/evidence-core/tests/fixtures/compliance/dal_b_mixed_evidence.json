@@ -329,7 +329,7 @@
       "applicable": true,
       "applicability_detail": "required_with_independence",
       "status": "not_met",
-      "note": "no structural coverage data"
+      "note": "no statement-coverage data in bundle"
     },
     {
       "objective_id": "A7-9",
@@ -338,7 +338,7 @@
       "applicable": true,
       "applicability_detail": "required_with_independence",
       "status": "not_met",
-      "note": "no structural coverage data"
+      "note": "no branch-coverage data in bundle"
     },
     {
       "objective_id": "A7-10",

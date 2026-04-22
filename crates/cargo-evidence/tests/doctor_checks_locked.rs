@@ -47,6 +47,7 @@ const REQUIRED_CHECK_NAMES: &[&str] = &[
     "CI integration",
     "merge-style policy",
     "override protocol docs",
+    "qualification docs",
 ];
 
 #[test]
@@ -104,17 +105,33 @@ fn every_doctor_code_emitted_in_source() {
             .join("doctor.rs"),
     )
     .expect("read doctor.rs");
-    let checks_rs = std::fs::read_to_string(
-        workspace_root()
-            .join("crates")
-            .join("cargo-evidence")
-            .join("src")
-            .join("cli")
-            .join("doctor")
-            .join("checks.rs"),
-    )
-    .expect("read doctor/checks.rs");
-    let haystack = format!("{}\n{}", doctor_rs, checks_rs);
+    let doctor_dir = workspace_root()
+        .join("crates")
+        .join("cargo-evidence")
+        .join("src")
+        .join("cli")
+        .join("doctor");
+    let checks_rs =
+        std::fs::read_to_string(doctor_dir.join("checks.rs")).expect("read doctor/checks.rs");
+    // Any `.rs` sibling under `doctor/` may emit a DOCTOR_*
+    // code (e.g. `qualification.rs`). Glob via walkdir so new
+    // siblings are covered automatically without a test edit.
+    let mut siblings = String::new();
+    for entry in walkdir::WalkDir::new(&doctor_dir)
+        .follow_links(false)
+        .max_depth(1)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        if entry.file_type().is_file()
+            && entry.path().extension().and_then(|e| e.to_str()) == Some("rs")
+            && entry.path() != doctor_dir.join("checks.rs")
+        {
+            siblings.push_str(&std::fs::read_to_string(entry.path()).expect("read doctor sibling"));
+            siblings.push('\n');
+        }
+    }
+    let haystack = format!("{}\n{}\n{}", doctor_rs, checks_rs, siblings);
 
     let doctor_codes: Vec<&'static str> = evidence_core::HAND_EMITTED_CLI_CODES
         .iter()

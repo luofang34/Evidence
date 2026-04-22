@@ -1120,6 +1120,7 @@ emits = [
     "DOCTOR_MERGE_STYLE_RISK",
     "DOCTOR_MERGE_STYLE_UNKNOWN",
     "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
+    "DOCTOR_QUALIFICATION_MISSING",
 ]
 
 [[requirements]]
@@ -1400,6 +1401,7 @@ naming the engine version and per-level line counts.
 """
 verification_methods = ["test"]
 emits = [
+    "COVERAGE_BELOW_THRESHOLD",
     "COVERAGE_LLVMCOV_MISSING",
     "COVERAGE_OK",
     "COVERAGE_PARSE_FAILED",

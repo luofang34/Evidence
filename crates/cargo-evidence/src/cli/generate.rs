@@ -253,23 +253,34 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     // Phase 5b — structural coverage via cargo-llvm-cov. When
     // the effective choice is `none` this returns `Skipped`
     // without spawning anything. Cert/record + missing binary
-    // short-circuits to GENERATE_FAIL.
+    // or below-threshold short-circuits to GENERATE_FAIL.
     let effective_coverage = coverage_phase::resolve_choice(coverage, profile);
     let coverage_outcome = coverage_phase::run_coverage_phase(
-        &builder,
+        &mut builder,
         effective_coverage,
         profile,
+        derived.max_dal,
         quiet,
         jsonl_output,
     )?;
-    if matches!(
-        coverage_outcome,
-        coverage_phase::CoverageOutcome::LlvmCovMissingCert
-    ) {
-        return fail_dispatch(
-            profile,
-            "cargo-llvm-cov missing; cert/record profiles require structural coverage".to_string(),
-        );
+    match coverage_outcome {
+        coverage_phase::CoverageOutcome::LlvmCovMissingCert => {
+            return fail_dispatch(
+                profile,
+                "cargo-llvm-cov missing; cert/record profiles require structural coverage"
+                    .to_string(),
+            );
+        }
+        coverage_phase::CoverageOutcome::BelowThresholdCert => {
+            return fail_dispatch(
+                profile,
+                format!(
+                    "structural coverage below DAL-{} threshold; see COVERAGE_BELOW_THRESHOLD diagnostic(s)",
+                    derived.max_dal
+                ),
+            );
+        }
+        _ => {}
     }
 
     let policy = EvidencePolicy::for_dal(derived.max_dal);

@@ -78,6 +78,56 @@ impl std::str::FromStr for Dal {
     }
 }
 
+/// Minimum structural-coverage percentages per DO-178C Annex A
+/// Table A-7 Obj-5 (statement) + Obj-6 (decision/branch). A
+/// `None` means the dimension is not required at this DAL.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct DalCoverageThresholds {
+    /// Minimum statement coverage percentage (Obj-5). Required
+    /// at DAL ≥ C; absent at D.
+    pub statement_percent: Option<u8>,
+    /// Minimum branch coverage percentage (approximation of
+    /// Obj-6 decision coverage — LLVM branch coverage, not
+    /// MC/DC). Required at DAL ≥ B; absent at C and D.
+    pub branch_percent: Option<u8>,
+}
+
+impl Dal {
+    /// DO-178C-mandated minimum coverage percentages at this DAL.
+    ///
+    /// These are hardcoded DO-178C defaults. A downstream
+    /// project can override via `cert/boundary.toml.[dal.coverage]`
+    /// in a future schema extension; today the defaults are the
+    /// single source of truth.
+    ///
+    /// - D: no thresholds (info-only).
+    /// - C: statement ≥ 90% (Obj-5).
+    /// - B: statement ≥ 95% + branch ≥ 85% (Obj-5 + 6).
+    /// - A: statement ≥ 95% + branch ≥ 90% (Obj-5 + 6, plus
+    ///   MC/DC handled by an auxiliary tool — see
+    ///   `cert/QUALIFICATION.md`).
+    pub fn coverage_thresholds(self) -> DalCoverageThresholds {
+        match self {
+            Dal::D => DalCoverageThresholds {
+                statement_percent: None,
+                branch_percent: None,
+            },
+            Dal::C => DalCoverageThresholds {
+                statement_percent: Some(90),
+                branch_percent: None,
+            },
+            Dal::B => DalCoverageThresholds {
+                statement_percent: Some(95),
+                branch_percent: Some(85),
+            },
+            Dal::A => DalCoverageThresholds {
+                statement_percent: Some(95),
+                branch_percent: Some(90),
+            },
+        }
+    }
+}
+
 /// DAL configuration section in boundary.toml.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DalConfig {
@@ -136,5 +186,40 @@ mod tests {
         let config = DalConfig::default();
         assert_eq!(config.default_dal, Dal::D);
         assert!(config.crate_overrides.is_empty());
+    }
+
+    /// Pins DO-178C A-7 Obj-5/6 thresholds. Changing a number
+    /// here is a cert-contract change; bump the `COMPLIANCE`
+    /// schema version in the same PR.
+    #[test]
+    fn coverage_thresholds_by_dal() {
+        assert_eq!(
+            Dal::D.coverage_thresholds(),
+            DalCoverageThresholds {
+                statement_percent: None,
+                branch_percent: None,
+            }
+        );
+        assert_eq!(
+            Dal::C.coverage_thresholds(),
+            DalCoverageThresholds {
+                statement_percent: Some(90),
+                branch_percent: None,
+            }
+        );
+        assert_eq!(
+            Dal::B.coverage_thresholds(),
+            DalCoverageThresholds {
+                statement_percent: Some(95),
+                branch_percent: Some(85),
+            }
+        );
+        assert_eq!(
+            Dal::A.coverage_thresholds(),
+            DalCoverageThresholds {
+                statement_percent: Some(95),
+                branch_percent: Some(90),
+            }
+        );
     }
 }

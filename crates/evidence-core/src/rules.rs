@@ -69,6 +69,7 @@ pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "CHECK_TEST_RUNTIME_FAILURE",
     "CLI_INVALID_ARGUMENT",
     "CLI_UNSUPPORTED_FORMAT",
+    "COVERAGE_BELOW_THRESHOLD",
     "COVERAGE_LLVMCOV_MISSING",
     "COVERAGE_OK",
     "COVERAGE_PARSE_FAILED",
@@ -82,6 +83,7 @@ pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "DOCTOR_MERGE_STYLE_RISK",
     "DOCTOR_MERGE_STYLE_UNKNOWN",
     "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
+    "DOCTOR_QUALIFICATION_MISSING",
     "DOCTOR_TRACE_EMPTY",
     "DOCTOR_TRACE_INVALID",
     "ENV_ENGINE_RELEASE_PROVENANCE",
@@ -161,6 +163,11 @@ pub const RULES: &[RuleEntry] = &[
     r("CMD_NON_UTF8_OUTPUT", Severity::Error, Domain::Cmd),
     r("CMD_NON_ZERO_EXIT", Severity::Error, Domain::Cmd),
     r(
+        "COVERAGE_BELOW_THRESHOLD",
+        Severity::Error,
+        Domain::Coverage,
+    ),
+    r(
         "COVERAGE_LLVMCOV_MISSING",
         Severity::Error,
         Domain::Coverage,
@@ -193,6 +200,11 @@ pub const RULES: &[RuleEntry] = &[
     r(
         "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
         Severity::Warning,
+        Domain::Doctor,
+    ),
+    r(
+        "DOCTOR_QUALIFICATION_MISSING",
+        Severity::Error,
         Domain::Doctor,
     ),
     r("DOCTOR_TRACE_EMPTY", Severity::Error, Domain::Doctor),

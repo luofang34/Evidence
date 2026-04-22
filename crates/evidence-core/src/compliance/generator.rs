@@ -32,7 +32,7 @@ pub fn generate_compliance_report(
             (ObjectiveStatusKind::NotApplicable, vec![], None)
         } else {
             applicable_count += 1;
-            determine_objective_status(obj, evidence)
+            determine_objective_status(obj, dal, evidence)
         };
 
         // Exhaustive match — a new variant becomes a compile error
@@ -111,6 +111,8 @@ mod tests {
             tests_passed: Some(true),
             has_coverage_data: false,
             has_per_test_outcomes: false,
+            coverage_statement_percent: None,
+            coverage_branch_percent: None,
         };
         let report = generate_compliance_report("util-crate", Dal::D, &evidence);
         assert_eq!(report.dal, "D");

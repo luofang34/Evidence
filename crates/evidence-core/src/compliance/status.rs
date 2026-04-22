@@ -8,8 +8,10 @@
 //! A-5/A-6 mostly yield `ManualReviewRequired`; the tool only
 //! mechanically checks traceability links (A3-6, A4-6, A6-5).
 
+use super::coverage_verdict::coverage_verdict;
 use super::objective::Objective;
 use super::report::{CrateEvidence, ObjectiveStatusKind};
+use crate::policy::Dal;
 
 /// Concise tuple to spare us typing the `String, Vec<String>,
 /// Option<String>` triad on every return.
@@ -24,7 +26,11 @@ fn manual_review(note: &str) -> Verdict {
 }
 
 /// Determine status for a single objective based on available evidence.
-pub(super) fn determine_objective_status(obj: &Objective, evidence: &CrateEvidence) -> Verdict {
+pub(super) fn determine_objective_status(
+    obj: &Objective,
+    dal: Dal,
+    evidence: &CrateEvidence,
+) -> Verdict {
     match obj.table {
         "Table A-3" => {
             if obj.id == "A3-6" {
@@ -102,13 +108,13 @@ pub(super) fn determine_objective_status(obj: &Objective, evidence: &CrateEviden
                 manual_review("reviewer or static-analysis tool must judge source compliance")
             }
         }
-        "Table A-7" => determine_a7_status(obj, evidence),
+        "Table A-7" => determine_a7_status(obj, dal, evidence),
         _ => (ObjectiveStatusKind::NotMet, vec![], None),
     }
 }
 
 /// Determine status for Table A-7 (testing) objectives.
-fn determine_a7_status(obj: &Objective, evidence: &CrateEvidence) -> Verdict {
+fn determine_a7_status(obj: &Objective, dal: Dal, evidence: &CrateEvidence) -> Verdict {
     match obj.id {
         "A7-1" | "A7-2" => {
             // HLR-level testing. Only reports any credit when tests
@@ -214,39 +220,24 @@ fn determine_a7_status(obj: &Objective, evidence: &CrateEvidence) -> Verdict {
             }
         }
         "A7-8" => {
-            // Statement coverage
-            if evidence.has_coverage_data {
-                (
-                    ObjectiveStatusKind::Partial,
-                    vec![],
-                    Some("coverage data exists; threshold check not yet implemented".to_string()),
-                )
-            } else {
-                (
-                    ObjectiveStatusKind::NotMet,
-                    vec![],
-                    Some("no structural coverage data".to_string()),
-                )
-            }
+            // Statement coverage — upgrade to Met when the
+            // aggregate percent from `coverage/coverage_summary.json`
+            // meets the DO-178C threshold for this DAL.
+            coverage_verdict(
+                evidence.coverage_statement_percent,
+                dal.coverage_thresholds().statement_percent,
+                "statement",
+            )
         }
         "A7-9" => {
-            // Decision coverage
-            if evidence.has_coverage_data {
-                (
-                    ObjectiveStatusKind::Partial,
-                    vec![],
-                    Some(
-                        "coverage data exists; decision coverage extraction not yet implemented"
-                            .to_string(),
-                    ),
-                )
-            } else {
-                (
-                    ObjectiveStatusKind::NotMet,
-                    vec![],
-                    Some("no structural coverage data".to_string()),
-                )
-            }
+            // Decision coverage — LLVM branch coverage is our
+            // approximation (see cert/QUALIFICATION.md for the
+            // semantic gap statement).
+            coverage_verdict(
+                evidence.coverage_branch_percent,
+                dal.coverage_thresholds().branch_percent,
+                "branch",
+            )
         }
         "A7-10" => {
             // MC/DC coverage — tool capability gap, not a review
@@ -287,6 +278,7 @@ mod tests {
             tests_passed: Some(false),
             has_coverage_data: false,
             has_per_test_outcomes: false,
+            ..CrateEvidence::default()
         };
         let report = generate_compliance_report("failing-crate", Dal::A, &evidence);
 
@@ -319,6 +311,7 @@ mod tests {
             tests_passed: None,
             has_coverage_data: false,
             has_per_test_outcomes: false,
+            ..CrateEvidence::default()
         };
         let report = generate_compliance_report("no-tests-crate", Dal::A, &evidence);
 
@@ -350,6 +343,7 @@ mod tests {
             tests_passed: Some(true),
             has_coverage_data: false,
             has_per_test_outcomes: false,
+            ..CrateEvidence::default()
         };
         let report = generate_compliance_report("passing-crate", Dal::A, &evidence);
 
@@ -389,6 +383,7 @@ mod tests {
             tests_passed: Some(true),
             has_coverage_data: false,
             has_per_test_outcomes: false,
+            ..CrateEvidence::default()
         };
         let report = generate_compliance_report("review-crate", Dal::A, &evidence);
 
@@ -433,6 +428,7 @@ mod tests {
                 tests_passed: Some(true),
                 has_coverage_data: false,
                 has_per_test_outcomes: false,
+                ..CrateEvidence::default()
             };
             let report = generate_compliance_report("exhaustive", dal, &evidence);
             let s = &report.summary;
@@ -458,6 +454,7 @@ mod tests {
             tests_passed: Some(true),
             has_coverage_data: false,
             has_per_test_outcomes: false,
+            ..CrateEvidence::default()
         };
         let report_without = generate_compliance_report("u", Dal::C, &without);
         let a7_3_without = report_without
@@ -497,4 +494,6 @@ mod tests {
             .expect("A7-4 present at DAL-B");
         assert_eq!(a7_4_b.status, ObjectiveStatusKind::Met);
     }
+    // A-7 Obj-5/6 upgrade tests live in
+    // `tests/compliance_coverage_upgrade.rs` (500-line limit).
 }

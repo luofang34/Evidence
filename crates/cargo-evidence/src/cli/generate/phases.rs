@@ -406,6 +406,10 @@ pub(super) fn write_compliance_reports(
     let tests_passed = builder.tests_passed();
     let has_test_results = tests_passed.is_some();
     let has_per_test_outcomes = builder.has_test_outcomes();
+    let coverage_statement_percent = builder.coverage_statement_percent();
+    let coverage_branch_percent = builder.coverage_branch_percent();
+    let has_coverage_data =
+        coverage_statement_percent.is_some() || coverage_branch_percent.is_some();
     let has_trace_data = trace_roots.iter().any(|r| Path::new(r).exists());
     for (crate_name, dal) in dal_map {
         let crate_evidence = evidence_core::CrateEvidence {
@@ -413,8 +417,10 @@ pub(super) fn write_compliance_reports(
             trace_validation_passed: true,
             has_test_results,
             tests_passed,
-            has_coverage_data: false,
+            has_coverage_data,
             has_per_test_outcomes,
+            coverage_statement_percent,
+            coverage_branch_percent,
         };
         let report = evidence_core::generate_compliance_report(crate_name, *dal, &crate_evidence);
         let report_path = compliance_dir.join(format!("{}.json", crate_name));
