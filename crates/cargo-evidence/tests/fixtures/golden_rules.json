@@ -784,6 +784,13 @@
     "terminal": false
   },
   {
+    "code": "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
+    "severity": "info",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
     "severity": "error",
     "domain": "verify",

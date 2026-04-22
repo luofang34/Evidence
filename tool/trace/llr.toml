@@ -1327,6 +1327,18 @@ inside `verify_bundle_with_key`, accumulates the set of
 asserts the uid is present in the set. Missing → push
 `VerifyError::LlrTestSelectorUnresolved { llr_uid, llr_id }`.
 Skip silently when the JSONL file is absent (older bundles).
+Empty-string uids are treated the same as `None` for
+defense-in-depth against corrupt trace data.
+
+`cargo_evidence::cli::verify::skipped_notices::maybe_emit_llr_check_skipped_no_outcomes`
+emits `VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES` (Info) on the
+`VerifyResult::Pass` path when `tests/test_outcomes.jsonl` is
+absent — the library-side check silently returned; this notice
+surfaces that skip so an auditor can distinguish "check ran and
+passed" from "check didn't run."
 """
 verification_methods = ["test"]
-emits = ["VERIFY_LLR_TEST_SELECTOR_UNRESOLVED"]
+emits = [
+    "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
+    "VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
+]

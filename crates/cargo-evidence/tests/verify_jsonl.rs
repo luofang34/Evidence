@@ -115,6 +115,53 @@ fn verify_ok_terminates_with_verify_ok_and_exit_zero() {
     );
 }
 
+/// `generate --skip-tests` produces a bundle with no
+/// `tests/test_outcomes.jsonl`; `verify` on that bundle still
+/// returns Pass, and the LLR reverse-traceability check is
+/// silently skipped library-side. The CLI surfaces an Info
+/// `VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES` so the skip is wire-
+/// visible — an auditor can tell "check didn't run" apart from
+/// "check ran and passed."
+#[test]
+fn absent_test_outcomes_emits_llr_skip_info() {
+    let tmp = TempDir::new().unwrap();
+    let bundle = generate_bundle(tmp.path());
+
+    let output = cargo_evidence()
+        .arg("evidence")
+        .arg("--format=jsonl")
+        .arg("verify")
+        .arg(&bundle)
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(0));
+    let lines = parse_jsonl(&output.stdout);
+    let skip = lines
+        .iter()
+        .find(|l| {
+            l.get("code").and_then(Value::as_str) == Some("VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES")
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "expected VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES in stream; got codes: {:?}",
+                lines
+                    .iter()
+                    .filter_map(|l| l.get("code").and_then(Value::as_str))
+                    .collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(
+        skip.get("severity").and_then(Value::as_str),
+        Some("info"),
+        "skip notice must be severity=info (non-blocking)",
+    );
+    // Terminal still VERIFY_OK — the skip notice does not change
+    // the verdict.
+    let last = lines.last().unwrap();
+    assert_eq!(last.get("code").and_then(Value::as_str), Some("VERIFY_OK"));
+}
+
 /// Shared runner for the two runtime-error-path tests. Returns
 /// `(exit_code, parsed_stdout_lines, stderr_bytes)` so each test can
 /// assert on the slice of invariants it cares about.

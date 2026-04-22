@@ -22,3 +22,9 @@ Convention for `WalkDir` callsites:
 - **Share the primitive, not filter logic.** A config-knobbed generic walker is usually more complex than the duplication it would replace (abstraction-wrong trap). `tests/walker_helpers.rs::walk` is the shared `WalkDir::new(root).follow_links(false).into_iter()` for integration tests; production code inlines the two-line call.
 
 Mechanical enforcement: `walker_usage_locked` asserts (a) no unallowlisted `fs::read_dir` callsite anywhere in `crates/**/*.rs`, and (b) every `WalkDir::new(` call pins `.follow_links(false)` within the same call chain.
+
+## Trace-first convention
+
+Default: every PR seeds its SYS/HLR/LLR/TEST entries in the first commit on the branch, before any implementation. The trace chain is the contract; the code implements it.
+
+**Exception — bidirectional contracts spanning two PRs.** When a single SYS-level claim covers both directions of a contract (e.g., forward-enrichment in one PR + reverse-verification in a follow-up), the *second* PR seeds the chain for both halves. The first PR ships functionality under an implicit trace obligation; the second PR's chain-seed discharges it for both. This is rare — only legitimate when the two halves form one logical deliverable and splitting the chain would force referencing UUIDs that don't yet exist. Do not generalize: if a later PR's scope is independent (new surface, different concern), seed its own chain from commit 1 as normal.

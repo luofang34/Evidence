@@ -60,17 +60,17 @@ pub fn check_llr_test_selectors(bundle: &Path, errors: &mut Vec<VerifyError>) {
         }
     }
 
-    let llr_bytes = match fs::read(&llr_path) {
-        Ok(b) => b,
+    let llr_text = match fs::read_to_string(&llr_path) {
+        Ok(s) => s,
         Err(_) => return,
     };
-    let llr_file: crate::trace::LlrFile = match toml::from_slice(&llr_bytes) {
+    let llr_file: crate::trace::LlrFile = match toml::from_str(&llr_text) {
         Ok(f) => f,
         Err(_) => return,
     };
 
     for llr in &llr_file.requirements {
-        let Some(uid) = &llr.uid else {
+        let Some(uid) = llr.uid.as_ref().filter(|u| !u.is_empty()) else {
             continue;
         };
         if !llr
@@ -213,5 +213,43 @@ verification_methods = ["review"]
         let mut errors = Vec::new();
         check_llr_test_selectors(tmp.path(), &mut errors);
         assert!(errors.is_empty());
+    }
+
+    /// Empty-string uid is treated the same as `uid = None`:
+    /// continue past the entry rather than look for "" in the
+    /// claimed-uid set. Defense-in-depth against corrupt trace
+    /// data — UUID backfill policy makes this impossible in
+    /// practice but the guard is cheap.
+    #[test]
+    fn llr_with_empty_uid_is_skipped_not_false_fired() {
+        let toml_body = format!(
+            r#"
+[schema]
+version = "{ver}"
+
+[meta]
+document_id = "LLR"
+revision = "1.0"
+
+[[requirements]]
+uid = ""
+id = "LLR-EMPTY-UID"
+title = "Corrupt LLR with empty uid"
+owner = "tool"
+traces_to = ["hlr-u"]
+verification_methods = ["test"]
+"#,
+            ver = crate::schema_versions::TRACE
+        );
+        let tmp = seed_bundle(
+            &toml_body,
+            Some(r#"{"name":"f","module_path":"m","passed":true,"ignored":false}"#),
+        );
+        let mut errors = Vec::new();
+        check_llr_test_selectors(tmp.path(), &mut errors);
+        assert!(
+            errors.is_empty(),
+            "empty uid must not trigger the unresolved error; got {errors:?}"
+        );
     }
 }

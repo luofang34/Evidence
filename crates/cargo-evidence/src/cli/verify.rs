@@ -14,7 +14,9 @@ use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFor
 use super::output::{emit_json, emit_jsonl};
 
 mod incomplete_bundle;
+mod skipped_notices;
 use incomplete_bundle::maybe_emit_bundle_incomplete_warning;
+use skipped_notices::maybe_emit_llr_check_skipped_no_outcomes;
 
 #[derive(Serialize)]
 struct VerifyOutput {
@@ -376,6 +378,7 @@ fn cmd_verify_jsonl(
             // blocking verification (dev snapshots of broken
             // builds are a legitimate debugging artifact).
             maybe_emit_bundle_incomplete_warning(&bundle_path)?;
+            maybe_emit_llr_check_skipped_no_outcomes(&bundle_path)?;
             emit_jsonl(&terminal_ok(&format!(
                 "bundle verified at {:?}",
                 bundle_path
