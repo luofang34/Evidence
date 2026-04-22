@@ -26,7 +26,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -37,7 +37,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache cargo registry & build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -95,7 +95,7 @@ jobs:
           # allow still fails: `HEAD^..HEAD` captures those lines too.
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             base="origin/${{ github.base_ref }}"
-            # No extra fetch: the job's `actions/checkout@v4` step
+            # No extra fetch: the job's `actions/checkout@v5` step
             # already ran with `fetch-depth: 0`, which populated
             # `origin/${{ github.base_ref }}` at full history. A
             # secondary `git fetch --depth=1` would create a
@@ -179,11 +179,11 @@ jobs:
     name: actionlint (workflow lint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Restore actionlint cache
         id: actionlint-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.local/bin/actionlint
           key: actionlint-${{ runner.os }}-latest
@@ -218,7 +218,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -228,7 +228,7 @@ jobs:
           toolchain: "1.95"
 
       - name: Cache cargo registry & build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -388,7 +388,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -396,7 +396,7 @@ jobs:
         # DeterminateSystems installer detects and reuses pre-existing
         # `_nixbld` state so it doesn't abort on `eDSRecordAlreadyExists`
         # the way cachix/install-nix-action does.
-        uses: DeterminateSystems/nix-installer-action@v14
+        uses: DeterminateSystems/nix-installer-action@v22
 
       - name: Nix flake check
         run: nix flake check
@@ -417,7 +417,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # Full history so git_sha / git_branch are populated and the
           # shallow-clone guard in `cargo-evidence` is satisfied.
@@ -429,7 +429,7 @@ jobs:
           toolchain: "1.95"
 
       - name: Cache cargo registry & build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -593,7 +593,7 @@ jobs:
 
       - name: Upload bundle as artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: evidence-self-bundle
           path: ./dogfood-artifact/
@@ -626,7 +626,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -636,7 +636,7 @@ jobs:
           toolchain: "1.95"
 
       - name: Cache cargo registry & build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -677,7 +677,7 @@ jobs:
 
       - name: Upload per-OS artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: xhost-${{ runner.os }}
           path: ./xhost-stage/
@@ -713,17 +713,17 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Install Nix
         # See the `nix` job for why we're on DeterminateSystems, not
         # cachix/install-nix-action.
-        uses: DeterminateSystems/nix-installer-action@v14
+        uses: DeterminateSystems/nix-installer-action@v22
 
       - name: Cache cargo registry & build (Nix-segregated)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           # Separate key namespace from the native jobs so a `target/`
           # tree compiled by a native rustc can't contaminate the
@@ -831,7 +831,7 @@ jobs:
 
       - name: Upload per-flavor artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: xhost-nix-${{ runner.os }}
           path: ./xhost-stage/
@@ -871,7 +871,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -881,7 +881,7 @@ jobs:
           toolchain: "1.95"
 
       - name: Cache cargo registry & build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           # Segregated key from other jobs so this job's target tree
           # can't pick up artifacts built under a different profile.
@@ -1017,7 +1017,7 @@ jobs:
 
       - name: Upload cert bundle on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: evidence-self-cert-bundle
           path: ${{ runner.temp }}/cert-out/
@@ -1045,7 +1045,7 @@ jobs:
 
     steps:
       - name: Download all per-flavor artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: ./xhost
           pattern: xhost-*
@@ -1169,7 +1169,7 @@ jobs:
     # No `needs:` — runs in parallel with check.
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -1179,7 +1179,7 @@ jobs:
           toolchain: "1.95"
 
       - name: Cache cargo registry & build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
