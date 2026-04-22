@@ -321,6 +321,11 @@ pub const RULES: &[RuleEntry] = &[
     r("VERIFY_HMAC_FAILURE", Severity::Error, Domain::Verify),
     r("VERIFY_INVALID_FORMAT", Severity::Error, Domain::Verify),
     r(
+        "VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
         "VERIFY_MANIFEST_PROJECTION_DRIFT",
         Severity::Error,
         Domain::Verify,

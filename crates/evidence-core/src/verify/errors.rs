@@ -166,6 +166,22 @@ pub enum VerifyError {
         /// that triggered this invariant check.
         command_name: String,
     },
+    /// An LLR in `bundle/trace/llr.toml` declares
+    /// `verification_methods` including `"test"` + has a non-
+    /// `None` `uid`, but that uid is missing from every
+    /// `tests/test_outcomes.jsonl` record's `requirement_uids`.
+    /// Either: (a) the LLR's `test_selectors` (via a TestEntry
+    /// pointing to this LLR) didn't resolve to any real
+    /// `#[test] fn` — the selector is dangling; (b) the test
+    /// existed but didn't run (filtered, in a disabled crate);
+    /// (c) no TestEntry traces to this LLR at all. All three
+    /// are reverse-direction traceability holes.
+    LlrTestSelectorUnresolved {
+        /// UUID of the unresolved LLR.
+        llr_uid: String,
+        /// Human-readable LLR id for the reviewer.
+        llr_id: String,
+    },
 }
 
 impl std::fmt::Display for VerifyError {
@@ -304,6 +320,14 @@ impl std::fmt::Display for VerifyError {
                     commands.join(", ")
                 )
             }
+            VerifyError::LlrTestSelectorUnresolved { llr_uid, llr_id } => {
+                write!(
+                    f,
+                    "LLR {llr_id} (uid={llr_uid}) declares test verification but no \
+                     tests/test_outcomes.jsonl record lists this uid in \
+                     requirement_uids; the test_selector chain is dangling"
+                )
+            }
             VerifyError::TestSummaryAbsentOnFailedRun { command_name } => {
                 write!(
                     f,
@@ -345,6 +369,7 @@ impl DiagnosticCode for VerifyError {
             VerifyError::BundleIncompletelyClaimed { .. }   => "VERIFY_BUNDLE_INCOMPLETELY_CLAIMED",
             VerifyError::ToolCommandsFailedSilently { .. }  => "VERIFY_TOOL_COMMANDS_FAILED_SILENTLY",
             VerifyError::TestSummaryAbsentOnFailedRun { .. }=> "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
+            VerifyError::LlrTestSelectorUnresolved { .. }   => "VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
         }
     }
 
@@ -386,7 +411,8 @@ impl DiagnosticCode for VerifyError {
             | VerifyError::PrereleaseToolDetected { .. }
             | VerifyError::BundleIncompletelyClaimed { .. }
             | VerifyError::ToolCommandsFailedSilently { .. }
-            | VerifyError::TestSummaryAbsentOnFailedRun { .. } => None,
+            | VerifyError::TestSummaryAbsentOnFailedRun { .. }
+            | VerifyError::LlrTestSelectorUnresolved { .. } => None,
         };
 
         file_path.map(|file| Location {

@@ -613,3 +613,14 @@ test_selectors = [
     "evidence_core::compliance::status::tests::a7_3_upgrades_to_met_with_per_test_outcomes",
     "evidence_core::bundle::outcome_record::tests::write_outcomes_jsonl_end_to_end",
 ]
+
+[[tests]]
+uid = "da6f4884-9fdc-45bc-b6f7-21f115103ee2"
+id = "TEST-052"
+title = "Dangling LLR (test-verified, no matching test record) fires VERIFY_LLR_TEST_SELECTOR_UNRESOLVED"
+owner = "tool"
+traces_to = ["4bd86c6c-1743-4a78-9d17-c284b3ad8e04"]
+test_selectors = [
+    "llr_selector_check::llr_with_no_matching_test_outcome_fires_unresolved",
+    "llr_selector_check::llr_present_in_requirement_uids_passes",
+]
