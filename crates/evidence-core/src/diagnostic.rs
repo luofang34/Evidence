@@ -85,6 +85,12 @@ pub const TERMINAL_CODES: &[&str] = &[
     "DOCTOR_OK",
     "DOCTOR_FAIL",
     "TESTS_OK",
+    "INIT_OK",
+    "INIT_FAIL",
+    "FLOORS_OK",
+    "FLOORS_FAIL",
+    "GENERATE_OK",
+    "GENERATE_FAIL",
 ];
 
 /// One observation in the diagnostic stream.

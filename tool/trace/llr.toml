@@ -775,23 +775,31 @@ verification_methods = ["test"]
 [[requirements]]
 uid = "74f50e68-3a78-4557-a7c3-13340e52543a"
 id = "LLR-036"
-title = "cmd_floors runs the gate, emits FLOORS_BELOW_MIN on any failure"
+title = "cmd_floors runs the gate + JSONL support"
 owner = "tool"
 traces_to = ["a3073b5a-ee61-4bdd-bdfe-c3154274e5ea"]
 modules = ["cargo_evidence::cli::floors::cmd_floors"]
 derived = false
 description = """
-`cargo evidence floors [--base <ref>] [--json]` reads
-cert/floors.toml, computes current measurements via
+`cargo evidence floors [--format={human,jsonl}] [--json] [--base <ref>]`
+reads cert/floors.toml, computes current measurements via
 `evidence_core::floors`, compares each entry against its floor / ceiling,
-and prints a per-dimension table in human mode or a deterministic
-JSON array in `--json` mode. Any dimension below floor or above
-ceiling emits a FLOORS_BELOW_MIN diagnostic naming the dimension,
-current value, and committed threshold; exit 2 if any failure. A
-`--base` flag scopes the `[delta_ceilings]` check to the PR diff.
+and prints a per-dimension table in human mode, a deterministic
+JSON array in `--json` mode, or one JSONL diagnostic per dimension in
+`--format=jsonl` mode. Human + JSONL paths terminate with `FLOORS_OK`
+or `FLOORS_FAIL`; any below-floor / above-ceiling emits
+`FLOORS_BELOW_MIN` naming the dimension, current value, and committed
+threshold; exit 2 if any failure. Non-failure dimensions emit
+`FLOORS_DIMENSION_OK` in the JSONL stream. A `--base` flag scopes the
+`[delta_ceilings]` check to the PR diff.
 """
 verification_methods = ["test"]
-emits = ["FLOORS_BELOW_MIN"]
+emits = [
+    "FLOORS_BELOW_MIN",
+    "FLOORS_DIMENSION_OK",
+    "FLOORS_OK",
+    "FLOORS_FAIL",
+]
 
 [[requirements]]
 uid = "7fc5f9fc-83e2-44a0-b2d9-e6e1d8501349"

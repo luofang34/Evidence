@@ -42,12 +42,12 @@ schema_version = 1
 
 # evidence_core::RULES length — every diagnostic code the tool can emit,
 # hand-curated. Lives in a single crate, so workspace-wide.
-diagnostic_codes = 118
+diagnostic_codes = 127
 
 # evidence_core::TERMINAL_CODES length — hand-emitted terminals
 # (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR /
 #  DOCTOR_OK / DOCTOR_FAIL).
-terminal_codes = 7
+terminal_codes = 13
 
 # tool/trace/sys.toml — System Requirements.
 trace_sys = 19
@@ -81,7 +81,7 @@ known_surfaces = 19
 test_count = 253
 
 [per_crate.cargo-evidence]
-test_count = 117
+test_count = 115
 
 [per_crate.mcp-evidence]
 test_count = 8

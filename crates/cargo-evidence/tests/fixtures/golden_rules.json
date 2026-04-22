@@ -280,11 +280,46 @@
     "terminal": false
   },
   {
+    "code": "FLOORS_DIMENSION_OK",
+    "severity": "info",
+    "domain": "floors",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "FLOORS_FAIL",
+    "severity": "error",
+    "domain": "floors",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
     "code": "FLOORS_LOWERED_WITHOUT_JUSTIFICATION",
     "severity": "error",
     "domain": "floors",
     "has_fix_hint": false,
     "terminal": false
+  },
+  {
+    "code": "FLOORS_OK",
+    "severity": "info",
+    "domain": "floors",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "GENERATE_FAIL",
+    "severity": "error",
+    "domain": "generate",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "GENERATE_OK",
+    "severity": "info",
+    "domain": "generate",
+    "has_fix_hint": false,
+    "terminal": true
   },
   {
     "code": "GIT_CMD_FAILED",
@@ -381,6 +416,34 @@
     "code": "HASH_WRITE_FAILED",
     "severity": "error",
     "domain": "hash",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "INIT_CERT_DIR_EXISTS",
+    "severity": "error",
+    "domain": "init",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "INIT_FAIL",
+    "severity": "error",
+    "domain": "init",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "INIT_OK",
+    "severity": "info",
+    "domain": "init",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "INIT_TEMPLATE_WRITTEN",
+    "severity": "info",
+    "domain": "init",
     "has_fix_hint": false,
     "terminal": false
   },

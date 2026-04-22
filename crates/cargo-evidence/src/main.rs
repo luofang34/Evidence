@@ -112,7 +112,10 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
     // TODO(jsonl): add subcommand names here as they gain JSONL
     // support.
     if args.format == OutputFormat::Jsonl
-        && !matches!(subcommand_name, "verify" | "check" | "trace" | "doctor")
+        && !matches!(
+            subcommand_name,
+            "verify" | "check" | "trace" | "doctor" | "init" | "floors" | "generate"
+        )
     {
         return emit_unsupported_jsonl_terminal(subcommand_name);
     }
@@ -131,6 +134,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             skip_tests,
             quiet: args.quiet,
             json_output: args.json,
+            jsonl_output: args.format == OutputFormat::Jsonl,
         }),
         Some(Commands::Verify {
             bundle_path,
@@ -161,7 +165,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             bundle_b,
             json,
         }) => cmd_diff(bundle_a, bundle_b, json),
-        Some(Commands::Init { force }) => cmd_init(force),
+        Some(Commands::Init { force }) => cmd_init(force, args.format),
         Some(Commands::Schema { command }) => match command {
             SchemaCommands::Show { schema } => cmd_schema_show(schema),
             SchemaCommands::Validate { file } => cmd_schema_validate(file),
@@ -193,8 +197,11 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             cmd_rules(json || args.json)
         }
         Some(Commands::Floors { json, config }) => {
-            // Same blob-not-stream shape as `rules`.
-            cmd_floors(json || args.json, config)
+            // `--format=jsonl` streams one diagnostic per dimension
+            // + `FLOORS_OK` / `FLOORS_FAIL` terminal; `--json`
+            // keeps the single-blob array shape for scripted
+            // consumers that prefer one doc.
+            cmd_floors(json || args.json, args.format, config)
         }
         // No subcommand given — default to generate with global args.
         None => cmd_generate(GenerateArgs {
@@ -207,6 +214,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             skip_tests: false,
             quiet: args.quiet,
             json_output: args.json,
+            jsonl_output: args.format == OutputFormat::Jsonl,
         }),
     }
 }

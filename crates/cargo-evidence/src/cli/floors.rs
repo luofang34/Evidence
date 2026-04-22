@@ -1,4 +1,4 @@
-//! `cargo evidence floors [--json]` — the ratcheting-floors gate.
+//! `cargo evidence floors [--json|--format=jsonl]` — ratcheting-floors gate.
 //!
 //! Reads `cert/floors.toml`, computes current measurements via
 //! [`evidence_core::floors`], and fails with `FLOORS_BELOW_MIN` on any
@@ -10,20 +10,22 @@
 //! `[delta_ceilings]` table is parsed and reported as "skipped"
 //! until that step.
 //!
-//! `--format=jsonl` is explicitly unsupported — the gate emits a
-//! single JSON array per run, not a stream. The existing
-//! `CLI_UNSUPPORTED_FORMAT` dispatch guard rejects it.
+//! `--format=jsonl` streams one `FLOORS_DIMENSION_OK` /
+//! `FLOORS_BELOW_MIN` diagnostic per row and terminates with
+//! `FLOORS_OK` or `FLOORS_FAIL`. `--json` keeps the single-blob array
+//! shape for scripted consumers that prefer one doc.
 
 use std::path::PathBuf;
 
 use anyhow::Result;
 use serde::Serialize;
 
+use evidence_core::diagnostic::{Diagnostic, Severity};
 use evidence_core::floors::{LoadOutcome, per_crate_measurements};
 use evidence_core::{FloorsConfig, current_measurements};
 
-use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
-use super::output::emit_json;
+use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFormat};
+use super::output::{emit_json, emit_jsonl};
 
 /// One row of the floors report.
 ///
@@ -43,27 +45,44 @@ struct FloorRow {
 }
 
 /// Entrypoint for `cargo evidence floors`.
-pub fn cmd_floors(json: bool, config: Option<PathBuf>) -> Result<i32> {
+pub fn cmd_floors(json: bool, format: OutputFormat, config: Option<PathBuf>) -> Result<i32> {
+    let jsonl = format == OutputFormat::Jsonl;
     let workspace = std::env::current_dir()?;
     let floors_path = config.unwrap_or_else(|| workspace.join("cert").join("floors.toml"));
     let config = match FloorsConfig::load_or_missing(&floors_path) {
         LoadOutcome::Loaded(c) => c,
         LoadOutcome::Missing => {
             // Downstream users who haven't adopted the floors gate
-            // hit this path. Emit a friendly info message on stderr
-            // (so stdout stays clean for piping), exit 0. Set up a
-            // `cert/floors.toml` or pass `--config <path>` to
-            // enable the gate.
-            eprintln!(
-                "info: no floors config at {} — floors gate is not configured for this project. \
-                 Create cert/floors.toml (or pass --config) to enable. See README \
-                 \"`cargo evidence floors` — the ratchet\" for the expected shape.",
-                floors_path.display()
-            );
+            // hit this path. Friendly info + exit 0.
+            if jsonl {
+                emit_jsonl(&floors_terminal(
+                    "FLOORS_OK",
+                    Severity::Info,
+                    &format!(
+                        "no floors config at {} — gate not configured",
+                        floors_path.display()
+                    ),
+                ))?;
+            } else {
+                eprintln!(
+                    "info: no floors config at {} — floors gate is not configured for this project. \
+                     Create cert/floors.toml (or pass --config) to enable. See README \
+                     \"`cargo evidence floors` — the ratchet\" for the expected shape.",
+                    floors_path.display()
+                );
+            }
             return Ok(EXIT_SUCCESS);
         }
         LoadOutcome::Error(e) => {
-            eprintln!("error: {}", e);
+            if jsonl {
+                emit_jsonl(&floors_terminal(
+                    "FLOORS_FAIL",
+                    Severity::Error,
+                    &e.to_string(),
+                ))?;
+            } else {
+                eprintln!("error: {}", e);
+            }
             return Ok(EXIT_ERROR);
         }
     };
@@ -73,7 +92,23 @@ pub fn cmd_floors(json: bool, config: Option<PathBuf>) -> Result<i32> {
     let rows = build_rows(&config, &measurements, &per_crate);
     let any_fail = rows.iter().any(|r| r.status == "fail");
 
-    if json {
+    if jsonl {
+        emit_rows_jsonl(&rows)?;
+        if any_fail {
+            let count = rows.iter().filter(|r| r.status == "fail").count();
+            emit_jsonl(&floors_terminal(
+                "FLOORS_FAIL",
+                Severity::Error,
+                &format!("{} limit violation(s)", count),
+            ))?;
+        } else {
+            emit_jsonl(&floors_terminal(
+                "FLOORS_OK",
+                Severity::Info,
+                &format!("{} limit(s) pass", rows.len()),
+            ))?;
+        }
+    } else if json {
         emit_json(&rows)?;
     } else {
         print_human(&rows);
@@ -84,6 +119,46 @@ pub fn cmd_floors(json: bool, config: Option<PathBuf>) -> Result<i32> {
     } else {
         EXIT_SUCCESS
     })
+}
+
+fn emit_rows_jsonl(rows: &[FloorRow]) -> Result<()> {
+    for r in rows {
+        let (code, severity) = match r.status {
+            "pass" => ("FLOORS_DIMENSION_OK", Severity::Info),
+            "fail" => ("FLOORS_BELOW_MIN", Severity::Error),
+            "deferred" => ("FLOORS_DIMENSION_OK", Severity::Info),
+            _ => ("FLOORS_DIMENSION_OK", Severity::Info),
+        };
+        let display_name = match &r.crate_name {
+            Some(c) => format!("{}/{}", c, r.name),
+            None => r.name.clone(),
+        };
+        emit_jsonl(&Diagnostic {
+            code: code.to_string(),
+            severity,
+            message: format!(
+                "{} ({}): current={}, limit={}",
+                display_name, r.kind, r.current, r.floor
+            ),
+            location: None,
+            fix_hint: None,
+            subcommand: Some("floors".to_string()),
+            root_cause_uid: None,
+        })?;
+    }
+    Ok(())
+}
+
+fn floors_terminal(code: &'static str, severity: Severity, message: &str) -> Diagnostic {
+    Diagnostic {
+        code: code.to_string(),
+        severity,
+        message: message.to_string(),
+        location: None,
+        fix_hint: None,
+        subcommand: Some("floors".to_string()),
+        root_cause_uid: None,
+    }
 }
 
 fn build_rows(
