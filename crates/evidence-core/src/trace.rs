@@ -37,8 +37,8 @@ pub use selector_check::{UnresolvedSelector, resolve_test_selectors};
 pub use surfaces::KNOWN_SURFACES;
 pub use test_backlinks::resolve_llr_backlinks;
 pub use uuid::{
-    assign_missing_uuids_derived, assign_missing_uuids_hlr, assign_missing_uuids_llr,
-    assign_missing_uuids_test, backfill_uuids,
+    assign_valid_uuids_derived, assign_valid_uuids_hlr, assign_valid_uuids_llr,
+    assign_valid_uuids_test, backfill_uuids,
 };
 pub use validation::{
     LinkError, TraceValidationError, validate_trace_links, validate_trace_links_with_policy,

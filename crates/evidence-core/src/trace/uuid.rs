@@ -2,11 +2,15 @@
 //!
 //! Every entry kind (HLR / LLR / Test / Derived) declares `uid: Option<String>`
 //! with `#[serde(default)]` so legacy TOML without `uid` fields parses.
-//! `assign_missing_uuids_*` fills in a fresh v4 UUID for every `None`;
-//! `backfill_uuids` reads each trace file, runs the appropriate
-//! assigner, and writes the file back with `toml::to_string_pretty`
-//! only if any UUIDs were actually added.
+//! `assign_valid_uuids_*` fills in a fresh v4 UUID for every entry
+//! whose `uid` is missing OR not a valid UUID (e.g. init-template
+//! placeholders like `"HLR-001"`); `backfill_uuids` reads each
+//! trace file, rewrites both `uid` fields and cross-file
+//! `traces_to` references so placeholder IDs stay consistent
+//! after the rewrite, and writes the file back with
+//! `toml::to_string_pretty` only if any change was made.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -17,6 +21,47 @@ use super::entries::{
 };
 use super::read::{TraceReadError, read_toml};
 use crate::diagnostic::{DiagnosticCode, Location, Severity};
+
+/// `true` if `uid` is missing or not a valid UUID. The backfill
+/// path treats these identically — the uid slot needs a new v4.
+/// Init-template placeholders like `"HLR-001"` satisfy this
+/// predicate and are replaced on first backfill.
+fn needs_new_uuid(uid: Option<&str>) -> bool {
+    uid.is_none_or(|s| uuid::Uuid::parse_str(s).is_err())
+}
+
+/// If `uid` is missing or not a valid UUID, replace it with a
+/// fresh v4. Returns `Some(old)` when the slot held a non-None
+/// non-UUID string (caller needs to rewrite `traces_to`
+/// references to the old value); returns `None` when the slot
+/// was either already valid (no change) or was `None` (replaced,
+/// but nothing could reference a `None` old value).
+///
+/// Used by each `assign_valid_uuids_*` helper — keeps the logic
+/// single-sourced across the four entry kinds.
+fn rewrite_uid_if_needed(uid: &mut Option<String>) -> Option<(Option<String>, String)> {
+    if !needs_new_uuid(uid.as_deref()) {
+        return None;
+    }
+    let old = uid.take();
+    let new = uuid::Uuid::new_v4().to_string();
+    *uid = Some(new.clone());
+    Some((old, new))
+}
+
+fn record_rewrite(
+    outcome: Option<(Option<String>, String)>,
+    remap: &mut BTreeMap<String, String>,
+) -> bool {
+    match outcome {
+        Some((Some(old), new)) => {
+            remap.insert(old, new);
+            true
+        }
+        Some((None, _)) => true,
+        None => false,
+    }
+}
 
 /// Errors returned by [`backfill_uuids`].
 #[derive(Debug, Error)]
@@ -75,163 +120,244 @@ impl DiagnosticCode for BackfillError {
     }
 }
 
-/// Assign UUIDs to any HLR entries that are missing them.
-/// Returns the number of UUIDs assigned.
-pub fn assign_missing_uuids_hlr(entries: &mut [HlrEntry]) -> usize {
+/// Assign fresh v4 UUIDs to HLR entries whose `uid` is missing
+/// or is not a valid UUID (e.g. init-template placeholders like
+/// `"HLR-001"`). Returns `(count, remap)` where `remap` keys are
+/// the non-None pre-rewrite values and values are the new UUIDs,
+/// so callers can rewrite `traces_to` references in the same
+/// file or in downstream files (LLR → HLR, Test → LLR).
+pub fn assign_valid_uuids_hlr(entries: &mut [HlrEntry]) -> (usize, BTreeMap<String, String>) {
     let mut count = 0;
+    let mut remap = BTreeMap::new();
     for entry in entries.iter_mut() {
-        if entry.uid.is_none() {
-            entry.uid = Some(uuid::Uuid::new_v4().to_string());
+        if record_rewrite(rewrite_uid_if_needed(&mut entry.uid), &mut remap) {
             count += 1;
         }
     }
-    count
+    (count, remap)
 }
 
-/// Assign UUIDs to any LLR entries that are missing them.
-/// Returns the number of UUIDs assigned.
-pub fn assign_missing_uuids_llr(entries: &mut [LlrEntry]) -> usize {
+/// Assign fresh v4 UUIDs to LLR entries with missing or invalid
+/// `uid`. Same semantics as [`assign_valid_uuids_hlr`].
+pub fn assign_valid_uuids_llr(entries: &mut [LlrEntry]) -> (usize, BTreeMap<String, String>) {
     let mut count = 0;
+    let mut remap = BTreeMap::new();
     for entry in entries.iter_mut() {
-        if entry.uid.is_none() {
-            entry.uid = Some(uuid::Uuid::new_v4().to_string());
+        if record_rewrite(rewrite_uid_if_needed(&mut entry.uid), &mut remap) {
             count += 1;
         }
     }
-    count
+    (count, remap)
 }
 
-/// Assign UUIDs to any Test entries that are missing them.
-/// Returns the number of UUIDs assigned.
-pub fn assign_missing_uuids_test(entries: &mut [TestEntry]) -> usize {
+/// Assign fresh v4 UUIDs to Test entries with missing or invalid
+/// `uid`. Same semantics as [`assign_valid_uuids_hlr`].
+pub fn assign_valid_uuids_test(entries: &mut [TestEntry]) -> (usize, BTreeMap<String, String>) {
     let mut count = 0;
+    let mut remap = BTreeMap::new();
     for entry in entries.iter_mut() {
-        if entry.uid.is_none() {
-            entry.uid = Some(uuid::Uuid::new_v4().to_string());
+        if record_rewrite(rewrite_uid_if_needed(&mut entry.uid), &mut remap) {
             count += 1;
         }
     }
-    count
+    (count, remap)
 }
 
-/// Assign UUIDs to any Derived entries that are missing them.
-/// Returns the number of UUIDs assigned.
-pub fn assign_missing_uuids_derived(entries: &mut [DerivedEntry]) -> usize {
+/// Assign fresh v4 UUIDs to Derived entries with missing or
+/// invalid `uid`. Derived entries have no `traces_to` field so
+/// the returned remap is only useful if another layer references
+/// derived UIDs (not the current schema, but kept symmetric so
+/// future cross-references work).
+pub fn assign_valid_uuids_derived(
+    entries: &mut [DerivedEntry],
+) -> (usize, BTreeMap<String, String>) {
     let mut count = 0;
+    let mut remap = BTreeMap::new();
     for entry in entries.iter_mut() {
-        if entry.uid.is_none() {
-            entry.uid = Some(uuid::Uuid::new_v4().to_string());
+        if record_rewrite(rewrite_uid_if_needed(&mut entry.uid), &mut remap) {
             count += 1;
         }
     }
-    count
+    (count, remap)
 }
 
-/// Read trace files from a directory, assign missing UUIDs, and write back.
-/// Returns total number of UUIDs assigned.
+/// Apply a uid remap to a `traces_to` vector in place. Strings
+/// not present in the remap are left unchanged — they're either
+/// already valid UUIDs or references to entries outside the
+/// current backfill scope.
+fn rewrite_traces_to(refs: &mut [String], remap: &BTreeMap<String, String>) -> bool {
+    let mut changed = false;
+    for r in refs.iter_mut() {
+        if let Some(new) = remap.get(r) {
+            *r = new.clone();
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Read trace files from a directory, assign fresh v4 UUIDs to
+/// every entry whose `uid` is missing or not a valid UUID, and
+/// write the files back. Rewrites cross-file `traces_to`
+/// references so init-template placeholders stay consistent
+/// after the first backfill (e.g. an LLR that traced to the
+/// placeholder `"HLR-001"` picks up the same UUID the HLR-001
+/// entry just got assigned).
+///
+/// Returns total number of UUIDs assigned across all files.
+/// Writes only the files that actually changed, so repeated
+/// backfills on a fully-valid trace tree are free.
 pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
     let root_path = Path::new(trace_root);
     let mut total = 0;
 
-    // SYS (reuses HlrFile shape; `assign_missing_uuids_hlr` works
-    // against the shared slice type). SYS is the DO-178C §5.1 layer
-    // above HLR — we backfill it with the same code path because the
-    // struct is identical, only the filename differs.
+    // Phase 1: load every file that exists.
     let sys_path = root_path.join("sys.toml");
-    if sys_path.exists() {
-        let mut sys: HlrFile = read_toml(&sys_path)?;
-        let n = assign_missing_uuids_hlr(&mut sys.requirements);
-        if n > 0 {
-            let content =
-                toml::to_string_pretty(&sys).map_err(|source| BackfillError::Serialize {
-                    filename: "sys.toml",
-                    source: Box::new(source),
-                })?;
-            fs::write(&sys_path, content).map_err(|source| BackfillError::Write {
-                path: sys_path.clone(),
-                source,
-            })?;
-            total += n;
-        }
-    }
-
-    // HLR
     let hlr_path = root_path.join("hlr.toml");
-    if hlr_path.exists() {
-        let mut hlr: HlrFile = read_toml(&hlr_path)?;
-        let n = assign_missing_uuids_hlr(&mut hlr.requirements);
-        if n > 0 {
-            let content =
-                toml::to_string_pretty(&hlr).map_err(|source| BackfillError::Serialize {
-                    filename: "hlr.toml",
-                    source: Box::new(source),
-                })?;
-            fs::write(&hlr_path, content).map_err(|source| BackfillError::Write {
-                path: hlr_path.clone(),
-                source,
-            })?;
-            total += n;
-        }
-    }
-
-    // LLR
     let llr_path = root_path.join("llr.toml");
-    if llr_path.exists() {
-        let mut llr: LlrFile = read_toml(&llr_path)?;
-        let n = assign_missing_uuids_llr(&mut llr.requirements);
-        if n > 0 {
-            let content =
-                toml::to_string_pretty(&llr).map_err(|source| BackfillError::Serialize {
-                    filename: "llr.toml",
-                    source: Box::new(source),
-                })?;
-            fs::write(&llr_path, content).map_err(|source| BackfillError::Write {
-                path: llr_path.clone(),
-                source,
-            })?;
-            total += n;
-        }
-    }
-
-    // Tests
     let tests_path = root_path.join("tests.toml");
-    if tests_path.exists() {
-        let mut tests: TestsFile = read_toml(&tests_path)?;
-        let n = assign_missing_uuids_test(&mut tests.tests);
+    let derived_path = root_path.join("derived.toml");
+
+    let mut sys: Option<HlrFile> = if sys_path.exists() {
+        Some(read_toml(&sys_path)?)
+    } else {
+        None
+    };
+    let mut hlr: Option<HlrFile> = if hlr_path.exists() {
+        Some(read_toml(&hlr_path)?)
+    } else {
+        None
+    };
+    let mut llr: Option<LlrFile> = if llr_path.exists() {
+        Some(read_toml(&llr_path)?)
+    } else {
+        None
+    };
+    let mut tests: Option<TestsFile> = if tests_path.exists() {
+        Some(read_toml(&tests_path)?)
+    } else {
+        None
+    };
+    let mut derived: Option<DerivedFile> = if derived_path.exists() {
+        Some(read_toml(&derived_path)?)
+    } else {
+        None
+    };
+
+    // Phase 2: rewrite uids + collect a unified remap across
+    // every file. Key: pre-rewrite uid string (e.g. "HLR-001");
+    // value: new v4 UUID.
+    let mut remap: BTreeMap<String, String> = BTreeMap::new();
+    let mut sys_changed = false;
+    let mut hlr_changed = false;
+    let mut llr_changed = false;
+    let mut tests_changed = false;
+    let mut derived_changed = false;
+
+    if let Some(s) = sys.as_mut() {
+        let (n, m) = assign_valid_uuids_hlr(&mut s.requirements);
+        total += n;
         if n > 0 {
-            let content =
-                toml::to_string_pretty(&tests).map_err(|source| BackfillError::Serialize {
-                    filename: "tests.toml",
-                    source: Box::new(source),
-                })?;
-            fs::write(&tests_path, content).map_err(|source| BackfillError::Write {
-                path: tests_path.clone(),
-                source,
-            })?;
-            total += n;
+            sys_changed = true;
+        }
+        remap.extend(m);
+    }
+    if let Some(h) = hlr.as_mut() {
+        let (n, m) = assign_valid_uuids_hlr(&mut h.requirements);
+        total += n;
+        if n > 0 {
+            hlr_changed = true;
+        }
+        remap.extend(m);
+    }
+    if let Some(l) = llr.as_mut() {
+        let (n, m) = assign_valid_uuids_llr(&mut l.requirements);
+        total += n;
+        if n > 0 {
+            llr_changed = true;
+        }
+        remap.extend(m);
+    }
+    if let Some(t) = tests.as_mut() {
+        let (n, m) = assign_valid_uuids_test(&mut t.tests);
+        total += n;
+        if n > 0 {
+            tests_changed = true;
+        }
+        remap.extend(m);
+    }
+    if let Some(d) = derived.as_mut() {
+        let (n, m) = assign_valid_uuids_derived(&mut d.requirements);
+        total += n;
+        if n > 0 {
+            derived_changed = true;
+        }
+        remap.extend(m);
+    }
+
+    // Phase 3: apply the remap to every `traces_to` vector so
+    // references to pre-rewrite placeholders pick up the new
+    // UUIDs. Tracks per-file change flags independently from
+    // uid rewrites — a file with no uid rewrites but
+    // traces_to references into another file's rewritten uids
+    // still needs to be written back.
+    if let Some(h) = hlr.as_mut() {
+        for entry in h.requirements.iter_mut() {
+            if rewrite_traces_to(&mut entry.traces_to, &remap) {
+                hlr_changed = true;
+            }
+        }
+    }
+    if let Some(l) = llr.as_mut() {
+        for entry in l.requirements.iter_mut() {
+            if rewrite_traces_to(&mut entry.traces_to, &remap) {
+                llr_changed = true;
+            }
+        }
+    }
+    if let Some(t) = tests.as_mut() {
+        for entry in t.tests.iter_mut() {
+            if rewrite_traces_to(&mut entry.traces_to, &remap) {
+                tests_changed = true;
+            }
         }
     }
 
-    // Derived
-    let derived_path = root_path.join("derived.toml");
-    if derived_path.exists() {
-        let mut derived: DerivedFile = read_toml(&derived_path)?;
-        let n = assign_missing_uuids_derived(&mut derived.requirements);
-        if n > 0 {
-            let content =
-                toml::to_string_pretty(&derived).map_err(|source| BackfillError::Serialize {
-                    filename: "derived.toml",
-                    source: Box::new(source),
-                })?;
-            fs::write(&derived_path, content).map_err(|source| BackfillError::Write {
-                path: derived_path.clone(),
-                source,
-            })?;
-            total += n;
-        }
+    // Phase 4: write back every file that changed.
+    if sys_changed && let Some(s) = &sys {
+        write_trace_file(&sys_path, s, "sys.toml")?;
+    }
+    if hlr_changed && let Some(h) = &hlr {
+        write_trace_file(&hlr_path, h, "hlr.toml")?;
+    }
+    if llr_changed && let Some(l) = &llr {
+        write_trace_file(&llr_path, l, "llr.toml")?;
+    }
+    if tests_changed && let Some(t) = &tests {
+        write_trace_file(&tests_path, t, "tests.toml")?;
+    }
+    if derived_changed && let Some(d) = &derived {
+        write_trace_file(&derived_path, d, "derived.toml")?;
     }
 
     Ok(total)
+}
+
+/// Serialize a trace file and write it to disk, mapping the
+/// toml / I/O errors into the structured [`BackfillError`] variants.
+fn write_trace_file<T: serde::Serialize>(
+    path: &Path,
+    value: &T,
+    filename: &'static str,
+) -> Result<(), BackfillError> {
+    let content = toml::to_string_pretty(value).map_err(|source| BackfillError::Serialize {
+        filename,
+        source: Box::new(source),
+    })?;
+    fs::write(path, content).map_err(|source| BackfillError::Write {
+        path: path.to_path_buf(),
+        source,
+    })
 }
 
 #[cfg(test)]
@@ -244,72 +370,124 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_assign_missing_uuids_hlr() {
-        let mut entries = vec![
-            HlrEntry {
-                uid: None,
-                ns: None,
-                id: "HLR-001".to_string(),
-                title: "Needs UUID".to_string(),
-                owner: None,
-                scope: None,
-                sort_key: None,
-                category: None,
-                source: None,
-                description: None,
-                rationale: None,
-                verification_methods: vec![],
-                traces_to: vec![],
-                surfaces: vec![],
-            },
-            HlrEntry {
-                uid: Some("existing-uuid".to_string()),
-                ns: None,
-                id: "HLR-002".to_string(),
-                title: "Has UUID".to_string(),
-                owner: None,
-                scope: None,
-                sort_key: None,
-                category: None,
-                source: None,
-                description: None,
-                rationale: None,
-                verification_methods: vec![],
-                traces_to: vec![],
-                surfaces: vec![],
-            },
-        ];
-
-        let count = assign_missing_uuids_hlr(&mut entries);
-        assert_eq!(count, 1);
-        // `count == 1` above already guarantees entries[0].uid is
-        // Some(_); the unwrap here is informational, not a safety
-        // concern — clippy::unwrap_used is allowed in this test mod.
-        let assigned_uid = entries[0].uid.as_deref().unwrap();
-        assert!(uuid::Uuid::parse_str(assigned_uid).is_ok());
-        // The existing one should be untouched.
-        assert_eq!(entries[1].uid.as_deref(), Some("existing-uuid"));
-    }
-
-    #[test]
-    fn test_assign_missing_uuids_derived() {
-        let mut entries = vec![DerivedEntry {
-            uid: None,
-            id: "DER-001".to_string(),
-            title: "Derived req".to_string(),
+    fn hlr_entry(uid: Option<&str>) -> HlrEntry {
+        HlrEntry {
+            uid: uid.map(|s| s.to_string()),
+            ns: None,
+            id: "HLR-X".to_string(),
+            title: "fixture".to_string(),
             owner: None,
+            scope: None,
+            sort_key: None,
+            category: None,
             source: None,
             description: None,
             rationale: None,
-            safety_impact: None,
-            sort_key: None,
-        }];
+            verification_methods: vec![],
+            traces_to: vec![],
+            surfaces: vec![],
+        }
+    }
 
-        let count = assign_missing_uuids_derived(&mut entries);
-        assert_eq!(count, 1);
-        // `count == 1` above already guarantees entries[0].uid is Some(_).
-        let assigned_uid = entries[0].uid.as_deref().unwrap();
-        assert!(uuid::Uuid::parse_str(assigned_uid).is_ok());
+    #[test]
+    fn assign_valid_uuids_hlr_fills_missing_and_invalid() {
+        let mut entries = vec![
+            hlr_entry(None),
+            hlr_entry(Some("HLR-001")),           // placeholder string
+            hlr_entry(Some("not-a-uuid-either")), // any non-UUID string
+            hlr_entry(Some("5c6e07f1-da4a-4aec-9647-426304deadb5")), // valid
+        ];
+        let (count, remap) = assign_valid_uuids_hlr(&mut entries);
+        assert_eq!(count, 3, "3 entries should be rewritten");
+        // Remap only contains entries whose old uid was Some(_).
+        assert_eq!(remap.len(), 2);
+        assert!(remap.contains_key("HLR-001"));
+        assert!(remap.contains_key("not-a-uuid-either"));
+        // Every rewritten entry now carries a valid UUID.
+        for entry in entries.iter().take(3) {
+            let s = entry.uid.as_deref().unwrap();
+            assert!(uuid::Uuid::parse_str(s).is_ok(), "not a uuid: {s}");
+        }
+        // The already-valid entry keeps its uid.
+        assert_eq!(
+            entries[3].uid.as_deref(),
+            Some("5c6e07f1-da4a-4aec-9647-426304deadb5")
+        );
+    }
+
+    #[test]
+    fn rewrite_traces_to_applies_remap() {
+        let remap: BTreeMap<String, String> = [
+            ("HLR-001".to_string(), "aaaa-new-uuid".to_string()),
+            ("HLR-002".to_string(), "bbbb-new-uuid".to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let mut refs = vec![
+            "HLR-001".to_string(),
+            "something-else".to_string(),
+            "HLR-002".to_string(),
+        ];
+        let changed = rewrite_traces_to(&mut refs, &remap);
+        assert!(changed);
+        assert_eq!(refs[0], "aaaa-new-uuid");
+        assert_eq!(refs[1], "something-else");
+        assert_eq!(refs[2], "bbbb-new-uuid");
+    }
+
+    #[test]
+    fn rewrite_traces_to_noop_when_no_match() {
+        let remap: BTreeMap<String, String> = BTreeMap::new();
+        let mut refs = vec!["HLR-001".to_string()];
+        let changed = rewrite_traces_to(&mut refs, &remap);
+        assert!(!changed);
+        assert_eq!(refs[0], "HLR-001");
+    }
+
+    #[test]
+    fn assign_valid_uuids_derived_rewrites_invalid() {
+        let mut entries = vec![
+            DerivedEntry {
+                uid: None,
+                id: "DER-001".to_string(),
+                title: "Derived req".to_string(),
+                owner: None,
+                source: None,
+                description: None,
+                rationale: None,
+                safety_impact: None,
+                sort_key: None,
+            },
+            DerivedEntry {
+                uid: Some("DRQ-001".to_string()),
+                id: "DER-002".to_string(),
+                title: "Placeholder uid".to_string(),
+                owner: None,
+                source: None,
+                description: None,
+                rationale: None,
+                safety_impact: None,
+                sort_key: None,
+            },
+        ];
+        let (count, remap) = assign_valid_uuids_derived(&mut entries);
+        assert_eq!(count, 2);
+        assert_eq!(remap.len(), 1, "only non-None olds go into remap");
+        assert!(remap.contains_key("DRQ-001"));
+        for entry in &entries {
+            let s = entry.uid.as_deref().unwrap();
+            assert!(uuid::Uuid::parse_str(s).is_ok(), "not a uuid: {s}");
+        }
+    }
+
+    #[test]
+    fn needs_new_uuid_accepts_only_valid_uuids() {
+        assert!(needs_new_uuid(None));
+        assert!(needs_new_uuid(Some("")));
+        assert!(needs_new_uuid(Some("HLR-001")));
+        assert!(needs_new_uuid(Some("not-quite-uuid-shape")));
+        assert!(!needs_new_uuid(Some(
+            "5c6e07f1-da4a-4aec-9647-426304deadb5"
+        )));
     }
 }
