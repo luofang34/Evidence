@@ -308,8 +308,47 @@ safety_impact = "none"
         TRACE_VERSION = TRACE
     );
 
+    // SYS is the System layer above HLR — the four-layer trace
+    // chain cargo-evidence itself uses (SYS/HLR/LLR/TEST).
+    // Downstream projects without a SYS layer can't satisfy the
+    // DAL-A-and-up `require_hlr_sys_trace` policy gate; shipping
+    // the template keeps the shape consistent with the tool's
+    // own dogfood.
+    let sys_example = format!(
+        r#"# System Requirements
+#
+# The top of the DO-178C §5.1 trace chain: system-level
+# assumptions the software is supposed to enforce. Each HLR
+# below should traces_to at least one SYS entry at DAL-A/B.
+#
+# Each [[requirements]] entry must include:
+#   uid    - unique identifier (e.g. "SYS-001")
+#   id     - human-readable slug
+#   title  - short description
+# Optional fields: owner, description, rationale,
+#   verification_methods, source.
+
+[schema]
+version = "{TRACE_VERSION}"
+
+[meta]
+document_id = "SYS-DOC-001"
+revision = "1"
+
+[[requirements]]
+uid = "SYS-001"
+id = "sys-example"
+title = "Example System Requirement"
+description = "This is an example system-level requirement."
+owner = "systems@example.com"
+verification_methods = ["review"]
+"#,
+        TRACE_VERSION = TRACE
+    );
+
     let trace_dir = cert_dir.join("trace");
     let trace_files = [
+        ("sys.toml", sys_example),
         ("hlr.toml", hlr_example),
         ("llr.toml", llr_example),
         ("tests.toml", tests_example),
@@ -335,7 +374,7 @@ safety_impact = "none"
         println!("\nInitialized evidence tracking in cert/");
         println!("\nNext steps:");
         println!("  1. Edit cert/boundary.toml to define in-scope crates");
-        println!("  2. Add requirements to cert/trace/ (hlr.toml, llr.toml, tests.toml)");
+        println!("  2. Add requirements to cert/trace/ (sys.toml, hlr.toml, llr.toml, tests.toml)");
         println!("  3. Run: cargo evidence generate --out-dir evidence");
     }
 

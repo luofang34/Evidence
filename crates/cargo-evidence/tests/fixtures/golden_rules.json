@@ -259,6 +259,13 @@
     "terminal": false
   },
   {
+    "code": "ENV_ENGINE_RELEASE_PROVENANCE",
+    "severity": "warning",
+    "domain": "env",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "ENV_STRICT_CARGO_REQUIRED",
     "severity": "error",
     "domain": "env",

@@ -19,8 +19,8 @@ mod host;
 mod manifest;
 
 pub use capture::{
-    EnvCaptureError, TOOL_IS_PRERELEASE, env_fingerprint, extract_llvm_version,
-    extract_target_triple, in_nix_shell, is_prerelease_version, tool_exists,
+    EnvCaptureError, TOOL_BUILD_SOURCE_IS_RELEASE, TOOL_IS_PRERELEASE, env_fingerprint,
+    extract_llvm_version, extract_target_triple, in_nix_shell, is_prerelease_version, tool_exists,
 };
 pub use fingerprint::EnvFingerprint;
 pub use host::Host;

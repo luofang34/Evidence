@@ -1,10 +1,6 @@
-//! Phase functions for `cargo evidence generate`.
-//!
-//! Each phase is a small, single-purpose helper called in order by
-//! [`super::cmd_generate`]. Short-circuiting phases (preflight
-//! gates, strict-mode trace-validation failure) return
-//! `Result<Option<i32>>`; I/O-only phases return `Result<()>`.
-//! Visibility is `pub(super)`.
+//! Phase functions for `cargo evidence generate`. Short-circuiting
+//! phases return `Result<Option<i32>>`; I/O-only phases return
+//! `Result<()>`. Visibility is `pub(super)`.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -38,9 +34,7 @@ pub(super) struct BoundaryDerived {
     pub(super) policy: BoundaryPolicy,
 }
 
-// ============================================================================
 // Phase 1 — preflight checks (shallow-clone, cert-dirty)
-// ============================================================================
 
 /// Run the two policy gates that block bundle generation before any
 /// real work begins. On a gate failure, emit the JSON/text error
@@ -65,9 +59,7 @@ pub(super) fn preflight(profile: Profile, json_output: bool) -> Result<Option<i3
     Ok(None)
 }
 
-// ============================================================================
 // Phase 2 — boundary config + build config
-// ============================================================================
 
 /// Load `boundary.toml` (default on absent/malformed — matches old
 /// hand-rolled CLI behavior), merge the `--trace-roots` flag, and
@@ -114,14 +106,12 @@ pub(super) fn build_config(
 // enforcement) live in the sibling `policy` module and are reached
 // via `phases::enforce_boundary_policy` from the orchestrator.
 
-// ============================================================================
 // Phase 2b — initialize the builder (wraps error in the failure envelope)
-// ============================================================================
 
-/// Construct an [`EvidenceBuilder`] from the caller's config; on
-/// builder-setup failure, emit the standard JSON/text envelope via
-/// [`fail`] and surface the exit code for early-return. Also prints
-/// the "generating bundle in …" / "profile = …" progress banner.
+/// Construct an [`EvidenceBuilder`]; builder-setup failure emits
+/// the JSON/text failure envelope via [`fail`] and surfaces the
+/// exit code for early-return. Emits cert/record tool-provenance
+/// warnings (prerelease + release-source-engine) before returning.
 pub(super) fn init_builder(
     config: EvidenceBuildConfig,
     profile: Profile,
@@ -136,28 +126,33 @@ pub(super) fn init_builder(
         println!("evidence: generating bundle in {:?}", builder.bundle_dir());
         println!("evidence: profile = {}", profile);
     }
-    // Pre-release tool → cert/record early warning (SYS-017).
-    // The eventual `verify --profile cert` will fail with
-    // `VERIFY_PRERELEASE_TOOL`; emit the warning now so the user
-    // doesn't learn about it only after the full generate pipeline
-    // runs. Dev profile: silent (dev iteration stays fast).
-    if evidence_core::env::TOOL_IS_PRERELEASE && matches!(profile, Profile::Cert | Profile::Record)
-    {
-        tracing::warn!(
-            "tool_prerelease = true on profile {}: the bundle this run \
-             produces will fail `verify --profile {}` with \
-             VERIFY_PRERELEASE_TOOL. Install a release build to produce \
-             audit-valid cert evidence.",
-            profile,
-            profile
-        );
+    // Cert/record early warnings — surface tool-provenance
+    // weaknesses before the full pipeline runs. Dev profile
+    // stays silent for fast iteration.
+    if matches!(profile, Profile::Cert | Profile::Record) {
+        if evidence_core::env::TOOL_IS_PRERELEASE {
+            tracing::warn!(
+                "tool_prerelease = true on profile {}: `verify --profile {}` \
+                 will fail with VERIFY_PRERELEASE_TOOL. Install a release build \
+                 for audit-valid cert evidence.",
+                profile,
+                profile
+            );
+        }
+        if evidence_core::env::TOOL_BUILD_SOURCE_IS_RELEASE {
+            tracing::warn!(
+                code = "ENV_ENGINE_RELEASE_PROVENANCE",
+                "engine_build_source=release on profile {}: engine_git_sha is a \
+                 `release-v<version>` fallback. For cert-grade evidence install \
+                 with `cargo install --git https://github.com/luofang34/Evidence cargo-evidence`.",
+                profile,
+            );
+        }
     }
     Ok(Ok(builder))
 }
 
-// ============================================================================
 // Phase 3 — capture env fingerprint
-// ============================================================================
 
 /// Capture the current host's `EnvFingerprint` (strict mode for
 /// cert/record) and write `env.json` into the bundle dir.
@@ -172,9 +167,7 @@ pub(super) fn capture_and_write_env(
     Ok(env_fp)
 }
 
-// ============================================================================
 // Phase 4 — hash in-scope source files
-// ============================================================================
 
 /// Run `git ls-files` over the in-scope crate prefixes and hash each
 /// returned file into the bundle's `inputs_hashes.json`. Strict
@@ -217,9 +210,7 @@ pub(super) fn hash_in_scope_sources(
     Ok(())
 }
 
-// ============================================================================
 // Phase 5 — run cargo test and capture
-// ============================================================================
 
 /// Run `cargo test --workspace` through the builder's `run_capture`,
 /// parse the stdout summary, and record it on the builder. `skip_tests`
@@ -282,9 +273,7 @@ pub(super) fn run_tests_and_capture(
     Ok(())
 }
 
-// ============================================================================
 // Phase 6 — validate trace links
-// ============================================================================
 
 /// Walk every configured `trace_roots` entry and run
 /// `validate_trace_links_with_policy`. In strict mode the first
@@ -350,9 +339,7 @@ pub(super) fn validate_trace_links_phase(
     Ok(None)
 }
 
-// ============================================================================
 // Phase 7 — copy trace sources + emit matrix
-// ============================================================================
 
 /// Copy `{hlr,llr,tests,derived}.toml` from each trace root into the
 /// bundle's `trace/` directory and write the generated `matrix.md`
@@ -396,9 +383,7 @@ pub(super) fn copy_trace_and_build_matrix(
     Ok(trace_outputs)
 }
 
-// ============================================================================
 // Phase 8 — write per-crate compliance reports
-// ============================================================================
 
 /// Generate `compliance/<crate>.json` for each crate in `dal_map`.
 /// Run before finalize so the files are included in `SHA256SUMS`.
@@ -442,9 +427,7 @@ pub(super) fn write_compliance_reports(
     Ok(())
 }
 
-// ============================================================================
 // Phase 9 — finalize bundle + optional HMAC signing
-// ============================================================================
 
 /// Finalize the bundle (writes `SHA256SUMS`, `index.json`, closes the
 /// builder) and, if `sign_key` is set, sign the envelope and drop
@@ -468,9 +451,7 @@ pub(super) fn finalize_and_sign(
     Ok(bundle_path)
 }
 
-// ============================================================================
 // Phase 10 — emit the success envelope
-// ============================================================================
 
 /// Emit the success envelope — JSON (one document, stdout) or a
 /// `bundle created at …` line. `recorded_failures` drives the
