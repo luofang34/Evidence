@@ -139,9 +139,21 @@ fn determine_a7_status(obj: &Objective, evidence: &CrateEvidence) -> Verdict {
             }
         }
         "A7-3" | "A7-4" => {
-            // LLR-level testing
-            match evidence.tests_passed {
-                Some(true) if evidence.has_test_results => (
+            // LLR-level testing. Per-test outcome atoms
+            // (`tests/test_outcomes.jsonl`) upgrade this from
+            // Partial → Met because an auditor asking "show me
+            // the result of TEST-046" resolves to a specific row
+            // instead of the workspace-aggregate boolean.
+            match (evidence.tests_passed, evidence.has_per_test_outcomes) {
+                (Some(true), true) if evidence.has_test_results => (
+                    ObjectiveStatusKind::Met,
+                    vec![
+                        "tests/test_outcomes.jsonl".to_string(),
+                        "tests/cargo_test_stdout.txt".to_string(),
+                    ],
+                    Some("per-test outcome atoms captured in test_outcomes.jsonl".to_string()),
+                ),
+                (Some(true), false) if evidence.has_test_results => (
                     ObjectiveStatusKind::Partial,
                     vec!["tests/cargo_test_stdout.txt".to_string()],
                     Some(
@@ -149,7 +161,7 @@ fn determine_a7_status(obj: &Objective, evidence: &CrateEvidence) -> Verdict {
                             .to_string(),
                     ),
                 ),
-                Some(false) => (
+                (Some(false), _) => (
                     ObjectiveStatusKind::NotMet,
                     vec!["tests/cargo_test_stdout.txt".to_string()],
                     Some("tests ran but at least one failed".to_string()),
@@ -280,6 +292,7 @@ mod tests {
             has_test_results: true,
             tests_passed: Some(false),
             has_coverage_data: false,
+            has_per_test_outcomes: false,
         };
         let report = generate_compliance_report("failing-crate", Dal::A, &evidence);
 
@@ -311,6 +324,7 @@ mod tests {
             has_test_results: false,
             tests_passed: None,
             has_coverage_data: false,
+            has_per_test_outcomes: false,
         };
         let report = generate_compliance_report("no-tests-crate", Dal::A, &evidence);
 
@@ -341,6 +355,7 @@ mod tests {
             has_test_results: true,
             tests_passed: Some(true),
             has_coverage_data: false,
+            has_per_test_outcomes: false,
         };
         let report = generate_compliance_report("passing-crate", Dal::A, &evidence);
 
@@ -379,6 +394,7 @@ mod tests {
             has_test_results: true,
             tests_passed: Some(true),
             has_coverage_data: false,
+            has_per_test_outcomes: false,
         };
         let report = generate_compliance_report("review-crate", Dal::A, &evidence);
 
@@ -422,6 +438,7 @@ mod tests {
                 has_test_results: true,
                 tests_passed: Some(true),
                 has_coverage_data: false,
+                has_per_test_outcomes: false,
             };
             let report = generate_compliance_report("exhaustive", dal, &evidence);
             let s = &report.summary;

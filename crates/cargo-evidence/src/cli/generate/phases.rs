@@ -24,7 +24,7 @@ use evidence_core::{
     BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
     EvidencePolicy, Profile,
     git::{check_shallow_clone, git_ls_files, is_dirty_or_unknown},
-    load_trace_roots, parse_cargo_test_output, sign_bundle,
+    load_trace_roots, parse_cargo_test_output_detailed, sign_bundle,
     trace::{
         TraceFiles, generate_traceability_matrix, read_all_trace_files,
         validate_trace_links_with_policy,
@@ -249,7 +249,12 @@ pub(super) fn run_tests_and_capture(
     match builder.run_capture(test_cmd, "tests", "cargo_test", "cargo test --workspace") {
         Ok((stdout, _stderr)) => {
             let stdout_str = String::from_utf8_lossy(&stdout);
-            if let Some(summary) = parse_cargo_test_output(&stdout_str) {
+            // The detailed parser enriches TestSummary with
+            // per-test records + captured failure-message blocks.
+            // `None` means skipped tests / empty workspace.
+            if let Some((summary, outcomes, _errors)) =
+                parse_cargo_test_output_detailed(&stdout_str)
+            {
                 if !quiet && !json_output {
                     println!(
                         "evidence: tests: {} passed, {} failed, {} ignored",
@@ -257,6 +262,12 @@ pub(super) fn run_tests_and_capture(
                     );
                 }
                 builder.set_test_summary(summary);
+                if !outcomes.is_empty() {
+                    builder.set_test_outcomes(outcomes);
+                    builder
+                        .write_test_outcomes()
+                        .context("writing tests/test_outcomes.jsonl")?;
+                }
             }
         }
         Err(e) => {
@@ -405,6 +416,7 @@ pub(super) fn write_compliance_reports(
     fs::create_dir_all(&compliance_dir)?;
     let tests_passed = builder.tests_passed();
     let has_test_results = tests_passed.is_some();
+    let has_per_test_outcomes = builder.has_test_outcomes();
     let has_trace_data = trace_roots.iter().any(|r| Path::new(r).exists());
     for (crate_name, dal) in dal_map {
         let crate_evidence = evidence_core::CrateEvidence {
@@ -413,6 +425,7 @@ pub(super) fn write_compliance_reports(
             has_test_results,
             tests_passed,
             has_coverage_data: false,
+            has_per_test_outcomes,
         };
         let report = evidence_core::generate_compliance_report(crate_name, *dal, &crate_evidence);
         let report_path = compliance_dir.join(format!("{}.json", crate_name));

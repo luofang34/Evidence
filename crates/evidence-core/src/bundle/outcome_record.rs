@@ -19,9 +19,50 @@
 //! `file:line` capture, etc.) leaves consumers that read the
 //! jsonl untouched.
 
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::{DiagnosticCode, Location, Severity};
+
+use super::error::BuilderError;
+
+/// Serialize `records` as JSONL to `<bundle_dir>/tests/test_outcomes.jsonl`.
+/// `Ok(None)` when `records` is empty (silent skip — dev-profile
+/// runs often skip tests); `Ok(Some(path))` on success so the
+/// caller (typically [`crate::bundle::EvidenceBuilder::write_test_outcomes`])
+/// can decide whether to hash the file into SHA256SUMS.
+pub(crate) fn write_outcomes_jsonl(
+    bundle_dir: &Path,
+    records: &[TestOutcomeRecord],
+) -> Result<Option<PathBuf>, BuilderError> {
+    if records.is_empty() {
+        return Ok(None);
+    }
+    let dir = bundle_dir.join("tests");
+    fs::create_dir_all(&dir).map_err(|source| BuilderError::Io {
+        op: "creating",
+        path: dir.clone(),
+        source,
+    })?;
+    let path = dir.join("test_outcomes.jsonl");
+    let mut buf = String::new();
+    for rec in records {
+        let line = serde_json::to_string(rec).map_err(|source| BuilderError::Serialize {
+            kind: "tests/test_outcomes.jsonl",
+            source,
+        })?;
+        buf.push_str(&line);
+        buf.push('\n');
+    }
+    fs::write(&path, buf).map_err(|source| BuilderError::Io {
+        op: "writing",
+        path: path.clone(),
+        source,
+    })?;
+    Ok(Some(path))
+}
 
 /// Failure modes the outcome-capture pipeline can surface into
 /// the diagnostic stream. Today a single variant — a

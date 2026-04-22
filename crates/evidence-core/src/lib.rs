@@ -54,7 +54,8 @@ pub mod verify;
 pub use boundary_check::{BoundaryCheckError, BoundaryViolation, check_no_out_of_scope_deps};
 pub use bundle::{
     CommandRecord, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, TestSummary,
-    parse_cargo_test_output, sign_bundle, verify_bundle_signature,
+    parse_cargo_test_output, parse_cargo_test_output_detailed, sign_bundle,
+    verify_bundle_signature,
 };
 pub use compliance::{
     Applicability, ComplianceReport, ComplianceSummary, CrateEvidence, OBJECTIVES, ObjectiveStatus,
