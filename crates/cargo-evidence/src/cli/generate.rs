@@ -19,7 +19,7 @@ use serde::Serialize;
 
 use evidence_core::{EvidencePolicy, Profile};
 
-use super::args::{EXIT_ERROR, EXIT_SUCCESS, detect_profile};
+use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, detect_profile};
 use super::output::emit_json;
 
 // ============================================================================
@@ -225,9 +225,25 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         json_output,
     )?;
 
+    // Snapshot tool_command_failures before the builder is
+    // moved into finalize_and_sign. Non-empty + Cert|Record
+    // profile → propagate the non-zero exit; dev profile still
+    // returns 0 so local iteration on a half-broken workspace
+    // produces an inspectable bundle.
+    let recorded_failures = builder.tool_command_failures().len();
+
     let bundle_path =
         phases::finalize_and_sign(builder, trace_outputs, sign_key, quiet, json_output)?;
     phases::emit_success_envelope(json_output, quiet, &bundle_path, profile, &env_fp)?;
+
+    if recorded_failures > 0 && matches!(profile, Profile::Cert | Profile::Record) {
+        tracing::warn!(
+            "{} captured command(s) exited non-zero; cert/record bundle marked \
+             bundle_complete=false — generate returning non-zero exit to signal",
+            recorded_failures
+        );
+        return Ok(EXIT_VERIFICATION_FAILURE);
+    }
     Ok(EXIT_SUCCESS)
 }
 
