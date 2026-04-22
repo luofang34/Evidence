@@ -207,12 +207,9 @@ fn flush_block(messages: &mut BTreeMap<String, String>, test: String, buf: &[&st
         .rposition(|l| !l.trim().is_empty())
         .map(|i| i + 1)
         .unwrap_or(0);
-    let trimmed: Vec<&&str> = buf[start..end.max(start)].iter().collect();
-    let joined = trimmed
-        .into_iter()
-        .copied()
-        .collect::<Vec<&str>>()
-        .join("\n");
+    // `end.max(start)` guards the all-blank case where start =
+    // len and end = 0 — without it `buf[len..0]` panics.
+    let joined = buf[start..end.max(start)].join("\n");
     messages.insert(test, joined);
 }
 
