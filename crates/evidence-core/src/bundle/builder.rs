@@ -315,6 +315,16 @@ impl EvidenceBuilder {
         !self.test_outcomes.is_empty()
     }
 
+    /// Populate `requirement_uids` on each stored
+    /// [`TestOutcomeRecord`] by joining against the trace's
+    /// [`crate::trace::TestEntry`] list. Call after
+    /// [`Self::set_test_outcomes`] and before
+    /// [`Self::write_test_outcomes`] so the serialized JSONL
+    /// carries the back-links.
+    pub fn enrich_test_outcomes_with_llrs(&mut self, test_entries: &[crate::trace::TestEntry]) {
+        crate::trace::resolve_llr_backlinks(&mut self.test_outcomes, test_entries);
+    }
+
     /// Serialize records to `tests/test_outcomes.jsonl`. Call
     /// before [`Self::finalize`] so `write_sha256sums` covers
     /// the file.

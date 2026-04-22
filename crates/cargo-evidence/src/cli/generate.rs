@@ -12,6 +12,7 @@
 mod envelope;
 mod phases;
 mod policy;
+mod test_outcomes;
 
 use std::path::PathBuf;
 
@@ -254,6 +255,11 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     )? {
         return Ok(code);
     }
+
+    // Phase 6b — enrich stored test outcomes with per-test →
+    // LLR back-links, then write `tests/test_outcomes.jsonl`.
+    // Runs after trace validation so LLR data is available.
+    test_outcomes::enrich_and_write_test_outcomes(&mut builder, &derived.trace_roots)?;
 
     let trace_outputs =
         phases::copy_trace_and_build_matrix(&builder, &derived.trace_roots, quiet, json_output)?;
