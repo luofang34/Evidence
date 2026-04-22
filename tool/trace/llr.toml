@@ -1161,10 +1161,15 @@ Four coupled sites:
   exit 2. Every other VerifyError stays error-severity.
 - `crates/cargo-evidence/src/cli/generate/phases.rs::init_builder`
   emits a warning-severity `VERIFY_PRERELEASE_TOOL` in
-  cert/record profile when `TOOL_IS_PRERELEASE` is true.
+  cert/record profile when `TOOL_IS_PRERELEASE` is true. Same
+  init_builder path emits `ENV_ENGINE_RELEASE_PROVENANCE`
+  (Warning) on cert/record when `TOOL_BUILD_SOURCE_IS_RELEASE`
+  is true — a `release-v<version>` engine_git_sha fallback
+  carries weaker provenance than a git-source SHA and a
+  cert-grade run should prefer `cargo install --git`.
 """
 verification_methods = ["test"]
-emits = ["VERIFY_PRERELEASE_TOOL"]
+emits = ["VERIFY_PRERELEASE_TOOL", "ENV_ENGINE_RELEASE_PROVENANCE"]
 
 [[requirements]]
 uid = "65b81ee1-b646-490e-8c1b-c2f9ad183970"

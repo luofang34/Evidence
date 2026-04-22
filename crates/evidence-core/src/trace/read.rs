@@ -99,25 +99,15 @@ pub struct TraceFiles {
 
 /// Read all trace files from a root directory.
 ///
-/// Missing files are returned with empty requirement lists and a warning is logged.
+/// Missing files are returned with empty requirement lists. When
+/// the root directory itself doesn't exist, a single warning is
+/// logged naming the root; per-file absence under a present root
+/// is silent (the empty-list return is the signal). When the root
+/// is present, per-file absence logs one warning per file — that's
+/// a configuration mismatch (hlr.toml named differently, say), not
+/// a pristine-downstream setup.
 /// (`derived` returns `None` if absent.)
 pub fn read_all_trace_files(root: &str) -> Result<TraceFiles, TraceReadError> {
-    fn read_or_default<T: for<'de> Deserialize<'de>>(
-        path: &Path,
-        default: T,
-    ) -> Result<T, TraceReadError> {
-        if path.exists() {
-            read_toml(path)
-        } else {
-            tracing::warn!(
-                "Trace file not found: {} — using empty defaults. \
-                 Check trace root path if this is unexpected.",
-                path.display()
-            );
-            Ok(default)
-        }
-    }
-
     fn empty_hlr_file() -> HlrFile {
         HlrFile {
             meta: TraceMeta {
@@ -130,15 +120,45 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles, TraceReadError> {
     }
 
     let root_path = Path::new(root);
+    let root_missing = !root_path.exists();
 
-    if !root_path.exists() {
+    // Single-warning path: root-missing → one aggregate warning,
+    // no per-file spam. Four per-file warnings naming the same
+    // parent directory are noise when the actionable fix is
+    // "create the directory."
+    if root_missing {
         tracing::warn!(
-            "Trace root directory does not exist: {} — all trace files will be empty.",
+            "Trace root '{}' missing — all 4 trace files will be empty.",
             root_path.display()
         );
     }
-    let sys = read_or_default(&root_path.join("sys.toml"), empty_hlr_file())?;
-    let hlr = read_or_default(&root_path.join("hlr.toml"), empty_hlr_file())?;
+    // Per-file absence warning: emit only when the root itself
+    // is present (a configuration mismatch, not a pristine
+    // downstream setup).
+    let warn_missing = |path: &Path| {
+        if !root_missing {
+            tracing::warn!(
+                "Trace file not found: {} — using empty defaults. \
+                 Check trace root path if this is unexpected.",
+                path.display()
+            );
+        }
+    };
+    fn read_or_default<T: for<'de> Deserialize<'de>>(
+        path: &Path,
+        default: T,
+        warn: impl FnOnce(&Path),
+    ) -> Result<T, TraceReadError> {
+        if path.exists() {
+            read_toml(path)
+        } else {
+            warn(path);
+            Ok(default)
+        }
+    }
+
+    let sys = read_or_default(&root_path.join("sys.toml"), empty_hlr_file(), warn_missing)?;
+    let hlr = read_or_default(&root_path.join("hlr.toml"), empty_hlr_file(), warn_missing)?;
     let llr = read_or_default(
         &root_path.join("llr.toml"),
         LlrFile {
@@ -149,6 +169,7 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles, TraceReadError> {
             },
             requirements: vec![],
         },
+        warn_missing,
     )?;
     let tests = read_or_default(
         &root_path.join("tests.toml"),
@@ -160,6 +181,7 @@ pub fn read_all_trace_files(root: &str) -> Result<TraceFiles, TraceReadError> {
             },
             tests: vec![],
         },
+        warn_missing,
     )?;
 
     let derived_path = root_path.join("derived.toml");

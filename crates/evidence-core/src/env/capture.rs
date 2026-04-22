@@ -163,6 +163,38 @@ pub fn env_fingerprint(profile: Profile, strict: bool) -> Result<EnvFingerprint,
 /// disassembly.
 pub const TOOL_IS_PRERELEASE: bool = is_prerelease_version(env!("CARGO_PKG_VERSION"));
 
+/// Compile-time `true` when the engine binary was built from a
+/// crates.io release tarball (no `.git/`) and `build.rs` fell
+/// back to `release-v<CARGO_PKG_VERSION>` for
+/// `EVIDENCE_ENGINE_GIT_SHA`. `false` when the binary was built
+/// from a git checkout (the CI publish path sets the env-var
+/// explicitly from `${GITHUB_SHA}`, which also counts as "git").
+///
+/// Cert/record bundles produced by a `"release"`-source tool
+/// can't trace back to a precise engine commit — an auditor
+/// verifying the bundle's evidence chain sees the version
+/// string but can't look up the exact tool source. Not a hard
+/// blocker (the bundle is still reproducible from the tagged
+/// release), but worth flagging so cert-profile users prefer
+/// `cargo install --git` over `cargo install cargo-evidence`.
+pub const TOOL_BUILD_SOURCE_IS_RELEASE: bool =
+    str_eq(env!("EVIDENCE_ENGINE_BUILD_SOURCE"), "release");
+
+const fn str_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
 /// `const fn` byte-scan for a `-` character — the semver
 /// pre-release marker. `str::contains('-')` isn't `const` on
 /// stable 1.95, hence the byte loop.
