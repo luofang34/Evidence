@@ -160,10 +160,10 @@ test_selector = "trace_sys_layer::sys_hlr_llr_test_chain_validates"
 [[tests]]
 uid = "ba80f1d3-65a0-44b7-afc7-85ca0fd1bc3c"
 id = "TEST-020"
-title = "Unwired --format=jsonl on generate hard-errors with terminal"
+title = "Unwired --format=jsonl on an unwired subcommand hard-errors with terminal"
 owner = "tool"
 traces_to = ["00578a4a-d6fe-420a-92c3-3cf4cb3387d6"]
-test_selector = "verify_jsonl::unwired_generate_jsonl_is_rejected"
+test_selector = "verify_jsonl::unwired_diff_jsonl_is_rejected"
 
 [[tests]]
 uid = "09a155a3-efd5-4117-86e5-1e9fecafc106"
