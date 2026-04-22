@@ -165,6 +165,27 @@ pub struct TestOutcomeRecord {
     /// Serializes absent when `None`.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub duration_ms: Option<u64>,
+
+    /// LLR UIDs this test satisfies — each entry is an
+    /// [`LlrEntry.uid`](crate::trace::LlrEntry) whose
+    /// `test_selectors` list resolves to this test.
+    ///
+    /// Populated during `generate` by joining each test's
+    /// `{module_path}::{name}` against every LLR's
+    /// `test_selectors` (prefix or full-match). Empty Vec is
+    /// legitimate — a test not claimed by any LLR (harness,
+    /// setup, or pre-trace test) naturally has no requirement
+    /// back-links. The reverse check — every LLR's
+    /// `test_selectors` resolves to at least one test —
+    /// belongs in verify (via `VERIFY_LLR_TEST_SELECTOR_UNRESOLVED`).
+    ///
+    /// `#[serde(default)]` lets older bundles that predate this
+    /// field deserialize as `Vec::new()` — an older bundle
+    /// retains its per-test outcomes with no back-link data;
+    /// the verify-side check is skipped on such bundles (absent
+    /// ≠ known-empty).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requirement_uids: Vec<String>,
 }
 
 #[cfg(test)]
@@ -190,6 +211,7 @@ mod tests {
             ignored: false,
             failure_message: None,
             duration_ms: None,
+            requirement_uids: Vec::new(),
         };
         let wire = serde_json::to_string(&rec).expect("serialize");
         assert!(
@@ -219,6 +241,7 @@ mod tests {
                     .to_string(),
             ),
             duration_ms: None,
+            requirement_uids: Vec::new(),
         };
         let wire = serde_json::to_string(&rec).expect("serialize");
         let back: TestOutcomeRecord = serde_json::from_str(&wire).expect("deserialize");
@@ -246,6 +269,7 @@ mod tests {
                 ignored: false,
                 failure_message: None,
                 duration_ms: None,
+                requirement_uids: Vec::new(),
             },
             TestOutcomeRecord {
                 name: "b".to_string(),
@@ -254,6 +278,7 @@ mod tests {
                 ignored: false,
                 failure_message: Some("boom".to_string()),
                 duration_ms: None,
+                requirement_uids: Vec::new(),
             },
         ];
         let path = write_outcomes_jsonl(tmp.path(), &records)

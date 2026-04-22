@@ -246,10 +246,12 @@ pub(super) fn run_tests_and_capture(
                 }
                 builder.set_test_summary(summary);
                 if !outcomes.is_empty() {
+                    // Set outcomes now; write is deferred to
+                    // `enrich_and_write_test_outcomes` which
+                    // runs after the trace phase loads LLR data
+                    // and populates the per-test → LLR
+                    // back-links.
                     builder.set_test_outcomes(outcomes);
-                    builder
-                        .write_test_outcomes()
-                        .context("writing tests/test_outcomes.jsonl")?;
                 }
             }
         }
@@ -273,12 +275,9 @@ pub(super) fn run_tests_and_capture(
     Ok(())
 }
 
-// Phase 6 — validate trace links
-
-/// Walk every configured `trace_roots` entry and run
-/// `validate_trace_links_with_policy`. In strict mode the first
-/// validation *failure* emits a JSON failure envelope and returns
-/// `Ok(Some(EXIT_ERROR))`; missing-directory warnings never bail.
+// Phase 6 — validate trace links. Strict mode: first failure
+// emits JSON failure envelope + returns Ok(Some(EXIT_ERROR)).
+// Missing-directory warnings never bail.
 pub(super) fn validate_trace_links_phase(
     trace_roots: &[String],
     policy: &EvidencePolicy,
@@ -338,6 +337,9 @@ pub(super) fn validate_trace_links_phase(
     }
     Ok(None)
 }
+
+// Phase 6b — enrich test outcomes with LLR back-links + write.
+// See sibling `test_outcomes.rs`.
 
 // Phase 7 — copy trace sources + emit matrix
 

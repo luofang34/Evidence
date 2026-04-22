@@ -52,6 +52,36 @@ RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links -D rustdoc::private_intra_doc_l
 log "cargo build --workspace --release"
 cargo build --workspace --release
 
+# Delta-based dead-code gate. Mirrors the `Forbid new
+# `#[allow(dead_code)]`` step in ci.yml: a PR may not *add* a new
+# allow. Pre-existing ones are grandfathered. Diffs against
+# `origin/main` when available (the usual local PR base) so
+# long-lived feature branches don't compare against the merge-
+# base. Skipped silently when the Evidence repo isn't a git
+# checkout (unusual; e.g. unpacked tarball), matching CI's
+# not-on-this-host failure mode.
+log "Forbid new #[allow(dead_code)] (delta vs origin/main)"
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    # Ensure origin/main is known locally; if offline, fall
+    # back to HEAD^ as CI's push-mode branch does.
+    if git rev-parse --verify origin/main >/dev/null 2>&1; then
+        base="origin/main"
+    elif git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+        base="HEAD^"
+    else
+        base=""
+    fi
+    if [ -n "$base" ]; then
+        diff=$(git diff "$base"...HEAD -- '*.rs' || true)
+        added=$(printf '%s\n' "$diff" | grep -E '^\+[^+]' || true)
+        if printf '%s\n' "$added" | grep -qE '#\[allow\(dead_code\)\]'; then
+            echo "ERROR: This change adds #[allow(dead_code)] — either use the field or delete it."
+            printf '%s\n' "$added" | grep -nE '#\[allow\(dead_code\)\]' || true
+            exit 1
+        fi
+    fi
+fi
+
 # Workflow static-analysis. Catches typo'd input names, unresolvable
 # secret refs, bad `if:` expressions, malformed matrix — the kind of
 # workflow bug that only surfaces when the trigger actually fires

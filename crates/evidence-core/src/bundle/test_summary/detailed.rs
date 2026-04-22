@@ -84,6 +84,7 @@ pub fn parse_cargo_test_output_detailed(
             ignored,
             failure_message,
             duration_ms: None,
+            requirement_uids: Vec::new(),
         });
     }
 
