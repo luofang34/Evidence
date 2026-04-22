@@ -528,7 +528,7 @@ CLI_INVALID_ARGUMENT + VERIFY_FAIL terminal. Explicit mode always
 wins; mismatch between mode and shape also errors cleanly.
 """
 verification_methods = ["test"]
-emits = ["CLI_INVALID_ARGUMENT"]
+emits = ["CHECK_TEST_RUNTIME_FAILURE", "CLI_INVALID_ARGUMENT"]
 
 [[requirements]]
 uid = "03795ca7-d5d3-48bc-9774-490cd6d4c2e0"

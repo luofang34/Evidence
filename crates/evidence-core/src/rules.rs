@@ -3,26 +3,22 @@
 //! `RULES` is the single source of truth for "what can the tool say?"
 //! — exposed to agents via `cargo evidence rules --json` and pinned
 //! by four bijection invariants in `diagnostic_codes_locked`:
+//! (1) `RULES ⇔ DiagnosticCode::code()` returns (library walk);
+//! (2) `RULES ⇔ TERMINAL_CODES` for entries flagged `terminal`;
+//! (3) `RULES ⇔ HAND_EMITTED_CLI_CODES` for non-terminal CLI emits;
+//! (4) `⋃(LLR.emits) ⇔ RULES.code` — the code↔requirement loop.
 //!
-//! 1. `RULES ⇔ source DiagnosticCode::code() returns` (library walk).
-//! 2. `RULES ⇔ TERMINAL_CODES` (for entries flagged `terminal = true`).
-//! 3. `RULES ⇔ HAND_EMITTED_CLI_CODES` (for non-terminal CLI emits).
-//! 4. `⋃(LLR.emits) ⇔ RULES.code` (the code↔requirement loop).
-//!
-//! The const is deliberately hand-authored: adding a new code forces a
-//! reviewer-visible edit here, and a missing edit fires a specific,
-//! targeted CI failure. Auto-generating `RULES` from source would
-//! remove that friction and defeat the whole point of.
+//! Hand-authored on purpose: adding a new code forces a
+//! reviewer-visible edit here and a missing edit fires a targeted
+//! CI failure.
 //!
 //! **Ordering.** Entries are sorted alphabetically by `code` so
 //! `rules_json()` output is deterministic. `diagnostic_codes_locked`
 //! asserts sort order; a hand-inserted out-of-order entry fails CI.
 //!
 //! **Per-code `has_fix_hint`.** A `true` value means "this code CAN
-//! carry a FixHint in at least one emit site" — an audit-trail label,
-//! not a runtime contract. Today only `REQ_GAP` carries
-//! mechanical FixHints. Future widenings (MCP autofix)
-//! extend this.
+//! carry a FixHint in at least one emit site" — an audit-trail
+//! label, not a runtime contract.
 
 use serde::Serialize;
 
@@ -36,6 +32,9 @@ pub enum Domain {
     Boundary,
     /// `BUNDLE_*` — bundle lifecycle (generate).
     Bundle,
+    /// `CHECK_*` — `cargo evidence check` subcommand-specific
+    /// codes (e.g. runtime failures in the cargo-test subprocess).
+    Check,
     /// `CLI_*` — CLI-layer hand-emitted codes (not from the library).
     Cli,
     /// `CMD_*` — subprocess execution.
@@ -75,6 +74,7 @@ impl Domain {
         Some(match prefix {
             "BOUNDARY" => Self::Boundary,
             "BUNDLE" => Self::Bundle,
+            "CHECK" => Self::Check,
             "CLI" => Self::Cli,
             "CMD" => Self::Cmd,
             "DOCTOR" => Self::Doctor,
@@ -123,6 +123,7 @@ pub struct RuleEntry {
 /// [`TERMINAL_CODES`](crate::TERMINAL_CODES) — keep these two lists
 /// disjoint.
 pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
+    "CHECK_TEST_RUNTIME_FAILURE",
     "CLI_INVALID_ARGUMENT",
     "CLI_UNSUPPORTED_FORMAT",
     "DOCTOR_BOUNDARY_MISSING",
@@ -194,6 +195,7 @@ pub const RULES: &[RuleEntry] = &[
     r("BUNDLE_RUN_COMMAND_FAILED", Severity::Error, Domain::Bundle),
     r("BUNDLE_SERIALIZE_FAILED", Severity::Error, Domain::Bundle),
     r("BUNDLE_TOCTOU", Severity::Error, Domain::Bundle),
+    r("CHECK_TEST_RUNTIME_FAILURE", Severity::Error, Domain::Check),
     cli("CLI_INVALID_ARGUMENT", Severity::Error),
     terminal("CLI_SUBCOMMAND_ERROR", Severity::Error),
     cli("CLI_UNSUPPORTED_FORMAT", Severity::Error),

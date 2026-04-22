@@ -201,3 +201,171 @@ fn check_source_uses_argument_workspace_not_cwd() {
             .unwrap_or_else(|e| panic!("non-JSON line in --format=jsonl stream: {line:?}: {e}"));
     }
 }
+
+/// Seed a Rust library with a deliberate build error (undefined
+/// macro) so `cargo test` exits non-zero AND produces no parseable
+/// `test result:` line.
+fn seed_cargo_workspace_with_build_error(dir: &Path) {
+    fs::create_dir_all(dir.join("src")).unwrap();
+    fs::write(
+        dir.join("Cargo.toml"),
+        r#"[package]
+name = "build-error-fixture"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+"#,
+    )
+    .unwrap();
+    fs::write(
+        dir.join("src/lib.rs"),
+        "pub fn x() { unknown_macro!(\"deliberate build error\"); }\n",
+    )
+    .unwrap();
+}
+
+/// Seed a Rust library with a passing test + a failing test. Build
+/// succeeds, tests run, one fails → libtest writes a parseable
+/// `test result:` line AND cargo exits non-zero (101 on test
+/// failure). The disambiguation rule must keep this on the normal
+/// REQ_GAP path, NOT route it to CHECK_TEST_RUNTIME_FAILURE.
+fn seed_cargo_workspace_with_failing_test(dir: &Path) {
+    fs::create_dir_all(dir.join("src")).unwrap();
+    fs::write(
+        dir.join("Cargo.toml"),
+        r#"[package]
+name = "failing-test-fixture"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+"#,
+    )
+    .unwrap();
+    fs::write(
+        dir.join("src/lib.rs"),
+        r#"#[cfg(test)]
+mod tests {
+    #[test]
+    fn passes() {
+        assert_eq!(1 + 1, 2);
+    }
+
+    #[test]
+    fn fails() {
+        assert_eq!(1, 2, "deliberate failure");
+    }
+}
+"#,
+    )
+    .unwrap();
+}
+
+/// **Compile-failure mislabel regression.** A genuine build
+/// failure (undefined macro → cargo exits 101, no `test result:`
+/// line) used to route to `CLI_INVALID_ARGUMENT` — wrong
+/// category. The disambiguation rule is:
+///
+/// - `(Some(parsed), _)` → normal per-requirement path
+/// - `(None, exit == 0)` → `CLI_INVALID_ARGUMENT` (weird shape)
+/// - `(None, exit != 0)` → `CHECK_TEST_RUNTIME_FAILURE` (this test)
+///
+/// The message carries cargo's exit code + a 2KB tail of stderr
+/// so an agent sees the underlying compiler diagnostic without
+/// re-spawning cargo.
+#[test]
+fn build_failure_emits_check_test_runtime_failure_not_cli_invalid_argument() {
+    let tmp = TempDir::new().expect("tempdir");
+    seed_cargo_workspace_with_build_error(tmp.path());
+
+    let out = cargo_evidence()
+        .args(["evidence", "--format=jsonl", "check", "--mode=source"])
+        .arg(tmp.path())
+        .output()
+        .expect("spawn");
+
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+
+    assert!(
+        stdout.contains("CHECK_TEST_RUNTIME_FAILURE"),
+        "expected CHECK_TEST_RUNTIME_FAILURE in JSONL stream on build failure; \
+         stdout={stdout}",
+    );
+    assert!(
+        !stdout.contains("CLI_INVALID_ARGUMENT"),
+        "build failure must NOT route to CLI_INVALID_ARGUMENT; stdout={stdout}",
+    );
+
+    // Terminal should be VERIFY_FAIL + exit 2.
+    let last_line = stdout
+        .lines()
+        .rfind(|l| !l.trim().is_empty())
+        .expect("non-empty stdout");
+    let terminal: Value = serde_json::from_str(last_line).expect("terminal is JSON");
+    assert_eq!(
+        terminal["code"].as_str(),
+        Some("VERIFY_FAIL"),
+        "terminal must be VERIFY_FAIL; got {terminal}"
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "build failure must exit 2 (verification failure); stdout={stdout}"
+    );
+
+    // Message must carry the cargo diagnostic — assert on a
+    // substring of the tail so agents get actionable context.
+    let runtime_line = stdout
+        .lines()
+        .find(|l| l.contains("CHECK_TEST_RUNTIME_FAILURE"))
+        .expect("runtime-failure line present");
+    let runtime_diag: Value = serde_json::from_str(runtime_line).expect("JSON");
+    let msg = runtime_diag["message"].as_str().unwrap_or("");
+    assert!(
+        msg.contains("cannot find macro") || msg.contains("unknown_macro"),
+        "runtime-failure message must preserve cargo's stderr tail; got: {msg}",
+    );
+}
+
+/// **Failing-test guardrail.** Tests that fail normally (build
+/// succeeded, `test result: FAILED. N passed; M failed`) must
+/// keep the existing REQ_PASS/REQ_GAP per-test path — NOT route
+/// to `CHECK_TEST_RUNTIME_FAILURE`. Disambiguation happens on
+/// parse-success, not exit code.
+///
+/// This is the regression pin for the "don't over-aggressively
+/// map exit != 0 to runtime failure" nuance. Cargo exits 101 on
+/// test failure exactly like it exits 101 on build failure; only
+/// the parser's ability to extract `test result:` lines
+/// distinguishes them.
+#[test]
+fn test_failure_keeps_normal_req_gap_path_not_runtime_failure() {
+    let tmp = TempDir::new().expect("tempdir");
+    seed_cargo_workspace_with_failing_test(tmp.path());
+    // Failing-test fixture has no tool/trace, so the trace-phase
+    // emits empty requirements. That's fine — this test pins the
+    // DISAMBIGUATION behaviour, which is at phase 2 (parse).
+
+    let out = cargo_evidence()
+        .args(["evidence", "--format=jsonl", "check", "--mode=source"])
+        .arg(tmp.path())
+        .output()
+        .expect("spawn");
+
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+
+    assert!(
+        !stdout.contains("CHECK_TEST_RUNTIME_FAILURE"),
+        "test failure must NOT route to CHECK_TEST_RUNTIME_FAILURE — parsing \
+         succeeded, so the normal per-test path must apply. stdout={stdout}",
+    );
+
+    // Sanity: all lines still parse as JSON.
+    for line in stdout.lines().filter(|l| !l.trim().is_empty()) {
+        let _v: Value = serde_json::from_str(line)
+            .unwrap_or_else(|e| panic!("non-JSON line in --format=jsonl stream: {line:?}: {e}"));
+    }
+}

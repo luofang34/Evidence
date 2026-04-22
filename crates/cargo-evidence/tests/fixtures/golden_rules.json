@@ -112,6 +112,13 @@
     "terminal": false
   },
   {
+    "code": "CHECK_TEST_RUNTIME_FAILURE",
+    "severity": "error",
+    "domain": "check",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "CLI_INVALID_ARGUMENT",
     "severity": "error",
     "domain": "cli",
