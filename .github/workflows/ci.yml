@@ -398,6 +398,13 @@ jobs:
         # the way cachix/install-nix-action does.
         uses: DeterminateSystems/nix-installer-action@v14
 
+      - name: Magic Nix cache
+        # Caches /nix/store artifacts keyed by flake-input hashes so
+        # `nix flake check` / `nix build` don't rebuild unchanged
+        # derivations on every run. Experimental on this branch —
+        # ship if it demonstrably cuts Nix-job time.
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
       - name: Nix flake check
         run: nix flake check
 
@@ -721,6 +728,11 @@ jobs:
         # See the `nix` job for why we're on DeterminateSystems, not
         # cachix/install-nix-action.
         uses: DeterminateSystems/nix-installer-action@v14
+
+      - name: Magic Nix cache
+        # Caches /nix/store artifacts across runs — same rationale as
+        # the `nix` job.
+        uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Cache cargo registry & build (Nix-segregated)
         uses: actions/cache@v4
