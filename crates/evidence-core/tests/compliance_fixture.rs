@@ -54,6 +54,7 @@ fn canonical_evidence() -> CrateEvidence {
         has_test_results: true,
         tests_passed: Some(true),
         has_coverage_data: false,
+        has_per_test_outcomes: false,
     }
 }
 

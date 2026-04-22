@@ -126,6 +126,17 @@ pub struct CrateEvidence {
     pub tests_passed: Option<bool>,
     /// Whether structural coverage data exists
     pub has_coverage_data: bool,
+    /// Whether the bundle contains `tests/test_outcomes.jsonl`
+    /// with per-test atoms (name, status, failure_message). The
+    /// presence of this artifact — not just aggregate pass/fail
+    /// — is what upgrades DO-178C A-7 Obj-3 / Obj-4 from
+    /// `Partial` to `Met`: an auditor asking "show me the
+    /// result of TEST-046" can resolve to a specific pass/fail
+    /// row instead of the workspace-level boolean. `false` when
+    /// the bundle doesn't carry the artifact (older bundles that
+    /// predate the per-test capture, dev-profile runs that skip
+    /// tests, libtest output that couldn't be parsed).
+    pub has_per_test_outcomes: bool,
 }
 
 #[cfg(test)]

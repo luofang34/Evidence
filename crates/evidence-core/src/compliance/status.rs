@@ -1,18 +1,12 @@
 //! Map a (objective, crate-evidence) pair to a compliance verdict.
 //!
-//! `determine_objective_status` dispatches by DO-178C table (A-3 through
-//! A-7); Table A-7 is large enough to live in its own helper,
-//! `determine_a7_status`.
-//!
-//! Every Table A-7 helper treats `tests_passed: Option<bool>` as
-//! three-valued: only `Some(true)` earns credit. A failing run
-//! (`Some(false)`) and a missing run (`None`) both land in `NotMet`
-//! — a certification argument must not rely on red or absent tests.
-//!
-//! Tables A-3, A-4, A-5, and A-6 mostly yield `ManualReviewRequired`:
-//! the tool can only mechanically check traceability links (A3-6,
-//! A4-6, A6-5). Every other objective in those tables requires a
-//! human reviewer to judge design / implementation correctness.
+//! `determine_objective_status` dispatches by DO-178C table (A-3 — A-7);
+//! Table A-7 lives in a separate helper `determine_a7_status`.
+//! `tests_passed: Option<bool>` is three-valued: only `Some(true)`
+//! earns credit — `Some(false)` + `None` both map to `NotMet` so a
+//! cert argument can't rely on red or absent tests. Tables A-3/A-4/
+//! A-5/A-6 mostly yield `ManualReviewRequired`; the tool only
+//! mechanically checks traceability links (A3-6, A4-6, A6-5).
 
 use super::objective::Objective;
 use super::report::{CrateEvidence, ObjectiveStatusKind};
@@ -139,9 +133,21 @@ fn determine_a7_status(obj: &Objective, evidence: &CrateEvidence) -> Verdict {
             }
         }
         "A7-3" | "A7-4" => {
-            // LLR-level testing
-            match evidence.tests_passed {
-                Some(true) if evidence.has_test_results => (
+            // LLR-level testing. Per-test outcome atoms
+            // (`tests/test_outcomes.jsonl`) upgrade this from
+            // Partial → Met because an auditor asking "show me
+            // the result of TEST-046" resolves to a specific row
+            // instead of the workspace-aggregate boolean.
+            match (evidence.tests_passed, evidence.has_per_test_outcomes) {
+                (Some(true), true) if evidence.has_test_results => (
+                    ObjectiveStatusKind::Met,
+                    vec![
+                        "tests/test_outcomes.jsonl".to_string(),
+                        "tests/cargo_test_stdout.txt".to_string(),
+                    ],
+                    Some("per-test outcome atoms captured in test_outcomes.jsonl".to_string()),
+                ),
+                (Some(true), false) if evidence.has_test_results => (
                     ObjectiveStatusKind::Partial,
                     vec!["tests/cargo_test_stdout.txt".to_string()],
                     Some(
@@ -149,7 +155,7 @@ fn determine_a7_status(obj: &Objective, evidence: &CrateEvidence) -> Verdict {
                             .to_string(),
                     ),
                 ),
-                Some(false) => (
+                (Some(false), _) => (
                     ObjectiveStatusKind::NotMet,
                     vec!["tests/cargo_test_stdout.txt".to_string()],
                     Some("tests ran but at least one failed".to_string()),
@@ -280,6 +286,7 @@ mod tests {
             has_test_results: true,
             tests_passed: Some(false),
             has_coverage_data: false,
+            has_per_test_outcomes: false,
         };
         let report = generate_compliance_report("failing-crate", Dal::A, &evidence);
 
@@ -311,6 +318,7 @@ mod tests {
             has_test_results: false,
             tests_passed: None,
             has_coverage_data: false,
+            has_per_test_outcomes: false,
         };
         let report = generate_compliance_report("no-tests-crate", Dal::A, &evidence);
 
@@ -341,6 +349,7 @@ mod tests {
             has_test_results: true,
             tests_passed: Some(true),
             has_coverage_data: false,
+            has_per_test_outcomes: false,
         };
         let report = generate_compliance_report("passing-crate", Dal::A, &evidence);
 
@@ -379,6 +388,7 @@ mod tests {
             has_test_results: true,
             tests_passed: Some(true),
             has_coverage_data: false,
+            has_per_test_outcomes: false,
         };
         let report = generate_compliance_report("review-crate", Dal::A, &evidence);
 
@@ -422,6 +432,7 @@ mod tests {
                 has_test_results: true,
                 tests_passed: Some(true),
                 has_coverage_data: false,
+                has_per_test_outcomes: false,
             };
             let report = generate_compliance_report("exhaustive", dal, &evidence);
             let s = &report.summary;
@@ -431,5 +442,59 @@ mod tests {
                 "DAL-{dal}: buckets must sum to applicable"
             );
         }
+    }
+
+    /// A-7 Obj-3/Obj-4 upgrade from `Partial` to `Met` when
+    /// `has_per_test_outcomes == true` alongside
+    /// `tests_passed == Some(true)`. Catches silent degradation
+    /// of the SVR credit when the per-test wire artifact lands.
+    #[test]
+    fn a7_3_upgrades_to_met_with_per_test_outcomes() {
+        // Evidence without per-test outcomes → Partial.
+        let without = CrateEvidence {
+            has_trace_data: true,
+            trace_validation_passed: true,
+            has_test_results: true,
+            tests_passed: Some(true),
+            has_coverage_data: false,
+            has_per_test_outcomes: false,
+        };
+        let report_without = generate_compliance_report("u", Dal::C, &without);
+        let a7_3_without = report_without
+            .objectives
+            .iter()
+            .find(|o| o.objective_id == "A7-3")
+            .expect("A7-3 present");
+        assert_eq!(
+            a7_3_without.status,
+            ObjectiveStatusKind::Partial,
+            "aggregate-only evidence must stay Partial"
+        );
+
+        // Same but with per-test outcomes → Met.
+        let with = CrateEvidence {
+            has_per_test_outcomes: true,
+            ..without
+        };
+        let report_with = generate_compliance_report("u", Dal::C, &with);
+        let a7_3_with = report_with
+            .objectives
+            .iter()
+            .find(|o| o.objective_id == "A7-3")
+            .expect("A7-3 present");
+        assert_eq!(
+            a7_3_with.status,
+            ObjectiveStatusKind::Met,
+            "per-test outcomes must upgrade A7-3 to Met"
+        );
+        // Same upgrade applies to A7-4 (applicable at DAL-B and
+        // above). Re-run on DAL-B to avoid NotApplicable skip.
+        let report_b = generate_compliance_report("u", Dal::B, &with);
+        let a7_4_b = report_b
+            .objectives
+            .iter()
+            .find(|o| o.objective_id == "A7-4")
+            .expect("A7-4 present at DAL-B");
+        assert_eq!(a7_4_b.status, ObjectiveStatusKind::Met);
     }
 }

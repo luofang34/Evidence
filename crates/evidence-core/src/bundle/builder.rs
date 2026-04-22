@@ -17,6 +17,7 @@ use super::capture::normalize_captured_text;
 use super::command::CommandRecord;
 use super::error::BuilderError;
 use super::index::EvidenceIndex;
+use super::outcome_record::TestOutcomeRecord;
 use super::test_summary::TestSummary;
 use super::time::{utc_compact_stamp, utc_now_rfc3339};
 use crate::git::{GitSnapshot, RealGitProvider};
@@ -53,20 +54,22 @@ pub struct EvidenceBuilder {
     inputs: BTreeMap<String, String>,
     outputs: BTreeMap<String, String>,
     test_summary: Option<TestSummary>,
+    /// Per-test outcome records; non-empty triggers a
+    /// `tests/test_outcomes.jsonl` artifact at finalize-adjacent
+    /// time (see [`Self::write_test_outcomes`]).
+    test_outcomes: Vec<TestOutcomeRecord>,
 }
 
 impl EvidenceBuilder {
-    /// Create a new evidence builder with the given configuration.
-    ///
-    /// Uses the real git provider. For testing, use [`Self::new_with_provider`].
+    /// Create a new evidence builder. Uses the real git
+    /// provider; for testing use [`Self::new_with_provider`].
     pub fn new(config: EvidenceBuildConfig) -> Result<Self, BuilderError> {
         Self::new_with_provider(config, RealGitProvider)
     }
 
-    /// Create a new evidence builder with a custom git provider.
-    ///
-    /// The provider is used both for the initial git snapshot and for the
-    /// TOCTOU re-check at [`Self::finalize`] time.
+    /// Create a new evidence builder with a custom git provider
+    /// for tests. The provider feeds the initial snapshot and
+    /// the TOCTOU re-check at [`Self::finalize`] time.
     pub fn new_with_provider<G: GitProvider + 'static>(
         config: EvidenceBuildConfig,
         provider: G,
@@ -164,6 +167,7 @@ impl EvidenceBuilder {
             inputs: BTreeMap::new(),
             outputs: BTreeMap::new(),
             test_summary: None,
+            test_outcomes: Vec::new(),
         })
     }
 
@@ -339,6 +343,25 @@ impl EvidenceBuilder {
     /// Store test results for inclusion in the evidence index.
     pub fn set_test_summary(&mut self, summary: TestSummary) {
         self.test_summary = Some(summary);
+    }
+
+    /// Store per-test outcome records; consumed by
+    /// [`Self::write_test_outcomes`].
+    pub fn set_test_outcomes(&mut self, outcomes: Vec<TestOutcomeRecord>) {
+        self.test_outcomes = outcomes;
+    }
+
+    /// `true` iff records were captured. Used by the compliance
+    /// generator to upgrade A-7 Obj-3/Obj-4 Partial → Met.
+    pub fn has_test_outcomes(&self) -> bool {
+        !self.test_outcomes.is_empty()
+    }
+
+    /// Serialize records to `tests/test_outcomes.jsonl`. Call
+    /// before [`Self::finalize`] so `write_sha256sums` covers
+    /// the file.
+    pub fn write_test_outcomes(&self) -> Result<Option<PathBuf>, BuilderError> {
+        super::outcome_record::write_outcomes_jsonl(&self.bundle_dir, &self.test_outcomes)
     }
 
     /// Pass/fail verdict derived from the stored `TestSummary`.

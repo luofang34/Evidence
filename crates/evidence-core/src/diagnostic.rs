@@ -84,6 +84,7 @@ pub const TERMINAL_CODES: &[&str] = &[
     "CLI_SUBCOMMAND_ERROR",
     "DOCTOR_OK",
     "DOCTOR_FAIL",
+    "TESTS_OK",
 ];
 
 /// One observation in the diagnostic stream.

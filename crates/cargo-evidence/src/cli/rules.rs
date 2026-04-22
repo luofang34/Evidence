@@ -96,6 +96,7 @@ fn domain_label(d: evidence_core::Domain) -> &'static str {
         evidence_core::Domain::Req => "req",
         evidence_core::Domain::Schema => "schema",
         evidence_core::Domain::Sign => "sign",
+        evidence_core::Domain::Tests => "tests",
         evidence_core::Domain::Trace => "trace",
         evidence_core::Domain::Verify => "verify",
     }

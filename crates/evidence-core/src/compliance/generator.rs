@@ -110,6 +110,7 @@ mod tests {
             has_test_results: true,
             tests_passed: Some(true),
             has_coverage_data: false,
+            has_per_test_outcomes: false,
         };
         let report = generate_compliance_report("util-crate", Dal::D, &evidence);
         assert_eq!(report.dal, "D");

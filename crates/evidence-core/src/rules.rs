@@ -1,24 +1,15 @@
 //! Hand-curated manifest of every diagnostic code the tool can emit.
 //!
 //! `RULES` is the single source of truth for "what can the tool say?"
-//! — exposed to agents via `cargo evidence rules --json` and pinned
-//! by four bijection invariants in `diagnostic_codes_locked`:
-//! (1) `RULES ⇔ DiagnosticCode::code()` returns (library walk);
-//! (2) `RULES ⇔ TERMINAL_CODES` for entries flagged `terminal`;
+//! Exposed via `cargo evidence rules --json`; pinned by four bijection
+//! invariants in `diagnostic_codes_locked`:
+//! (1) `RULES ⇔ DiagnosticCode::code()` (library walk);
+//! (2) `RULES ⇔ TERMINAL_CODES` for terminals;
 //! (3) `RULES ⇔ HAND_EMITTED_CLI_CODES` for non-terminal CLI emits;
 //! (4) `⋃(LLR.emits) ⇔ RULES.code` — the code↔requirement loop.
 //!
-//! Hand-authored on purpose: adding a new code forces a
-//! reviewer-visible edit here and a missing edit fires a targeted
-//! CI failure.
-//!
-//! **Ordering.** Entries are sorted alphabetically by `code` so
-//! `rules_json()` output is deterministic. `diagnostic_codes_locked`
-//! asserts sort order; a hand-inserted out-of-order entry fails CI.
-//!
-//! **Per-code `has_fix_hint`.** A `true` value means "this code CAN
-//! carry a FixHint in at least one emit site" — an audit-trail
-//! label, not a runtime contract.
+//! Entries sorted alphabetically by `code`. `has_fix_hint` is an
+//! audit-trail label, not a runtime contract.
 
 use serde::Serialize;
 
@@ -57,6 +48,8 @@ pub enum Domain {
     Schema,
     /// `SIGN_*` — signing / HMAC key IO.
     Sign,
+    /// `TESTS_*` — per-test outcome capture + `test_outcomes.jsonl`.
+    Tests,
     /// `TRACE_*` — trace-file validation.
     Trace,
     /// `VERIFY_*` — bundle verification.
@@ -86,6 +79,7 @@ impl Domain {
             "REQ" => Self::Req,
             "SCHEMA" => Self::Schema,
             "SIGN" => Self::Sign,
+            "TESTS" => Self::Tests,
             "TRACE" => Self::Trace,
             "VERIFY" => Self::Verify,
             _ => return None,
@@ -102,13 +96,12 @@ pub struct RuleEntry {
     pub severity: Severity,
     /// Top-level domain, derived from prefix.
     pub domain: Domain,
-    /// Whether the emit-site MAY populate `fix_hint` for this code.
-    /// Audit label only — runtime populate is per-emit-site logic.
+    /// Whether the emit-site MAY populate `fix_hint`. Audit label
+    /// only — runtime populate is per-emit-site logic.
     pub has_fix_hint: bool,
-    /// Whether this code is a hand-emitted terminal (Schema Rule 1).
-    /// If true, the code also appears in
-    /// [`TERMINAL_CODES`](crate::TERMINAL_CODES) and ends in
-    /// `_OK` / `_FAIL` / `_ERROR`.
+    /// Hand-emitted terminal (Schema Rule 1). If true, also in
+    /// [`TERMINAL_CODES`](crate::TERMINAL_CODES); ends in `_OK` /
+    /// `_FAIL` / `_ERROR`.
     pub terminal: bool,
 }
 
@@ -261,6 +254,12 @@ pub const RULES: &[RuleEntry] = &[
     r("SIGN_INVALID_SIGNATURE_HEX", Severity::Error, Domain::Sign),
     r("SIGN_READ_FAILED", Severity::Error, Domain::Sign),
     r("SIGN_WRITE_FAILED", Severity::Error, Domain::Sign),
+    terminal("TESTS_OK", Severity::Info),
+    r(
+        "TESTS_OUTCOME_PARSE_FAILED",
+        Severity::Warning,
+        Domain::Tests,
+    ),
     r("TRACE_BACKFILL_READ_FAILED", Severity::Error, Domain::Trace),
     r(
         "TRACE_BACKFILL_SERIALIZE_FAILED",
@@ -470,6 +469,7 @@ impl Domain {
             b"REQ" => Some(Self::Req),
             b"SCHEMA" => Some(Self::Schema),
             b"SIGN" => Some(Self::Sign),
+            b"TESTS" => Some(Self::Tests),
             b"TRACE" => Some(Self::Trace),
             b"VERIFY" => Some(Self::Verify),
             _ => None,
