@@ -593,7 +593,7 @@ jobs:
 
       - name: Upload bundle as artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v5
         with:
           name: evidence-self-bundle
           path: ./dogfood-artifact/
@@ -677,7 +677,7 @@ jobs:
 
       - name: Upload per-OS artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v5
         with:
           name: xhost-${{ runner.os }}
           path: ./xhost-stage/
@@ -831,7 +831,7 @@ jobs:
 
       - name: Upload per-flavor artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v5
         with:
           name: xhost-nix-${{ runner.os }}
           path: ./xhost-stage/
@@ -1017,7 +1017,7 @@ jobs:
 
       - name: Upload cert bundle on failure
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v5
         with:
           name: evidence-self-cert-bundle
           path: ${{ runner.temp }}/cert-out/
@@ -1045,7 +1045,7 @@ jobs:
 
     steps:
       - name: Download all per-flavor artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v5
         with:
           path: ./xhost
           pattern: xhost-*

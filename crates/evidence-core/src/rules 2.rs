@@ -1,0 +1,496 @@
+//! Hand-curated manifest of every diagnostic code the tool can emit.
+//!
+//! `RULES` is the single source of truth for "what can the tool say?"
+//! Exposed via `cargo evidence rules --json`; pinned by four bijection
+//! invariants in `diagnostic_codes_locked`:
+//! (1) `RULES ⇔ DiagnosticCode::code()` (library walk);
+//! (2) `RULES ⇔ TERMINAL_CODES` for terminals;
+//! (3) `RULES ⇔ HAND_EMITTED_CLI_CODES` for non-terminal CLI emits;
+//! (4) `⋃(LLR.emits) ⇔ RULES.code` — the code↔requirement loop.
+//!
+//! Entries sorted alphabetically by `code`. `has_fix_hint` is an
+//! audit-trail label, not a runtime contract.
+
+use serde::Serialize;
+
+use crate::diagnostic::Severity;
+
+/// Top-level domain of a diagnostic code, derived from its prefix.
+/// Variants correspond 1:1 to the code-prefix strings handled by
+/// [`Domain::from_code`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Domain {
+    #[allow(missing_docs)] Boundary,
+    #[allow(missing_docs)] Bundle,
+    #[allow(missing_docs)] Check,
+    #[allow(missing_docs)] Cli,
+    #[allow(missing_docs)] Cmd,
+    #[allow(missing_docs)] Doctor,
+    #[allow(missing_docs)] Env,
+    #[allow(missing_docs)] Floors,
+    #[allow(missing_docs)] Generate,
+    #[allow(missing_docs)] Git,
+    #[allow(missing_docs)] Hash,
+    #[allow(missing_docs)] Init,
+    #[allow(missing_docs)] Policy,
+    #[allow(missing_docs)] Req,
+    #[allow(missing_docs)] Schema,
+    #[allow(missing_docs)] Sign,
+    #[allow(missing_docs)] Tests,
+    #[allow(missing_docs)] Trace,
+    #[allow(missing_docs)] Verify,
+}
+
+impl Domain {
+    /// Derive a [`Domain`] from a code prefix. `None` for any
+    /// unknown prefix — bijection test catches unmapped codes.
+    pub fn from_code(code: &str) -> Option<Self> {
+        let prefix = code.split('_').next().unwrap_or(code);
+        Some(match prefix {
+            "BOUNDARY" => Self::Boundary,
+            "BUNDLE" => Self::Bundle,
+            "CHECK" => Self::Check,
+            "CLI" => Self::Cli,
+            "CMD" => Self::Cmd,
+            "DOCTOR" => Self::Doctor,
+            "ENV" => Self::Env,
+            "FLOORS" => Self::Floors,
+            "GENERATE" => Self::Generate,
+            "GIT" => Self::Git,
+            "INIT" => Self::Init,
+            "HASH" => Self::Hash,
+            "POLICY" => Self::Policy,
+            "REQ" => Self::Req,
+            "SCHEMA" => Self::Schema,
+            "SIGN" => Self::Sign,
+            "TESTS" => Self::Tests,
+            "TRACE" => Self::Trace,
+            "VERIFY" => Self::Verify,
+            _ => return None,
+        })
+    }
+}
+
+/// One row of the diagnostic manifest.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct RuleEntry {
+    /// UPPER_SNAKE_CASE identifier (Schema Rule 3).
+    pub code: &'static str,
+    /// Reporter severity when the code is emitted.
+    pub severity: Severity,
+    /// Top-level domain, derived from prefix.
+    pub domain: Domain,
+    /// Whether the emit-site MAY populate `fix_hint`.
+    pub has_fix_hint: bool,
+    /// Hand-emitted terminal (Schema Rule 1). If true, also in
+    /// [`TERMINAL_CODES`](crate::TERMINAL_CODES).
+    pub terminal: bool,
+}
+
+/// Codes the CLI emits by hand that are NOT terminals. Pinned
+/// here because `diagnostic_codes_locked` walks only `evidence-core/src`.
+pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
+    "CHECK_TEST_RUNTIME_FAILURE",
+    "CLI_INVALID_ARGUMENT",
+    "CLI_UNSUPPORTED_FORMAT",
+    "DOCTOR_BOUNDARY_MISSING",
+    "DOCTOR_CHECK_PASSED",
+    "DOCTOR_CI_INTEGRATION_MISSING",
+    "DOCTOR_FLOORS_BOUNDARY_MISMATCH",
+    "DOCTOR_FLOORS_MISSING",
+    "DOCTOR_FLOORS_SLACK",
+    "DOCTOR_FLOORS_VIOLATED",
+    "DOCTOR_MERGE_STYLE_RISK",
+    "DOCTOR_MERGE_STYLE_UNKNOWN",
+    "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
+    "DOCTOR_TRACE_EMPTY",
+    "DOCTOR_TRACE_INVALID",
+    "FLOORS_BELOW_MIN",
+    "FLOORS_DIMENSION_OK",
+    "FLOORS_LOWERED_WITHOUT_JUSTIFICATION",
+    "GENERATE_PHASE_COMPLETED",
+    "GENERATE_PHASE_STARTED",
+    "INIT_CERT_DIR_EXISTS",
+    "INIT_TEMPLATE_WRITTEN",
+    "TRACE_SELECTOR_UNRESOLVED",
+    "VERIFY_BUNDLE_INCOMPLETE",
+];
+
+/// Codes in `RULES` that are intentionally NOT claimed by any LLR's
+/// `emits` list. Must stay empty or carry a written justification here.
+pub const RESERVED_UNCLAIMED_CODES: &[&str] = &[];
+
+/// Hand-curated manifest of every emittable code. Sorted by `code`.
+/// Additions: append, re-sort, claim in the relevant LLR's `emits`,
+/// add a test exercising the emit.
+pub const RULES: &[RuleEntry] = &[
+    r(
+        "BOUNDARY_CARGO_METADATA_FAILED",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_CONFIG_PARSE_FAILED",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_CONFIG_READ_FAILED",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_OUT_OF_SCOPE_DEPS",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_PARSE_METADATA_FAILED",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_UNKNOWN_IN_SCOPE_CRATE",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r("BUNDLE_ALREADY_EXISTS", Severity::Error, Domain::Bundle),
+    r("BUNDLE_CURRENT_DIR_FAILED", Severity::Error, Domain::Bundle),
+    r("BUNDLE_DIRTY_GIT_TREE", Severity::Error, Domain::Bundle),
+    r("BUNDLE_GIT_FAILED", Severity::Error, Domain::Bundle),
+    r("BUNDLE_HASH_FAILED", Severity::Error, Domain::Bundle),
+    r("BUNDLE_IO_FAILED", Severity::Error, Domain::Bundle),
+    r("BUNDLE_PARSE_ENV_FAILED", Severity::Error, Domain::Bundle),
+    r("BUNDLE_RUN_COMMAND_FAILED", Severity::Error, Domain::Bundle),
+    r("BUNDLE_SERIALIZE_FAILED", Severity::Error, Domain::Bundle),
+    r("BUNDLE_TOCTOU", Severity::Error, Domain::Bundle),
+    r("CHECK_TEST_RUNTIME_FAILURE", Severity::Error, Domain::Check),
+    cli("CLI_INVALID_ARGUMENT", Severity::Error),
+    terminal("CLI_SUBCOMMAND_ERROR", Severity::Error),
+    cli("CLI_UNSUPPORTED_FORMAT", Severity::Error),
+    r("CMD_LAUNCH_FAILED", Severity::Error, Domain::Cmd),
+    r("CMD_NON_UTF8_OUTPUT", Severity::Error, Domain::Cmd),
+    r("CMD_NON_ZERO_EXIT", Severity::Error, Domain::Cmd),
+    r("DOCTOR_BOUNDARY_MISSING", Severity::Error, Domain::Doctor),
+    r("DOCTOR_CHECK_PASSED", Severity::Info, Domain::Doctor),
+    r(
+        "DOCTOR_CI_INTEGRATION_MISSING",
+        Severity::Warning,
+        Domain::Doctor,
+    ),
+    terminal("DOCTOR_FAIL", Severity::Error),
+    r(
+        "DOCTOR_FLOORS_BOUNDARY_MISMATCH",
+        Severity::Warning,
+        Domain::Doctor,
+    ),
+    r("DOCTOR_FLOORS_MISSING", Severity::Error, Domain::Doctor),
+    r("DOCTOR_FLOORS_SLACK", Severity::Warning, Domain::Doctor),
+    r("DOCTOR_FLOORS_VIOLATED", Severity::Error, Domain::Doctor),
+    r("DOCTOR_MERGE_STYLE_RISK", Severity::Warning, Domain::Doctor),
+    r(
+        "DOCTOR_MERGE_STYLE_UNKNOWN",
+        Severity::Warning,
+        Domain::Doctor,
+    ),
+    terminal("DOCTOR_OK", Severity::Info),
+    r(
+        "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
+        Severity::Warning,
+        Domain::Doctor,
+    ),
+    r("DOCTOR_TRACE_EMPTY", Severity::Error, Domain::Doctor),
+    r("DOCTOR_TRACE_INVALID", Severity::Error, Domain::Doctor),
+    r("ENV_STRICT_CARGO_REQUIRED", Severity::Error, Domain::Env),
+    r("ENV_STRICT_RUSTC_REQUIRED", Severity::Error, Domain::Env),
+    floors("FLOORS_BELOW_MIN", Severity::Error),
+    floors("FLOORS_LOWERED_WITHOUT_JUSTIFICATION", Severity::Error),
+    r("GIT_CMD_FAILED", Severity::Error, Domain::Git),
+    r("GIT_NON_UTF8_PATH", Severity::Error, Domain::Git),
+    r("GIT_OTHER", Severity::Error, Domain::Git),
+    r("GIT_SHALLOW_CLONE", Severity::Error, Domain::Git),
+    r("GIT_STRICT_BRANCH_REQUIRED", Severity::Error, Domain::Git),
+    r("GIT_STRICT_DIRTY_REQUIRED", Severity::Error, Domain::Git),
+    r("GIT_STRICT_STATE_REQUIRED", Severity::Error, Domain::Git),
+    r("GIT_SUBCOMMAND_FAILED", Severity::Error, Domain::Git),
+    r("HASH_NON_UTF8_PATH", Severity::Error, Domain::Hash),
+    r("HASH_NOT_UNDER_BASE", Severity::Error, Domain::Hash),
+    r("HASH_OPEN_FAILED", Severity::Error, Domain::Hash),
+    r("HASH_READ_FAILED", Severity::Error, Domain::Hash),
+    r("HASH_WALK_FAILED", Severity::Error, Domain::Hash),
+    r("HASH_WRITE_FAILED", Severity::Error, Domain::Hash),
+    r("POLICY_UNKNOWN_DAL", Severity::Error, Domain::Policy),
+    r("POLICY_UNKNOWN_PROFILE", Severity::Error, Domain::Policy),
+    req_gap("REQ_GAP"),
+    req("REQ_PASS", Severity::Info),
+    req("REQ_SKIP", Severity::Warning),
+    r("SCHEMA_COMPILE_FAILED", Severity::Error, Domain::Schema),
+    r("SCHEMA_INSTANCE_INVALID", Severity::Error, Domain::Schema),
+    r("SCHEMA_PARSE_FAILED", Severity::Error, Domain::Schema),
+    r("SIGN_INVALID_KEY", Severity::Error, Domain::Sign),
+    r("SIGN_INVALID_SIGNATURE_HEX", Severity::Error, Domain::Sign),
+    r("SIGN_READ_FAILED", Severity::Error, Domain::Sign),
+    r("SIGN_WRITE_FAILED", Severity::Error, Domain::Sign),
+    terminal("TESTS_OK", Severity::Info),
+    r(
+        "TESTS_OUTCOME_PARSE_FAILED",
+        Severity::Warning,
+        Domain::Tests,
+    ),
+    r("TRACE_BACKFILL_READ_FAILED", Severity::Error, Domain::Trace),
+    r(
+        "TRACE_BACKFILL_SERIALIZE_FAILED",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r(
+        "TRACE_BACKFILL_WRITE_FAILED",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r(
+        "TRACE_CONTRADICTORY_DERIVED",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r("TRACE_DANGLING_LINK", Severity::Error, Domain::Trace),
+    r(
+        "TRACE_DERIVED_MISSING_RATIONALE",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r("TRACE_DUPLICATE_TRACE_LINK", Severity::Error, Domain::Trace),
+    r(
+        "TRACE_HLR_SURFACE_UNCLAIMED",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r("TRACE_HLR_SURFACE_UNKNOWN", Severity::Error, Domain::Trace),
+    r("TRACE_INVALID_LINK_UUID", Severity::Error, Domain::Trace),
+    r("TRACE_LINK_FAILED", Severity::Error, Domain::Trace),
+    r("TRACE_LINK_OTHER", Severity::Error, Domain::Trace),
+    r(
+        "TRACE_LLR_MISSING_PARENT_LINKS",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r(
+        "TRACE_MISSING_HLR_SYS_TRACE",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r(
+        "TRACE_MISSING_VERIFICATION_METHODS",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r("TRACE_OWNERSHIP_VIOLATION", Severity::Error, Domain::Trace),
+    r("TRACE_PARSE_FAILED", Severity::Error, Domain::Trace),
+    r("TRACE_READ_FAILED", Severity::Error, Domain::Trace),
+    r("TRACE_REGISTER_FAILED", Severity::Error, Domain::Trace),
+    r("TRACE_SELECTOR_UNRESOLVED", Severity::Error, Domain::Trace),
+    r("TRACE_WRONG_TARGET_KIND", Severity::Error, Domain::Trace),
+    r(
+        "VERIFY_BUNDLE_INCOMPLETE",
+        Severity::Warning,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_BUNDLE_INCOMPLETELY_CLAIMED",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_CONTENT_HASH_MISMATCH",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_CROSS_FILE_INCONSISTENCY",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r("VERIFY_DAL_MAP_MISMATCH", Severity::Error, Domain::Verify),
+    r("VERIFY_DAL_MAP_ORPHAN", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_DETERMINISTIC_HASH_MISMATCH",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    terminal("VERIFY_ERROR", Severity::Error),
+    terminal("VERIFY_FAIL", Severity::Error),
+    r("VERIFY_HASH_MISMATCH", Severity::Error, Domain::Verify),
+    r("VERIFY_HMAC_FAILURE", Severity::Error, Domain::Verify),
+    r("VERIFY_INVALID_FORMAT", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_MANIFEST_PROJECTION_DRIFT",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_MISSING_HASHED_FILE",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    terminal("VERIFY_OK", Severity::Info),
+    r("VERIFY_PRERELEASE_TOOL", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_RUNTIME_BUNDLE_NOT_FOUND",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r("VERIFY_RUNTIME_HASH", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_RUNTIME_PARSE_INDEX",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r("VERIFY_RUNTIME_READ_FILE", Severity::Error, Domain::Verify),
+    r("VERIFY_RUNTIME_SIGNING", Severity::Error, Domain::Verify),
+    r("VERIFY_RUNTIME_WALK", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_TEST_SUMMARY_MISMATCH",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_TOOL_COMMANDS_FAILED_SILENTLY",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_TRACE_OUTPUT_NOT_HASHED",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r("VERIFY_UNEXPECTED_FILE", Severity::Error, Domain::Verify),
+    r("VERIFY_UNSAFE_PATH", Severity::Error, Domain::Verify),
+];
+
+// Constructor helpers — kept `const fn` so RULES stays a true const.
+
+const fn r(code: &'static str, severity: Severity, domain: Domain) -> RuleEntry {
+    RuleEntry {
+        code,
+        severity,
+        domain,
+        has_fix_hint: false,
+        terminal: false,
+    }
+}
+
+const fn req(code: &'static str, severity: Severity) -> RuleEntry {
+    RuleEntry {
+        code,
+        severity,
+        domain: Domain::Req,
+        has_fix_hint: false,
+        terminal: false,
+    }
+}
+
+const fn req_gap(code: &'static str) -> RuleEntry {
+    RuleEntry {
+        code,
+        severity: Severity::Error,
+        domain: Domain::Req,
+        has_fix_hint: true,
+        terminal: false,
+    }
+}
+
+const fn cli(code: &'static str, severity: Severity) -> RuleEntry {
+    RuleEntry {
+        code,
+        severity,
+        domain: Domain::Cli,
+        has_fix_hint: false,
+        terminal: false,
+    }
+}
+
+const fn floors(code: &'static str, severity: Severity) -> RuleEntry {
+    RuleEntry {
+        code,
+        severity,
+        domain: Domain::Floors,
+        has_fix_hint: false,
+        terminal: false,
+    }
+}
+
+const fn terminal(code: &'static str, severity: Severity) -> RuleEntry {
+    RuleEntry {
+        code,
+        severity,
+        domain: match Domain::from_code_const(code) {
+            Some(d) => d,
+            None => Domain::Cli,
+        },
+        has_fix_hint: false,
+        terminal: true,
+    }
+}
+
+impl Domain {
+    /// `const fn` twin of [`Domain::from_code`] used inside the
+    /// `terminal(…)` constructor.
+    const fn from_code_const(code: &str) -> Option<Self> {
+        // Prefix is the segment before the first underscore.
+        let bytes = code.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() && bytes[i] != b'_' {
+            i += 1;
+        }
+        let prefix = match std::str::from_utf8(bytes.split_at(i).0) {
+            Ok(s) => s,
+            Err(_) => return None,
+        };
+        // `str::eq` isn't const, so compare byte-wise.
+        match prefix.as_bytes() {
+            b"BOUNDARY" => Some(Self::Boundary),
+            b"BUNDLE" => Some(Self::Bundle),
+            b"CLI" => Some(Self::Cli),
+            b"CMD" => Some(Self::Cmd),
+            b"DOCTOR" => Some(Self::Doctor),
+            b"ENV" => Some(Self::Env),
+            b"FLOORS" => Some(Self::Floors),
+            b"GENERATE" => Some(Self::Generate),
+            b"GIT" => Some(Self::Git),
+            b"INIT" => Some(Self::Init),
+            b"HASH" => Some(Self::Hash),
+            b"POLICY" => Some(Self::Policy),
+            b"REQ" => Some(Self::Req),
+            b"SCHEMA" => Some(Self::Schema),
+            b"SIGN" => Some(Self::Sign),
+            b"TESTS" => Some(Self::Tests),
+            b"TRACE" => Some(Self::Trace),
+            b"VERIFY" => Some(Self::Verify),
+            _ => None,
+        }
+    }
+}
+
+/// Serialize [`RULES`] as a JSON array for `cargo evidence rules
+/// --json`. Deterministic (alphabetical by `code`).
+pub fn rules_json() -> String {
+    #[allow(
+        clippy::expect_used,
+        reason = "RULES is a const with infallibly-serializable field types"
+    )]
+    {
+        serde_json::to_string(RULES).expect("RULES is statically serializable")
+    }
+}
+
+// Tests live in a sibling file pulled in via `#[path]` so this
+// facade stays under the 500-line workspace limit.
+#[cfg(test)]
+#[path = "rules/tests.rs"]
+mod tests;

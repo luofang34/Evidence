@@ -37,11 +37,23 @@ const BANNED_PINS: &[(&str, &str)] = &[
     ),
     (
         "actions/upload-artifact@v4",
-        "Node 20 — bump to @v5 or later (Node 24)",
+        "Node 20 — bump to @v6 or later (v5 still targets Node 20)",
+    ),
+    (
+        "actions/upload-artifact@v5",
+        "Node 20 — bump to @v6 or later",
     ),
     (
         "actions/download-artifact@v4",
-        "Node 20 — bump to @v5 or later (Node 24)",
+        "Node 20 — bump to @v7 or later (v5 and v6 target Node 20)",
+    ),
+    (
+        "actions/download-artifact@v5",
+        "Node 20 — bump to @v7 or later",
+    ),
+    (
+        "actions/download-artifact@v6",
+        "Node 20 — bump to @v7 or later",
     ),
     (
         "DeterminateSystems/nix-installer-action@v14",
