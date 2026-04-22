@@ -13,53 +13,45 @@ use evidence_core::policy::{BoundaryConfig, Dal, EvidencePolicy};
 use evidence_core::trace::{read_all_trace_files, validate_trace_links_with_policy};
 
 use super::CheckResult;
+use crate::cli::trace::default_trace_roots;
 
 pub(super) fn check_trace(workspace: &Path) -> CheckResult {
-    let trace_root = workspace.join("tool").join("trace");
-    let trace_root_str = match trace_root.to_str() {
-        Some(s) => s,
-        None => {
-            return CheckResult::Fail(
-                "DOCTOR_TRACE_INVALID",
-                format!("tool/trace path is not UTF-8: {}", trace_root.display()),
-            );
+    // Iterate every configured trace root from the boundary's
+    // `scope.trace_roots` or the auto-discovered convention.
+    // `default_trace_roots` rebases relative paths against
+    // `workspace`.
+    let roots = default_trace_roots(workspace);
+    let mut sys_reqs = Vec::new();
+    let mut hlr_reqs = Vec::new();
+    let mut llr_reqs = Vec::new();
+    let mut tests = Vec::new();
+    let mut derived = Vec::new();
+    for root in &roots {
+        let files = match read_all_trace_files(root) {
+            Ok(f) => f,
+            Err(e) => {
+                return CheckResult::Fail(
+                    "DOCTOR_TRACE_INVALID",
+                    format!("could not load trace root {}: {}", root, e),
+                );
+            }
+        };
+        sys_reqs.extend(files.sys.requirements);
+        hlr_reqs.extend(files.hlr.requirements);
+        llr_reqs.extend(files.llr.requirements);
+        tests.extend(files.tests.tests);
+        if let Some(d) = files.derived {
+            derived.extend(d.requirements);
         }
-    };
-    let files = match read_all_trace_files(trace_root_str) {
-        Ok(f) => f,
-        Err(e) => {
-            return CheckResult::Fail(
-                "DOCTOR_TRACE_INVALID",
-                format!(
-                    "could not load tool/trace/ at {}: {}",
-                    trace_root.display(),
-                    e
-                ),
-            );
-        }
-    };
-    // Derive the trace policy from the project's declared DAL level
-    // via `EvidencePolicy::for_dal`. Hardcoding all-strict flags
-    // would block every real downstream cert build: `KNOWN_SURFACES`
-    // names cargo-evidence's own observable contracts, so a
-    // downstream HLR claiming its own surface ("sensor fusion") would
-    // fail the bijection. DAL-D (downstream default) disables all
-    // three strict flags; higher DAL levels enable SYS-trace +
-    // derived-rationale — but surface bijection stays opt-in at
-    // every level because surfaces are project-specific. Our own
-    // `cargo evidence trace --validate --require-hlr-surface-bijection`
-    // CI step (unchanged) keeps the internal dogfood rigor.
+    }
+
+    // DAL drives TracePolicy — hardcoding strict flags would
+    // block every real downstream cert build (KNOWN_SURFACES
+    // names cargo-evidence's own contracts). DAL-D off; higher
+    // levels enable SYS-trace + derived-rationale; surface
+    // bijection stays opt-in at every level.
     let (dal, boundary_loadable) = load_default_dal(workspace);
     let policy = EvidencePolicy::for_dal(dal).trace;
-    let sys_reqs = files.sys.requirements.clone();
-    let hlr_reqs = files.hlr.requirements.clone();
-    let llr_reqs = files.llr.requirements.clone();
-    let tests = files.tests.tests.clone();
-    let derived = files
-        .derived
-        .as_ref()
-        .map(|d| d.requirements.clone())
-        .unwrap_or_default();
     let fallback_note = if boundary_loadable {
         String::new()
     } else {
@@ -68,6 +60,31 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
          cert target requires)"
             .to_string()
     };
+
+    // DAL ≥ C gate: a fully-empty trace tree passes
+    // `validate_trace_links_with_policy` vacuously — no HLR
+    // for DAL-A's `require_hlr_sys_trace` flag to fail on.
+    // Fire explicitly so cert-grade targets can't silent-pass
+    // on zero data.
+    if sys_reqs.is_empty()
+        && hlr_reqs.is_empty()
+        && llr_reqs.is_empty()
+        && tests.is_empty()
+        && derived.is_empty()
+        && dal >= Dal::C
+    {
+        return CheckResult::Fail(
+            "DOCTOR_TRACE_EMPTY",
+            format!(
+                "no trace data found at {} for DAL-{:?}{}; cert-grade DAL \
+                 requires a populated trace tree.",
+                roots.join(", "),
+                dal,
+                fallback_note
+            ),
+        );
+    }
+
     match validate_trace_links_with_policy(
         &sys_reqs, &hlr_reqs, &llr_reqs, &tests, &derived, &policy,
     ) {
@@ -75,7 +92,7 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
         Err(e) => CheckResult::Fail(
             "DOCTOR_TRACE_INVALID",
             format!(
-                "tool/trace/ validation failed at DAL-{:?}{}: {}",
+                "trace validation failed at DAL-{:?}{}: {}",
                 dal, fallback_note, e
             ),
         ),
@@ -84,12 +101,9 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
 
 /// Read `cert/boundary.toml` to discover the project's declared
 /// DAL level for trace-policy derivation. Returns `(dal,
-/// boundary_loadable)`: the second field is `false` when we fell
-/// back to DAL-D because the file was missing or unparseable, so
-/// callers can surface the assumption explicitly instead of
-/// silently applying a potentially-wrong policy. `check_boundary`
-/// already fires its own diagnostic on the same input, so we don't
-/// double-fire a hard failure from here.
+/// boundary_loadable)`: `false` ⇒ fell back to DAL-D because the
+/// file was missing or unparseable. `check_boundary` already
+/// fires its own diagnostic on the same input.
 fn load_default_dal(workspace: &Path) -> (Dal, bool) {
     let path = workspace.join("cert").join("boundary.toml");
     match BoundaryConfig::load(&path) {

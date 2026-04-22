@@ -416,13 +416,13 @@ fn test_failure_keeps_normal_req_gap_path_not_runtime_failure() {
     }
 }
 
-/// **Boundary-trace-roots rebase regression (PR #75 finding 1).**
-/// PR #72 fixed the CONVENTION paths (`tool/trace`, `cert/trace`)
-/// to rebase against `<PATH>` instead of CWD, but the boundary-
-/// fallback path in `default_trace_roots` still returned entries
-/// verbatim. A downstream project with `trace_roots = ["custom/trace"]`
-/// in its `cert/boundary.toml` would silently resolve against the
-/// caller's CWD and emit VERIFY_OK with 0 requirements.
+/// **Boundary-trace-roots rebase regression.** The convention
+/// paths (`tool/trace`, `cert/trace`) rebase against the `<PATH>`
+/// argument, but the boundary-fallback path in
+/// `default_trace_roots` used to return entries verbatim. A
+/// downstream project with `trace_roots = ["custom/trace"]` in its
+/// `cert/boundary.toml` would silently resolve against the caller's
+/// CWD and emit VERIFY_OK with 0 requirements.
 ///
 /// Setup: downstream tempdir has NO `tool/trace/` (so the
 /// convention auto-discovery misses), has `cert/boundary.toml`
