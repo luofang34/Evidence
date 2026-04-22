@@ -621,6 +621,6 @@ title = "Dangling LLR (test-verified, no matching test record) fires VERIFY_LLR_
 owner = "tool"
 traces_to = ["4bd86c6c-1743-4a78-9d17-c284b3ad8e04"]
 test_selectors = [
-    "llr_selector_check::llr_with_no_matching_test_outcome_fires_unresolved",
-    "llr_selector_check::llr_present_in_requirement_uids_passes",
+    "verify::llr_selectors::tests::llr_with_no_matching_test_outcome_fires_unresolved",
+    "verify::llr_selectors::tests::llr_present_in_requirement_uids_passes",
 ]
