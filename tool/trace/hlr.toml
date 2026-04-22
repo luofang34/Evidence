@@ -985,3 +985,48 @@ several minutes); exceeding it yields a synthetic
 verification_methods = ["test"]
 traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
 surfaces = ["agent MCP surface"]
+
+[[requirements]]
+uid = "cfeb6d1b-4189-47fd-9d9f-d50b81c57354"
+id = "HLR-051"
+title = "Per-test outcome records written to tests/test_outcomes.jsonl with failure-message capture from libtest stdout"
+owner = "tool"
+scope = "component"
+description = """
+The existing libtest text parser at
+`evidence_core::bundle::parse_cargo_test_output_with_outcomes`
+already extracts `BTreeMap<String, TestOutcome>` where
+`TestOutcome ∈ {Passed, Failed, Ignored}` — per-test name +
+status are captured today. The gap is (a) `failure_message`
+for failed tests (not in the map today), and (b) the
+serialization from that map to a bundle artifact.
+
+PR #73 extends the parser to also scan libtest's
+`---- <test_name> stdout ----` failure blocks emitted after the
+`test result:` summary line, capturing the panic message + a
+short backtrace tail into `failure_message: Option<String>` on
+Failed variants. A new `TestOutcomeRecord` wire struct
+(distinct from the parser's internal enum so the wire shape is
+decoupled from parser internals) carries `{name, module_path,
+passed, ignored, failure_message, duration_ms}` where
+`duration_ms: Option<u64>` is reserved slot zero for a future
+nightly-libtest or nextest timing source.
+
+`tests/test_outcomes.jsonl` lands in the bundle sorted
+alphabetically by `(module_path, name)`, integrity-hashed into
+`SHA256SUMS`. `tests/cargo_test_summary.json` stays for
+backwards compatibility (derived-from-outcomes). Compliance
+emitter upgrades A-7 Obj-3 from `Partial` → `Met` when the
+jsonl is non-empty and every `passed=false` entry has a
+non-empty `failure_message`.
+
+Design note: `cargo nextest` was considered as the data source
+and rejected — its only unique value-add over the enriched
+libtest parser is `duration_ms`, which is not an A-7 Obj-3
+requirement. Adopting nextest would add a cert-customer
+`cargo install` footprint for zero Obj-3 credit. Duration
+stays a schema-reserved follow-up.
+"""
+verification_methods = ["test"]
+traces_to = ["8069de78-71cc-4acb-a1f8-9e3519ccf1ce"]
+surfaces = ["per-test outcome capture"]

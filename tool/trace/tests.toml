@@ -573,3 +573,43 @@ test_selectors = [
     "mcp_surface::evidence_doctor_on_self_repo_passes",
     "mcp_surface::evidence_check_source_on_empty_dir_fails_gracefully",
 ]
+
+[[tests]]
+uid = "d5b838db-5b8a-44c8-ac32-0b1ce95ff3b3"
+id = "TEST-051"
+title = "Per-test outcomes round-trip: libtest text → failure_message populated → jsonl → compliance upgrade"
+owner = "tool"
+traces_to = ["75e00b58-28a5-42d2-b4c9-57193c06093b"]
+description = """
+Four assertions across the parser extension, the bundle
+artifact, and the compliance wire-up:
+
+- `parse_cargo_test_output_with_outcomes` captures the panic
+  message from a libtest failure-block into
+  `failure_message` on the corresponding `Failed` outcome.
+  Golden-fixture input
+  (`crates/evidence-core/tests/fixtures/libtest_failure_sample.txt`)
+  → byte-exact expected map.
+
+- Edge cases — empty stdout, no failures, multi-failure
+  (failure blocks for N different tests all captured
+  independently), and a malformed block (fallback to
+  `TESTS_OUTCOME_PARSE_FAILED`, graceful degradation).
+
+- End-to-end bundle shape — `cargo evidence generate` on a
+  workspace writes `tests/test_outcomes.jsonl` at the bundle
+  root. Every line parses as a `TestOutcomeRecord`. Required
+  keys present: `name`, `module_path`, `passed`, `ignored`.
+  File is hashed into `SHA256SUMS`.
+
+- Compliance emitter upgrades `A7-3` from `Partial` → `Met`
+  when every failed-test record carries a non-empty
+  `failure_message`; stays `Partial` otherwise.
+"""
+test_selectors = [
+    "evidence_core::bundle::test_summary::tests::parse_failure_block_captures_message",
+    "evidence_core::bundle::test_summary::tests::parse_tolerates_missing_failure_block",
+    "evidence_core::tests::outcome_record::tests::jsonl_roundtrip",
+    "evidence_core::compliance::tests::a7_3_upgrades_on_full_failure_coverage",
+    "test_outcomes_jsonl_shape::bundle_contains_jsonl_with_expected_keys",
+]

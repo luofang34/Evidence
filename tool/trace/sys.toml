@@ -395,3 +395,33 @@ low-level primitive reserved for CI scripts and debugging, and
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "8069de78-71cc-4acb-a1f8-9e3519ccf1ce"
+id = "SYS-019"
+title = "Bundle shall contain per-test outcome records, not just a workspace-aggregate pass/fail"
+owner = "soi"
+scope = "soi"
+description = """
+An auditor asking "show me the result of TEST-046" must get
+atoms — one record per actual test run — not a workspace-level
+"all tests passed" aggregate. DO-178C Annex A Table A-7
+Objective 3 requires "Test results documented"; "exit codes
+only" is not documented test results. Today
+`CrateEvidence.tests_passed: Option<bool>` carries the whole
+workspace outcome in one bit; there is no atomic way to show
+that a given `test_selector` resolved to a specific pass/fail
+outcome.
+
+The tool shall emit `tests/test_outcomes.jsonl` inside the
+bundle with one line per test: name, module path, pass/fail
+status, ignored flag, and — on failure — the panic/assertion
+message captured from libtest's failure block. The shape
+reserves an `Option<u64>` for per-test duration so a future
+timing source (nightly libtest or nextest) can populate it
+without a wire break. LLR `test_selectors` resolve not just
+syntactically (does the function exist?) but outcomally (did
+it pass this run?).
+"""
+verification_methods = ["test"]
+traces_to = []

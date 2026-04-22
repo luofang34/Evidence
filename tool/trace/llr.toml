@@ -528,7 +528,10 @@ CLI_INVALID_ARGUMENT + VERIFY_FAIL terminal. Explicit mode always
 wins; mismatch between mode and shape also errors cleanly.
 """
 verification_methods = ["test"]
-emits = ["CHECK_TEST_RUNTIME_FAILURE", "CLI_INVALID_ARGUMENT"]
+emits = [
+    "CHECK_TEST_RUNTIME_FAILURE",
+    "CLI_INVALID_ARGUMENT",
+]
 
 [[requirements]]
 uid = "03795ca7-d5d3-48bc-9774-490cd6d4c2e0"
@@ -1203,3 +1206,55 @@ New workspace crate `crates/mcp-evidence`. Shape:
   bumped by 1 each.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "75e00b58-28a5-42d2-b4c9-57193c06093b"
+id = "LLR-051"
+title = "Extend libtest parser with failure-block capture; emit TestOutcomeRecord stream"
+owner = "tool"
+traces_to = ["cfeb6d1b-4189-47fd-9d9f-d50b81c57354"]
+modules = [
+    "evidence_core::bundle::test_summary",
+    "evidence_core::tests::outcome_record",
+    "evidence_core::bundle::builder",
+]
+derived = false
+description = """
+Three coupled sites:
+
+- `evidence_core::bundle::test_summary::parse_cargo_test_output_with_outcomes`
+  gains a failure-block scanner. After the `test result:` line
+  it keeps reading for `---- <test_name> stdout ----` headers;
+  for each, captures the following paragraph up to the next
+  `---- ... ----` header or the `failures:` summary line,
+  attaching it to the matching `TestOutcome::Failed` entry in
+  the returned map. ~30 LOC regex / state machine. Ignoring the
+  block leaves behaviour identical for runs with no failures.
+  On parse ambiguity (failure block referencing a test not in
+  the map), emit `TESTS_OUTCOME_PARSE_FAILED` and fall back
+  gracefully — the bundle still ships with the aggregate view.
+
+- New `evidence_core::tests::outcome_record::TestOutcomeRecord`
+  — `{name, module_path, passed, ignored, failure_message:
+  Option<String>, duration_ms: Option<u64>}` with
+  `#[derive(Serialize, Deserialize, JsonSchema)]`. Distinct
+  from `parse_cargo_test_output_with_outcomes`'s internal enum
+  so parser refactors don't touch the wire shape.
+
+- `evidence_core::bundle::builder` (the cert-profile bundle
+  generator) writes `tests/test_outcomes.jsonl` —
+  alphabetically sorted by `(module_path, name)` for
+  determinism — before `SHA256SUMS` seals, so the file is
+  integrity-hashed with the rest of the bundle. On success the
+  terminal `TESTS_OK` fires.
+
+Compliance emitter (`evidence_core::compliance::...`) reads
+the emitted jsonl back, checks non-empty + failure-message on
+every failure, and sets `objectives["A7-3"].status =
+ObjectiveStatusKind::Met` accordingly.
+"""
+verification_methods = ["test"]
+emits = [
+    "TESTS_OK",
+    "TESTS_OUTCOME_PARSE_FAILED",
+]
