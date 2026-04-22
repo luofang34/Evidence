@@ -107,7 +107,7 @@ jobs:
       - name: Tarball sanity check
         shell: bash
         run: |
-          for crate in evidence-core cargo-evidence mcp-evidence; do
+          for crate in evidence-core cargo-evidence evidence-mcp; do
             cargo package --list -p "$crate" --allow-dirty > /tmp/pkg-"$crate".txt
             if grep -qE '^(tool/trace|cert/baselines)/' /tmp/pkg-"$crate".txt; then
               echo "::error::Tarball for $crate contains workspace-root paths"
@@ -221,23 +221,23 @@ jobs:
             fi
           fi
 
-      # mcp-evidence depends on evidence-core only (not
+      # evidence-mcp depends on evidence-core only (not
       # cargo-evidence), so once evidence-core is indexed the
       # publish can proceed. No additional index-wait needed.
-      - name: Publish mcp-evidence (idempotent)
+      - name: Publish evidence-mcp (idempotent)
         if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         shell: bash
         run: |
           set +e
-          out=$(cargo publish -p mcp-evidence 2>&1)
+          out=$(cargo publish -p evidence-mcp 2>&1)
           rc=$?
           set -e
           printf '%s\n' "$out"
           if [ $rc -ne 0 ]; then
             if printf '%s' "$out" | grep -q "already exists on crates.io index"; then
-              echo "::notice::mcp-evidence already on crates.io at this version; accepting as idempotent no-op"
+              echo "::notice::evidence-mcp already on crates.io at this version; accepting as idempotent no-op"
             else
               exit $rc
             fi

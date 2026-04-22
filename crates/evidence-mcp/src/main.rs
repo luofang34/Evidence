@@ -1,4 +1,4 @@
-//! `mcp-evidence` — stdio MCP server exposing `cargo evidence`
+//! `evidence-mcp` — stdio MCP server exposing `cargo evidence`
 //! agent verbs to AI hosts (Claude Desktop, Claude Code, etc).
 //!
 //! Stdio transport is strict: stdout is the MCP protocol channel;
@@ -13,7 +13,7 @@
     reason = "main uses anyhow::Result as the conventional CLI envelope"
 )]
 
-use mcp_evidence::Server;
+use evidence_mcp::Server;
 use rmcp::{ServiceExt, transport::io::stdio};
 use tracing_subscriber::EnvFilter;
 

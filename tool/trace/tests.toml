@@ -532,7 +532,7 @@ test_selectors = [
 [[tests]]
 uid = "539ac44a-c3d1-455e-9e6a-0d45d1c7528a"
 id = "TEST-050"
-title = "mcp-evidence smoke tests exercise rules, doctor, and check over the MCP surface"
+title = "evidence-mcp smoke tests exercise rules, doctor, and check over the MCP surface"
 owner = "tool"
 traces_to = ["65b81ee1-b646-490e-8c1b-c2f9ad183970"]
 description = """

@@ -16,7 +16,7 @@
 version = "0.0.1"
 
 [scope]
-in_scope = ["evidence-core", "cargo-evidence", "mcp-evidence"]
+in_scope = ["evidence-core", "cargo-evidence", "evidence-mcp"]
 
 # Trace root directories (relative to workspace root). This repo's
 # self-trace lives at `tool/trace/`; auto-discovery in

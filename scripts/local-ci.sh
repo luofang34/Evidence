@@ -86,8 +86,8 @@ log "cargo evidence doctor (self-dogfood)"
 # — same invariant as the integration test
 # `evidence_rules_count_matches_library_const`, but from a
 # shell so a broken release build surfaces immediately.
-log "mcp-evidence smoke (stdio handshake + evidence_rules)"
-# mcp-evidence internally spawns `cargo evidence <verb>`. Cargo
+log "evidence-mcp smoke (stdio handshake + evidence_rules)"
+# evidence-mcp internally spawns `cargo evidence <verb>`. Cargo
 # resolves the `evidence` subcommand by searching $PATH for a
 # `cargo-evidence` binary. Prepend the local target dir so the
 # freshly-built binary wins over any globally-installed version.
@@ -98,7 +98,7 @@ MCP_COUNT=$(printf '%s\n' \
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"local-ci","version":"0"}}}' \
     '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' \
     '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evidence_rules","arguments":{}}}' \
-    | ./target/release/mcp-evidence 2>/dev/null \
+    | ./target/release/evidence-mcp 2>/dev/null \
     | python3 -c 'import sys, json
 for line in sys.stdin:
     d = json.loads(line)
@@ -107,10 +107,10 @@ for line in sys.stdin:
         print(sc["count"])
         break')
 if [ "$MCP_COUNT" != "$EXPECTED_RULES_COUNT" ]; then
-    printf '  mcp-evidence returned count=%s but CLI rules --json reports %s\n' \
+    printf '  evidence-mcp returned count=%s but CLI rules --json reports %s\n' \
         "$MCP_COUNT" "$EXPECTED_RULES_COUNT" >&2
     exit 1
 fi
-printf '  mcp-evidence evidence_rules round-trip OK (count=%s)\n' "$MCP_COUNT"
+printf '  evidence-mcp evidence_rules round-trip OK (count=%s)\n' "$MCP_COUNT"
 
 printf '\n== local-ci.sh: all gates pass ==\n'

@@ -282,7 +282,7 @@ jobs:
             --format=jsonl \
             doctor
 
-      - name: Self-dogfood `mcp-evidence` (stdio handshake)
+      - name: Self-dogfood `evidence-mcp` (stdio handshake)
         shell: bash
         run: |
           # Build the MCP server then drive a scripted init +
@@ -293,8 +293,8 @@ jobs:
           # same invariant as the integration test
           # `evidence_rules_count_matches_library_const`, from a
           # shell so a release-build regression surfaces here.
-          cargo build --release -p mcp-evidence
-          # mcp-evidence internally spawns `cargo evidence <verb>`,
+          cargo build --release -p evidence-mcp
+          # evidence-mcp internally spawns `cargo evidence <verb>`,
           # which cargo resolves by searching $PATH for a
           # `cargo-evidence` binary. On CI the locally-built one is
           # at `./target/release/cargo-evidence`, which isn't on
@@ -312,13 +312,13 @@ jobs:
               '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
               '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' \
               '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evidence_rules","arguments":{}}}' \
-              | ./target/release/mcp-evidence 2>/dev/null \
+              | ./target/release/evidence-mcp 2>/dev/null \
               | python3 -c "$EXTRACT")
           if [ "$GOT" != "$EXPECTED" ]; then
-            echo "::error::mcp-evidence count=$GOT mismatched CLI count=$EXPECTED"
+            echo "::error::evidence-mcp count=$GOT mismatched CLI count=$EXPECTED"
             exit 1
           fi
-          echo "mcp-evidence evidence_rules round-trip OK (count=$GOT)"
+          echo "evidence-mcp evidence_rules round-trip OK (count=$GOT)"
 
       - name: Assert backfill is a no-op on committed trace
         shell: bash

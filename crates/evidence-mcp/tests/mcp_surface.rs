@@ -1,6 +1,6 @@
 //! End-to-end MCP surface tests (TEST-050).
 //!
-//! Each test spawns the release-built `mcp-evidence` binary via
+//! Each test spawns the release-built `evidence-mcp` binary via
 //! `assert_cmd`, drives it with a scripted MCP JSON-RPC conversation
 //! over stdio, and asserts on the structured tool response. This
 //! exercises the full `rmcp` stack — init handshake, `tools/list`
@@ -23,7 +23,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use serde_json::{Value, json};
 
-/// Spawn the built `mcp-evidence` binary with piped stdio.
+/// Spawn the built `evidence-mcp` binary with piped stdio.
 ///
 /// The MCP wrapper internally calls `cargo evidence <verb>`,
 /// which cargo resolves via `$PATH` to the `cargo-evidence`
@@ -35,14 +35,14 @@ use serde_json::{Value, json};
 /// returns paths under `target/<profile>/`; its parent is the
 /// right dir to prepend to `PATH`.
 fn spawn_server() -> Child {
-    let bin = assert_cmd::cargo::cargo_bin("mcp-evidence");
+    let bin = assert_cmd::cargo::cargo_bin("evidence-mcp");
     assert!(
         bin.exists(),
-        "mcp-evidence binary missing at {bin:?} — run `cargo build -p mcp-evidence` first"
+        "evidence-mcp binary missing at {bin:?} — run `cargo build -p evidence-mcp` first"
     );
     let target_dir = bin
         .parent()
-        .expect("mcp-evidence binary has a parent dir")
+        .expect("evidence-mcp binary has a parent dir")
         .to_path_buf();
     // Construct the new PATH with platform-correct separator:
     // `:` on Unix, `;` on Windows. `std::env::join_paths` handles
@@ -60,7 +60,7 @@ fn spawn_server() -> Child {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn mcp-evidence")
+        .expect("spawn evidence-mcp")
 }
 
 /// Drive a scripted MCP session. Writes each frame on its own
@@ -321,7 +321,7 @@ fn evidence_check_source_on_empty_dir_fails_gracefully() {
 /// `crates/cargo-evidence/src/cli/check.rs:191-196`). Gated
 /// behind `MCP_RUN_LONG_CHECK=1` so normal CI skips it; run
 /// manually with
-/// `MCP_RUN_LONG_CHECK=1 cargo test -p mcp-evidence -- --ignored`.
+/// `MCP_RUN_LONG_CHECK=1 cargo test -p evidence-mcp -- --ignored`.
 #[test]
 #[ignore = "nested cargo-test; opt-in via MCP_RUN_LONG_CHECK=1"]
 fn evidence_check_source_on_self_repo_is_opt_in() {

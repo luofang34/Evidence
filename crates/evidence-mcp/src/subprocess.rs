@@ -156,7 +156,7 @@ pub(crate) fn parse_jsonl(
                 let marker = serde_json::json!({
                     "code": "MALFORMED_JSONL",
                     "severity": "error",
-                    "message": format!("mcp-evidence could not parse line as JSON: {}", line),
+                    "message": format!("evidence-mcp could not parse line as JSON: {}", line),
                 });
                 *summary.entry("MALFORMED_JSONL".to_string()).or_insert(0) += 1;
                 terminal = "MALFORMED_JSONL".to_string();

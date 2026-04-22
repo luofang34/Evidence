@@ -18,7 +18,7 @@
 //! The tests run against the empty-tempdir failure case because it's
 //! fast (no `cargo test` subprocess) and exercises the same renderer
 //! that handles successful `REQ_PASS` diagnostics. The source-mode
-//! happy-path is covered by `mcp-evidence/tests/mcp_surface.rs` via
+//! happy-path is covered by `evidence-mcp/tests/mcp_surface.rs` via
 //! the JSONL route; adding a human-happy-path test here would re-run
 //! `cargo test --workspace` inside `cargo test`, which we avoid per
 //! `check.rs:191-196` (nested cargo-test target/ lock contention).

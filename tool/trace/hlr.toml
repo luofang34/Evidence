@@ -948,7 +948,7 @@ title = "Thin MCP server wraps check, rules, and doctor via subprocess over stdi
 owner = "tool"
 scope = "component"
 description = """
-A new workspace crate `mcp-evidence` (binary + thin lib) shall
+A new workspace crate `evidence-mcp` (binary + thin lib) shall
 expose three MCP tools over stdio transport: `evidence_check`,
 `evidence_rules`, `evidence_doctor`. Each tool spawns the
 corresponding `cargo evidence <verb>` subcommand under
@@ -961,7 +961,7 @@ Subprocess is the architectural choice: the CLI's jsonl
 output is the stable contract (pinned by
 `crates/cargo-evidence/tests/verify_jsonl.rs`,
 `rules_cmd.rs`, `doctor_cmd.rs`). Wrapping the CLI avoids
-duplicating severity policy and keeps `mcp-evidence` a thin
+duplicating severity policy and keeps `evidence-mcp` a thin
 wrapper that versions in lockstep with the CLI. The MCP layer
 does not own any `Diagnostic` codes in `evidence_core::RULES`
 — it is pass-through. Its only layer-local failure signals
