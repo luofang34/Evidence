@@ -42,10 +42,12 @@ use super::args::{EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
 use super::output::emit_jsonl;
 
 mod checks;
+mod qualification;
 use checks::{
     check_boundary, check_ci_integration, check_floors, check_merge_style, check_override_protocol,
     check_trace,
 };
+use qualification::check_qualification;
 
 const SUBCOMMAND: &str = "doctor";
 
@@ -67,6 +69,7 @@ const CHECKS: &[&str] = &[
     "CI integration",
     "merge-style policy",
     "override protocol docs",
+    "qualification docs",
 ];
 
 /// Entrypoint for `cargo evidence doctor`.
@@ -155,6 +158,7 @@ fn run_named_check(name: &str, workspace: &Path) -> CheckResult {
         "CI integration" => check_ci_integration(workspace),
         "merge-style policy" => check_merge_style(workspace),
         "override protocol docs" => check_override_protocol(workspace),
+        "qualification docs" => check_qualification(workspace),
         other => CheckResult::Fail("DOCTOR_FAIL", format!("unknown check name '{}'", other)),
     }
 }

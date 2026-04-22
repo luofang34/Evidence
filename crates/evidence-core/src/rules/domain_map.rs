@@ -30,6 +30,7 @@ impl Domain {
             b"CHECK" => Some(Self::Check),
             b"CLI" => Some(Self::Cli),
             b"CMD" => Some(Self::Cmd),
+            b"COVERAGE" => Some(Self::Coverage),
             b"DOCTOR" => Some(Self::Doctor),
             b"ENV" => Some(Self::Env),
             b"FLOORS" => Some(Self::Floors),

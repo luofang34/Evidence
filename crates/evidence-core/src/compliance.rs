@@ -16,6 +16,7 @@
 //! without caring about the split.
 
 mod applicability;
+mod coverage_verdict;
 mod generator;
 mod objective;
 mod objectives_table;

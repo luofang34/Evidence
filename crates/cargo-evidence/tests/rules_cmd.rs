@@ -144,6 +144,7 @@ fn rules_json_every_entry_has_known_severity_and_domain() {
                     | "check"
                     | "cli"
                     | "cmd"
+                    | "coverage"
                     | "doctor"
                     | "env"
                     | "floors"

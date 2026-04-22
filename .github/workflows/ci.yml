@@ -896,6 +896,17 @@ jobs:
       - name: Build release binary
         run: cargo build --release -p cargo-evidence
 
+      - name: Install cargo-llvm-cov
+        # `--profile cert` requires cargo-llvm-cov on PATH —
+        # coverage evidence is a DO-178C A-7 Obj-5/6 prerequisite
+        # at DAL >= C, and cert-profile generate fires
+        # `COVERAGE_LLVMCOV_MISSING` (Error) + aborts with
+        # `GENERATE_FAIL` when the binary is absent. Install here
+        # so the cert path can actually produce evidence.
+        run: |
+          rustup component add llvm-tools-preview
+          cargo install cargo-llvm-cov --locked
+
       - name: Assert tree is clean (preflight)
         shell: bash
         run: |

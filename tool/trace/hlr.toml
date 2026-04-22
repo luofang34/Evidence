@@ -1059,3 +1059,47 @@ have no LLRs with `uid` are skipped (absent ≠ known-empty).
 verification_methods = ["test"]
 traces_to = ["5478751b-b547-49b7-b2fc-ae3963668a81"]
 surfaces = ["per-test ↔ LLR back-link"]
+
+[[requirements]]
+uid = "468a6894-7121-4936-8432-94163e35d4a1"
+id = "HLR-053"
+title = "generate --coverage flag invokes cargo-llvm-cov and writes a typed coverage report into the bundle"
+owner = "tool"
+scope = "component"
+description = """
+`cargo evidence generate --coverage={none|line|branch|all}`
+controls an instrumented test pass between the plain `cargo
+test` phase and the finalize phase. When the flag is non-`none`
+the tool invokes `cargo llvm-cov --json --lcov` as a subprocess
+against the workspace, parses the JSON export into a typed
+`CoverageReport` (typed `measurements[]` with `level`, `engine`,
+`engine_version`, `per_file[{path, lines, decisions[],
+conditions[]}]`), and writes two artifacts into the bundle:
+`coverage/coverage_summary.json` (the typed report) and
+`coverage/lcov.info` (the raw lcov passthrough).
+
+Both files are integrity-hashed via `SHA256SUMS.txt` as with
+every other bundle artifact, and are included in
+`EvidenceIndex.outputs_hashes` so tampering is detectable at
+verify time without additional cross-checks.
+
+Graceful degradation: when `cargo-llvm-cov` is not on PATH the
+tool emits `COVERAGE_LLVMCOV_MISSING` — Warning severity on
+dev profile (local iteration unaffected), Error severity on
+cert/record profile (missing coverage data is a cert-grade
+blocker). Parse failures emit `COVERAGE_PARSE_FAILED` (Error).
+
+Default coverage level follows the active profile: dev →
+`none` (fast iteration), cert/record → `branch` (branch
+coverage is required for DAL-B; statement is a subset).
+Explicit `--coverage=` on the command line overrides.
+
+The schema reserves the four-value `level` enum — `statement`,
+`branch`, `pattern_decision`, `mcdc` — so a future PR adding
+MC/DC evidence does not break the wire contract. Only
+`statement` and `branch` emit today; the other two values are
+valid and parseable but no current emit-site produces them.
+"""
+verification_methods = ["test"]
+traces_to = ["5c6e07f1-da4a-4aec-9647-426304deadb5"]
+surfaces = ["coverage measurement"]

@@ -48,6 +48,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     "VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR terminal contract",
     "agent MCP surface",
     "comment hygiene gate",
+    "coverage measurement",
     "diagnostic code namespace (regex + reserved suffixes)",
     "jsonl stream per Schema Rule 2",
     "per-test outcome capture",

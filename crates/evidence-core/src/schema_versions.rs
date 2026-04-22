@@ -62,3 +62,10 @@ pub const DETERMINISTIC_MANIFEST: &str = "0.0.1";
 /// breaking change to the 10 Schema Rules documented in
 /// [`crate::diagnostic`].
 pub const DIAGNOSTIC: &str = "0.0.1";
+
+/// Version pinned on `CoverageReport.schema_version` — the typed
+/// `coverage/coverage_summary.json` artifact written by generate's
+/// coverage phase. Bumping means a breaking change to the
+/// `measurements[]` shape (per-file line/decision/condition
+/// structure).
+pub const COVERAGE: &str = "0.0.1";

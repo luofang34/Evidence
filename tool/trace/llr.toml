@@ -1120,6 +1120,7 @@ emits = [
     "DOCTOR_MERGE_STYLE_RISK",
     "DOCTOR_MERGE_STYLE_UNKNOWN",
     "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
+    "DOCTOR_QUALIFICATION_MISSING",
 ]
 
 [[requirements]]
@@ -1169,7 +1170,10 @@ Four coupled sites:
   cert-grade run should prefer `cargo install --git`.
 """
 verification_methods = ["test"]
-emits = ["VERIFY_PRERELEASE_TOOL", "ENV_ENGINE_RELEASE_PROVENANCE"]
+emits = [
+    "VERIFY_PRERELEASE_TOOL",
+    "ENV_ENGINE_RELEASE_PROVENANCE",
+]
 
 [[requirements]]
 uid = "65b81ee1-b646-490e-8c1b-c2f9ad183970"
@@ -1341,4 +1345,64 @@ verification_methods = ["test"]
 emits = [
     "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
     "VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
+]
+
+[[requirements]]
+uid = "ed4284df-5a2e-4241-bbd9-e744edd43f79"
+id = "LLR-053"
+title = "coverage subprocess + llvm-cov JSON parser + bundle write"
+owner = "tool"
+traces_to = ["468a6894-7121-4936-8432-94163e35d4a1"]
+modules = [
+    "evidence_core::coverage::report::CoverageReport",
+    "evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export",
+    "cargo_evidence::cli::generate::coverage_phase::run_coverage_phase",
+]
+derived = false
+description = """
+`evidence_core::coverage::report::CoverageReport` models the
+typed wire shape of `coverage/coverage_summary.json`. Top-level
+fields: `schema_version: String` (pinned to
+`schema_versions::COVERAGE`), `measurements: Vec<Measurement>`.
+Each `Measurement` carries a `level: CoverageLevel` enum with
+four variants (`statement`, `branch`, `pattern_decision`,
+`mcdc` — the latter two reserved, not emitted), plus
+`engine: String`, `engine_version: String`, and
+`per_file: Vec<FileMeasurement>`. Each `FileMeasurement` has a
+workspace-relative `path: String`, `lines: LineCoverage
+{covered, total}`, `decisions: Vec<DecisionCoverage>`, and
+`conditions: Vec<ConditionCoverage>`. The decisions and
+conditions vectors are empty for statement level and populated
+for branch level.
+
+`evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export`
+consumes `cargo-llvm-cov`'s JSON export format (documented
+shape: `{data: [{files: [...], functions: [...], totals: {...}}],
+version, cargo_llvm_cov: {version}}`), normalizes absolute file
+paths to workspace-relative, and returns a `CoverageReport` with
+one measurement per requested level. Filename normalization
+strips the workspace root prefix deterministically so hashes are
+cross-host stable.
+
+`cargo_evidence::cli::generate::coverage_phase::run_coverage_phase`
+is the new Phase 5b of `cmd_generate`. It is invoked after the
+plain `cargo test` phase when `CoverageChoice != None`. The
+function spawns `cargo llvm-cov --workspace --json --output-path
+<tmp.json> --lcov --output-path <tmp.lcov>` (via
+`std::process::Command`), parses the JSON, and stages both files
+into the builder via `EvidenceBuilder::set_coverage_report` and
+`EvidenceBuilder::stage_coverage_lcov`. On ENOENT (binary
+missing) the phase emits a `COVERAGE_LLVMCOV_MISSING`
+diagnostic whose severity is Warning for `Profile::Dev` and
+Error for `Profile::Cert` / `Profile::Record`; on JSON parse
+failure it emits `COVERAGE_PARSE_FAILED` (always Error).
+Successful completion emits `COVERAGE_OK` (Info non-terminal)
+naming the engine version and per-level line counts.
+"""
+verification_methods = ["test"]
+emits = [
+    "COVERAGE_BELOW_THRESHOLD",
+    "COVERAGE_LLVMCOV_MISSING",
+    "COVERAGE_OK",
+    "COVERAGE_PARSE_FAILED",
 ]

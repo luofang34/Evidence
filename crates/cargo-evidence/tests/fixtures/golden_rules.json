@@ -161,6 +161,34 @@
     "terminal": false
   },
   {
+    "code": "COVERAGE_BELOW_THRESHOLD",
+    "severity": "error",
+    "domain": "coverage",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "COVERAGE_LLVMCOV_MISSING",
+    "severity": "error",
+    "domain": "coverage",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "COVERAGE_OK",
+    "severity": "info",
+    "domain": "coverage",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "COVERAGE_PARSE_FAILED",
+    "severity": "error",
+    "domain": "coverage",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "DOCTOR_BOUNDARY_MISSING",
     "severity": "error",
     "domain": "doctor",
@@ -240,6 +268,13 @@
   {
     "code": "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
     "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_QUALIFICATION_MISSING",
+    "severity": "error",
     "domain": "doctor",
     "has_fix_hint": false,
     "terminal": false

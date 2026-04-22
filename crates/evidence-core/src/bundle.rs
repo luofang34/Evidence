@@ -18,6 +18,7 @@
 //! without caring about the split.
 
 mod builder;
+mod builder_coverage;
 mod capture;
 mod command;
 mod command_failure;

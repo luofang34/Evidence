@@ -130,6 +130,32 @@ pub enum CheckMode {
     Bundle,
 }
 
+/// `--coverage` level for `cargo evidence generate`.
+///
+/// Controls the structural-coverage phase that runs between
+/// `cargo test` and `finalize` when enabled. See HLR-053.
+///
+/// Default is resolved at runtime by profile: `Dev` → `None`
+/// (fast iteration), `Cert`/`Record` → `Branch` (DAL-B minimum
+/// for DO-178C A-7 Obj-6). Passing `--coverage` explicitly
+/// always wins.
+#[derive(Clone, Copy, Default, PartialEq, Eq, ValueEnum, Debug)]
+pub enum CoverageChoice {
+    /// Do not run `cargo llvm-cov`; bundle carries no coverage
+    /// artifact. Dev-profile default.
+    #[default]
+    None,
+    /// Line / statement coverage only (DO-178C A-7 Obj-5
+    /// minimum at DAL-C).
+    Line,
+    /// LLVM branch coverage (Obj-6 minimum at DAL-B). Cert/
+    /// record default.
+    Branch,
+    /// Emit both `line` and `branch` measurements from the
+    /// same instrumented test pass.
+    All,
+}
+
 /// Global `--format` choice. See [`EvidenceArgs::format`].
 #[derive(Clone, Copy, Default, PartialEq, Eq, ValueEnum, Debug)]
 pub enum OutputFormat {
@@ -178,6 +204,18 @@ pub enum Commands {
         /// Skip running cargo test during evidence generation
         #[arg(long)]
         skip_tests: bool,
+
+        /// Structural coverage level to capture via cargo-llvm-cov.
+        ///
+        /// Runs an instrumented test pass between the plain
+        /// `cargo test` phase and `finalize`, writing
+        /// `coverage/coverage_summary.json` (typed) +
+        /// `coverage/lcov.info` (raw passthrough) into the
+        /// bundle. If the flag is omitted, the effective level
+        /// is profile-derived — `none` on dev, `branch` on
+        /// cert/record. See HLR-053.
+        #[arg(long, value_enum)]
+        coverage: Option<CoverageChoice>,
     },
 
     /// Verify an evidence bundle

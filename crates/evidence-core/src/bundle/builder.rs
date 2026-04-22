@@ -59,6 +59,11 @@ pub struct EvidenceBuilder {
     /// `tests/test_outcomes.jsonl` artifact at finalize-adjacent
     /// time (see [`Self::write_test_outcomes`]).
     test_outcomes: Vec<TestOutcomeRecord>,
+    /// Structural coverage report captured by the generate
+    /// coverage phase. `None` when `--coverage=none` or the
+    /// phase didn't run. When populated, aggregate percents
+    /// feed the A-7 Obj-5/6 compliance evaluator.
+    coverage_report: Option<crate::CoverageReport>,
     /// Captured-subprocess failures — non-zero exits from any
     /// `run_capture`'d command (cargo test, cargo check, etc.).
     /// Drives [`EvidenceIndex::bundle_complete`] (empty ⇒
@@ -175,6 +180,7 @@ impl EvidenceBuilder {
             outputs: BTreeMap::new(),
             test_summary: None,
             test_outcomes: Vec::new(),
+            coverage_report: None,
             tool_command_failures: Vec::new(),
         })
     }
@@ -313,6 +319,19 @@ impl EvidenceBuilder {
     /// generator to upgrade A-7 Obj-3/Obj-4 Partial → Met.
     pub fn has_test_outcomes(&self) -> bool {
         !self.test_outcomes.is_empty()
+    }
+
+    /// Accessor for the coverage-facing impl in
+    /// `builder_coverage.rs`. The sibling module extends
+    /// [`EvidenceBuilder`] with `set_coverage_report` +
+    /// aggregate getters without pushing this file past the
+    /// 500-line workspace limit.
+    pub(super) fn coverage_report_ref(&self) -> Option<&crate::CoverageReport> {
+        self.coverage_report.as_ref()
+    }
+
+    pub(super) fn coverage_report_mut(&mut self) -> &mut Option<crate::CoverageReport> {
+        &mut self.coverage_report
     }
 
     /// Populate `requirement_uids` on each stored
