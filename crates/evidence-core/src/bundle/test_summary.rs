@@ -27,6 +27,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+pub mod detailed;
+
+pub use detailed::parse_cargo_test_output_detailed;
+
 /// Parsed summary of `cargo test` output.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TestSummary {

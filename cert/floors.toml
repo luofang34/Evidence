@@ -42,28 +42,28 @@ schema_version = 1
 
 # evidence_core::RULES length — every diagnostic code the tool can emit,
 # hand-curated. Lives in a single crate, so workspace-wide.
-diagnostic_codes = 111
+diagnostic_codes = 113
 
 # evidence_core::TERMINAL_CODES length — hand-emitted terminals
 # (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR /
 #  DOCTOR_OK / DOCTOR_FAIL).
-terminal_codes = 6
+terminal_codes = 7
 
 # tool/trace/sys.toml — System Requirements.
-trace_sys = 18
+trace_sys = 19
 # tool/trace/hlr.toml — High-Level Requirements.
-trace_hlr = 50
+trace_hlr = 51
 # tool/trace/llr.toml — Low-Level Requirements.
-trace_llr = 50
+trace_llr = 51
 # tool/trace/tests.toml — Test Cases.
-trace_test = 50
+trace_test = 51
 
 # evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
 # coverage is enforced by `require_hlr_surface_bijection`; this floor
 # guards against silently shrinking the catalog itself (which would
 # relax the bijection without firing the check).
-known_surfaces = 18
+known_surfaces = 19
 
 # --------------------------------------------------------------------
 # Per-crate-true dimensions: one table per in-scope crate.
@@ -78,7 +78,7 @@ known_surfaces = 18
 
 [per_crate.evidence-core]
 # `#[test]` attribute count inside crates/evidence-core/**/*.rs.
-test_count = 238
+test_count = 244
 
 [per_crate.cargo-evidence]
 test_count = 108

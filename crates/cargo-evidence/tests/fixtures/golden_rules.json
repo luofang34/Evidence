@@ -462,6 +462,20 @@
     "terminal": false
   },
   {
+    "code": "TESTS_OK",
+    "severity": "info",
+    "domain": "tests",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "TESTS_OUTCOME_PARSE_FAILED",
+    "severity": "error",
+    "domain": "tests",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "TRACE_BACKFILL_READ_FAILED",
     "severity": "error",
     "domain": "trace",
