@@ -110,14 +110,18 @@ pub fn cmd_trace(
                 hlr,
                 llr,
                 tests,
-                ..
+                derived,
             } = read_all_trace_files(root)?;
+            let derived_reqs = derived
+                .as_ref()
+                .map(|d| d.requirements.as_slice())
+                .unwrap_or(&[]);
             let link_result = validate_trace_links_with_policy(
                 &sys.requirements,
                 &hlr.requirements,
                 &llr.requirements,
                 &tests.tests,
-                &[], // derived entries (TODO: wire from derived.toml)
+                derived_reqs,
                 &evidence_policy.trace,
             );
 

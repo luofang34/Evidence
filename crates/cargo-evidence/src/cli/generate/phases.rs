@@ -303,14 +303,18 @@ pub(super) fn validate_trace_links_phase(
                 hlr,
                 llr,
                 tests,
-                ..
+                derived,
             }) => {
+                let derived_reqs = derived
+                    .as_ref()
+                    .map(|d| d.requirements.as_slice())
+                    .unwrap_or(&[]);
                 if let Err(e) = validate_trace_links_with_policy(
                     &sys.requirements,
                     &hlr.requirements,
                     &llr.requirements,
                     &tests.tests,
-                    &[],
+                    derived_reqs,
                     &policy.trace,
                 ) {
                     if strict {

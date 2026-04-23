@@ -650,3 +650,11 @@ test_selectors = [
     "mcp_surface::evidence_check_rejects_unknown_field_typo",
     "mcp_surface::evidence_check_missing_workspace_path_emits_fallback_signal",
 ]
+
+[[tests]]
+uid = "03576b1a-f72e-4ab9-a8f8-f5d1110f85c2"
+id = "TEST-055"
+title = "Derived-requirement traces_to references resolve in cmd_trace validation"
+owner = "tool"
+traces_to = ["4e98e1d9-6017-425e-b613-52853e97c2f3"]
+test_selectors = ["derived_trace_validation::derived_uids_resolve_in_trace_validation"]

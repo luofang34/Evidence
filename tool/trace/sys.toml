@@ -506,3 +506,28 @@ server's CWD due to an omitted workspace_path.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "f5aac59f-9dbd-48f7-80d1-2e1cc1a2fdd1"
+id = "SYS-023"
+title = "Trace validation shall resolve references to every configured requirement layer, not a subset"
+owner = "soi"
+scope = "soi"
+description = """
+`tool/trace/derived.toml` is one of the four requirement-kind
+files cargo-evidence templates via `cargo evidence init`. A
+trace-validate run that silently drops derived requirements
+leaves cross-file `traces_to` pointing at derived UIDs as
+dangling false-positives — the tool's validation covers only a
+subset of the declared trace surface while presenting as if it
+covered the whole. Downstream DAL-C+ projects building derived
+requirements into their chain get a spurious clean verdict on
+broken link structure.
+
+The tool shall load every requirement-kind file the init
+template writes and include them in the Link-phase validation
+run. Gaps in coverage (one kind loaded but ignored at validate)
+are equivalent to silently-lying about rigor.
+"""
+verification_methods = ["test"]
+traces_to = []
