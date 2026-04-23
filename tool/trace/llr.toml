@@ -1723,3 +1723,51 @@ warned-continue semantics cover both validation failures and
 read failures symmetrically.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "c3290288-af0f-4177-9ac4-1cfbc6f4de83"
+id = "LLR-062"
+title = "tool_handler attribute passes name = evidence-mcp; lib.rs is facade-only"
+owner = "tool"
+traces_to = ["cb44260b-778a-45f0-9a2b-8304dfd836c0"]
+modules = [
+    "evidence_mcp::server::Server",
+    "evidence_mcp::workspace::resolve_workspace",
+]
+derived = false
+description = """
+`#[tool_handler(router = self.tool_router, name = "evidence-mcp")]`
+on `impl ServerHandler for Server` in `server.rs` is the
+load-bearing declaration. The rmcp-macros generator (at
+`build_get_info` in rmcp-macros/src/tool_handler.rs) pattern-
+matches on the `(name, version)` args:
+
+  - `(Some, Some)` → `Implementation::new(name, version)`
+  - `(Some, None)` → `Implementation::new(name, env!("CARGO_PKG_VERSION"))`
+  - `(None, Some)` → `Implementation::new(env!("CARGO_CRATE_NAME"), version)`
+  - `(None, None)` → `Implementation::from_build_env()` (rmcp default)
+
+This crate uses `(Some "evidence-mcp", None)` so the version
+is read via `env!("CARGO_PKG_VERSION")` at evidence-mcp's
+compile-time, not rmcp's — matches the crate's declared
+Cargo.toml version.
+
+**lib.rs-as-facade split** (the structural half of this LLR):
+pre-split lib.rs bundled the `Server` impl, helper fns, and
+types in a single 269-line file — over the CLAUDE.md
+"lib.rs ≤ 100 lines" rule. The split moves:
+
+  - `Server` struct + `ServerHandler` impl + `#[tool_router]`
+    tool methods + `prepend_fallback_signal` → `server.rs`
+  - `WorkspaceResolution` enum + `resolve_workspace` +
+    `workspace_fallback_diagnostic` → `workspace.rs`
+  - `lib.rs` becomes crate-docstring + `mod` decls +
+    `pub use server::Server` (facade; ≤80 lines target).
+
+The split isn't purely hygiene: the serverInfo override
+required adding the `name = "evidence-mcp"` macro arg, and
+keeping lib.rs coherent at that addition was the immediate
+trigger. Grouping ServerHandler concerns into `server.rs`
+makes future rmcp-trait changes apply to one file, not two.
+"""
+verification_methods = ["test"]

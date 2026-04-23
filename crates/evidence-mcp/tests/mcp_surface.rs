@@ -18,113 +18,12 @@
     reason = "test setup failures should panic immediately"
 )]
 
-use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-
 use serde_json::{Value, json};
 
-/// Spawn the built `evidence-mcp` binary with piped stdio.
-///
-/// The MCP wrapper internally calls `cargo evidence <verb>`,
-/// which cargo resolves via `$PATH` to the `cargo-evidence`
-/// binary. During `cargo test`, we want that spawn to pick up
-/// the *locally-built* `cargo-evidence` (in `target/<profile>/`)
-/// rather than whatever version the developer has installed via
-/// `cargo install` — the installed copy may be stale and is
-/// irrelevant to this test. `assert_cmd::cargo::cargo_bin`
-/// returns paths under `target/<profile>/`; its parent is the
-/// right dir to prepend to `PATH`.
-fn spawn_server_with_cwd(cwd: Option<&std::path::Path>) -> Child {
-    let bin = assert_cmd::cargo::cargo_bin("evidence-mcp");
-    assert!(
-        bin.exists(),
-        "evidence-mcp binary missing at {bin:?} — run `cargo build -p evidence-mcp` first"
-    );
-    let target_dir = bin
-        .parent()
-        .expect("evidence-mcp binary has a parent dir")
-        .to_path_buf();
-    // Construct the new PATH with platform-correct separator:
-    // `:` on Unix, `;` on Windows. `std::env::join_paths` handles
-    // that and rejects entries containing the separator (e.g. a
-    // weirdly-named directory), which is the right failure mode
-    // here — a malformed PATH is worth failing loud, not silent.
-    let mut entries: Vec<std::path::PathBuf> = vec![target_dir];
-    if let Some(existing) = std::env::var_os("PATH") {
-        entries.extend(std::env::split_paths(&existing));
-    }
-    let new_path = std::env::join_paths(entries).expect("valid PATH entries");
-    let mut cmd = Command::new(&bin);
-    cmd.env("PATH", new_path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    if let Some(path) = cwd {
-        cmd.current_dir(path);
-    }
-    cmd.spawn().expect("spawn evidence-mcp")
-}
+#[path = "mcp_surface/helpers.rs"]
+mod helpers;
 
-/// Drive a scripted MCP session. Writes each frame on its own
-/// line (the stdio transport expects newline-delimited JSON),
-/// then reads back `expect_responses` response lines and returns
-/// them parsed.
-fn session(frames: &[Value], expect_responses: usize) -> Vec<Value> {
-    session_in(frames, expect_responses, None)
-}
-
-fn session_in(
-    frames: &[Value],
-    expect_responses: usize,
-    cwd: Option<&std::path::Path>,
-) -> Vec<Value> {
-    let mut child = spawn_server_with_cwd(cwd);
-    let mut stdin: ChildStdin = child.stdin.take().expect("stdin");
-    let stdout: ChildStdout = child.stdout.take().expect("stdout");
-    let mut reader = BufReader::new(stdout);
-
-    for frame in frames {
-        writeln!(stdin, "{}", serde_json::to_string(frame).expect("encode")).expect("write");
-    }
-    drop(stdin);
-
-    let mut responses = Vec::with_capacity(expect_responses);
-    for _ in 0..expect_responses {
-        let mut line = String::new();
-        let n = reader.read_line(&mut line).expect("read_line");
-        if n == 0 {
-            break;
-        }
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        responses.push(serde_json::from_str::<Value>(trimmed).expect("parse response"));
-    }
-
-    child.wait().ok();
-    responses
-}
-
-fn init_frames() -> Vec<Value> {
-    vec![
-        json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "mcp-surface-test", "version": "0"}
-            }
-        }),
-        json!({
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-            "params": {}
-        }),
-    ]
-}
+use helpers::{init_frames, session, session_in};
 
 /// TEST-050 selector: every tool call flows through rmcp's
 /// `Json<RulesToolResponse>` return path; the `count` field
@@ -161,6 +60,54 @@ fn evidence_rules_count_matches_library_const() {
         evidence_core::RULES.len(),
         "MCP-reported rules.count drift from library const: mcp={count} lib={}",
         evidence_core::RULES.len()
+    );
+}
+
+/// TEST-062 selector: `initialize` response advertises
+/// `serverInfo.name == "evidence-mcp"` (not rmcp's default
+/// `"rmcp"`). Agents pattern-matching on the server identity
+/// need the tool's real name — the default pulled from rmcp's
+/// `from_build_env()` makes evidence-mcp indistinguishable
+/// from any other rmcp-built server in the handshake. LLR-062
+/// pins the override via `#[tool_handler(.., name = "evidence-mcp")]`.
+#[test]
+fn initialize_server_info_advertises_evidence_mcp_identity() {
+    let frames = init_frames();
+    let responses = session(&frames, 1);
+    assert_eq!(
+        responses.len(),
+        1,
+        "expected single init response; got: {responses:?}"
+    );
+    let init_resp = &responses[0];
+    let name = init_resp
+        .pointer("/result/serverInfo/name")
+        .and_then(|v| v.as_str())
+        .unwrap_or_else(|| panic!("missing result.serverInfo.name: {init_resp}"));
+    assert_eq!(
+        name, "evidence-mcp",
+        "serverInfo.name must identify this tool, not rmcp's default; got {name:?}"
+    );
+
+    // Version should come from `env!("CARGO_PKG_VERSION")` at the
+    // macro-expansion callsite, which means the evidence-mcp
+    // crate's declared version — not rmcp's. Pin the shape
+    // (non-empty + semver-ish) without hardcoding the literal so
+    // this test survives version bumps.
+    let version = init_resp
+        .pointer("/result/serverInfo/version")
+        .and_then(|v| v.as_str())
+        .unwrap_or_else(|| panic!("missing result.serverInfo.version: {init_resp}"));
+    assert!(
+        !version.is_empty() && version.chars().any(|c| c.is_ascii_digit()),
+        "version must be non-empty and contain at least one digit; got {version:?}"
+    );
+    // rmcp's own version (currently 1.5.0) is a common misfire
+    // for the default `from_build_env()` expansion — pin against
+    // it explicitly so a regression to rmcp defaults fires loud.
+    assert_ne!(
+        version, "1.5.0",
+        "version matches rmcp's 1.5.0 — override is not taking effect"
     );
 }
 

@@ -634,3 +634,36 @@ the load-bearing guard against regression.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "95610f58-a5c7-4a63-a96b-f18f74d6471a"
+id = "SYS-027"
+title = "Tool's MCP server shall advertise its own identity in the initialize handshake"
+owner = "soi"
+scope = "soi"
+description = """
+MCP's `initialize` response carries a `serverInfo.{name, version}`
+block that agents use to identify the server they've connected
+to. The default identity supplied by the `rmcp` framework
+(`rmcp 1.5.0`, read from rmcp's own crate env) is
+indistinguishable across every server built on rmcp —
+evidence-mcp, some other cert tool, a hobby MCP server, all
+report as "rmcp". An agent with multiple MCP servers cannot
+route requests by server identity and cannot surface which tool
+is actually running in a user-facing "connected to ..." string.
+
+SYS-027 closes that class of ambiguity: every agent-facing MCP
+surface this tool ships shall return its own crate name and
+version in `serverInfo`, not the framework's default. Today
+that's evidence-mcp; any future MCP surface added to the
+workspace inherits the same obligation.
+
+Failure mode this defends: rmcp 1.x.y default makes the tool
+look like any other rmcp-built server. Agents pattern-matching
+on `serverInfo.name` to gate tool-specific workflows (e.g.
+"if the server is evidence-mcp, run the certification
+pipeline") silently fall through, or worse, invoke the wrong
+tool's verb-set.
+"""
+verification_methods = ["test"]
+traces_to = []
