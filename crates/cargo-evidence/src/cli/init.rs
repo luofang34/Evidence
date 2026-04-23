@@ -242,7 +242,7 @@ uid = "LLR-001"
 id = "llr-example"
 title = "Example Implementation Requirement"
 description = "This is an example low-level requirement."
-owner = "developer@example.com"
+owner = "team@example.com"
 traces_to = ["HLR-001"]
 verification_methods = ["test"]
 "#,
@@ -272,7 +272,7 @@ uid = "TST-001"
 id = "test-example"
 title = "Example Test Case"
 description = "Verifies that the example LLR is satisfied."
-owner = "tester@example.com"
+owner = "team@example.com"
 traces_to = ["LLR-001"]
 "#,
         TRACE_VERSION = TRACE
@@ -340,7 +340,7 @@ uid = "SYS-001"
 id = "sys-example"
 title = "Example System Requirement"
 description = "This is an example system-level requirement."
-owner = "systems@example.com"
+owner = "team@example.com"
 verification_methods = ["review"]
 "#,
         TRACE_VERSION = TRACE

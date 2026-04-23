@@ -79,10 +79,9 @@ pub use rules::{
 };
 pub use trace::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile,
-    TraceFiles, TraceMeta, assign_missing_uuids_derived, assign_missing_uuids_hlr,
-    assign_missing_uuids_llr, assign_missing_uuids_test, backfill_uuids,
-    generate_traceability_matrix, read_all_trace_files, read_toml, validate_trace_links,
-    validate_trace_links_with_policy,
+    TraceFiles, TraceMeta, assign_valid_uuids_derived, assign_valid_uuids_hlr,
+    assign_valid_uuids_llr, assign_valid_uuids_test, backfill_uuids, generate_traceability_matrix,
+    read_all_trace_files, read_toml, validate_trace_links, validate_trace_links_with_policy,
 };
 pub use traits::GitProvider;
 pub use util::normalize_bundle_path;
