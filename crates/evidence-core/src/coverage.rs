@@ -18,6 +18,6 @@ mod report;
 
 pub use llvm_cov_json::{LlvmCovParseError, parse_llvm_cov_export};
 pub use report::{
-    ConditionCoverage, CoverageLevel, CoverageReport, DecisionCoverage, FileMeasurement,
-    LineCoverage, Measurement,
+    BranchCoverage, ConditionCoverage, CoverageLevel, CoverageReport, DecisionCoverage,
+    FileMeasurement, LineCoverage, Measurement,
 };

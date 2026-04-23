@@ -35,7 +35,9 @@ use std::path::Path;
 use serde::Deserialize;
 use thiserror::Error;
 
-use super::report::{CoverageLevel, CoverageReport, FileMeasurement, LineCoverage, Measurement};
+use super::report::{
+    BranchCoverage, CoverageLevel, CoverageReport, FileMeasurement, LineCoverage, Measurement,
+};
 use crate::schema_versions;
 
 /// Errors returned by [`parse_llvm_cov_export`].
@@ -125,6 +127,7 @@ pub fn parse_llvm_cov_export(
                     covered: f.summary.lines.covered,
                     total: f.summary.lines.count,
                 },
+                branches: None,
                 decisions: vec![],
                 conditions: vec![],
             });
@@ -134,7 +137,11 @@ pub fn parse_llvm_cov_export(
                     covered: f.summary.lines.covered,
                     total: f.summary.lines.count,
                 },
-                decisions: decisions_from_branch_summary(&f.summary.branches),
+                branches: Some(BranchCoverage {
+                    covered: f.summary.branches.covered,
+                    total: f.summary.branches.count,
+                }),
+                decisions: vec![],
                 conditions: vec![],
             });
         }
@@ -165,22 +172,6 @@ pub fn parse_llvm_cov_export(
         schema_version: schema_versions::COVERAGE.to_string(),
         measurements,
     })
-}
-
-/// Collapse llvm-cov's file-level branch summary into a single
-/// [`crate::coverage::DecisionCoverage`] record. We lose per-branch
-/// location data here; the raw lcov passthrough file keeps the
-/// detail for manual inspection. A richer per-branch model lands
-/// when `regions` / `branches` array mining is added (v2 work).
-fn decisions_from_branch_summary(summary: &CountCovered) -> Vec<super::report::DecisionCoverage> {
-    if summary.count == 0 {
-        return Vec::new();
-    }
-    vec![super::report::DecisionCoverage {
-        id: format!("file-summary:{}/{}", summary.covered, summary.count),
-        covered: summary.covered == summary.count,
-        kind: "branch".to_string(),
-    }]
 }
 
 /// Convert `abs_path` to a workspace-relative path with forward
@@ -268,8 +259,12 @@ mod tests {
         );
     }
 
+    /// TEST-059 normal: Branch-level measurement carries a
+    /// populated `BranchCoverage` per file; Statement-level does
+    /// not. `decisions[]` / `conditions[]` stay empty at both
+    /// levels (reserved for v2 pattern-decision/MC/DC).
     #[test]
-    fn statement_and_branch_levels_are_separate_measurements() {
+    fn branch_level_populates_branches_field_statement_leaves_none() {
         let report = parse_llvm_cov_export(
             TRIVIAL_EXPORT,
             &[CoverageLevel::Statement, CoverageLevel::Branch],
@@ -279,14 +274,84 @@ mod tests {
         assert_eq!(report.measurements.len(), 2);
         assert_eq!(report.measurements[0].level, CoverageLevel::Statement);
         assert_eq!(report.measurements[1].level, CoverageLevel::Branch);
-        // Branch-level file carries a decision summary; statement-
-        // level file does not.
-        assert!(report.measurements[0].per_file[0].decisions.is_empty());
-        assert_eq!(
-            report.measurements[1].per_file[0].decisions.len(),
-            1,
-            "one file-summary decision record expected"
+        assert!(
+            report.measurements[0].per_file[0].branches.is_none(),
+            "Statement level must not carry branches data"
         );
+        let b = report.measurements[1].per_file[0]
+            .branches
+            .as_ref()
+            .expect("Branch level must populate branches");
+        assert_eq!(b.covered, 3);
+        assert_eq!(b.total, 4);
+        assert!(
+            report.measurements[1].per_file[0].decisions.is_empty(),
+            "decisions[] is reserved for v2 pattern-decision"
+        );
+    }
+
+    /// TEST-059 BVA: file with zero branches (straight-line code)
+    /// produces `Some(BranchCoverage { 0, 0 })`, not `None`. The
+    /// distinction matters: absence of the field would mean
+    /// "Statement-level measurement"; `Some(0/0)` means "Branch-
+    /// level measurement of a file with no branches." Aggregator
+    /// must sum 0/0 as a no-op contribution, not divide by zero.
+    #[test]
+    fn zero_branches_file_parses_as_some_zero_zero() {
+        let json = r#"{
+            "type": "llvm.coverage.json.export",
+            "cargo_llvm_cov": {"version": "0.8.5"},
+            "data": [{
+                "files": [{
+                    "filename": "/w/a.rs",
+                    "summary": {
+                        "lines":    {"count": 5, "covered": 5, "percent": 100.0},
+                        "branches": {"count": 0, "covered": 0, "percent": 0.0},
+                        "functions":{"count": 1, "covered": 1, "percent": 100.0},
+                        "regions":  {"count": 0, "covered": 0, "percent": 0.0},
+                        "mcdc":     {"count": 0, "covered": 0, "percent": 0.0},
+                        "instantiations":{"count": 1, "covered": 1, "percent": 100.0}
+                    }
+                }]
+            }]
+        }"#;
+        let report =
+            parse_llvm_cov_export(json, &[CoverageLevel::Branch], Path::new("/w")).unwrap();
+        let b = report.measurements[0].per_file[0]
+            .branches
+            .as_ref()
+            .expect("branches must be Some even when count=0");
+        assert_eq!(b.covered, 0);
+        assert_eq!(b.total, 0);
+    }
+
+    /// TEST-059 BVA: all-covered file records covered == total.
+    /// Aggregator must round this up cleanly to 100.0 without
+    /// off-by-one.
+    #[test]
+    fn all_branches_covered_preserves_equal_counts() {
+        let json = r#"{
+            "type": "llvm.coverage.json.export",
+            "cargo_llvm_cov": {"version": "0.8.5"},
+            "data": [{
+                "files": [{
+                    "filename": "/w/a.rs",
+                    "summary": {
+                        "lines":    {"count": 5, "covered": 5, "percent": 100.0},
+                        "branches": {"count": 4, "covered": 4, "percent": 100.0},
+                        "functions":{"count": 1, "covered": 1, "percent": 100.0},
+                        "regions":  {"count": 4, "covered": 4, "percent": 100.0},
+                        "mcdc":     {"count": 0, "covered": 0, "percent": 0.0},
+                        "instantiations":{"count": 1, "covered": 1, "percent": 100.0}
+                    }
+                }]
+            }]
+        }"#;
+        let report =
+            parse_llvm_cov_export(json, &[CoverageLevel::Branch], Path::new("/w")).unwrap();
+        let b = report.measurements[0].per_file[0].branches.as_ref().unwrap();
+        assert_eq!(b.covered, b.total);
+        assert_eq!(b.total, 4);
     }
 
     #[test]

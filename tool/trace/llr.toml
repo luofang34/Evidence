@@ -1370,10 +1370,14 @@ four variants (`statement`, `branch`, `pattern_decision`,
 `engine: String`, `engine_version: String`, and
 `per_file: Vec<FileMeasurement>`. Each `FileMeasurement` has a
 workspace-relative `path: String`, `lines: LineCoverage
-{covered, total}`, `decisions: Vec<DecisionCoverage>`, and
-`conditions: Vec<ConditionCoverage>`. The decisions and
-conditions vectors are empty for statement level and populated
-for branch level.
+{covered, total}`, `branches: Option<BranchCoverage {covered,
+total}>`, `decisions: Vec<DecisionCoverage>`, and
+`conditions: Vec<ConditionCoverage>`. `branches` is `Some` at
+`CoverageLevel::Branch` and `None` at `Statement` —
+aggregation over a Branch measurement reads the `branches`
+field, never `lines`. `decisions` / `conditions` stay reserved
+for v2 pattern-decision / MC/DC; both are empty today
+regardless of level.
 
 `evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export`
 consumes `cargo-llvm-cov`'s JSON export format (documented
@@ -1470,5 +1474,42 @@ every root); this LLR brings the other two callsites to
 parity. No new diagnostic codes — existing Link-phase errors
 (`TRACE_DANGLING_LINK`, etc.) already fire correctly once the
 derived slice is present.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "5ff642cf-c33c-4775-8573-1da2ac04cdba"
+id = "LLR-056"
+title = "parse_llvm_cov_export populates FileMeasurement.branches structurally"
+owner = "tool"
+traces_to = ["468a6894-7121-4936-8432-94163e35d4a1"]
+modules = ["evidence_core::coverage::report::BranchCoverage"]
+derived = false
+description = """
+`evidence_core::coverage::report::BranchCoverage {covered: u64,
+total: u64}` is a sibling of `LineCoverage` on
+`FileMeasurement`. The parser
+(`evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export`)
+populates `FileMeasurement.branches` from the llvm-cov JSON
+`summary.branches.{covered,count}` pair on Branch-level
+measurements, and leaves it `None` on Statement-level.
+
+The structural split replaces an earlier shim
+(`decisions_from_branch_summary`) that encoded the branch
+numerator/denominator as a single synthetic `DecisionCoverage`
+whose id string was `"file-summary:{covered}/{count}"`. That
+encoding made the counts unreachable to anything downstream
+that didn't parse the id string — in particular, branch-
+threshold aggregation had no way to read them, and silently
+fell back to summing line counts. A file with zero branches
+(straight-line code) serializes as `Some(BranchCoverage{0,0})`,
+not `None`; absence of the field means "this measurement level
+does not carry branch data", not "this file has no branches".
+
+The field is declared with `#[serde(default,
+skip_serializing_if = "Option::is_none")]` so old bundles
+(pre-branch-split) deserialize with `branches: None` — additive
+wire change. Statement-level measurements never emit a
+`"branches": null` key, only omit the field.
 """
 verification_methods = ["test"]
