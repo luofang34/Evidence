@@ -27,6 +27,23 @@ use serde_json::{Value, json};
 /// returns paths under `target/<profile>/`; its parent is the
 /// right dir to prepend to `PATH`.
 pub fn spawn_server_with_cwd(cwd: Option<&std::path::Path>) -> Child {
+    spawn_server(cwd, Path::Default)
+}
+
+/// Path strategy for [`spawn_server`].
+pub enum Path {
+    /// Prepend `target/<profile>/` to the parent process's
+    /// `PATH`. The default; picks up the locally-built
+    /// `cargo-evidence` ahead of any globally installed copy.
+    Default,
+    /// Set `PATH` to exactly `target/<profile>/` and nothing
+    /// else. The locally-built evidence binaries are reachable;
+    /// `cargo` is not. Used to drive the MCP wrapper through
+    /// its `cargo`-not-on-PATH failure path.
+    TargetDirOnly,
+}
+
+pub fn spawn_server(cwd: Option<&std::path::Path>, path: Path) -> Child {
     let bin = assert_cmd::cargo::cargo_bin("evidence-mcp");
     assert!(
         bin.exists(),
@@ -41,10 +58,16 @@ pub fn spawn_server_with_cwd(cwd: Option<&std::path::Path>) -> Child {
     // that and rejects entries containing the separator (e.g. a
     // weirdly-named directory), which is the right failure mode
     // here — a malformed PATH is worth failing loud, not silent.
-    let mut entries: Vec<std::path::PathBuf> = vec![target_dir];
-    if let Some(existing) = std::env::var_os("PATH") {
-        entries.extend(std::env::split_paths(&existing));
-    }
+    let entries: Vec<std::path::PathBuf> = match path {
+        Path::Default => {
+            let mut e: Vec<std::path::PathBuf> = vec![target_dir];
+            if let Some(existing) = std::env::var_os("PATH") {
+                e.extend(std::env::split_paths(&existing));
+            }
+            e
+        }
+        Path::TargetDirOnly => vec![target_dir],
+    };
     let new_path = std::env::join_paths(entries).expect("valid PATH entries");
     let mut cmd = Command::new(&bin);
     cmd.env("PATH", new_path)
@@ -70,7 +93,16 @@ pub fn session_in(
     expect_responses: usize,
     cwd: Option<&std::path::Path>,
 ) -> Vec<Value> {
-    let mut child = spawn_server_with_cwd(cwd);
+    session_in_with_path(frames, expect_responses, cwd, Path::Default)
+}
+
+pub fn session_in_with_path(
+    frames: &[Value],
+    expect_responses: usize,
+    cwd: Option<&std::path::Path>,
+    path: Path,
+) -> Vec<Value> {
+    let mut child = spawn_server(cwd, path);
     let mut stdin: ChildStdin = child.stdin.take().expect("stdin");
     let stdout: ChildStdout = child.stdout.take().expect("stdout");
     let mut reader = BufReader::new(stdout);

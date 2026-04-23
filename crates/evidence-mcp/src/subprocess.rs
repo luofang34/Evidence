@@ -40,7 +40,7 @@ pub(crate) struct Captured {
 /// [`Captured`] with `exit_code != 0`, not an error).
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum RunError {
-    /// `cargo` could not be resolved on `$PATH`. The `where()`
+    /// `cargo` could not be resolved on `$PATH`. The `hint`
     /// field holds the lookup hint shown to the agent.
     #[error(
         "cargo not found on PATH; install a Rust toolchain (https://rustup.rs) \
@@ -68,6 +68,26 @@ pub(crate) enum RunError {
         /// Configured timeout in seconds, for the error message.
         timeout_secs: u64,
     },
+}
+
+impl RunError {
+    /// Return the stable `MCP_*` diagnostic code this variant
+    /// maps to. Pinned on the enum (rather than matched in the
+    /// response-building helper) so a new variant forces the
+    /// code declaration at the type site — callers read the
+    /// code directly, no external match arm to drift.
+    ///
+    /// Every returned value must appear in
+    /// [`evidence_core::HAND_EMITTED_MCP_CODES`]; the
+    /// `mcp_codes_audit::every_mcp_code_emitted_in_source`
+    /// integration test closes the loop.
+    pub(crate) fn code(&self) -> &'static str {
+        match self {
+            Self::BinaryNotFound { .. } => "MCP_CARGO_NOT_FOUND",
+            Self::Spawn(_) => "MCP_SUBPROCESS_SPAWN_FAILED",
+            Self::Timeout { .. } => "MCP_SUBPROCESS_TIMEOUT",
+        }
+    }
 }
 
 /// 10-minute cap on every subprocess. Sized for
@@ -121,10 +141,14 @@ pub(crate) async fn run_evidence(args: &[&str], cwd: &Path) -> Result<Captured, 
 /// Parse a JSONL byte stream into (terminal_code, all_events,
 /// per-code summary counts). Trailing blank lines are ignored.
 ///
-/// Returns `None` if stdout is empty. Each non-empty line is
-/// parsed as a `serde_json::Value`; parse failures collapse the
-/// whole response to a synthesized `"MALFORMED_JSONL"` entry so
-/// callers always get a well-formed response.
+/// Empty stdout yields terminal [`MCP_NO_OUTPUT`]. Each non-
+/// empty line parses as a `serde_json::Value`; an un-parseable
+/// line is replaced with a synthesized [`MCP_MALFORMED_JSONL`]
+/// marker and the terminal stays `MCP_MALFORMED_JSONL` for the
+/// rest of the stream so callers get a well-formed response.
+///
+/// [`MCP_NO_OUTPUT`]: MCP_NO_OUTPUT
+/// [`MCP_MALFORMED_JSONL`]: MCP_MALFORMED_JSONL
 pub(crate) fn parse_jsonl(
     stdout: &[u8],
 ) -> (
@@ -151,26 +175,35 @@ pub(crate) fn parse_jsonl(
                 events.push(value);
             }
             Err(_) => {
-                // Synthesize a malformed-line marker; keep parsing
-                // to surface as much of the stream as we can.
                 let marker = serde_json::json!({
-                    "code": "MALFORMED_JSONL",
+                    "code": MCP_MALFORMED_JSONL,
                     "severity": "error",
                     "message": format!("evidence-mcp could not parse line as JSON: {}", line),
                 });
-                *summary.entry("MALFORMED_JSONL".to_string()).or_insert(0) += 1;
-                terminal = "MALFORMED_JSONL".to_string();
+                *summary.entry(MCP_MALFORMED_JSONL.to_string()).or_insert(0) += 1;
+                terminal = MCP_MALFORMED_JSONL.to_string();
                 events.push(marker);
             }
         }
     }
 
     if events.is_empty() {
-        terminal = "NO_OUTPUT".to_string();
+        terminal = MCP_NO_OUTPUT.to_string();
     }
 
     (terminal, events, summary)
 }
+
+/// Synthesized terminal for a subprocess that produced zero
+/// stdout lines. Declared here (source-of-truth) and audited
+/// against `evidence_core::HAND_EMITTED_MCP_CODES` by the
+/// `mcp_codes_audit::every_mcp_code_emitted_in_source` test.
+pub(crate) const MCP_NO_OUTPUT: &str = "MCP_NO_OUTPUT";
+
+/// Synthesized marker for a stdout line that is not valid JSON.
+/// Declared here (source-of-truth); audited alongside
+/// [`MCP_NO_OUTPUT`].
+pub(crate) const MCP_MALFORMED_JSONL: &str = "MCP_MALFORMED_JSONL";
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, reason = "test-only")]
@@ -193,19 +226,65 @@ mod tests {
     }
 
     #[test]
-    fn parse_jsonl_empty_stream_is_no_output() {
+    fn parse_jsonl_empty_stream_is_mcp_no_output() {
         let (terminal, events, summary) = parse_jsonl(b"");
-        assert_eq!(terminal, "NO_OUTPUT");
+        assert_eq!(terminal, "MCP_NO_OUTPUT");
         assert!(events.is_empty());
         assert!(summary.is_empty());
     }
 
     #[test]
-    fn parse_jsonl_malformed_line_surfaces_marker() {
+    fn parse_jsonl_malformed_line_surfaces_mcp_marker() {
         let stream = b"{\"code\":\"REQ_PASS\"}\nnot valid json\n";
         let (terminal, events, summary) = parse_jsonl(stream);
-        assert_eq!(terminal, "MALFORMED_JSONL");
+        assert_eq!(terminal, "MCP_MALFORMED_JSONL");
         assert_eq!(events.len(), 2);
-        assert_eq!(summary.get("MALFORMED_JSONL").copied(), Some(1));
+        assert_eq!(summary.get("MCP_MALFORMED_JSONL").copied(), Some(1));
+    }
+
+    #[test]
+    fn run_error_code_is_self_describing() {
+        use std::io::{Error, ErrorKind};
+
+        let cases: [(RunError, &str); 3] = [
+            (
+                RunError::BinaryNotFound {
+                    hint: "stub".into(),
+                },
+                "MCP_CARGO_NOT_FOUND",
+            ),
+            (
+                RunError::Spawn(Error::new(ErrorKind::PermissionDenied, "denied")),
+                "MCP_SUBPROCESS_SPAWN_FAILED",
+            ),
+            (
+                RunError::Timeout { timeout_secs: 60 },
+                "MCP_SUBPROCESS_TIMEOUT",
+            ),
+        ];
+        for (err, expected) in &cases {
+            assert_eq!(
+                err.code(),
+                *expected,
+                "RunError variant {:?} advertised wrong code",
+                err
+            );
+        }
+
+        // Sanity-check the declared codes exist in the
+        // evidence-core hand-emitted MCP registry. A typo or a
+        // rename of `HAND_EMITTED_MCP_CODES` surfaces here
+        // rather than from a downstream bijection run.
+        let registry: std::collections::BTreeSet<&str> = evidence_core::HAND_EMITTED_MCP_CODES
+            .iter()
+            .copied()
+            .collect();
+        for (_err, expected) in &cases {
+            assert!(
+                registry.contains(*expected),
+                "RunError declares code {:?} which is not in HAND_EMITTED_MCP_CODES",
+                expected
+            );
+        }
     }
 }

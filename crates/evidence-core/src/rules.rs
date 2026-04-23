@@ -64,56 +64,8 @@ pub struct RuleEntry {
     pub terminal: bool,
 }
 
-/// Codes the CLI emits by hand that are NOT terminals. Pinned
-/// here because `diagnostic_codes_locked` walks only `evidence-core/src`.
-pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
-    "CHECK_TEST_RUNTIME_FAILURE",
-    "CLI_INVALID_ARGUMENT",
-    "CLI_UNSUPPORTED_FORMAT",
-    "COVERAGE_BELOW_THRESHOLD",
-    "COVERAGE_LLVMCOV_MISSING",
-    "COVERAGE_OK",
-    "COVERAGE_PARSE_FAILED",
-    "DOCTOR_BOUNDARY_MISSING",
-    "DOCTOR_CHECK_PASSED",
-    "DOCTOR_CI_INTEGRATION_MISSING",
-    "DOCTOR_FLOORS_BOUNDARY_MISMATCH",
-    "DOCTOR_FLOORS_MISSING",
-    "DOCTOR_FLOORS_SLACK",
-    "DOCTOR_FLOORS_VIOLATED",
-    "DOCTOR_MERGE_STYLE_RISK",
-    "DOCTOR_MERGE_STYLE_UNKNOWN",
-    "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
-    "DOCTOR_QUALIFICATION_MISSING",
-    "DOCTOR_TRACE_EMPTY",
-    "DOCTOR_TRACE_INVALID",
-    "ENV_ENGINE_RELEASE_PROVENANCE",
-    "FLOORS_BELOW_MIN",
-    "FLOORS_DIMENSION_OK",
-    "FLOORS_LOWERED_WITHOUT_JUSTIFICATION",
-    "INIT_CERT_DIR_EXISTS",
-    "INIT_TEMPLATE_WRITTEN",
-    "MCP_VERSION_PROBE_FAILED",
-    "MCP_VERSION_SKEW",
-    "MCP_WORKSPACE_FALLBACK",
-    "TRACE_SELECTOR_UNRESOLVED",
-    "VERIFY_BUNDLE_INCOMPLETE",
-    "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
-];
-
-/// Codes in `RULES` intentionally NOT claimed by any LLR's `emits`
-/// list. `INIT_*` + `GENERATE_OK` + `GENERATE_FAIL` ride the
-/// universal-JSONL surface; cmd_init and cmd_generate don't yet
-/// have dedicated HLR/LLR chains — a follow-up PR adds them and
-/// empties this list. Same trade-off DOCTOR_* used pre-LLR-048.
-pub const RESERVED_UNCLAIMED_CODES: &[&str] = &[
-    "GENERATE_FAIL",
-    "GENERATE_OK",
-    "INIT_CERT_DIR_EXISTS",
-    "INIT_FAIL",
-    "INIT_OK",
-    "INIT_TEMPLATE_WRITTEN",
-];
+mod hand_emitted;
+pub use hand_emitted::{HAND_EMITTED_CLI_CODES, HAND_EMITTED_MCP_CODES, RESERVED_UNCLAIMED_CODES};
 
 /// Hand-curated manifest of every emittable code. Sorted by `code`.
 /// Additions: append, re-sort, claim in the relevant LLR's `emits`,
@@ -245,6 +197,11 @@ pub const RULES: &[RuleEntry] = &[
     terminal("INIT_FAIL", Severity::Error),
     terminal("INIT_OK", Severity::Info),
     r("INIT_TEMPLATE_WRITTEN", Severity::Info, Domain::Init),
+    r("MCP_CARGO_NOT_FOUND", Severity::Error, Domain::Mcp),
+    r("MCP_MALFORMED_JSONL", Severity::Error, Domain::Mcp),
+    r("MCP_NO_OUTPUT", Severity::Error, Domain::Mcp),
+    r("MCP_SUBPROCESS_SPAWN_FAILED", Severity::Error, Domain::Mcp),
+    r("MCP_SUBPROCESS_TIMEOUT", Severity::Error, Domain::Mcp),
     r("MCP_VERSION_PROBE_FAILED", Severity::Warning, Domain::Mcp),
     r("MCP_VERSION_SKEW", Severity::Warning, Domain::Mcp),
     r("MCP_WORKSPACE_FALLBACK", Severity::Warning, Domain::Mcp),

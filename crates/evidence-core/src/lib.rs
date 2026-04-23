@@ -75,7 +75,8 @@ pub use policy::{
     TracePolicy, load_trace_roots,
 };
 pub use rules::{
-    Domain, HAND_EMITTED_CLI_CODES, RESERVED_UNCLAIMED_CODES, RULES, RuleEntry, rules_json,
+    Domain, HAND_EMITTED_CLI_CODES, HAND_EMITTED_MCP_CODES, RESERVED_UNCLAIMED_CODES, RULES,
+    RuleEntry, rules_json,
 };
 pub use trace::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile,
