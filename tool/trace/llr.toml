@@ -1836,3 +1836,71 @@ emits = [
     "MCP_VERSION_PROBE_FAILED",
     "MCP_VERSION_SKEW",
 ]
+
+[[requirements]]
+uid = "759ac6b4-ef4c-4d1d-8bfc-79f07ecef6eb"
+id = "LLR-064"
+title = "MCP tool-layer failures surface as structured diagnostics carrying typed MCP_* codes"
+owner = "tool"
+traces_to = ["20b4b691-f89f-4453-85f3-9eba5299935e"]
+modules = [
+    "evidence_mcp::subprocess",
+    "evidence_mcp::server",
+    "evidence_mcp::schema",
+]
+derived = false
+description = """
+Every `RunError` variant plus the two parse-layer synthesized
+terminals map to a typed `MCP_*` code declared in `RULES`
+under `Domain::Mcp`. Tool-method handlers respond with a
+well-formed `JsonlToolResponse` (or `RulesToolResponse`)
+carrying `exit_code == 2`, the matching terminal, and one
+structured diagnostic event (code + severity `Error` +
+human message) — agents pattern-match on `.code` rather than
+parsing an rmcp `Err(String)`. `Err(String)` is reserved for
+host-contract breakages (server CWD unresolvable, invalid
+enum value for `mode`).
+
+Hand-emitted MCP codes live in a dedicated
+`evidence_core::HAND_EMITTED_MCP_CODES` constant, parallel
+to `HAND_EMITTED_CLI_CODES` and disjoint from it. Each set
+is audited against its own source tree —
+`HAND_EMITTED_CLI_CODES` against `crates/cargo-evidence/src`,
+`HAND_EMITTED_MCP_CODES` against `crates/evidence-mcp/src` —
+so the `diagnostic_codes_locked` bijection stays crate-local.
+
+Registered codes (all `Severity::Error`, `Domain::Mcp`):
+
+  - `MCP_CARGO_NOT_FOUND` — `RunError::BinaryNotFound`.
+  - `MCP_SUBPROCESS_SPAWN_FAILED` — `RunError::Spawn`.
+  - `MCP_SUBPROCESS_TIMEOUT` — `RunError::Timeout`.
+  - `MCP_MALFORMED_JSONL` — a parsed stdout line is not JSON.
+  - `MCP_NO_OUTPUT` — the subprocess produced zero lines.
+
+`MCP_VERSION_PROBE_FAILED` / `MCP_VERSION_SKEW` /
+`MCP_WORKSPACE_FALLBACK` (existing; Warning severity) also
+live in `HAND_EMITTED_MCP_CODES` since they are emitted from
+`crates/evidence-mcp/src`; the CLI-side registry is strictly
+cargo-evidence-emitted codes.
+
+`RunError::code(&self) -> &'static str` lives on the enum,
+so a new variant forces the code declaration at the type.
+The response-building helper reads the code directly off the
+enum — no per-call match arm in `server.rs` that can drift
+out of sync.
+
+`RulesToolResponse` carries
+`error: Option<serde_json::Value>` alongside `rules`,
+`count`, `exit_code`, and the existing `warnings` vec. A
+failed subprocess populates `error` with the structured
+diagnostic, leaves `rules` empty, and sets `count = 0`; a
+successful run leaves `error = None`.
+"""
+verification_methods = ["test"]
+emits = [
+    "MCP_CARGO_NOT_FOUND",
+    "MCP_MALFORMED_JSONL",
+    "MCP_NO_OUTPUT",
+    "MCP_SUBPROCESS_SPAWN_FAILED",
+    "MCP_SUBPROCESS_TIMEOUT",
+]
