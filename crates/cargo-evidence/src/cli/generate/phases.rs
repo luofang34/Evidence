@@ -10,13 +10,10 @@ use anyhow::{Context, Result};
 
 use evidence_core::{
     BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
-    EvidencePolicy, Profile,
+    Profile,
     git::{check_shallow_clone, git_ls_files, is_dirty_or_unknown},
     load_trace_roots, parse_cargo_test_output_detailed, sign_bundle,
-    trace::{
-        TraceFiles, generate_traceability_matrix, read_all_trace_files,
-        validate_trace_links_with_policy,
-    },
+    trace::{generate_traceability_matrix, read_all_trace_files},
 };
 
 use super::{fail, split_trace_roots_flag};
@@ -275,72 +272,13 @@ pub(super) fn run_tests_and_capture(
     Ok(())
 }
 
-// Phase 6 — validate trace links. Strict mode: first failure
-// emits JSON failure envelope + returns Ok(Some(EXIT_ERROR)).
-// Missing-directory warnings never bail.
-pub(super) fn validate_trace_links_phase(
-    trace_roots: &[String],
-    policy: &EvidencePolicy,
-    profile: Profile,
-    strict: bool,
-    quiet: bool,
-    json_output: bool,
-) -> Result<Option<i32>> {
-    for root in trace_roots {
-        let root_path = Path::new(root);
-        if !root_path.exists() {
-            if !quiet && !json_output {
-                eprintln!(
-                    "warning: trace root '{}' does not exist, skipping validation",
-                    root
-                );
-            }
-            continue;
-        }
-        match read_all_trace_files(root) {
-            Ok(TraceFiles {
-                sys,
-                hlr,
-                llr,
-                tests,
-                derived,
-            }) => {
-                let derived_reqs = derived
-                    .as_ref()
-                    .map(|d| d.requirements.as_slice())
-                    .unwrap_or(&[]);
-                if let Err(e) = validate_trace_links_with_policy(
-                    &sys.requirements,
-                    &hlr.requirements,
-                    &llr.requirements,
-                    &tests.tests,
-                    derived_reqs,
-                    &policy.trace,
-                ) {
-                    if strict {
-                        return fail(
-                            json_output,
-                            profile,
-                            format!("Trace validation failed in '{}': {}", root, e),
-                        )
-                        .map(Some);
-                    }
-                    eprintln!("warning: trace validation failed in '{}': {}", root, e);
-                } else if !quiet && !json_output {
-                    println!("evidence: trace links valid in '{}'", root);
-                }
-            }
-            Err(e) => {
-                if strict {
-                    return Err(anyhow::Error::new(e)
-                        .context(format!("reading trace files from '{}'", root)));
-                }
-                eprintln!("warning: could not read trace files from '{}': {}", root, e);
-            }
-        }
-    }
-    Ok(None)
-}
+// Phase 6 lives in sibling `phases/trace_validation.rs` via
+// `#[path]` so this file stays under the 500-line limit.
+// Re-exported below as `validate_trace_links_phase` +
+// `TraceValidationResult`.
+#[path = "phases/trace_validation.rs"]
+mod trace_validation;
+pub(super) use trace_validation::validate_trace_links_phase;
 
 // Phase 6b — enrich test outcomes with LLR back-links + write.
 // See sibling `test_outcomes.rs`.
@@ -399,6 +337,7 @@ pub(super) fn write_compliance_reports(
     builder: &EvidenceBuilder,
     dal_map: &BTreeMap<String, Dal>,
     trace_roots: &[String],
+    trace_validation_passed: bool,
     quiet: bool,
     json_output: bool,
 ) -> Result<()> {
@@ -418,7 +357,7 @@ pub(super) fn write_compliance_reports(
     for (crate_name, dal) in dal_map {
         let crate_evidence = evidence_core::CrateEvidence {
             has_trace_data,
-            trace_validation_passed: true,
+            trace_validation_passed,
             has_test_results,
             tests_passed,
             has_coverage_data,

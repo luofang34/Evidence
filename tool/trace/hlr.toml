@@ -1220,3 +1220,36 @@ callsite.
 """
 verification_methods = ["test"]
 traces_to = ["71c07b24-9d90-4ad5-ae9a-a7c2fe55c93c"]
+
+[[requirements]]
+uid = "2087d91a-12ba-4b3a-ab43-632f670bad49"
+id = "HLR-058"
+title = "generate threads trace_validation_passed bool from Phase 6 to write_compliance_reports"
+owner = "tool"
+scope = "component"
+description = """
+In `cmd_generate`, Phase 6 (`validate_trace_links_phase`)
+returns a `TraceValidationResult { passed, short_circuit }`.
+The caller:
+
+  1. Checks `short_circuit` — Some(code) means strict profile
+     hit a failure; return that exit code immediately.
+  2. Threads `passed` into Phase 8 (`write_compliance_reports`)
+     as a required parameter, which forwards to
+     `evidence_core::CrateEvidence.trace_validation_passed`.
+
+`write_compliance_reports` no longer has a place to hardcode
+`true`; the bool is a non-defaultable parameter, so any
+future phase that wants to claim A3-6 Met has to feed the
+actual validation outcome. Type system enforces the honesty
+invariant.
+
+Non-strict (dev) profile warn-and-continue produces
+`passed = false`; compliance reports claim A3-6 Partial
+instead of Met. Strict profile (cert / record) short-circuits
+before `write_compliance_reports` runs on any validation
+failure, so the compliance JSON is never written for a
+failing strict run — the bundle itself is refused.
+"""
+verification_methods = ["test"]
+traces_to = ["1eaaa60c-e8e0-4209-8ca5-51108495df61"]
