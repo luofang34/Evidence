@@ -760,3 +760,17 @@ title = "initialize handshake advertises evidence-mcp identity, not rmcp default
 owner = "tool"
 traces_to = ["c3290288-af0f-4177-9ac4-1cfbc6f4de83"]
 test_selectors = ["mcp_surface::initialize_server_info_advertises_evidence_mcp_identity"]
+
+[[tests]]
+uid = "32fad80a-0d58-46cd-80bc-f52d76ed5ce0"
+id = "TEST-063"
+title = "detect_with_probe + skew_diagnostic normal / robustness / BVA"
+owner = "tool"
+traces_to = ["6c371c79-f9fa-498d-9e11-07c7d75533a9"]
+test_selectors = [
+    "evidence_mcp::version_probe::tests::normal_matching_versions_yield_matched_no_diagnostic",
+    "evidence_mcp::version_probe::tests::robustness_differing_versions_yield_skewed_with_both_strings",
+    "evidence_mcp::version_probe::tests::robustness_probe_error_yields_probe_failed_with_reason",
+    "evidence_mcp::version_probe::tests::bva_empty_probe_output_treated_as_probe_failed",
+    "evidence_mcp::version_probe::tests::bva_prerelease_suffix_counts_as_skew",
+]

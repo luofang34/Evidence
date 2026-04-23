@@ -34,10 +34,17 @@ reachable because every tool call is a subprocess spawn.
 
 ## Register with an MCP host
 
-### Claude Desktop / Claude Code
+### Claude Code (CLI)
 
-Add to your MCP config (e.g. `~/Library/Application Support/Claude/claude_desktop_config.json`
-on macOS):
+```sh
+claude mcp add evidence evidence-mcp
+claude mcp list   # should show "evidence: evidence-mcp  - ✓ Connected"
+```
+
+### Claude Desktop (GUI)
+
+Add to your MCP config
+(`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {

@@ -1771,3 +1771,68 @@ trigger. Grouping ServerHandler concerns into `server.rs`
 makes future rmcp-trait changes apply to one file, not two.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "6c371c79-f9fa-498d-9e11-07c7d75533a9"
+id = "LLR-063"
+title = "detect_with_probe + probe_cli_version + skew_diagnostic"
+owner = "tool"
+traces_to = ["4955bb57-af8d-402f-b2bf-42ef5baadc54"]
+modules = [
+    "evidence_mcp::version_probe::VersionSkew",
+    "evidence_mcp::version_probe::detect_with_probe",
+    "evidence_mcp::version_probe::probe_cli_version",
+    "evidence_mcp::version_probe::skew_diagnostic",
+]
+derived = false
+description = '''
+`VersionSkew { Matched | Skewed{mcp,cli} | ProbeFailed(String) }`
+is the three-state outcome of the startup probe.
+
+`detect_with_probe<F: FnOnce() -> Result<String, String>>(F)`
+is the testable core: it takes a closure supplying the CLI
+version (or an error) and returns the `VersionSkew`. Tests
+drive the three branches with simulated probe outcomes so no
+subprocess is spawned during unit verification.
+
+`probe_cli_version()` is the real subprocess path:
+
+  1. `Command::new("cargo").args(["evidence", "--version"])`.
+     Env: `CARGO_TERM_COLOR=never` + `NO_COLOR=1` (match the
+     rest of the subprocess plumbing; defend against ANSI
+     escapes sneaking into stdout).
+  2. `wait_with_timeout(5s)` — cold cargo caches can be slow;
+     past 5s is pathological and we'd rather surface a
+     probe-failed warning than block the MCP handshake on the
+     version check.
+  3. Parse: first non-empty line; last whitespace-separated
+     token. Matches clap's auto-version emit shape
+     (`<bin_name> <version>\n`).
+  4. Empty output after parsing → `Err` (caller maps to
+     ProbeFailed), not Ok("") — an empty version string is
+     not a meaningful CLI response, and a downstream Skewed
+     warning naming an empty CLI version would confuse the
+     agent.
+
+`skew_diagnostic(skew)` synthesizes an MCP-layer diagnostic
+in the same shape as `workspace_fallback_diagnostic`
+(workspace.rs): `{code, severity: "warning", message,
+subcommand: "mcp"}`. `None` for Matched; `Some` with
+`MCP_VERSION_SKEW` / `MCP_VERSION_PROBE_FAILED` otherwise.
+
+Comparison semantics:
+  - Strict string equality between `env!(CARGO_PKG_VERSION)`
+    and the probed CLI string. Pre-release suffixes count as
+    skew (`0.1.2` vs `0.1.2-dev.1` → Skewed). Alternative
+    (semver-equal comparison that smooths pre-release) would
+    hide the signal ambiguously.
+
+Cached via `Arc<VersionSkew>` on the Server struct so
+`#[derive(Clone)]` (required by rmcp) doesn't re-copy the
+strings per-request.
+'''
+verification_methods = ["test"]
+emits = [
+    "MCP_VERSION_PROBE_FAILED",
+    "MCP_VERSION_SKEW",
+]

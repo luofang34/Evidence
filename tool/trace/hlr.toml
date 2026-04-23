@@ -1285,3 +1285,54 @@ future rmcp rewrite restructures the ServerHandler trait.
 """
 verification_methods = ["test"]
 traces_to = ["95610f58-a5c7-4a63-a96b-f18f74d6471a"]
+
+[[requirements]]
+uid = "4955bb57-af8d-402f-b2bf-42ef5baadc54"
+id = "HLR-060"
+title = "evidence-mcp probes cargo evidence --version at startup and prepends MCP_VERSION_SKEW / MCP_VERSION_PROBE_FAILED"
+owner = "tool"
+scope = "component"
+description = """
+`Server::new()` spawns `cargo evidence --version` with a 5-
+second timeout, parses the last whitespace-separated token on
+the first non-empty stdout line as the CLI's version string,
+and compares against `env!("CARGO_PKG_VERSION")` (evidence-
+mcp's own crate version at compile time).
+
+Three outcomes, cached in `Server.version_skew`:
+
+  - Matched: versions agree. No diagnostic synthesized.
+  - Skewed { mcp, cli }: versions disagree. Tool responses
+    prepend `MCP_VERSION_SKEW` (Warning) with both strings in
+    the message.
+  - ProbeFailed(reason): binary missing, spawn error, non-zero
+    exit, or unparseable output. Tool responses prepend
+    `MCP_VERSION_PROBE_FAILED` (Warning) with the reason.
+    Distinct code so an agent can branch on "unknown version"
+    vs "versions disagree".
+
+Probe runs exactly once per `Server::new` — caching the
+outcome in `Arc<VersionSkew>` keeps per-call cost at zero
+while still letting every tool response carry the signal.
+Per-call probing would pay a ~100 ms subprocess spawn on
+every tool invocation.
+
+Signal-carrying fields:
+  - `JsonlToolResponse.diagnostics[]` / `.summary` for
+    evidence_doctor / evidence_check (same pattern as the
+    existing MCP_WORKSPACE_FALLBACK prepend).
+  - `RulesToolResponse.warnings[]` for evidence_rules — a
+    new additive field (empty when no skew), separate from
+    the CLI's `rules[]` manifest so agents consuming the
+    manifest don't have to filter out server signals.
+
+Related: the startup probe also depends on `cargo evidence
+--version` actually working. A sibling fix in
+`cargo-evidence`'s main.rs intercepts `--version` / `--help`
+before clap (which rejects the bare flag because CargoCli's
+subcommand dispatch form is `cargo-evidence evidence ...`,
+not `cargo-evidence ...`). That fix is a pre-requisite for
+HLR-060's probe to succeed in the current workspace.
+"""
+verification_methods = ["test"]
+traces_to = ["32d89a3d-7905-45fe-ba5b-3b02a660855f"]

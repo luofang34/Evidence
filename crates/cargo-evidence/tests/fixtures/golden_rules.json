@@ -490,6 +490,20 @@
     "terminal": false
   },
   {
+    "code": "MCP_VERSION_PROBE_FAILED",
+    "severity": "warning",
+    "domain": "mcp",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "MCP_VERSION_SKEW",
+    "severity": "warning",
+    "domain": "mcp",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "MCP_WORKSPACE_FALLBACK",
     "severity": "warning",
     "domain": "mcp",

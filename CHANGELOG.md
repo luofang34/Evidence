@@ -9,6 +9,36 @@ All three workspace crates (`evidence-core`, `cargo-evidence`,
 `evidence-mcp`) share a single version; release entries cover all
 three unless noted.
 
+## [0.1.2] — 2026-04-23
+
+### Added
+
+- `evidence-mcp` now probes `cargo evidence --version` at startup
+  and prepends `MCP_VERSION_SKEW` (versions disagree) or
+  `MCP_VERSION_PROBE_FAILED` (probe couldn't run) to every tool
+  response when the CLI it spawned isn't the version this MCP
+  server was built against. `RulesToolResponse` gains a
+  `warnings: [...]` field carrying these MCP-layer signals
+  separately from the `rules[]` manifest. Two new diagnostic
+  codes registered in `evidence_core::RULES`.
+- `cargo-evidence` and `evidence-mcp` binaries handle `--version`
+  and `--help` as direct-invocation flags. Previously the cargo-
+  subcommand dispatch form was the only path that accepted
+  these, so `evidence-mcp --version` hung on the MCP handshake
+  and `cargo-evidence --version` was rejected by clap.
+
+### Docs
+
+- `crates/evidence-mcp/README.md` gains a `claude mcp add
+  evidence evidence-mcp` snippet for Claude Code (CLI) alongside
+  the existing Claude Desktop JSON config.
+
+### Internal
+
+- Trace entries added for the skew-detection surface: SYS-028
+  + HLR-060 + LLR-063 + TEST-063. Floors ratcheted
+  correspondingly.
+
 ## [0.1.1] — 2026-04-23
 
 ### Added
@@ -78,5 +108,6 @@ project README (section `Release cadence`) and in the git log —
 a per-PR enumeration was not maintained for the 0.1.0 arc. Future
 releases will use this file.
 
+[0.1.2]: https://github.com/luofang34/Evidence/releases/tag/v0.1.2
 [0.1.1]: https://github.com/luofang34/Evidence/releases/tag/v0.1.1
 [0.1.0]: https://github.com/luofang34/Evidence/releases/tag/v0.1.0

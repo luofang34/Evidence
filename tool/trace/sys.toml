@@ -667,3 +667,47 @@ tool's verb-set.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "32d89a3d-7905-45fe-ba5b-3b02a660855f"
+id = "SYS-028"
+title = "evidence-mcp shall surface any version skew between itself and the cargo-evidence it spawns"
+owner = "soi"
+scope = "soi"
+description = """
+evidence-mcp is a subprocess wrapper; every tool call shells out
+to `cargo evidence <verb>`. The CLI binary is resolved via PATH,
+so a user can trivially have:
+
+  - a freshly-installed `evidence-mcp` from crates.io
+  - an older `cargo-evidence` from a prior local install
+
+The MCP server advertises its own version in `serverInfo` (per
+SYS-027), but the diagnostic vocabulary, flag handling, and
+output shape in tool responses come from whichever CLI the
+subprocess resolves to. Silent mismatch means:
+
+  - `evidence_rules` returns a smaller / larger / differently-
+    shaped manifest than the MCP version declares itself to
+    expect. An agent building autofix logic against the
+    manifest gets stale vocabulary.
+  - `evidence_check` / `evidence_doctor` responses carry codes
+    the MCP version of `evidence_core::RULES` doesn't know
+    about, or miss codes the MCP expects.
+
+SYS-028 closes this drift class: the MCP server shall probe
+the CLI's version at startup, compare to its own crate
+version, and surface a warning on every tool response when
+the two disagree. Related-but-distinct from SYS-022 (agent-
+typo + workspace-fallback detection): same agent-trust theme,
+different silent-drift mode.
+
+Failure mode captured by a real first-install:
+`cargo install evidence-mcp` at 0.1.1 with an orphan
+`cargo-evidence 0.1.0` on PATH produced `evidence_rules`
+responses with 118 codes instead of 136 (the workspace
+floor), no warning, for hours before the count mismatch was
+noticed. The observable is now structured.
+"""
+verification_methods = ["test"]
+traces_to = []
