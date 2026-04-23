@@ -490,6 +490,13 @@
     "terminal": false
   },
   {
+    "code": "MCP_WORKSPACE_FALLBACK",
+    "severity": "warning",
+    "domain": "mcp",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "POLICY_UNKNOWN_DAL",
     "severity": "error",
     "domain": "policy",

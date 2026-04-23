@@ -1103,3 +1103,28 @@ valid and parseable but no current emit-site produces them.
 verification_methods = ["test"]
 traces_to = ["5c6e07f1-da4a-4aec-9647-426304deadb5"]
 surfaces = ["coverage measurement"]
+
+[[requirements]]
+uid = "00a8b5e6-5526-49a3-902d-870662afe3a5"
+id = "HLR-054"
+title = "MCP tool handlers reject unknown fields + emit fallback signal when workspace_path is omitted"
+owner = "tool"
+scope = "component"
+description = """
+`crates/evidence-mcp/src/schema.rs` declares the `CheckRequest`,
+`DoctorRequest`, and `RulesRequest` input structs. Each carries
+`#[serde(deny_unknown_fields)]` so that typo'd field names from
+an agent (e.g. `workspace` instead of `workspace_path`) yield a
+clear serde deserialization error in the MCP response rather
+than being silently dropped and falling through to the server
+CWD default. When `CheckRequest.workspace_path` or
+`DoctorRequest.workspace_path` is explicitly omitted, the
+handler emits a synthetic `MCP_WORKSPACE_FALLBACK` (Warning)
+diagnostic at the head of the returned `diagnostics` stream so
+the agent sees an observable signal before the CLI-produced
+diagnostics. Absolute + explicit relative paths bypass the
+fallback signal entirely.
+"""
+verification_methods = ["test"]
+traces_to = ["f1db3aa6-e745-4770-abeb-fe90be4e0cb4"]
+surfaces = ["agent MCP surface"]

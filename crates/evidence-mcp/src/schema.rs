@@ -16,11 +16,25 @@ use serde::{Deserialize, Serialize};
 /// hosts than omitting the parameter wrapper entirely — they get
 /// a schema with `"properties": {}` rather than a missing
 /// `inputSchema`.
+///
+/// `#[serde(deny_unknown_fields)]` is defense-in-depth: an
+/// agent that mistakenly ships a `workspace_path` (which
+/// `evidence_rules` doesn't accept) gets a clear error rather
+/// than having the field silently dropped. Required by
+/// HLR-054 / LLR-054.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RulesRequest {}
 
 /// Input to `evidence_check`.
+///
+/// `#[serde(deny_unknown_fields)]` prevents agent typos from
+/// silently falling through to server-CWD defaults. A request
+/// like `{"workspace": "/path"}` (note the missing `_path`
+/// suffix) produces a serde error rather than running against
+/// the server's CWD.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CheckRequest {
     /// Absolute or MCP-server-CWD-relative path to the workspace
     /// root. For source mode the directory must contain
@@ -38,7 +52,11 @@ pub struct CheckRequest {
 }
 
 /// Input to `evidence_doctor`.
+///
+/// `#[serde(deny_unknown_fields)]` — see [`CheckRequest`] for
+/// the agent-typo rationale.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DoctorRequest {
     /// Absolute or MCP-server-CWD-relative path to the workspace
     /// to audit. Defaults to the server's CWD when omitted.

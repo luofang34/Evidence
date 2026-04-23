@@ -95,6 +95,7 @@ fn domain_label(d: evidence_core::Domain) -> &'static str {
         evidence_core::Domain::Git => "git",
         evidence_core::Domain::Hash => "hash",
         evidence_core::Domain::Init => "init",
+        evidence_core::Domain::Mcp => "mcp",
         evidence_core::Domain::Policy => "policy",
         evidence_core::Domain::Req => "req",
         evidence_core::Domain::Schema => "schema",

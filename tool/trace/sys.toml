@@ -485,3 +485,24 @@ from an auxiliary qualified tool and is tracked separately.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "f1db3aa6-e745-4770-abeb-fe90be4e0cb4"
+id = "SYS-022"
+title = "Agent-facing tool surfaces shall refuse silent typos and surface fallback path resolution"
+owner = "soi"
+scope = "soi"
+description = """
+An LLM agent calling the MCP wrapper with a typo'd argument field
+(e.g. `{"workspace": "..."}` instead of `{"workspace_path": "..."}`)
+or an omitted field must not silently succeed against an
+unintended workspace. Silently dropping unknown fields or
+defaulting to the server's CWD both produce "successful" runs
+about the wrong project — a critical-class agent-trust failure
+where typos yield green answers. The tool shall (a) reject
+unknown MCP argument fields with a clear error, and (b) surface
+an observable diagnostic when a request falls back to the
+server's CWD due to an omitted workspace_path.
+"""
+verification_methods = ["test"]
+traces_to = []
