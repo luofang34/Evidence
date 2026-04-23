@@ -834,3 +834,30 @@ test_selectors = [
     "subprocess::tests::resolve_timeout_clamps_above_maximum",
     "subprocess::tests::resolve_timeout_falls_back_on_malformed_env",
 ]
+
+[[tests]]
+uid = "b5c6d5ba-432a-4447-b7d1-d978c8d816a0"
+id = "TEST-066"
+title = "evidence_ping returns matched/skewed/probe_failed with mcp/cli version strings"
+owner = "tool"
+traces_to = ["1f75c55d-4091-4d86-a429-e9954575ae03"]
+description = """
+Pins the three shape legs of LLR-066's contract:
+
+- Matched: the self-repo's cargo-evidence matches the
+  evidence-mcp version; `skew == "matched"`, `cli_version ==
+  Some(mcp_version)`, `probe_error == None`.
+- Skewed / ProbeFailed: unit-tested at the response-builder
+  level with fabricated `VersionSkew` values (surface tests
+  cannot force the real probe to return arbitrary strings
+  without spawning a fake cargo; the builder level gives
+  deterministic coverage without flakiness).
+- Input contract: `#[serde(deny_unknown_fields)]` rejects a
+  typo'd argument, matching the convention set for the other
+  three MCP verbs (HLR-054).
+"""
+test_selectors = [
+    "mcp_surface::evidence_ping_matched_returns_versions_and_matched_skew",
+    "mcp_surface::evidence_ping_rejects_unknown_field_typo",
+    "server::tests::ping_response_shapes_for_matched_skewed_probe_failed",
+]

@@ -1336,3 +1336,44 @@ HLR-060's probe to succeed in the current workspace.
 """
 verification_methods = ["test"]
 traces_to = ["32d89a3d-7905-45fe-ba5b-3b02a660855f"]
+
+[[requirements]]
+uid = "1e5aae33-ad51-43c3-b572-52023275175b"
+id = "HLR-061"
+title = "MCP exposes evidence_ping as a cheap liveness + version-skew probe that does not spawn a subprocess"
+owner = "tool"
+scope = "component"
+description = """
+`evidence_ping` is an agent-facing MCP tool that returns the
+MCP server's cached liveness state in a single round-trip:
+
+- `mcp_version` — evidence-mcp's `CARGO_PKG_VERSION` at build
+  time.
+- `cli_version` — the cargo-evidence version captured by the
+  one-shot startup probe (HLR-060), or `None` if the probe
+  failed.
+- `skew` — a short string tag (`"matched"`, `"skewed"`, or
+  `"probe_failed"`) carrying the cached `VersionSkew` outcome.
+- `probe_error` — populated only when `skew == "probe_failed"`,
+  carrying the reason string from the startup probe.
+
+No subprocess spawn per call. The handler reads the cached
+`Arc<VersionSkew>` that `Server::new()` populated at startup,
+so an agent can call `evidence_ping` at any frequency without
+touching `cargo`, `fs`, or the network.
+
+Intended usage: hosts use `evidence_ping` as a reachability
+check before issuing expensive tool calls (e.g., `cargo test
+--workspace` under `evidence_check --mode=source`). A host
+that previously pulled the full rules blob just to verify the
+server is reachable now gets a small structured response
+instead.
+
+`rules` / `doctor` / `check` remain the core verbs (HLR-050).
+ping is deliberately NOT a wrapper over any `cargo evidence`
+subcommand — its value is being cheap. That asymmetry is the
+surface contract.
+"""
+surfaces = ["agent MCP surface"]
+verification_methods = ["test"]
+traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]

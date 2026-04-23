@@ -1935,3 +1935,49 @@ diagnostic's `timeout_secs` field reports the effective cap
 the spawn actually used.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "1f75c55d-4091-4d86-a429-e9954575ae03"
+id = "LLR-066"
+title = "evidence_ping tool returns cached VersionSkew + mcp/cli version strings"
+owner = "tool"
+traces_to = ["1e5aae33-ad51-43c3-b572-52023275175b"]
+modules = [
+    "evidence_mcp::server",
+    "evidence_mcp::schema",
+]
+derived = false
+description = """
+Fourth `#[tool]` on `Server`, alongside `evidence_rules`,
+`evidence_doctor`, `evidence_check`. Takes no arguments
+(empty `PingRequest`; `#[serde(deny_unknown_fields)]` matches
+the other input shapes).
+
+Returns `PingResponse`:
+
+  - `mcp_version: String` — `env!("CARGO_PKG_VERSION")`.
+  - `cli_version: Option<String>` — `Some(v)` on
+    `VersionSkew::Matched` / `Skewed { cli: v, .. }`; `None`
+    on `ProbeFailed`.
+  - `skew: &'static str` — `"matched"`, `"skewed"`, or
+    `"probe_failed"`, a serialized tag derived from the
+    cached `VersionSkew`. String (not enum variant name) so
+    the JSON Schema is flat and agents pattern-match without
+    serde-format coupling.
+  - `probe_error: Option<String>` — populated only when
+    `skew == "probe_failed"`, carrying the reason string
+    captured at probe time.
+
+Handler body reads `self.version_skew` (cached `Arc<VersionSkew>`
+populated by `Server::new()`; HLR-060) and maps the three
+variants to the response shape. No subprocess spawn; no
+file I/O. The call is effectively a getter.
+
+`evidence_ping` does NOT emit any diagnostic codes — it does
+not prepend `MCP_VERSION_SKEW` / `MCP_VERSION_PROBE_FAILED`
+warnings the way the three streaming verbs do. The
+structured response IS the signal; duplicating it as a
+diagnostic would be redundant on a verb whose whole purpose
+is reporting the skew state.
+"""
+verification_methods = ["test"]
