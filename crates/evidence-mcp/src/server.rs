@@ -18,8 +18,8 @@ use rmcp::{
 };
 
 use crate::schema::{
-    CheckRequest, DoctorRequest, JsonlToolResponse, PingRequest, PingResponse, RulesRequest,
-    RulesToolResponse,
+    CheckRequest, DoctorRequest, FloorsRequest, JsonlToolResponse, PingRequest, PingResponse,
+    RulesRequest, RulesToolResponse,
 };
 use crate::subprocess::{MCP_MALFORMED_JSONL, RunError, parse_jsonl, run_evidence};
 use crate::version_probe::{VersionSkew, detect_with_probe, probe_cli_version, skew_diagnostic};
@@ -269,6 +269,53 @@ impl Server {
         _params: Parameters<PingRequest>,
     ) -> Result<Json<PingResponse>, String> {
         Ok(Json(ping_response_from_skew(&self.version_skew)))
+    }
+
+    /// `evidence_floors` — query the ratchet-gate state of a
+    /// workspace.
+    ///
+    /// Wraps `cargo evidence floors --format=jsonl`. Streams one
+    /// `FLOORS_DIMENSION_OK` / `FLOORS_BELOW_MIN` per measured
+    /// dimension and terminates with `FLOORS_OK` (all dimensions
+    /// satisfied) or `FLOORS_FAIL` (at least one below committed
+    /// floor). Agents use this to diagnose a red ratchet gate on
+    /// a PR without cloning and building — the structured stream
+    /// names each failing dimension so the agent can suggest
+    /// targeted fixes.
+    #[tool(
+        name = "evidence_floors",
+        description = "Query the ratchet-gate state of a workspace: measures every dimension \
+                       in `cert/floors.toml` and reports which ones are below their committed \
+                       floor. Spawns `cargo evidence floors --format=jsonl`; streams one \
+                       FLOORS_DIMENSION_OK / FLOORS_BELOW_MIN per dimension then terminates \
+                       with FLOORS_OK (exit 0) or FLOORS_FAIL (exit 2). Pure inspection — \
+                       does not execute project code."
+    )]
+    pub async fn evidence_floors(
+        &self,
+        Parameters(req): Parameters<FloorsRequest>,
+    ) -> Result<Json<JsonlToolResponse>, String> {
+        let (cwd, resolution) = resolve_workspace(req.workspace_path.as_deref())?;
+        let captured = match run_evidence(&["floors", "--format=jsonl"], &cwd).await {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(Json(jsonl_response_from_run_error(
+                    &e,
+                    resolution,
+                    &cwd,
+                    &self.version_skew,
+                )));
+            }
+        };
+        let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
+        prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
+        prepend_skew_signal(&self.version_skew, &mut diagnostics, &mut summary);
+        Ok(Json(JsonlToolResponse {
+            exit_code: captured.exit_code,
+            terminal,
+            diagnostics,
+            summary,
+        }))
     }
 }
 
