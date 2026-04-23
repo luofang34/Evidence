@@ -1904,3 +1904,34 @@ emits = [
     "MCP_SUBPROCESS_SPAWN_FAILED",
     "MCP_SUBPROCESS_TIMEOUT",
 ]
+
+[[requirements]]
+uid = "acd0506f-3442-45f4-9256-fcde9d1b82ce"
+id = "LLR-065"
+title = "EVIDENCE_MCP_TIMEOUT_SECS tunes the per-spawn subprocess cap"
+owner = "tool"
+traces_to = ["20b4b691-f89f-4453-85f3-9eba5299935e"]
+modules = ["evidence_mcp::subprocess"]
+derived = false
+description = """
+`evidence_mcp::subprocess::spawn_timeout()` reads
+`EVIDENCE_MCP_TIMEOUT_SECS` on every call. Parse failures and
+out-of-range values clamp to `[60, 7200]` and emit a
+`tracing::warn!` naming the raw value plus the clamped value;
+absent or empty env yields the 600-second default.
+
+Per-call read (rather than once at `Server::new`) lets an
+operator tune the cap without restarting the MCP server — the
+host can set the variable on the next tool-call dispatch.
+Clamp bounds match practical pressure: 60 s covers the
+shortest runs (`rules`, `doctor` on a small workspace); 7200 s
+(2 hours) covers the largest `cargo test --workspace +
+cargo-llvm-cov` run this tool wraps.
+
+Exceeding the effective timeout yields `RunError::Timeout`
+which surfaces as `MCP_SUBPROCESS_TIMEOUT` (LLR-063); the
+diagnostic's `timeout_secs` field reports the effective cap
+(post-clamp), not the raw env value — agents see the number
+the spawn actually used.
+"""
+verification_methods = ["test"]

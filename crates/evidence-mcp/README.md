@@ -64,6 +64,13 @@ resolves the workspace from each tool call's `workspace_path`
 argument, falling back to the server's working directory with a
 visible `MCP_WORKSPACE_FALLBACK` warning in the response.
 
+## Configuration
+
+| Variable | Default | Range | Effect |
+|---|---|---|---|
+| `EVIDENCE_MCP_TIMEOUT_SECS` | `600` | `60`–`7200` | Per-spawn cap on every `cargo evidence` subprocess. Read on each tool call. Exceeding it surfaces `MCP_SUBPROCESS_TIMEOUT` in the tool response; the child is killed. Out-of-range values clamp and emit a `tracing::warn!`; unparseable values fall back to the default. |
+| `RUST_LOG` | `warn` | standard `tracing_subscriber` | Log level for server-side `tracing` output. Written to stderr — stdout is reserved for MCP protocol frames. |
+
 ## Response shape
 
 Every tool call returns structured content with:

@@ -175,8 +175,8 @@ impl Server {
     /// [--mode <auto|source|bundle>]`. Source mode spawns
     /// `cargo test --workspace` under the hood and can take
     /// several minutes on large workspaces; the spawn is bounded
-    /// by a 10-minute timeout (`SPAWN_TIMEOUT` in the
-    /// `subprocess` module).
+    /// by the `subprocess::spawn_timeout` cap — 10 minutes by
+    /// default, tunable via `EVIDENCE_MCP_TIMEOUT_SECS`.
     ///
     /// `--mode=source` executes workspace tests and therefore
     /// carries whatever side-effects those tests have (file

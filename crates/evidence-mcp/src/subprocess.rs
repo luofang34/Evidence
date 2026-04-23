@@ -9,11 +9,12 @@
 //! ANSI escapes cannot corrupt the stdout JSONL stream the tool
 //! layer parses.
 //!
-//! All spawns are bounded by [`SPAWN_TIMEOUT`]. `evidence_check`
-//! source mode runs `cargo test --workspace` and can legitimately
-//! take several minutes on large workspaces; 10 minutes is the
-//! pragmatic cap. A timeout yields [`RunError::Timeout`] with no
-//! partial output — the tool response surfaces the signal loud.
+//! All spawns are bounded by [`spawn_timeout`]. Default 10
+//! minutes, tunable per-spawn via the `EVIDENCE_MCP_TIMEOUT_SECS`
+//! env var (clamped to `[MIN_SPAWN_TIMEOUT_SECS,
+//! MAX_SPAWN_TIMEOUT_SECS]`). A timeout yields
+//! [`RunError::Timeout`] with no partial output — the tool
+//! response surfaces the signal loud.
 
 use std::path::Path;
 use std::time::Duration;
@@ -57,8 +58,8 @@ pub(crate) enum RunError {
     #[error("spawning cargo evidence: {0}")]
     Spawn(#[source] std::io::Error),
 
-    /// Subprocess ran past [`SPAWN_TIMEOUT`]. Child has been
-    /// killed by the time this error returns.
+    /// Subprocess ran past the effective [`spawn_timeout`].
+    /// Child has been killed by the time this error returns.
     #[error(
         "cargo evidence exceeded the {timeout_secs}s timeout; partial \
          output discarded. If this was `evidence_check` on a large \
@@ -90,10 +91,88 @@ impl RunError {
     }
 }
 
-/// 10-minute cap on every subprocess. Sized for
-/// `evidence_check` source mode on a ~30-crate workspace with
-/// `cargo test --workspace` under it.
-pub(crate) const SPAWN_TIMEOUT: Duration = Duration::from_secs(600);
+/// Default per-subprocess cap when `EVIDENCE_MCP_TIMEOUT_SECS`
+/// is absent or empty. 10 minutes sized for `evidence_check`
+/// source mode on a ~30-crate workspace running `cargo test
+/// --workspace`.
+pub(crate) const DEFAULT_SPAWN_TIMEOUT_SECS: u64 = 600;
+
+/// Minimum accepted timeout. Below this, clamp up — the
+/// shortest verbs (`rules`, `doctor` on a small workspace)
+/// still need ~tens of seconds.
+pub(crate) const MIN_SPAWN_TIMEOUT_SECS: u64 = 60;
+
+/// Maximum accepted timeout. Caps the worst-case agent-driven
+/// run so a host that sets `EVIDENCE_MCP_TIMEOUT_SECS=999999`
+/// can't keep the subprocess alive indefinitely. 2 hours covers
+/// the largest `cargo test --workspace + cargo-llvm-cov` run
+/// this tool wraps.
+pub(crate) const MAX_SPAWN_TIMEOUT_SECS: u64 = 7200;
+
+/// Env var read by [`spawn_timeout`] on every call. Letting the
+/// variable change between spawns means an operator can re-tune
+/// the cap without restarting the MCP server.
+pub(crate) const TIMEOUT_ENV_VAR: &str = "EVIDENCE_MCP_TIMEOUT_SECS";
+
+/// Resolve the effective per-subprocess timeout. Thin shim
+/// that reads [`TIMEOUT_ENV_VAR`] from the process and delegates
+/// to [`resolve_timeout`]. Splitting the pure logic out makes it
+/// unit-testable without racing against parallel tests that
+/// also touch the environment.
+pub(crate) fn spawn_timeout() -> Duration {
+    resolve_timeout(std::env::var(TIMEOUT_ENV_VAR).ok().as_deref())
+}
+
+/// Apply the [`TIMEOUT_ENV_VAR`] decision table to a specific
+/// raw value — absent, empty, parse-failure, or in/out of
+/// `[MIN_SPAWN_TIMEOUT_SECS, MAX_SPAWN_TIMEOUT_SECS]` — and
+/// return the resulting [`Duration`]. `None` and `Some("")`
+/// both mean "env not provided".
+///
+/// - Unset / empty → [`DEFAULT_SPAWN_TIMEOUT_SECS`].
+/// - Valid parse in-range → that value.
+/// - Valid parse outside the bounds → clamp to the nearest
+///   bound, `tracing::warn!` naming raw + clamped.
+/// - Unparseable → `tracing::warn!` and fall back to default
+///   (never panic — a typo in env shouldn't take the server
+///   down).
+///
+/// Surface impact: on exceed, [`run_evidence`] emits
+/// [`RunError::Timeout`] with `timeout_secs` reporting the
+/// effective (post-clamp) value, not the raw env string.
+pub(crate) fn resolve_timeout(raw: Option<&str>) -> Duration {
+    let Some(raw) = raw.filter(|s| !s.is_empty()) else {
+        return Duration::from_secs(DEFAULT_SPAWN_TIMEOUT_SECS);
+    };
+    let parsed: u64 = match raw.parse() {
+        Ok(n) => n,
+        Err(_) => {
+            tracing::warn!(
+                raw = raw,
+                "{TIMEOUT_ENV_VAR} is not a non-negative integer; \
+                 falling back to default {DEFAULT_SPAWN_TIMEOUT_SECS}s",
+            );
+            return Duration::from_secs(DEFAULT_SPAWN_TIMEOUT_SECS);
+        }
+    };
+    if parsed < MIN_SPAWN_TIMEOUT_SECS {
+        tracing::warn!(
+            raw = parsed,
+            clamped = MIN_SPAWN_TIMEOUT_SECS,
+            "{TIMEOUT_ENV_VAR} below minimum; clamping up to {MIN_SPAWN_TIMEOUT_SECS}s",
+        );
+        return Duration::from_secs(MIN_SPAWN_TIMEOUT_SECS);
+    }
+    if parsed > MAX_SPAWN_TIMEOUT_SECS {
+        tracing::warn!(
+            raw = parsed,
+            clamped = MAX_SPAWN_TIMEOUT_SECS,
+            "{TIMEOUT_ENV_VAR} above maximum; clamping down to {MAX_SPAWN_TIMEOUT_SECS}s",
+        );
+        return Duration::from_secs(MAX_SPAWN_TIMEOUT_SECS);
+    }
+    Duration::from_secs(parsed)
+}
 
 /// Spawn `cargo evidence <args>` in `cwd` and capture stdout +
 /// exit code.
@@ -130,10 +209,11 @@ pub(crate) async fn run_evidence(args: &[&str], cwd: &Path) -> Result<Captured, 
         })
     };
 
-    match tokio::time::timeout(SPAWN_TIMEOUT, spawn_future).await {
+    let effective = spawn_timeout();
+    match tokio::time::timeout(effective, spawn_future).await {
         Ok(result) => result,
         Err(_elapsed) => Err(RunError::Timeout {
-            timeout_secs: SPAWN_TIMEOUT.as_secs(),
+            timeout_secs: effective.as_secs(),
         }),
     }
 }
@@ -286,5 +366,72 @@ mod tests {
                 expected
             );
         }
+    }
+
+    #[test]
+    fn resolve_timeout_defaults_when_env_unset() {
+        assert_eq!(
+            resolve_timeout(None),
+            Duration::from_secs(DEFAULT_SPAWN_TIMEOUT_SECS)
+        );
+    }
+
+    #[test]
+    fn resolve_timeout_defaults_when_env_empty() {
+        // Empty string is semantically "unset" — some launchers
+        // (Nix sandbox, CI harnesses) export empty variables by
+        // default; falling to the default here matches the
+        // workspace convention recorded in project memory.
+        assert_eq!(
+            resolve_timeout(Some("")),
+            Duration::from_secs(DEFAULT_SPAWN_TIMEOUT_SECS)
+        );
+    }
+
+    #[test]
+    fn resolve_timeout_parses_valid_value() {
+        assert_eq!(resolve_timeout(Some("900")), Duration::from_secs(900));
+        assert_eq!(
+            resolve_timeout(Some(&MIN_SPAWN_TIMEOUT_SECS.to_string())),
+            Duration::from_secs(MIN_SPAWN_TIMEOUT_SECS)
+        );
+        assert_eq!(
+            resolve_timeout(Some(&MAX_SPAWN_TIMEOUT_SECS.to_string())),
+            Duration::from_secs(MAX_SPAWN_TIMEOUT_SECS)
+        );
+    }
+
+    #[test]
+    fn resolve_timeout_clamps_below_minimum() {
+        assert_eq!(
+            resolve_timeout(Some("1")),
+            Duration::from_secs(MIN_SPAWN_TIMEOUT_SECS)
+        );
+        assert_eq!(
+            resolve_timeout(Some("0")),
+            Duration::from_secs(MIN_SPAWN_TIMEOUT_SECS)
+        );
+    }
+
+    #[test]
+    fn resolve_timeout_clamps_above_maximum() {
+        assert_eq!(
+            resolve_timeout(Some("999999")),
+            Duration::from_secs(MAX_SPAWN_TIMEOUT_SECS)
+        );
+    }
+
+    #[test]
+    fn resolve_timeout_falls_back_on_malformed_env() {
+        // Unparseable → default, not panic.
+        assert_eq!(
+            resolve_timeout(Some("not-a-number")),
+            Duration::from_secs(DEFAULT_SPAWN_TIMEOUT_SECS)
+        );
+        // Negative integers fail u64 parse — same fallback path.
+        assert_eq!(
+            resolve_timeout(Some("-30")),
+            Duration::from_secs(DEFAULT_SPAWN_TIMEOUT_SECS)
+        );
     }
 }

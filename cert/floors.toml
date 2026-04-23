@@ -54,9 +54,9 @@ trace_sys = 28
 # tool/trace/hlr.toml — High-Level Requirements.
 trace_hlr = 60
 # tool/trace/llr.toml — Low-Level Requirements.
-trace_llr = 64
+trace_llr = 65
 # tool/trace/tests.toml — Test Cases.
-trace_test = 64
+trace_test = 65
 
 # evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
@@ -84,7 +84,7 @@ test_count = 314
 test_count = 149
 
 [per_crate.evidence-mcp]
-test_count = 19
+test_count = 25
 
 # Per-crate ceilings. library_panics is a ceiling, not a floor:
 # more panics is always worse. Placing a ceiling dimension under
