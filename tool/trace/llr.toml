@@ -1786,8 +1786,14 @@ modules = [
 ]
 derived = false
 description = '''
-`VersionSkew { Matched | Skewed{mcp,cli} | ProbeFailed(String) }`
-is the three-state outcome of the startup probe.
+`VersionSkew { Matched(String) | Skewed{mcp,cli} |
+ProbeFailed(String) }` is the three-state outcome of the
+startup probe. `Matched` carries the probed string so the
+byte-equality invariant is expressed at the type level —
+consumers that want the CLI version on a successful probe
+read it off the `Matched` payload rather than substituting
+the evidence-mcp version, which would silently break if
+`Matched` were ever relaxed to a fuzzy semver check.
 
 `detect_with_probe<F: FnOnce() -> Result<String, String>>(F)`
 is the testable core: it takes a closure supplying the CLI
@@ -1957,12 +1963,14 @@ Returns `PingResponse`:
 
   - `mcp_version: String` — `env!("CARGO_PKG_VERSION")`.
   - `cli_version: Option<String>` — `Some(v)` on
-    `VersionSkew::Matched` / `Skewed { cli: v, .. }`; `None`
-    on `ProbeFailed`.
-  - `skew: &'static str` — `"matched"`, `"skewed"`, or
+    `VersionSkew::Matched(v)` / `Skewed { cli: v, .. }`;
+    `None` on `ProbeFailed`.
+  - `skew: String` — `"matched"`, `"skewed"`, or
     `"probe_failed"`, a serialized tag derived from the
-    cached `VersionSkew`. String (not enum variant name) so
-    the JSON Schema is flat and agents pattern-match without
+    cached `VersionSkew`. Owned `String` (not `&'static str`)
+    because the field is serialized on a `Serialize` struct
+    and the static literals are cloned into it anyway; the
+    JSON Schema is flat so agents pattern-match without
     serde-format coupling.
   - `probe_error: Option<String>` — populated only when
     `skew == "probe_failed"`, carrying the reason string
