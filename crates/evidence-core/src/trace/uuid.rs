@@ -196,17 +196,22 @@ fn rewrite_traces_to(refs: &mut [String], remap: &BTreeMap<String, String>) -> b
     changed
 }
 
-/// Merge a per-layer remap into the cross-layer union. A debug
-/// assertion fires if two layers coincidentally used the same
-/// placeholder key (e.g. both "x-001" in hand-imported data) —
-/// silently overwriting one layer's rewrite would corrupt that
-/// layer's `traces_to` references. Release builds take the
-/// last-wins behaviour rather than panic.
+/// Merge a per-layer remap into the cross-layer union. Panics
+/// when two layers coincidentally used the same placeholder key
+/// (e.g. both `"x-001"` in hand-imported data) — silently
+/// overwriting one layer's rewrite would corrupt that layer's
+/// `traces_to` references, which is worse than aborting the
+/// backfill. Fires in both debug and release so the invariant
+/// holds on Nix (release-mode tests) and cert-profile runs.
 fn merge_remap(dst: &mut BTreeMap<String, String>, src: BTreeMap<String, String>) {
     for (old, new) in src {
-        debug_assert!(
+        assert!(
             !dst.contains_key(&old),
-            "duplicate placeholder uid across layers: '{}' (existing: '{}', new: '{}')",
+            "duplicate placeholder uid across trace layers: '{}' \
+             (existing: '{}', new: '{}'); two layers' entries share \
+             the same placeholder — fix by using distinct placeholders \
+             per layer or migrate hand-authored uids to real UUIDs \
+             before backfill",
             old,
             dst[&old],
             new

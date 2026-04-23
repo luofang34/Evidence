@@ -111,7 +111,7 @@ fn assign_valid_uuids_derived_rewrites_invalid() {
 }
 
 #[test]
-#[should_panic(expected = "duplicate placeholder uid across layers")]
+#[should_panic(expected = "duplicate placeholder uid across trace layers")]
 fn merge_remap_panics_on_cross_layer_collision() {
     let mut dst: BTreeMap<String, String> =
         [("shared-placeholder".to_string(), "first-uuid".to_string())]
