@@ -245,8 +245,19 @@ differ, the job requires a line of the form
 
     Override-Deterministic-Baseline: <one-sentence reason>
 
-in either the PR body OR the head commit message (squash-merge
-convention). Without that line, the job fails with the full
+Accepted locations (checked in order):
+
+1. The PR body (any line in the PR description).
+2. Any commit message in the PR's push range — the gate reads
+   `github.event.commits[*].message`, so the override line in any
+   real-work commit on the branch satisfies the check. This
+   matters for **merge-commit workflows** (like this repo's)
+   where the merge commit itself typically won't carry the
+   override; for **squash-merge workflows** the single head
+   commit is the only message and carries it alongside the PR
+   body.
+
+Without that line in either place, the job fails with the full
 projection diff + the expected override syntax.
 
 Examples of legitimate override reasons:
