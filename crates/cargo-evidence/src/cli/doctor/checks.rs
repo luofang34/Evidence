@@ -50,7 +50,7 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
     // names cargo-evidence's own contracts). DAL-D off; higher
     // levels enable SYS-trace + derived-rationale; surface
     // bijection stays opt-in at every level.
-    let (dal, boundary_loadable) = load_default_dal(workspace);
+    let (dal, boundary_loadable) = load_max_dal(workspace);
     let policy = EvidencePolicy::for_dal(dal).trace;
     let fallback_note = if boundary_loadable {
         String::new()
@@ -99,17 +99,15 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
     }
 }
 
-/// Read `cert/boundary.toml` to discover the project's declared
-/// DAL level for trace-policy derivation. Returns `(dal,
-/// boundary_loadable)`: `false` ⇒ fell back to DAL-D because the
-/// file was missing or unparseable. `check_boundary` already
-/// fires its own diagnostic on the same input.
-pub(super) fn load_default_dal(workspace: &Path) -> (Dal, bool) {
+/// Trace-policy DAL across per-crate overrides. See LLR-060.
+/// Returns `(dal, boundary_loadable)`; `false` ⇒ DAL-D fallback.
+pub(super) fn load_max_dal(workspace: &Path) -> (Dal, bool) {
     let path = workspace.join("cert").join("boundary.toml");
-    match BoundaryConfig::load(&path) {
-        Ok(cfg) => (cfg.dal.default_dal, true),
-        Err(_) => (Dal::D, false),
-    }
+    let Ok(cfg) = BoundaryConfig::load(&path) else {
+        return (Dal::D, false);
+    };
+    let dal = cfg.dal_map().values().copied().max();
+    (dal.unwrap_or(cfg.dal.default_dal), true)
 }
 
 pub(super) fn check_floors(workspace: &Path) -> CheckResult {

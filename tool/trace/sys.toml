@@ -566,3 +566,38 @@ dispatcher.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "71c07b24-9d90-4ad5-ae9a-a7c2fe55c93c"
+id = "SYS-025"
+title = "Tool's downstream-audit surfaces shall derive trace policy from the max DAL across per-crate overrides"
+owner = "soi"
+scope = "soi"
+description = """
+DO-178C DAL is a per-object attribute; different crates in one
+workspace can target different levels. The tool's
+`cert/boundary.toml` encodes this via `[dal]
+default_dal` + `[dal.crate_overrides]`. For any verification
+surface that applies a single trace policy to the project (e.g.
+`cargo evidence doctor`), "which DAL policy" must be resolved
+to the *highest* level in use — not the default.
+
+Failure mode this defends: a project sets `default_dal = "D"`
+broadly but overrides one crate (payment gateway, safety
+kernel) to DAL-A. If the audit surface derives its trace policy
+from `default_dal` alone, the DAL-A crate's stricter rules
+(require_hlr_sys_trace, require_derived_rationale, …) are
+silently skipped. The auditor sees doctor green at DAL-D while
+the DAL-A crate's chain has unenforced gaps. This is an
+agent-trust / auditor-trust hole: the reported rigor level is
+lower than what any in-scope component actually targets.
+
+Resolution: audit surfaces compute the max DAL over the
+dal_map (every in-scope crate mapped to its effective DAL),
+falling back to `default_dal` only when `in_scope` is empty,
+and to `Dal::D` only when boundary.toml is unloadable. Mirrors
+the `cli::check` pattern; SYS-025 extends the obligation to the
+doctor surface.
+"""
+verification_methods = ["test"]
+traces_to = []

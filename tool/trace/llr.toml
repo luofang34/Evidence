@@ -1636,3 +1636,46 @@ would be the regression path.
 """
 verification_methods = ["test"]
 emits = ["COVERAGE_BELOW_THRESHOLD"]
+
+[[requirements]]
+uid = "a88f2efa-7aa7-4bfc-9554-610a906f2e2e"
+id = "LLR-060"
+title = "load_max_dal: max over dal_map values, fall back to default_dal on empty in_scope, D on load failure"
+owner = "tool"
+traces_to = ["79afc7a1-22dd-450e-8f0c-c29c93b48905"]
+modules = ["cargo_evidence::cli::doctor::checks::load_max_dal"]
+derived = false
+description = """
+`load_max_dal(workspace: &Path) -> (Dal, bool)`:
+
+  1. Load `<workspace>/cert/boundary.toml` via
+     `BoundaryConfig::load`. On any load error (missing file,
+     parse failure), return `(Dal::D, false)`. The `false`
+     sentinel feeds the caller's fallback-note string; the
+     matching `check_boundary` diagnostic names the root cause
+     so this code stays silent on the load-fail path.
+  2. Compute `cfg.dal_map().values().copied().max()` — the
+     highest DAL across every in-scope crate (each in_scope
+     entry mapped to its per-crate override or `default_dal`
+     when no override is set; see `BoundaryConfig::dal_map`).
+  3. If `max()` returns `None` (empty `in_scope`), fall back to
+     `cfg.dal.default_dal`. This preserves user intent in the
+     pre-scoping state — a boundary.toml with `in_scope = []`
+     and `default_dal = "A"` is legitimate (project hasn't
+     scoped crates yet); silently downgrading to `Dal::D` would
+     surprise the auditor.
+  4. Return `(dal, true)`.
+
+The `unwrap_or(cfg.dal.default_dal)` is **not** a second bug-
+opportunity — `default_dal` is already visited by every
+dal_map entry that lacks an override, so the fallback affects
+only the truly-empty-in_scope edge case.
+
+Design note: the `Dal::D` hard floor on load failure is
+stricter than `cfg.dal.default_dal` fallback on empty in_scope.
+This asymmetry is deliberate — a missing/corrupt boundary.toml
+means configuration intent is unknown, so the safest floor is
+D. An empty `in_scope` with a loaded config means intent is
+known; honoring it is the right behavior.
+"""
+verification_methods = ["test"]

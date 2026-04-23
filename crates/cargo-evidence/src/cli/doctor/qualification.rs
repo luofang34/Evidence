@@ -8,7 +8,7 @@ use std::path::Path;
 use evidence_core::policy::Dal;
 
 use super::CheckResult;
-use super::checks::load_default_dal;
+use super::checks::load_max_dal;
 
 /// `cert/QUALIFICATION.md` gate for cert-grade DAL targets.
 ///
@@ -19,7 +19,7 @@ use super::checks::load_default_dal;
 /// DAL-gated-Error pattern. Follow-up: add a Warning-severity
 /// advisory code for DAL-D if downstream projects ask for it.
 pub(super) fn check_qualification(workspace: &Path) -> CheckResult {
-    let (dal, fallback_note) = load_default_dal(workspace);
+    let (dal, fallback_note) = load_max_dal(workspace);
     if dal < Dal::C {
         return CheckResult::Pass;
     }
