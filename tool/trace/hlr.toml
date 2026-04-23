@@ -1189,3 +1189,34 @@ block entirely — the `enforce_thresholds` flag gates on
 """
 verification_methods = ["test"]
 traces_to = ["895097b2-6d08-4ef7-9305-143a87424684"]
+
+[[requirements]]
+uid = "79afc7a1-22dd-450e-8f0c-c29c93b48905"
+id = "HLR-057"
+title = "cli::doctor derives its trace DAL via load_max_dal, not default_dal"
+owner = "tool"
+scope = "component"
+description = """
+`cli::doctor::checks::check_trace` calls `load_max_dal(workspace)`
+instead of `load_default_dal`. The returned DAL feeds
+`EvidencePolicy::for_dal(dal).trace`, which gates the doctor
+sub-checks that depend on DAL level (require_hlr_sys_trace at
+DAL ≥ C, require_derived_rationale at DAL ≥ C, ...). Same
+substitution in `cli::doctor::qualification::check_qualification`
+— the DAL ≥ C gate that drives
+`DOCTOR_QUALIFICATION_MISSING` must also see the raised DAL.
+
+Both callsites keep the `(dal, boundary_loadable)` tuple shape
+so the existing fallback-note plumbing (user-visible "(assumed
+DAL-D, boundary unloadable)" on failure messages) is unchanged
+for the load-failure branch.
+
+Rename `load_default_dal` → `load_max_dal` is load-bearing: the
+old name encodes the bug in its signature. "load_default" reads
+as "the default from the config"; "load_max" reads as "the
+effective DAL across the configured in-scope set" — matches the
+new behavior and makes drift to the old semantic obvious at
+callsite.
+"""
+verification_methods = ["test"]
+traces_to = ["71c07b24-9d90-4ad5-ae9a-a7c2fe55c93c"]

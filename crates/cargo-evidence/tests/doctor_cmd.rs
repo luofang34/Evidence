@@ -352,7 +352,7 @@ fn fallback_note_appears_when_boundary_missing_and_trace_fails() {
         )
         .unwrap();
     }
-    // No cert/boundary.toml on purpose — forces load_default_dal
+    // No cert/boundary.toml on purpose — forces load_max_dal
     // into the fallback branch (boundary_loadable = false).
 
     let (exit, diags) = run_doctor(root);

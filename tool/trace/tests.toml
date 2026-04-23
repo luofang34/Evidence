@@ -721,3 +721,17 @@ test_selectors = [
     "cli::generate::coverage_phase::tests::threshold_bva_just_below_fires",
     "cli::generate::coverage_phase::tests::threshold_integration_high_lines_low_branches_fires_branch_only",
 ]
+
+[[tests]]
+uid = "64b360d1-a9be-4097-a011-ed6f0625fe1c"
+id = "TEST-060"
+title = "load_max_dal derives trace DAL as max over dal_map; normal + robustness + BVA"
+owner = "tool"
+traces_to = ["a88f2efa-7aa7-4bfc-9554-610a906f2e2e"]
+test_selectors = [
+    "doctor_max_dal::override_raises_dal_past_qualification_gate",
+    "doctor_max_dal::no_override_at_default_d_leaves_gate_skipped",
+    "doctor_max_dal::empty_in_scope_falls_back_to_default_dal_not_hard_d",
+    "doctor_max_dal::mixed_overrides_take_highest",
+    "doctor_max_dal::single_crate_at_dal_c_fires_gate_inclusively",
+]
