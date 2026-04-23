@@ -196,6 +196,25 @@ fn rewrite_traces_to(refs: &mut [String], remap: &BTreeMap<String, String>) -> b
     changed
 }
 
+/// Merge a per-layer remap into the cross-layer union. A debug
+/// assertion fires if two layers coincidentally used the same
+/// placeholder key (e.g. both "x-001" in hand-imported data) —
+/// silently overwriting one layer's rewrite would corrupt that
+/// layer's `traces_to` references. Release builds take the
+/// last-wins behaviour rather than panic.
+fn merge_remap(dst: &mut BTreeMap<String, String>, src: BTreeMap<String, String>) {
+    for (old, new) in src {
+        debug_assert!(
+            !dst.contains_key(&old),
+            "duplicate placeholder uid across layers: '{}' (existing: '{}', new: '{}')",
+            old,
+            dst[&old],
+            new
+        );
+        dst.insert(old, new);
+    }
+}
+
 /// Read trace files from a directory, assign fresh v4 UUIDs to
 /// every entry whose `uid` is missing or not a valid UUID, and
 /// write the files back. Rewrites cross-file `traces_to`
@@ -260,7 +279,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
         if n > 0 {
             sys_changed = true;
         }
-        remap.extend(m);
+        merge_remap(&mut remap, m);
     }
     if let Some(h) = hlr.as_mut() {
         let (n, m) = assign_valid_uuids_hlr(&mut h.requirements);
@@ -268,7 +287,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
         if n > 0 {
             hlr_changed = true;
         }
-        remap.extend(m);
+        merge_remap(&mut remap, m);
     }
     if let Some(l) = llr.as_mut() {
         let (n, m) = assign_valid_uuids_llr(&mut l.requirements);
@@ -276,7 +295,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
         if n > 0 {
             llr_changed = true;
         }
-        remap.extend(m);
+        merge_remap(&mut remap, m);
     }
     if let Some(t) = tests.as_mut() {
         let (n, m) = assign_valid_uuids_test(&mut t.tests);
@@ -284,7 +303,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
         if n > 0 {
             tests_changed = true;
         }
-        remap.extend(m);
+        merge_remap(&mut remap, m);
     }
     if let Some(d) = derived.as_mut() {
         let (n, m) = assign_valid_uuids_derived(&mut d.requirements);
@@ -292,7 +311,7 @@ pub fn backfill_uuids(trace_root: &str) -> Result<usize, BackfillError> {
         if n > 0 {
             derived_changed = true;
         }
-        remap.extend(m);
+        merge_remap(&mut remap, m);
     }
 
     // Phase 3: apply the remap to every `traces_to` vector so
@@ -360,6 +379,8 @@ fn write_trace_file<T: serde::Serialize>(
     })
 }
 
+// Tests live in a sibling file pulled in via `#[path]` so this
+// facade stays under the 500-line workspace limit.
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -367,127 +388,5 @@ fn write_trace_file<T: serde::Serialize>(
     clippy::panic,
     reason = "test setup failures should panic immediately"
 )]
-mod tests {
-    use super::*;
-
-    fn hlr_entry(uid: Option<&str>) -> HlrEntry {
-        HlrEntry {
-            uid: uid.map(|s| s.to_string()),
-            ns: None,
-            id: "HLR-X".to_string(),
-            title: "fixture".to_string(),
-            owner: None,
-            scope: None,
-            sort_key: None,
-            category: None,
-            source: None,
-            description: None,
-            rationale: None,
-            verification_methods: vec![],
-            traces_to: vec![],
-            surfaces: vec![],
-        }
-    }
-
-    #[test]
-    fn assign_valid_uuids_hlr_fills_missing_and_invalid() {
-        let mut entries = vec![
-            hlr_entry(None),
-            hlr_entry(Some("HLR-001")),           // placeholder string
-            hlr_entry(Some("not-a-uuid-either")), // any non-UUID string
-            hlr_entry(Some("5c6e07f1-da4a-4aec-9647-426304deadb5")), // valid
-        ];
-        let (count, remap) = assign_valid_uuids_hlr(&mut entries);
-        assert_eq!(count, 3, "3 entries should be rewritten");
-        // Remap only contains entries whose old uid was Some(_).
-        assert_eq!(remap.len(), 2);
-        assert!(remap.contains_key("HLR-001"));
-        assert!(remap.contains_key("not-a-uuid-either"));
-        // Every rewritten entry now carries a valid UUID.
-        for entry in entries.iter().take(3) {
-            let s = entry.uid.as_deref().unwrap();
-            assert!(uuid::Uuid::parse_str(s).is_ok(), "not a uuid: {s}");
-        }
-        // The already-valid entry keeps its uid.
-        assert_eq!(
-            entries[3].uid.as_deref(),
-            Some("5c6e07f1-da4a-4aec-9647-426304deadb5")
-        );
-    }
-
-    #[test]
-    fn rewrite_traces_to_applies_remap() {
-        let remap: BTreeMap<String, String> = [
-            ("HLR-001".to_string(), "aaaa-new-uuid".to_string()),
-            ("HLR-002".to_string(), "bbbb-new-uuid".to_string()),
-        ]
-        .into_iter()
-        .collect();
-        let mut refs = vec![
-            "HLR-001".to_string(),
-            "something-else".to_string(),
-            "HLR-002".to_string(),
-        ];
-        let changed = rewrite_traces_to(&mut refs, &remap);
-        assert!(changed);
-        assert_eq!(refs[0], "aaaa-new-uuid");
-        assert_eq!(refs[1], "something-else");
-        assert_eq!(refs[2], "bbbb-new-uuid");
-    }
-
-    #[test]
-    fn rewrite_traces_to_noop_when_no_match() {
-        let remap: BTreeMap<String, String> = BTreeMap::new();
-        let mut refs = vec!["HLR-001".to_string()];
-        let changed = rewrite_traces_to(&mut refs, &remap);
-        assert!(!changed);
-        assert_eq!(refs[0], "HLR-001");
-    }
-
-    #[test]
-    fn assign_valid_uuids_derived_rewrites_invalid() {
-        let mut entries = vec![
-            DerivedEntry {
-                uid: None,
-                id: "DER-001".to_string(),
-                title: "Derived req".to_string(),
-                owner: None,
-                source: None,
-                description: None,
-                rationale: None,
-                safety_impact: None,
-                sort_key: None,
-            },
-            DerivedEntry {
-                uid: Some("DRQ-001".to_string()),
-                id: "DER-002".to_string(),
-                title: "Placeholder uid".to_string(),
-                owner: None,
-                source: None,
-                description: None,
-                rationale: None,
-                safety_impact: None,
-                sort_key: None,
-            },
-        ];
-        let (count, remap) = assign_valid_uuids_derived(&mut entries);
-        assert_eq!(count, 2);
-        assert_eq!(remap.len(), 1, "only non-None olds go into remap");
-        assert!(remap.contains_key("DRQ-001"));
-        for entry in &entries {
-            let s = entry.uid.as_deref().unwrap();
-            assert!(uuid::Uuid::parse_str(s).is_ok(), "not a uuid: {s}");
-        }
-    }
-
-    #[test]
-    fn needs_new_uuid_accepts_only_valid_uuids() {
-        assert!(needs_new_uuid(None));
-        assert!(needs_new_uuid(Some("")));
-        assert!(needs_new_uuid(Some("HLR-001")));
-        assert!(needs_new_uuid(Some("not-quite-uuid-shape")));
-        assert!(!needs_new_uuid(Some(
-            "5c6e07f1-da4a-4aec-9647-426304deadb5"
-        )));
-    }
-}
+#[path = "uuid/tests.rs"]
+mod tests;
