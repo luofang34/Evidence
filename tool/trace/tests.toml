@@ -634,7 +634,6 @@ traces_to = ["ed4284df-5a2e-4241-bbd9-e744edd43f79"]
 test_selectors = [
     "evidence_core::coverage::llvm_cov_json::tests::parses_trivial_export",
     "evidence_core::coverage::llvm_cov_json::tests::normalizes_absolute_paths_to_workspace_relative",
-    "evidence_core::coverage::llvm_cov_json::tests::statement_and_branch_levels_are_separate_measurements",
     "evidence_core::coverage::report::tests::coverage_report_roundtrips_json",
     "coverage_e2e::coverage_none_does_not_invoke_llvmcov",
     "coverage_e2e::coverage_line_on_dev_degrades_gracefully_when_llvmcov_missing",
@@ -658,3 +657,67 @@ title = "Derived-requirement traces_to references resolve in cmd_trace validatio
 owner = "tool"
 traces_to = ["4e98e1d9-6017-425e-b613-52853e97c2f3"]
 test_selectors = ["derived_trace_validation::derived_uids_resolve_in_trace_validation"]
+
+[[tests]]
+uid = "08d7bcfb-bab9-406d-9acd-8da679cce356"
+id = "TEST-056"
+title = "parser populates BranchCoverage structurally; None at Statement, Some at Branch (normal + BVA)"
+owner = "tool"
+traces_to = ["5ff642cf-c33c-4775-8573-1da2ac04cdba"]
+test_selectors = [
+    "evidence_core::coverage::llvm_cov_json::tests::branch_level_populates_branches_field_statement_leaves_none",
+    "evidence_core::coverage::llvm_cov_json::tests::zero_branches_file_parses_as_some_zero_zero",
+    "evidence_core::coverage::llvm_cov_json::tests::all_branches_covered_preserves_equal_counts",
+    "evidence_core::coverage::report::tests::pre_branch_split_bundle_deserializes_with_none",
+    "evidence_core::coverage::report::tests::branches_none_is_omitted_not_null_in_json",
+]
+
+[[tests]]
+uid = "33d5f462-f1b6-4176-8fe5-47de0cacb083"
+id = "TEST-057"
+title = "aggregate_lines_percent normal + robustness + BVA"
+owner = "tool"
+traces_to = ["a95ed852-94ba-499b-bd17-76d26b75ebe5"]
+test_selectors = [
+    "cli::generate::coverage_phase::tests::aggregate_lines_normal_three_files_weighted_average",
+    "cli::generate::coverage_phase::tests::aggregate_lines_robustness_empty_per_file_returns_zero",
+    "cli::generate::coverage_phase::tests::aggregate_lines_robustness_single_file_zero_total_returns_zero",
+    "cli::generate::coverage_phase::tests::aggregate_lines_bva_one_over_one_is_hundred",
+    "cli::generate::coverage_phase::tests::aggregate_lines_bva_zero_over_one_is_zero",
+    "cli::generate::coverage_phase::tests::aggregate_lines_bva_forty_two_over_hundred_is_exact",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_lines_sums_line_field_only",
+]
+
+[[tests]]
+uid = "78b4217f-700b-4058-959b-5f8c1e7170f4"
+id = "TEST-058"
+title = "aggregate_branches_percent normal + robustness + BVA (incl. bug-fix anchor)"
+owner = "tool"
+traces_to = ["84c30007-3c84-4d23-bdf8-f540339b507a"]
+test_selectors = [
+    "cli::generate::coverage_phase::tests::aggregate_branches_normal_two_files_sum_to_half",
+    "cli::generate::coverage_phase::tests::aggregate_branches_robustness_none_file_contributes_nothing",
+    "cli::generate::coverage_phase::tests::aggregate_branches_robustness_all_none_returns_zero",
+    "cli::generate::coverage_phase::tests::aggregate_branches_robustness_empty_per_file_returns_zero",
+    "cli::generate::coverage_phase::tests::aggregate_branches_bva_zero_zero_single_file_returns_zero",
+    "cli::generate::coverage_phase::tests::aggregate_branches_bva_all_covered_is_hundred",
+    "cli::generate::coverage_phase::tests::aggregate_branches_ignores_line_counts_at_branch_level",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_branches_reads_branches_not_lines",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_branches_robustness_all_none_returns_zero",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_branches_bva_zero_zero_single_file_returns_zero",
+]
+
+[[tests]]
+uid = "a1d3ac91-35ed-4171-8646-1e3cce4c3e96"
+id = "TEST-059"
+title = "threshold_violations normal + robustness + BVA (strict <, per-level dispatch)"
+owner = "tool"
+traces_to = ["b1377fb5-f879-4edc-9c50-46c5e67c71ad"]
+test_selectors = [
+    "cli::generate::coverage_phase::tests::threshold_normal_branch_below_dalb_statement_above",
+    "cli::generate::coverage_phase::tests::threshold_robustness_none_threshold_skips_check",
+    "cli::generate::coverage_phase::tests::threshold_robustness_measurement_absent_no_violation",
+    "cli::generate::coverage_phase::tests::threshold_bva_exact_equality_passes",
+    "cli::generate::coverage_phase::tests::threshold_bva_just_below_fires",
+    "cli::generate::coverage_phase::tests::threshold_integration_high_lines_low_branches_fires_branch_only",
+]

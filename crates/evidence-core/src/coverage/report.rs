@@ -40,6 +40,21 @@ pub struct LineCoverage {
     pub total: u64,
 }
 
+/// Branch coverage counts for a single file. Populated at
+/// `CoverageLevel::Branch`. Numerator and denominator kept
+/// structurally so branch-threshold aggregation sums the branch
+/// field, not the line field.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BranchCoverage {
+    /// Branches observed taken at least once (both-outcomes count
+    /// not expressible at file-summary level; see
+    /// `cert/QUALIFICATION.md` for the llvm-branch vs DO-178C
+    /// decision gap).
+    pub covered: u64,
+    /// Total branches reported by llvm-cov for the file.
+    pub total: u64,
+}
+
 /// Single branch coverage record (LLVM branch coverage mapped
 /// into our decision vocabulary). Each decision corresponds to a
 /// branch instruction in the LLVM IR — this is an approximation,
@@ -72,9 +87,11 @@ pub struct ConditionCoverage {
     pub covered: bool,
 }
 
-/// Per-file measurement within a [`Measurement`]. `decisions` and
-/// `conditions` are empty for `CoverageLevel::Statement`;
-/// populated for `CoverageLevel::Branch`.
+/// Per-file measurement within a [`Measurement`]. `branches` is
+/// `Some` at `CoverageLevel::Branch`, `None` at
+/// `CoverageLevel::Statement`. `decisions` and `conditions`
+/// vectors stay reserved for v2 pattern-decision / MC/DC — empty
+/// today regardless of level.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileMeasurement {
     /// Workspace-relative path (normalized by
@@ -82,10 +99,16 @@ pub struct FileMeasurement {
     pub path: String,
     /// Line coverage for this file.
     pub lines: LineCoverage,
-    /// Decision records (branch-level only today).
+    /// Branch coverage for this file when the measurement is
+    /// `CoverageLevel::Branch`. `None` at Statement level and at
+    /// the two reserved levels. Old bundles (pre-branch-split)
+    /// deserialize with `branches: None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branches: Option<BranchCoverage>,
+    /// Decision records (reserved for v2 pattern-decision).
     #[serde(default)]
     pub decisions: Vec<DecisionCoverage>,
-    /// Condition records (MC/DC reserved; empty today).
+    /// Condition records (reserved for MC/DC; empty today).
     #[serde(default)]
     pub conditions: Vec<ConditionCoverage>,
 }
@@ -163,6 +186,7 @@ mod tests {
                         covered: 42,
                         total: 100,
                     },
+                    branches: None,
                     decisions: vec![],
                     conditions: vec![],
                 }],
@@ -181,6 +205,7 @@ mod tests {
                 covered: 0,
                 total: 1,
             },
+            branches: None,
             decisions: vec![],
             conditions: vec![],
         };
@@ -198,6 +223,10 @@ mod tests {
                 covered: 10,
                 total: 12,
             },
+            branches: Some(BranchCoverage {
+                covered: 6,
+                total: 8,
+            }),
             decisions: vec![DecisionCoverage {
                 id: "b.rs:5:8".into(),
                 covered: true,
@@ -208,5 +237,39 @@ mod tests {
         let json = serde_json::to_string(&fm).unwrap();
         let parsed: FileMeasurement = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, fm);
+    }
+
+    /// Old bundles (pre-branch-split) deserialize cleanly — the
+    /// `branches` field is absent in their JSON; `#[serde(default)]`
+    /// leaves it `None`.
+    #[test]
+    fn pre_branch_split_bundle_deserializes_with_none() {
+        let json = r#"{
+            "path": "x.rs",
+            "lines": { "covered": 5, "total": 10 },
+            "decisions": [],
+            "conditions": []
+        }"#;
+        let parsed: FileMeasurement = serde_json::from_str(json).unwrap();
+        assert!(parsed.branches.is_none());
+    }
+
+    /// When `branches` is `None` it's omitted from the serialized
+    /// form entirely (`skip_serializing_if`). Files at Statement
+    /// level shouldn't carry a `"branches": null` key.
+    #[test]
+    fn branches_none_is_omitted_not_null_in_json() {
+        let fm = FileMeasurement {
+            path: "a.rs".into(),
+            lines: LineCoverage {
+                covered: 0,
+                total: 1,
+            },
+            branches: None,
+            decisions: vec![],
+            conditions: vec![],
+        };
+        let json = serde_json::to_value(&fm).unwrap();
+        assert!(json.get("branches").is_none());
     }
 }
