@@ -752,3 +752,11 @@ test_selectors = [
     "compliance_trace_honesty::a3_6_bva_no_trace_data_is_notmet_even_when_passed_false",
     "compliance_trace_honesty::a3_6_notmet_reason_is_no_trace_data_not_validation_failure",
 ]
+
+[[tests]]
+uid = "4af1f209-8ef9-49c5-8f7f-a856ad363e93"
+id = "TEST-062"
+title = "initialize handshake advertises evidence-mcp identity, not rmcp default"
+owner = "tool"
+traces_to = ["c3290288-af0f-4177-9ac4-1cfbc6f4de83"]
+test_selectors = ["mcp_surface::initialize_server_info_advertises_evidence_mcp_identity"]
