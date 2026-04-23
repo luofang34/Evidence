@@ -531,3 +531,38 @@ are equivalent to silently-lying about rigor.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "895097b2-6d08-4ef7-9305-143a87424684"
+id = "SYS-024"
+title = "Tool shall enforce DO-178C A-7 minimum coverage percentages per DAL"
+owner = "soi"
+scope = "soi"
+description = """
+SYS-021 requires a coverage artifact to land in the bundle.
+That ensures the auditor can see the numbers; it does not
+ensure the numbers meet DAL minima. Without mechanical
+enforcement, a bundle can claim DAL-B compliance while
+carrying 50% branch coverage — the auditor is expected to
+catch the gap by hand, which degrades back to verbal
+assertion.
+
+SYS-024 closes that gap: on `Profile::Cert` / `Profile::Record`,
+the tool compares each measurement level's aggregate against
+`Dal::coverage_thresholds()` and refuses to finalize the
+bundle when any level falls short. The structured diagnostic
+`COVERAGE_BELOW_THRESHOLD { dimension, current, threshold }`
+carries enough detail that the operator can see which
+specific minimum was missed, without reading the full
+coverage JSON. Dev profile continues to emit the artifact but
+never blocks, so downstream exploratory runs keep working.
+
+The pre-#82 `[dal.objectives]` override design was rejected in
+favour of this surface (see plan Q2) because per-objective
+manual overrides let downstream forks silently relax A-7;
+SYS-024 keeps the minima centralized in `Dal::coverage_thresholds`
+and the enforcement path in a single `threshold_violations`
+dispatcher.
+"""
+verification_methods = ["test"]
+traces_to = []

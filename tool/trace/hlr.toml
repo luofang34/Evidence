@@ -1150,3 +1150,42 @@ change.
 verification_methods = ["test"]
 traces_to = ["f5aac59f-9dbd-48f7-80d1-2e1cc1a2fdd1"]
 surfaces = ["trace"]
+
+[[requirements]]
+uid = "bebe9227-5f47-4eb8-89a7-f2157fb96e6c"
+id = "HLR-056"
+title = "generate compares per-level coverage aggregate against Dal::coverage_thresholds"
+owner = "tool"
+scope = "component"
+description = """
+On `cmd_generate` with `Profile::Cert` or `Profile::Record`
+and `CoverageChoice != None`, after the typed `CoverageReport`
+is built, the threshold-enforcement surface runs:
+
+  1. Compute the max DAL across per-crate overrides (see
+     `load_max_dal` mirror in `cli/check.rs` — doctor does
+     the same thing for the downstream case).
+  2. Pull `Dal::coverage_thresholds() -> DalCoverageThresholds
+     {statement_percent: Option<u8>, branch_percent: Option<u8>}`
+     for that DAL. DAL-D returns `{None, None}`; DAL-C sets
+     statement = 90; DAL-B adds branch = 85; DAL-A tightens
+     branch to 90.
+  3. For each `(level, Some(threshold))` pair, if a measurement
+     of that level exists, invoke the level-appropriate
+     aggregator (`aggregate_lines_percent` for Statement,
+     `aggregate_branches_percent` for Branch) and compare
+     `current < f64::from(threshold)`. Comparison is strict
+     `<` — DO-178C minima are stated inclusively, so equality
+     passes.
+  4. Each shortfall emits `COVERAGE_BELOW_THRESHOLD {
+     dimension: "statement" | "branch", current: f64,
+     threshold: u8 }`. The CLI translates any violation into
+     exit 2 (`EXIT_CERT_REQUIREMENT_UNMET`), refusing to
+     finalize a bundle that can't back its A-7 Obj-5/6 claim.
+
+Dev profile surfaces the report but skips the enforcement
+block entirely — the `enforce_thresholds` flag gates on
+`matches!(profile, Profile::Cert | Profile::Record)`.
+"""
+verification_methods = ["test"]
+traces_to = ["895097b2-6d08-4ef7-9305-143a87424684"]

@@ -172,7 +172,7 @@ fn threshold_violations(
     if let Some(min) = thresholds.statement_percent
         && let Some(m) = measurement_for(report, CoverageLevel::Statement)
     {
-        let pct = aggregate_percent(m);
+        let pct = aggregate_lines_percent(m);
         if pct < f64::from(min) {
             violations.push(ThresholdViolation {
                 dimension: "statement",
@@ -184,7 +184,7 @@ fn threshold_violations(
     if let Some(min) = thresholds.branch_percent
         && let Some(m) = measurement_for(report, CoverageLevel::Branch)
     {
-        let pct = aggregate_percent(m);
+        let pct = aggregate_branches_percent(m);
         if pct < f64::from(min) {
             violations.push(ThresholdViolation {
                 dimension: "branch",
@@ -200,18 +200,42 @@ fn measurement_for(report: &CoverageReport, level: CoverageLevel) -> Option<&Mea
     report.measurements.iter().find(|m| m.level == level)
 }
 
-fn aggregate_percent(m: &Measurement) -> f64 {
+/// Aggregate percentage for `CoverageLevel::Statement`. Sums
+/// per-file line counts. Zero denominator (no executable lines
+/// across the measurement) returns `0.0`, never NaN —
+/// divide-by-zero on a u64 total would otherwise break f64
+/// comparison at every downstream call-site.
+fn aggregate_lines_percent(m: &Measurement) -> f64 {
     let total: u64 = m.per_file.iter().map(|f| f.lines.total).sum();
     if total == 0 {
         return 0.0;
     }
     let covered: u64 = m.per_file.iter().map(|f| f.lines.covered).sum();
-    // Avoid lossy f64 conversion: both sides are typically well
-    // under 2^53, so as-cast is fine in practice. The assertion
-    // documents the expectation for future readers.
-    let covered_f = covered as f64;
-    let total_f = total as f64;
-    (covered_f / total_f) * 100.0
+    (covered as f64 / total as f64) * 100.0
+}
+
+/// Aggregate percentage for `CoverageLevel::Branch`. Sums
+/// per-file `branches.{covered,total}`; files whose `branches`
+/// field is `None` contribute `0/0` (no contribution). Zero
+/// denominator → `0.0` (no NaN). Separation from
+/// [`aggregate_lines_percent`] is load-bearing: summing
+/// `lines.*` at branch level was the pre-fix bug — tool
+/// reported branch thresholds as met using line-coverage data.
+fn aggregate_branches_percent(m: &Measurement) -> f64 {
+    let total: u64 = m
+        .per_file
+        .iter()
+        .map(|f| f.branches.as_ref().map_or(0, |b| b.total))
+        .sum();
+    if total == 0 {
+        return 0.0;
+    }
+    let covered: u64 = m
+        .per_file
+        .iter()
+        .map(|f| f.branches.as_ref().map_or(0, |b| b.covered))
+        .sum();
+    (covered as f64 / total as f64) * 100.0
 }
 
 fn emit_below_threshold(v: &ThresholdViolation, jsonl_output: bool, quiet: bool) -> Result<()> {
@@ -420,52 +444,10 @@ fn emit_coverage_ok(
     Ok(())
 }
 
+// Tests live in the sibling `coverage_phase/tests.rs` via `#[path]`
+// so this file stays under the 500-line workspace limit while
+// keeping the test triplets (normal/robustness/BVA per LLR)
+// co-located with the module they verify.
 #[cfg(test)]
-#[allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    reason = "test setup failures should panic immediately"
-)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn resolve_choice_explicit_wins_over_profile_default() {
-        assert_eq!(
-            resolve_choice(Some(CoverageChoice::None), Profile::Cert),
-            CoverageChoice::None
-        );
-        assert_eq!(
-            resolve_choice(Some(CoverageChoice::Branch), Profile::Dev),
-            CoverageChoice::Branch
-        );
-    }
-
-    #[test]
-    fn resolve_choice_defaults_by_profile_when_unset() {
-        assert_eq!(resolve_choice(None, Profile::Dev), CoverageChoice::None);
-        assert_eq!(resolve_choice(None, Profile::Cert), CoverageChoice::Branch);
-        assert_eq!(
-            resolve_choice(None, Profile::Record),
-            CoverageChoice::Branch
-        );
-    }
-
-    #[test]
-    fn levels_for_choice_maps_as_expected() {
-        assert!(levels_for_choice(CoverageChoice::None).is_empty());
-        assert_eq!(
-            levels_for_choice(CoverageChoice::Line),
-            vec![CoverageLevel::Statement]
-        );
-        assert_eq!(
-            levels_for_choice(CoverageChoice::Branch),
-            vec![CoverageLevel::Branch]
-        );
-        assert_eq!(
-            levels_for_choice(CoverageChoice::All),
-            vec![CoverageLevel::Statement, CoverageLevel::Branch]
-        );
-    }
-}
+#[path = "coverage_phase/tests.rs"]
+mod tests;

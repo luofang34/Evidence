@@ -1405,7 +1405,6 @@ naming the engine version and per-level line counts.
 """
 verification_methods = ["test"]
 emits = [
-    "COVERAGE_BELOW_THRESHOLD",
     "COVERAGE_LLVMCOV_MISSING",
     "COVERAGE_OK",
     "COVERAGE_PARSE_FAILED",
@@ -1513,3 +1512,127 @@ wire change. Statement-level measurements never emit a
 `"branches": null` key, only omit the field.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "a95ed852-94ba-499b-bd17-76d26b75ebe5"
+id = "LLR-057"
+title = "aggregate_lines_percent sums per_file[].lines over a Statement-level Measurement"
+owner = "tool"
+traces_to = ["bebe9227-5f47-4eb8-89a7-f2157fb96e6c"]
+modules = [
+    "cargo_evidence::cli::generate::coverage_phase::aggregate_lines_percent",
+    "evidence_core::bundle::builder_coverage::aggregate_lines",
+]
+derived = false
+description = """
+`aggregate_lines_percent(m: &Measurement) -> f64` computes
+`sum(per_file[].lines.covered) / sum(per_file[].lines.total)
+* 100.0`. Used by the Statement-level arm of
+`threshold_violations` (enforcement side) and by
+`EvidenceBuilder::coverage_statement_percent` (compliance-
+report side). The two callsites are textually similar but
+non-shared because the enforcement arm lives in
+`cargo-evidence` (needs the CLI-side policy context) and the
+compliance arm lives in `evidence-core` (populates the wire
+`CoverageSummary`). Both are asserted by the same test
+triplet to prevent drift.
+
+Zero denominator (no executable lines across all files)
+returns `0.0`. Without this guard, `u64::sum() / u64::sum()`
+would panic on division-by-zero in release mode and return
+NaN in f64 — either one breaks the `< threshold` comparison
+silently (NaN comparisons always return false, so a NaN
+"current" would never trigger a violation, hiding the gap).
+
+The function has no parameter for the measurement level
+because the level is implicit in the caller's dispatch —
+passing a Branch-level `Measurement` here would sum that
+measurement's `lines` field, which is populated but
+semantically secondary at Branch level. The dispatch in
+`threshold_violations` is what binds "Statement level uses
+lines" to the policy.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "84c30007-3c84-4d23-bdf8-f540339b507a"
+id = "LLR-058"
+title = "aggregate_branches_percent sums per_file[].branches over a Branch-level Measurement"
+owner = "tool"
+traces_to = ["bebe9227-5f47-4eb8-89a7-f2157fb96e6c"]
+modules = [
+    "cargo_evidence::cli::generate::coverage_phase::aggregate_branches_percent",
+    "evidence_core::bundle::builder_coverage::aggregate_branches",
+]
+derived = false
+description = """
+`aggregate_branches_percent(m: &Measurement) -> f64` computes
+`sum(per_file[].branches.map_or(0, |b| b.covered)) /
+sum(per_file[].branches.map_or(0, |b| b.total)) * 100.0`.
+Files where `branches` is `None` contribute `0/0` (no
+contribution) rather than `0/total` (which would pull the
+aggregate toward zero). This distinction matters when a
+Branch-level measurement is assembled from a mixed parser
+run where some files legitimately lacked branch data.
+
+**This function is the core of the bugfix.** Pre-fix, the
+Branch-level arm of `threshold_violations` called a shared
+`aggregate_percent` that always summed `lines.*`. A file at
+95% lines / 50% branches looked like 95% branch coverage —
+DAL-B's 85% branch minimum passed spuriously, and the tool
+certified a bundle whose claim it could not mechanically
+defend.
+
+The symmetry with `aggregate_lines_percent` is deliberate but
+not DRY: collapsing them into a generic `aggregate_percent(m,
+|f| &f.lines)` would re-introduce the risk of a caller
+passing the wrong field-accessor at call site. Two
+single-purpose functions make the Branch vs Statement
+distinction unmissable at every callsite.
+
+Zero denominator → `0.0`, same rationale as LLR-057.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "b1377fb5-f879-4edc-9c50-46c5e67c71ad"
+id = "LLR-059"
+title = "threshold_violations dispatches to level-appropriate aggregator; strict < comparison"
+owner = "tool"
+traces_to = ["bebe9227-5f47-4eb8-89a7-f2157fb96e6c"]
+modules = ["cargo_evidence::cli::generate::coverage_phase::threshold_violations"]
+derived = false
+description = """
+`threshold_violations(report: &CoverageReport, thresholds:
+DalCoverageThresholds) -> Vec<ThresholdViolation>` iterates
+over each `(level, Option<u8>)` threshold entry:
+
+  1. Skip if `thresholds.<level>_percent` is `None` (DAL-D or
+     dev). No violation recorded.
+  2. Skip if no `Measurement` of that level exists in the
+     report. No violation recorded — "measurement absent" is
+     a config-layer issue, not a coverage-layer failure.
+     Treating absence as 0% would mask the true problem
+     (auditor gets COVERAGE_BELOW_THRESHOLD when they
+     should have gotten a "configure your coverage=branch
+     flag" signal).
+  3. Compute `current = aggregate_<level>_percent(m)`.
+  4. If `current < f64::from(threshold)`, append a
+     `ThresholdViolation { dimension, current_percent,
+     threshold_percent }`.
+
+Comparison is strict `<`, not `<=`. DO-178C A-7 minima are
+stated inclusively ("statement coverage shall be ≥ 90% at
+DAL-C"), so equality is compliant. This is a BVA case the
+test triplet pins — `current == threshold` must not fire.
+
+The two-level dispatch (statement uses
+`aggregate_lines_percent`, branch uses
+`aggregate_branches_percent`) is what enforces the level/
+field binding at the policy layer. The dispatcher is the
+only place in the threshold-enforcement chain where that
+binding is decided; changing it to use a shared aggregator
+would be the regression path.
+"""
+verification_methods = ["test"]
+emits = ["COVERAGE_BELOW_THRESHOLD"]

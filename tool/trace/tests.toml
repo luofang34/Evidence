@@ -671,3 +671,53 @@ test_selectors = [
     "evidence_core::coverage::report::tests::pre_branch_split_bundle_deserializes_with_none",
     "evidence_core::coverage::report::tests::branches_none_is_omitted_not_null_in_json",
 ]
+
+[[tests]]
+uid = "33d5f462-f1b6-4176-8fe5-47de0cacb083"
+id = "TEST-057"
+title = "aggregate_lines_percent normal + robustness + BVA"
+owner = "tool"
+traces_to = ["a95ed852-94ba-499b-bd17-76d26b75ebe5"]
+test_selectors = [
+    "cli::generate::coverage_phase::tests::aggregate_lines_normal_three_files_weighted_average",
+    "cli::generate::coverage_phase::tests::aggregate_lines_robustness_empty_per_file_returns_zero",
+    "cli::generate::coverage_phase::tests::aggregate_lines_robustness_single_file_zero_total_returns_zero",
+    "cli::generate::coverage_phase::tests::aggregate_lines_bva_one_over_one_is_hundred",
+    "cli::generate::coverage_phase::tests::aggregate_lines_bva_zero_over_one_is_zero",
+    "cli::generate::coverage_phase::tests::aggregate_lines_bva_forty_two_over_hundred_is_exact",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_lines_sums_line_field_only",
+]
+
+[[tests]]
+uid = "78b4217f-700b-4058-959b-5f8c1e7170f4"
+id = "TEST-058"
+title = "aggregate_branches_percent normal + robustness + BVA (incl. bug-fix anchor)"
+owner = "tool"
+traces_to = ["84c30007-3c84-4d23-bdf8-f540339b507a"]
+test_selectors = [
+    "cli::generate::coverage_phase::tests::aggregate_branches_normal_two_files_sum_to_half",
+    "cli::generate::coverage_phase::tests::aggregate_branches_robustness_none_file_contributes_nothing",
+    "cli::generate::coverage_phase::tests::aggregate_branches_robustness_all_none_returns_zero",
+    "cli::generate::coverage_phase::tests::aggregate_branches_robustness_empty_per_file_returns_zero",
+    "cli::generate::coverage_phase::tests::aggregate_branches_bva_zero_zero_single_file_returns_zero",
+    "cli::generate::coverage_phase::tests::aggregate_branches_bva_all_covered_is_hundred",
+    "cli::generate::coverage_phase::tests::aggregate_branches_ignores_line_counts_at_branch_level",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_branches_reads_branches_not_lines",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_branches_robustness_all_none_returns_zero",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_branches_bva_zero_zero_single_file_returns_zero",
+]
+
+[[tests]]
+uid = "a1d3ac91-35ed-4171-8646-1e3cce4c3e96"
+id = "TEST-059"
+title = "threshold_violations normal + robustness + BVA (strict <, per-level dispatch)"
+owner = "tool"
+traces_to = ["b1377fb5-f879-4edc-9c50-46c5e67c71ad"]
+test_selectors = [
+    "cli::generate::coverage_phase::tests::threshold_normal_branch_below_dalb_statement_above",
+    "cli::generate::coverage_phase::tests::threshold_robustness_none_threshold_skips_check",
+    "cli::generate::coverage_phase::tests::threshold_robustness_measurement_absent_no_violation",
+    "cli::generate::coverage_phase::tests::threshold_bva_exact_equality_passes",
+    "cli::generate::coverage_phase::tests::threshold_bva_just_below_fires",
+    "cli::generate::coverage_phase::tests::threshold_integration_high_lines_low_branches_fires_branch_only",
+]

@@ -349,7 +349,10 @@ mod tests {
         }"#;
         let report =
             parse_llvm_cov_export(json, &[CoverageLevel::Branch], Path::new("/w")).unwrap();
-        let b = report.measurements[0].per_file[0].branches.as_ref().unwrap();
+        let b = report.measurements[0].per_file[0]
+            .branches
+            .as_ref()
+            .unwrap();
         assert_eq!(b.covered, b.total);
         assert_eq!(b.total, 4);
     }
