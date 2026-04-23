@@ -2025,3 +2025,49 @@ No new diagnostic codes. `FLOORS_*` codes already exist in
 stream shape.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "ad4f1565-8ad1-46fa-b516-377e676052e7"
+id = "LLR-068"
+title = "evidence_diff handler wraps cargo evidence diff --json"
+owner = "tool"
+traces_to = ["b38d6ef2-1287-4087-b580-b81450f596a3"]
+modules = [
+    "evidence_mcp::server",
+    "evidence_mcp::schema",
+]
+derived = false
+description = """
+Sixth `#[tool]` on `Server`, alongside `evidence_rules`,
+`evidence_doctor`, `evidence_check`, `evidence_ping`,
+`evidence_floors`. Takes two required string paths
+(`DiffRequest { bundle_a_path, bundle_b_path }`;
+`#[serde(deny_unknown_fields)]`).
+
+Handler body:
+
+  1. Build `warnings` from `skew_diagnostic(&self.version_skew)`
+     (HLR-060) — same pattern as `evidence_rules`.
+  2. `run_evidence(&["diff", &a, &b, "--json"], &cwd)` under
+     the subprocess-timeout cap (LLR-065). The subprocess
+     inherits the server's CWD — diff does not have a
+     workspace-root concept, the two bundle paths are
+     absolute or resolved relative to server CWD by the
+     underlying CLI.
+  3. On subprocess failure, return a `DiffToolResponse` with
+     `diff = None`, `exit_code = 2`, `error = Some(MCP_*
+     diagnostic)` via `diff_response_from_run_error`.
+  4. On subprocess success, parse stdout as a single
+     `serde_json::Value`. On parse failure, return
+     `MCP_MALFORMED_JSONL` as the error diagnostic (same
+     code used by the streaming verbs for unparseable output;
+     the shape of the mistake is identical).
+
+No new diagnostic codes. `DiffToolResponse` is a new response
+struct in `schema.rs` because the CLI's diff output is a
+single JSON blob, not a JSONL stream — reusing
+`JsonlToolResponse` would force synthetic `terminal` /
+`diagnostics` fields that don't correspond to anything the
+CLI emits.
+"""
+verification_methods = ["test"]

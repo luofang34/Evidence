@@ -887,3 +887,29 @@ test_selectors = [
     "mcp_floors_surface::evidence_floors_missing_workspace_path_emits_fallback_signal",
     "mcp_floors_surface::evidence_floors_rejects_unknown_field_typo",
 ]
+
+[[tests]]
+uid = "abd7c310-bce2-4da6-b7bd-702e78893a2d"
+id = "TEST-068"
+title = "evidence_diff returns the CLI's structured diff blob"
+owner = "tool"
+traces_to = ["ad4f1565-8ad1-46fa-b516-377e676052e7"]
+description = """
+Pins the three shape legs of LLR-068's contract:
+
+- `evidence_diff` on two nonexistent bundle paths surfaces a
+  tool-layer failure with `diff == null`, `error` carrying a
+  well-formed MCP_* diagnostic, and `exit_code == 2`. This
+  also exercises the plumbing end-to-end (handler wiring,
+  schema serialization, `deny_unknown_fields` tolerance of a
+  valid but failing request).
+- `#[serde(deny_unknown_fields)]` on `DiffRequest` rejects a
+  typo'd argument at the MCP layer.
+- Missing required arguments (either `bundle_a_path` or
+  `bundle_b_path`) fail at deserialization, not silently.
+"""
+test_selectors = [
+    "mcp_diff_surface::evidence_diff_on_missing_bundles_surfaces_structured_error",
+    "mcp_diff_surface::evidence_diff_rejects_unknown_field_typo",
+    "mcp_diff_surface::evidence_diff_rejects_missing_required_arguments",
+]

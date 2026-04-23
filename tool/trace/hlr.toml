@@ -1417,3 +1417,45 @@ suggest fixes that only touch the specific inputs.
 surfaces = ["agent MCP surface"]
 verification_methods = ["test"]
 traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
+
+[[requirements]]
+uid = "b38d6ef2-1287-4087-b580-b81450f596a3"
+id = "HLR-063"
+title = "MCP exposes evidence_diff so agents can compare two bundles"
+owner = "tool"
+scope = "component"
+description = """
+`evidence_diff` is an agent-facing MCP tool that wraps
+`cargo evidence diff <bundle_a> <bundle_b> --json`: pure
+inspection, compares two on-disk bundles and returns the
+structured delta across inputs, outputs, metadata, and env.
+
+Input: two paths (`bundle_a_path`, `bundle_b_path`); both
+required, no default. `#[serde(deny_unknown_fields)]` matches
+the other MCP tool input shapes.
+
+Response shape:
+
+  - `diff: Option<serde_json::Value>` — the raw blob the CLI
+    emits on success: `{bundle_a, bundle_b, inputs_diff,
+    outputs_diff, metadata_diff, env_diff}`. `None` on tool-
+    layer failure.
+  - `exit_code: i32` — 0 on success (even when differences
+    are found; diff reports, doesn't judge); 2 on tool-layer
+    failure.
+  - `warnings: Vec<serde_json::Value>` — version-skew signals
+    from the startup probe (HLR-060), empty in the happy path.
+  - `error: Option<serde_json::Value>` — tool-layer failure
+    diagnostic carrying an `MCP_*` code (LLR-064). `None` on
+    success.
+
+Intended usage: AI PR-reviewers call `evidence_diff` on the
+pre-PR and post-PR bundles to surface content-hash, metadata,
+and env-capture changes. Because the CLI's output is a single
+JSON blob (not JSONL), the response shape differs from the
+streaming verbs — there's no `terminal` / `diagnostics` /
+`summary` triad.
+"""
+surfaces = ["agent MCP surface"]
+verification_methods = ["test"]
+traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
