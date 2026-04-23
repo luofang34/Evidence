@@ -25,6 +25,56 @@ mod helpers;
 
 use helpers::{init_frames, session, session_in};
 
+/// TEST-069 selector: `tools/list` advertises every `#[tool]`
+/// registered on `Server`. Regressions that drop a method from
+/// the `ToolRouter` (e.g., a macro-expansion failure that skips
+/// one verb) would pass the per-verb surface tests but leave
+/// the dropped verb absent from the server's self-description.
+#[test]
+fn tools_list_advertises_all_six_verbs() {
+    const EXPECTED: &[&str] = &[
+        "evidence_check",
+        "evidence_diff",
+        "evidence_doctor",
+        "evidence_floors",
+        "evidence_ping",
+        "evidence_rules",
+    ];
+
+    let mut frames = init_frames();
+    frames.push(json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/list",
+        "params": {}
+    }));
+
+    let responses = session(&frames, 2);
+    assert_eq!(
+        responses.len(),
+        2,
+        "expected init + tools/list responses; got: {responses:?}"
+    );
+
+    let call_resp = &responses[1];
+    let tools = call_resp
+        .pointer("/result/tools")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("missing result.tools array: {call_resp}"));
+
+    let names: Vec<&str> = tools
+        .iter()
+        .filter_map(|t| t.get("name").and_then(Value::as_str))
+        .collect();
+
+    for expected in EXPECTED {
+        assert!(
+            names.contains(expected),
+            "tools/list missing {expected}; advertised: {names:?}"
+        );
+    }
+}
+
 /// TEST-050 selector: every tool call flows through rmcp's
 /// `Json<RulesToolResponse>` return path; the `count` field
 /// equals the library's `evidence_core::RULES.len()`. Catches

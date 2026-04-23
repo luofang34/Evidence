@@ -132,9 +132,9 @@ pub(super) fn rules_response_from_run_error(
 pub(super) fn ping_response_from_skew(skew: &VersionSkew) -> PingResponse {
     let mcp_version = env!("CARGO_PKG_VERSION").to_string();
     match skew {
-        VersionSkew::Matched => PingResponse {
-            mcp_version: mcp_version.clone(),
-            cli_version: Some(mcp_version),
+        VersionSkew::Matched(cli) => PingResponse {
+            mcp_version,
+            cli_version: Some(cli.clone()),
             skew: "matched".to_string(),
             probe_error: None,
         },
@@ -170,7 +170,7 @@ mod tests {
     fn ping_response_shapes_for_matched_skewed_probe_failed() {
         let mcp = env!("CARGO_PKG_VERSION").to_string();
 
-        let matched = ping_response_from_skew(&VersionSkew::Matched);
+        let matched = ping_response_from_skew(&VersionSkew::Matched(mcp.clone()));
         assert_eq!(matched.mcp_version, mcp);
         assert_eq!(matched.cli_version.as_deref(), Some(mcp.as_str()));
         assert_eq!(matched.skew, "matched");
