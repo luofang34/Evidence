@@ -116,7 +116,7 @@ fn trace_defaults_to_tool_trace_when_flag_absent() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "validation passed for 'tool/trace'",
+            "[✓] tool/trace: validation passed",
         ))
         .stderr(predicate::str::contains(
             "auto-discovered trace root 'tool/trace'",
@@ -140,7 +140,7 @@ fn trace_falls_back_to_cert_trace_when_tool_trace_absent() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "validation passed for 'cert/trace'",
+            "[✓] cert/trace: validation passed",
         ))
         .stderr(predicate::str::contains(
             "auto-discovered trace root 'cert/trace'",
@@ -167,6 +167,6 @@ fn explicit_trace_roots_wins_over_discovery() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "validation passed for 'custom/trace'",
+            "[✓] custom/trace: validation passed",
         ));
 }
