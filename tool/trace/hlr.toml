@@ -1377,3 +1377,43 @@ surface contract.
 surfaces = ["agent MCP surface"]
 verification_methods = ["test"]
 traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
+
+[[requirements]]
+uid = "0ba7d479-c45b-4786-9ff9-7e7a75565765"
+id = "HLR-062"
+title = "MCP exposes evidence_floors so agents can query the ratchet-gate state"
+owner = "tool"
+scope = "component"
+description = """
+`evidence_floors` is an agent-facing MCP tool that wraps
+`cargo evidence floors --format=jsonl`: read-only ratchet-
+state query over the workspace. Responds with the same
+`JsonlToolResponse` shape as `evidence_doctor` /
+`evidence_check`:
+
+  - `terminal` — `FLOORS_OK` (all dimensions satisfied) or
+    `FLOORS_FAIL` (one or more dimensions below committed
+    floor) on well-formed runs; one of the `MCP_*` error
+    terminals on subprocess failure (LLR-064).
+  - `diagnostics` — one `FLOORS_DIMENSION_OK` /
+    `FLOORS_BELOW_MIN` per measured dimension, in stream
+    order. Agents pattern-match on `.code` to enumerate
+    violations.
+  - `summary` — per-code frequency map.
+  - `exit_code` — 0 on `FLOORS_OK`, 2 on `FLOORS_FAIL` or
+    tool-layer failure.
+
+Input: optional `workspace_path`; missing path resolves to
+server CWD and prepends the `MCP_WORKSPACE_FALLBACK` warning
+(HLR-054).
+
+Intended usage: agents driving a PR-review workflow use
+`evidence_floors` to diagnose a red ratchet gate without
+clone-and-build. An LLM receiving the structured stream can
+name each dimension that regressed — `diagnostic_codes`,
+`trace_llr`, `per_crate.evidence-mcp.test_count`, etc. — and
+suggest fixes that only touch the specific inputs.
+"""
+surfaces = ["agent MCP surface"]
+verification_methods = ["test"]
+traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]

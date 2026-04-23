@@ -861,3 +861,29 @@ test_selectors = [
     "mcp_ping_surface::evidence_ping_rejects_unknown_field_typo",
     "server::tests::ping_response_shapes_for_matched_skewed_probe_failed",
 ]
+
+[[tests]]
+uid = "65e2d3df-102f-403d-9973-aabc3c0f7c2c"
+id = "TEST-067"
+title = "evidence_floors pipes the CLI's JSONL stream through the MCP surface"
+owner = "tool"
+traces_to = ["bb4cf169-cb26-4c99-b647-3854406e33f2"]
+description = """
+Pins the three shape legs of LLR-067's contract:
+
+- `evidence_floors` on the self-repo terminates with
+  `FLOORS_OK` (the workspace's ratchet gate is green) and
+  carries `FLOORS_DIMENSION_OK` entries in `diagnostics` —
+  one per measured dimension.
+- Omitting `workspace_path` prepends `MCP_WORKSPACE_FALLBACK`
+  as the first diagnostic (same convention as the other
+  streaming verbs).
+- `#[serde(deny_unknown_fields)]` on `FloorsRequest` rejects a
+  typo'd argument at the MCP layer rather than falling
+  through to the CLI.
+"""
+test_selectors = [
+    "mcp_floors_surface::evidence_floors_on_self_repo_terminates_with_floors_ok",
+    "mcp_floors_surface::evidence_floors_missing_workspace_path_emits_fallback_signal",
+    "mcp_floors_surface::evidence_floors_rejects_unknown_field_typo",
+]

@@ -1981,3 +1981,47 @@ diagnostic would be redundant on a verb whose whole purpose
 is reporting the skew state.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "bb4cf169-cb26-4c99-b647-3854406e33f2"
+id = "LLR-067"
+title = "evidence_floors handler wraps cargo evidence floors --format=jsonl"
+owner = "tool"
+traces_to = ["0ba7d479-c45b-4786-9ff9-7e7a75565765"]
+modules = [
+    "evidence_mcp::server",
+    "evidence_mcp::schema",
+]
+derived = false
+description = """
+Fifth `#[tool]` on `Server`, alongside `evidence_rules`,
+`evidence_doctor`, `evidence_check`, `evidence_ping`. Takes
+optional `workspace_path` (same input shape as
+`evidence_doctor`: `FloorsRequest` with
+`#[serde(deny_unknown_fields)]`).
+
+Handler body mirrors `evidence_doctor`:
+
+  1. `resolve_workspace(req.workspace_path.as_deref())?` —
+     returns the resolved CWD plus a `WorkspaceResolution`
+     tag. Given-path is honored; absent-path resolves to
+     server CWD with a `MCP_WORKSPACE_FALLBACK` warning
+     prepended.
+  2. `run_evidence(&["floors", "--format=jsonl"], &cwd)` —
+     spawn the CLI under the subprocess-timeout cap
+     (LLR-065). Subprocess failure maps to the structured
+     diagnostic path via `jsonl_response_from_run_error`
+     (LLR-064).
+  3. `parse_jsonl(&captured.stdout)` — stream one
+     `FLOORS_DIMENSION_OK` / `FLOORS_BELOW_MIN` per measured
+     dimension, terminating with `FLOORS_OK` or
+     `FLOORS_FAIL`.
+  4. Prepend `MCP_WORKSPACE_FALLBACK` on fallback resolution,
+     then `MCP_VERSION_SKEW` / `MCP_VERSION_PROBE_FAILED` on
+     skew — same chaining the other streaming verbs use.
+
+No new diagnostic codes. `FLOORS_*` codes already exist in
+`RULES`; `evidence_floors` is a pass-through over the CLI's
+stream shape.
+"""
+verification_methods = ["test"]
