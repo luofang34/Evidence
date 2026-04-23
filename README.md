@@ -328,8 +328,10 @@ shape, same exit codes.
 
 **`verify` remains supported as the low-level primitive** for CI
 scripts and bash pipelines that want a stable bundle-only surface
-without argument-shape inference. MCP (planned) wraps `check`, not
-`verify`: one agent verb, one MCP tool.
+without argument-shape inference. The `evidence-mcp` wrapper exposes
+`check` as one of three MCP tools (alongside `rules` and `doctor`);
+it does not expose `verify` because `check` in bundle mode already
+delegates to it.
 
 ### `cargo evidence generate`
 
@@ -495,8 +497,8 @@ cargo evidence rules         # human table
 ```
 
 Each entry carries `code`, `severity`, `domain`, `has_fix_hint`, and
-`terminal`. This is the self-describe endpoint the MCP wrapper (when
-published) consumes; every code here is (a) backed by a
+`terminal`. This is the self-describe endpoint `evidence-mcp`
+consumes; every code here is (a) backed by a
 `DiagnosticCode::code()` impl or by the `TERMINAL_CODES` /
 `HAND_EMITTED_CLI_CODES` sets, and (b)
 claimed by at least one LLR's `emits` list in

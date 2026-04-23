@@ -100,8 +100,8 @@ pub fn cmd_trace(
                         "status": "skipped",
                         "message": "trace root does not exist"
                     }));
-                } else {
-                    eprintln!("warning: trace root '{}' does not exist, skipping", root);
+                } else if !jsonl_output {
+                    eprintln!("[⚠] {}: trace root does not exist, skipping", root);
                 }
                 continue;
             }
@@ -167,7 +167,7 @@ pub fn cmd_trace(
                         // No per-root event on success; the terminal
                         // covers the aggregate pass signal.
                     } else {
-                        println!("trace: validation passed for '{}'", root);
+                        println!("[✓] {}: validation passed", root);
                     }
                 }
                 (Err(e), _) => {
@@ -180,7 +180,7 @@ pub fn cmd_trace(
                             "message": e.to_string()
                         }));
                     } else {
-                        eprintln!("trace: validation FAILED for '{}': {}", root, e);
+                        emit_link_errors_human(&e, root);
                     }
                     all_valid = false;
                 }
@@ -210,13 +210,17 @@ pub fn cmd_trace(
                             "message": prefixed,
                         }));
                     } else {
-                        eprintln!(
-                            "trace: validation FAILED for '{}': TRACE_SELECTOR_UNRESOLVED: {}",
-                            root, msg
-                        );
+                        eprintln!("[✗] {} (TRACE_SELECTOR_UNRESOLVED): {}", root, msg);
                     }
                     all_valid = false;
                 }
+            }
+        }
+        if !json_output && !jsonl_output {
+            if all_valid {
+                println!("\nTRACE_OK: {} trace root(s) validated", roots.len());
+            } else {
+                eprintln!("\nTRACE_FAIL: at least one trace root has unresolved errors");
             }
         }
         if json_output {
@@ -370,6 +374,28 @@ pub fn default_trace_roots(workspace_root: &Path) -> Vec<String> {
 /// `TRACE_REGISTER_FAILED` aggregate event with the concatenated
 /// messages in the payload — typed per-variant Register-phase codes
 /// are a separate follow-up.
+/// Human-mode renderer for a [`TraceValidationError`]. Mirrors the
+/// jsonl expansion: one `[✗]` line per `LinkError` variant so each
+/// failure carries its typed `code()` in-line, or a single
+/// `TRACE_REGISTER_FAILED` line for register-phase aggregation.
+/// stderr so stdout stays the structured channel.
+fn emit_link_errors_human(err: &TraceValidationError, root: &str) {
+    match err {
+        TraceValidationError::Link { errors } => {
+            for le in errors {
+                eprintln!("[✗] {} ({}): {}", root, le.code(), le);
+            }
+        }
+        TraceValidationError::Register { errors } => {
+            eprintln!(
+                "[✗] {} (TRACE_REGISTER_FAILED): {}",
+                root,
+                errors.join("; ")
+            );
+        }
+    }
+}
+
 fn emit_link_errors_jsonl(err: &TraceValidationError, root: &str) -> Result<()> {
     match err {
         TraceValidationError::Link { errors } => {
