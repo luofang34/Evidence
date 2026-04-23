@@ -806,3 +806,30 @@ test_selectors = [
     "mcp_failure_surface::evidence_check_cargo_not_found_returns_structured_diagnostic",
     "mcp_codes_audit::every_mcp_code_emitted_in_source",
 ]
+
+[[tests]]
+uid = "e7e350a1-0aaf-4ece-b73d-cfcdcd68d569"
+id = "TEST-065"
+title = "EVIDENCE_MCP_TIMEOUT_SECS overrides spawn cap; out-of-range clamps"
+owner = "tool"
+traces_to = ["acd0506f-3442-45f4-9256-fcde9d1b82ce"]
+description = """
+Pins the three legs of LLR-065's contract:
+
+- Unset / empty / malformed env yields the 600-second default
+  and does not panic.
+- Valid in-range values become the effective timeout.
+- Out-of-range values (below 60 or above 7200) clamp to the
+  nearest bound and the diagnostic's `timeout_secs` reports
+  the clamped value.
+- A `cargo evidence` spawn that exceeds the effective timeout
+  surfaces as `MCP_SUBPROCESS_TIMEOUT` at the MCP surface
+  (structured `JsonlToolResponse`, `exit_code == 2`).
+"""
+test_selectors = [
+    "subprocess::tests::spawn_timeout_defaults_when_env_unset",
+    "subprocess::tests::spawn_timeout_parses_valid_value",
+    "subprocess::tests::spawn_timeout_clamps_below_minimum",
+    "subprocess::tests::spawn_timeout_clamps_above_maximum",
+    "subprocess::tests::spawn_timeout_falls_back_on_malformed_env",
+]
