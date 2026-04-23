@@ -18,7 +18,8 @@ use rmcp::{
 };
 
 use crate::schema::{
-    CheckRequest, DoctorRequest, JsonlToolResponse, RulesRequest, RulesToolResponse,
+    CheckRequest, DoctorRequest, JsonlToolResponse, PingRequest, PingResponse, RulesRequest,
+    RulesToolResponse,
 };
 use crate::subprocess::{MCP_MALFORMED_JSONL, RunError, parse_jsonl, run_evidence};
 use crate::version_probe::{VersionSkew, detect_with_probe, probe_cli_version, skew_diagnostic};
@@ -244,6 +245,31 @@ impl Server {
             summary,
         }))
     }
+
+    /// `evidence_ping` — cheap liveness + version-skew probe.
+    ///
+    /// Takes no arguments. Returns the cached `VersionSkew`
+    /// captured at `Server::new()` packaged as [`PingResponse`] — no
+    /// subprocess spawn per call. Hosts use this as a reachability
+    /// check before issuing expensive verbs (`evidence_check
+    /// --mode=source` can run `cargo test --workspace` for
+    /// minutes); ping is fast enough to call on every agent loop
+    /// iteration.
+    #[tool(
+        name = "evidence_ping",
+        description = "Cheap liveness + version-skew probe. Returns evidence-mcp's version, \
+                       the cached cargo-evidence version from the startup probe, and a skew \
+                       tag (matched / skewed / probe_failed). Does NOT spawn a subprocess per \
+                       call — the handler reads the VersionSkew captured at server startup. \
+                       Use as a reachability check before invoking evidence_check in source \
+                       mode or other expensive verbs."
+    )]
+    pub async fn evidence_ping(
+        &self,
+        _params: Parameters<PingRequest>,
+    ) -> Result<Json<PingResponse>, String> {
+        Ok(Json(ping_response_from_skew(&self.version_skew)))
+    }
 }
 
 impl Default for Server {
@@ -356,5 +382,72 @@ fn rules_response_from_run_error(
         count: 0,
         warnings,
         error: Some(mcp_diagnostic(code, &message)),
+    }
+}
+
+/// Build a [`PingResponse`] from the cached [`VersionSkew`]. Pure
+/// function on the enum — no spawn, no env access, testable in
+/// isolation for every variant.
+fn ping_response_from_skew(skew: &VersionSkew) -> PingResponse {
+    let mcp_version = env!("CARGO_PKG_VERSION").to_string();
+    match skew {
+        VersionSkew::Matched => PingResponse {
+            mcp_version: mcp_version.clone(),
+            cli_version: Some(mcp_version),
+            skew: "matched".to_string(),
+            probe_error: None,
+        },
+        VersionSkew::Skewed { cli, .. } => PingResponse {
+            mcp_version,
+            cli_version: Some(cli.clone()),
+            skew: "skewed".to_string(),
+            probe_error: None,
+        },
+        VersionSkew::ProbeFailed(reason) => PingResponse {
+            mcp_version,
+            cli_version: None,
+            skew: "probe_failed".to_string(),
+            probe_error: Some(reason.clone()),
+        },
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+mod tests {
+    use super::*;
+
+    /// TEST-066 selector: `ping_response_from_skew` maps every
+    /// `VersionSkew` variant to the documented `PingResponse`
+    /// shape. Pins the field-level contract for each branch.
+    #[test]
+    fn ping_response_shapes_for_matched_skewed_probe_failed() {
+        let mcp = env!("CARGO_PKG_VERSION").to_string();
+
+        let matched = ping_response_from_skew(&VersionSkew::Matched);
+        assert_eq!(matched.mcp_version, mcp);
+        assert_eq!(matched.cli_version.as_deref(), Some(mcp.as_str()));
+        assert_eq!(matched.skew, "matched");
+        assert!(matched.probe_error.is_none());
+
+        let skewed = ping_response_from_skew(&VersionSkew::Skewed {
+            mcp: mcp.clone(),
+            cli: "0.0.1-stale".to_string(),
+        });
+        assert_eq!(skewed.mcp_version, mcp);
+        assert_eq!(skewed.cli_version.as_deref(), Some("0.0.1-stale"));
+        assert_eq!(skewed.skew, "skewed");
+        assert!(skewed.probe_error.is_none());
+
+        let failed = ping_response_from_skew(&VersionSkew::ProbeFailed("no such file".to_string()));
+        assert_eq!(failed.mcp_version, mcp);
+        assert!(failed.cli_version.is_none());
+        assert_eq!(failed.skew, "probe_failed");
+        assert_eq!(failed.probe_error.as_deref(), Some("no such file"));
     }
 }

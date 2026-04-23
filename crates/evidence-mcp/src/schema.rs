@@ -1,5 +1,5 @@
-//! Tool input/output schemas, shared across the three `#[tool]`
-//! methods on [`crate::Server`].
+//! Tool input/output schemas, shared across the `#[tool]` methods
+//! on [`crate::Server`].
 //!
 //! The `JsonSchema` derive is what rmcp reads to advertise tool
 //! argument shapes to agents. Field-level doc comments become the
@@ -152,4 +152,44 @@ pub struct RulesToolResponse {
     /// `severity == "error"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<serde_json::Value>,
+}
+
+/// Empty-input marker for `evidence_ping`. `deny_unknown_fields`
+/// matches the convention for the other MCP verb inputs — a
+/// typo in the arguments object fails loud instead of running
+/// silently. Required by HLR-054 / LLR-054.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PingRequest {}
+
+/// Response shape for `evidence_ping` — a cheap liveness +
+/// version-skew probe that does not spawn a subprocess.
+///
+/// `skew` is a short string tag rather than an enum variant
+/// name so the JSON Schema is flat and agents pattern-match on
+/// the string without serde-format coupling. Values are fixed
+/// at the three `VersionSkew` outcomes: `"matched"`, `"skewed"`,
+/// `"probe_failed"`.
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct PingResponse {
+    /// evidence-mcp's `CARGO_PKG_VERSION` at build time.
+    /// Always present.
+    pub mcp_version: String,
+
+    /// The cargo-evidence version captured by the one-shot
+    /// startup probe. `Some(v)` on `"matched"` / `"skewed"`;
+    /// `None` on `"probe_failed"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cli_version: Option<String>,
+
+    /// Cached liveness state. One of `"matched"`, `"skewed"`,
+    /// `"probe_failed"`. See [`crate::schema`] module doc for
+    /// interpretation.
+    pub skew: String,
+
+    /// Populated only when `skew == "probe_failed"`, carrying
+    /// the reason string captured at probe time (e.g.,
+    /// `"cargo evidence --version spawn failed: no such file"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub probe_error: Option<String>,
 }

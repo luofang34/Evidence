@@ -857,7 +857,7 @@ Pins the three shape legs of LLR-066's contract:
   three MCP verbs (HLR-054).
 """
 test_selectors = [
-    "mcp_surface::evidence_ping_matched_returns_versions_and_matched_skew",
-    "mcp_surface::evidence_ping_rejects_unknown_field_typo",
+    "mcp_ping_surface::evidence_ping_matched_returns_versions_and_matched_skew",
+    "mcp_ping_surface::evidence_ping_rejects_unknown_field_typo",
     "server::tests::ping_response_shapes_for_matched_skewed_probe_failed",
 ]
