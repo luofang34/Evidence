@@ -9,6 +9,8 @@
 //! Agents pattern-matching on `serverInfo.name` need the tool's
 //! real identity — LLR-062 pins it.
 
+use std::sync::Arc;
+
 use rmcp::{
     Json, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -19,10 +21,16 @@ use crate::schema::{
     CheckRequest, DoctorRequest, JsonlToolResponse, RulesRequest, RulesToolResponse,
 };
 use crate::subprocess::{parse_jsonl, run_evidence};
+use crate::version_probe::{VersionSkew, detect_with_probe, probe_cli_version, skew_diagnostic};
 use crate::workspace::{WorkspaceResolution, resolve_workspace, workspace_fallback_diagnostic};
 
-/// MCP server handle. Stateless — every tool call resolves its
-/// workspace path independently and spawns a fresh subprocess.
+/// MCP server handle. Stateless per-request — each tool call
+/// resolves its workspace path independently and spawns a fresh
+/// subprocess. The one piece of server-lifetime state is
+/// `version_skew`, captured once at [`Server::new`] via a
+/// startup probe of `cargo evidence --version`; each tool
+/// response prepends a warning diagnostic when the probe
+/// detected a mismatch.
 ///
 /// Construct via [`Server::new`] (or `Default::default`) and call
 /// `server.serve(rmcp::transport::io::stdio()).await?.waiting().await?`
@@ -30,6 +38,10 @@ use crate::workspace::{WorkspaceResolution, resolve_workspace, workspace_fallbac
 #[derive(Debug, Clone)]
 pub struct Server {
     tool_router: ToolRouter<Self>,
+    /// Cached outcome of the `cargo evidence --version` probe.
+    /// `Arc` so `#[derive(Clone)]` (required by rmcp) doesn't
+    /// copy the strings per-request.
+    version_skew: Arc<VersionSkew>,
 }
 
 // `name = "evidence-mcp"` overrides rmcp's default
@@ -44,9 +56,14 @@ impl ServerHandler for Server {}
 impl Server {
     /// Build a fresh server handle. Registers the tool methods on
     /// construction via the `ToolRouter::new`-generated factory.
+    /// Also runs the one-shot version probe so subsequent tool
+    /// responses can prepend the `MCP_VERSION_SKEW` /
+    /// `MCP_VERSION_PROBE_FAILED` warning without paying the
+    /// subprocess-spawn cost per call.
     pub fn new() -> Self {
         Self {
             tool_router: Self::tool_router(),
+            version_skew: Arc::new(detect_with_probe(probe_cli_version)),
         }
     }
 
@@ -74,10 +91,14 @@ impl Server {
         let rules: Vec<serde_json::Value> = serde_json::from_slice(&captured.stdout)
             .map_err(|e| format!("cargo evidence rules --json produced invalid JSON: {e}"))?;
         let count = rules.len();
+        let warnings = skew_diagnostic(&self.version_skew)
+            .map(|d| vec![d])
+            .unwrap_or_default();
         Ok(Json(RulesToolResponse {
             exit_code: captured.exit_code,
             rules,
             count,
+            warnings,
         }))
     }
 
@@ -110,6 +131,7 @@ impl Server {
             .map_err(|e| e.to_string())?;
         let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
         prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
+        prepend_skew_signal(&self.version_skew, &mut diagnostics, &mut summary);
         Ok(Json(JsonlToolResponse {
             exit_code: captured.exit_code,
             terminal,
@@ -166,6 +188,7 @@ impl Server {
             .map_err(|e| e.to_string())?;
         let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
         prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
+        prepend_skew_signal(&self.version_skew, &mut diagnostics, &mut summary);
         Ok(Json(JsonlToolResponse {
             exit_code: captured.exit_code,
             terminal,
@@ -199,4 +222,28 @@ fn prepend_fallback_signal(
     *summary
         .entry("MCP_WORKSPACE_FALLBACK".to_string())
         .or_insert(0) += 1;
+}
+
+/// Prepend `MCP_VERSION_SKEW` / `MCP_VERSION_PROBE_FAILED` when
+/// the server's cached skew outcome is not `Matched`. No-op on
+/// match. Both the diagnostic vec and the summary map get
+/// updated so agents reading either surface see the same
+/// signal.
+fn prepend_skew_signal(
+    skew: &VersionSkew,
+    diagnostics: &mut Vec<serde_json::Value>,
+    summary: &mut std::collections::BTreeMap<String, u32>,
+) {
+    let Some(diag) = skew_diagnostic(skew) else {
+        return;
+    };
+    let code = diag
+        .get("code")
+        .and_then(|c| c.as_str())
+        .unwrap_or("")
+        .to_string();
+    diagnostics.insert(0, diag);
+    if !code.is_empty() {
+        *summary.entry(code).or_insert(0) += 1;
+    }
 }

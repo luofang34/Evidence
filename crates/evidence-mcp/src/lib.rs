@@ -7,20 +7,22 @@
 //!
 //! The CLI's JSONL output shape is the stable contract (tested by
 //! `crates/cargo-evidence/tests/verify_jsonl.rs` and siblings).
-//! `evidence_mcp` does not introduce new diagnostic codes — every
-//! `.code` string in a tool response already exists in
-//! `evidence_core::RULES`. Tool-layer failure signals
-//! (`BinaryNotFound`, `MalformedJsonl`, `CHECK_TIMEOUT`) surface as
-//! structured errors in the tool response, not as new public codes.
+//! MCP-layer diagnostics (`MCP_WORKSPACE_FALLBACK`, `MCP_VERSION_SKEW`,
+//! `MCP_VERSION_PROBE_FAILED`) are registered in
+//! `evidence_core::RULES`; everything else comes from the CLI's
+//! stream. Tool-layer failure modes (`BinaryNotFound`,
+//! `MalformedJsonl`, `CHECK_TIMEOUT`) surface as structured errors
+//! in the tool response, not as new public codes.
 //!
-//! See [`Server`] for the handler + tool methods. See SYS-018 /
-//! HLR-050 / LLR-050 / TEST-050 in `tool/trace/` for the requirements
-//! chain behind this crate; LLR-062 covers the `serverInfo` identity
-//! override and the `lib.rs`-as-facade split.
+//! See [`Server`] for the handler + tool methods. Requirements
+//! chain: SYS-018 / HLR-050 / LLR-050 / TEST-050 for the crate
+//! itself; LLR-062 for the `serverInfo` identity override and the
+//! `lib.rs`-as-facade split; LLR-063 for the version-skew probe.
 
 pub mod schema;
 mod server;
 mod subprocess;
+mod version_probe;
 mod workspace;
 
 pub use server::Server;

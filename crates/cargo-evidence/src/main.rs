@@ -39,6 +39,38 @@ use cli::trace::cmd_trace;
 use cli::verify::cmd_verify;
 
 fn main() {
+    // When invoked directly (`cargo-evidence --version` vs. `cargo
+    // evidence --version`), argv[1] is the user's flag, not the
+    // `"evidence"` subcommand token cargo prepends. Clap's CargoCli
+    // only recognizes the subcommand-dispatch form and rejects
+    // bare `--version` / `--help` with
+    // `unexpected argument '--version' found`. Intercept the two
+    // introspection flags at the binary entry-point so direct
+    // invocation sanity-checks work the same way every other CLI
+    // does. `cargo evidence --version` keeps going through clap's
+    // `#[command(version)]` auto-handler on `EvidenceArgs`.
+    if let Some(flag) = std::env::args().nth(1) {
+        match flag.as_str() {
+            "-V" | "--version" => {
+                println!("cargo-evidence {}", env!("CARGO_PKG_VERSION"));
+                std::process::exit(0);
+            }
+            "-h" | "--help" => {
+                println!(
+                    "cargo-evidence {} — DO-178C / DO-330 evidence bundles for Rust crates.\n\
+                     \n\
+                     Invoke as a cargo subcommand:\n\
+                     \n\
+                       cargo evidence <COMMAND> [ARGS]\n\
+                     \n\
+                     See `cargo evidence --help` for the full command list.",
+                    env!("CARGO_PKG_VERSION")
+                );
+                std::process::exit(0);
+            }
+            _ => {}
+        }
+    }
     let exit_code = run();
     std::process::exit(exit_code);
 }

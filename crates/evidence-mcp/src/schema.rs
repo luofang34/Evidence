@@ -114,4 +114,14 @@ pub struct RulesToolResponse {
     /// `evidence_core::RULES.len()` for a drift check without
     /// deserializing every entry.
     pub count: usize,
+
+    /// Server-layer warnings synthesized by the MCP wrapper, not
+    /// by the underlying CLI. Carries `MCP_VERSION_SKEW` /
+    /// `MCP_VERSION_PROBE_FAILED` when a mismatch between
+    /// `evidence-mcp` and the spawned `cargo-evidence` is
+    /// detected. Empty in the happy path. Separate from `rules`
+    /// so an agent consuming the manifest doesn't have to
+    /// filter out server signals.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<serde_json::Value>,
 }

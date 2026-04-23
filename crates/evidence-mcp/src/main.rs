@@ -29,6 +29,40 @@ fn init_tracing() {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Intercept `--version` / `--help` before the stdio transport
+    // takes over. Without this, `evidence-mcp --version` hangs on
+    // the MCP initialize handshake and eventually returns the
+    // cryptic `connection closed: initialize request` — wrong
+    // answer to "which version did I just install?".
+    if let Some(flag) = std::env::args().nth(1) {
+        match flag.as_str() {
+            "-V" | "--version" => {
+                println!("evidence-mcp {}", env!("CARGO_PKG_VERSION"));
+                return Ok(());
+            }
+            "-h" | "--help" => {
+                println!(
+                    "evidence-mcp {} — MCP server exposing `cargo evidence` to AI agents.\n\
+                     \n\
+                     This binary speaks the Model Context Protocol over stdio and is\n\
+                     intended to be launched by an MCP host (Claude Desktop, Claude\n\
+                     Code, etc.), not invoked directly from the shell.\n\
+                     \n\
+                     Host-registration examples:\n\
+                     \n\
+                       Claude Code:    claude mcp add evidence evidence-mcp\n\
+                       Claude Desktop: see crates.io/crates/evidence-mcp\n\
+                     \n\
+                     Flags:\n\
+                       -V, --version    Print version and exit\n\
+                       -h, --help       Print this help and exit",
+                    env!("CARGO_PKG_VERSION")
+                );
+                return Ok(());
+            }
+            _ => {}
+        }
+    }
     init_tracing();
     let service = Server::default().serve(stdio()).await?;
     service.waiting().await?;
