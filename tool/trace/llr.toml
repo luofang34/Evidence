@@ -1406,3 +1406,43 @@ emits = [
     "COVERAGE_OK",
     "COVERAGE_PARSE_FAILED",
 ]
+
+[[requirements]]
+uid = "02c17b07-0364-4769-ae43-e86a139c25c3"
+id = "LLR-054"
+title = "schema deny_unknown_fields + MCP_WORKSPACE_FALLBACK synthetic diagnostic"
+owner = "tool"
+traces_to = ["00a8b5e6-5526-49a3-902d-870662afe3a5"]
+modules = [
+    "evidence_mcp::schema::CheckRequest",
+    "evidence_mcp::schema::DoctorRequest",
+    "evidence_mcp::schema::RulesRequest",
+    "evidence_mcp::resolve_workspace",
+    "evidence_mcp::emit_workspace_fallback_diagnostic",
+]
+derived = false
+description = """
+Each of the three MCP tool input structs gains
+`#[serde(deny_unknown_fields)]` so a typo'd field name produces
+a clear serde error response at the JSON-RPC layer instead of
+being silently dropped. `resolve_workspace` returns
+`(PathBuf, WorkspaceResolution)` where `WorkspaceResolution`
+distinguishes `Given` (explicit absolute or relative path) from
+`Fallback` (workspace_path was `None`, used server CWD).
+
+`evidence_check` and `evidence_doctor` inspect the
+`WorkspaceResolution` and, when it is `Fallback`, prepend a
+synthetic `{code: "MCP_WORKSPACE_FALLBACK", severity: "warning",
+message: "workspace_path omitted; using MCP server CWD ..."}`
+entry to the `diagnostics` vector before the parsed CLI output.
+The `summary` frequency map is updated correspondingly. Agents
+inspecting `.diagnostics[].code` see the fallback signal ahead
+of the per-check results.
+
+`evidence_rules` does not accept `workspace_path` and therefore
+emits no fallback signal; adding `deny_unknown_fields` there is
+still correctness — rejects `{"workspace_path": "..."}` from a
+confused agent rather than silently ignoring it.
+"""
+verification_methods = ["test"]
+emits = ["MCP_WORKSPACE_FALLBACK"]

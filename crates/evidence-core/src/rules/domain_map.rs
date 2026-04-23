@@ -38,6 +38,7 @@ impl Domain {
             b"GIT" => Some(Self::Git),
             b"INIT" => Some(Self::Init),
             b"HASH" => Some(Self::Hash),
+            b"MCP" => Some(Self::Mcp),
             b"POLICY" => Some(Self::Policy),
             b"REQ" => Some(Self::Req),
             b"SCHEMA" => Some(Self::Schema),

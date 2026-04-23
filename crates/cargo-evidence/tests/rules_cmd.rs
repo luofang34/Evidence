@@ -152,6 +152,7 @@ fn rules_json_every_entry_has_known_severity_and_domain() {
                     | "git"
                     | "hash"
                     | "init"
+                    | "mcp"
                     | "policy"
                     | "req"
                     | "schema"

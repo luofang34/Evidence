@@ -34,7 +34,7 @@ use serde_json::{Value, json};
 /// irrelevant to this test. `assert_cmd::cargo::cargo_bin`
 /// returns paths under `target/<profile>/`; its parent is the
 /// right dir to prepend to `PATH`.
-fn spawn_server() -> Child {
+fn spawn_server_with_cwd(cwd: Option<&std::path::Path>) -> Child {
     let bin = assert_cmd::cargo::cargo_bin("evidence-mcp");
     assert!(
         bin.exists(),
@@ -54,13 +54,15 @@ fn spawn_server() -> Child {
         entries.extend(std::env::split_paths(&existing));
     }
     let new_path = std::env::join_paths(entries).expect("valid PATH entries");
-    Command::new(&bin)
-        .env("PATH", new_path)
+    let mut cmd = Command::new(&bin);
+    cmd.env("PATH", new_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn evidence-mcp")
+        .stderr(Stdio::piped());
+    if let Some(path) = cwd {
+        cmd.current_dir(path);
+    }
+    cmd.spawn().expect("spawn evidence-mcp")
 }
 
 /// Drive a scripted MCP session. Writes each frame on its own
@@ -68,7 +70,15 @@ fn spawn_server() -> Child {
 /// then reads back `expect_responses` response lines and returns
 /// them parsed.
 fn session(frames: &[Value], expect_responses: usize) -> Vec<Value> {
-    let mut child = spawn_server();
+    session_in(frames, expect_responses, None)
+}
+
+fn session_in(
+    frames: &[Value],
+    expect_responses: usize,
+    cwd: Option<&std::path::Path>,
+) -> Vec<Value> {
+    let mut child = spawn_server_with_cwd(cwd);
     let mut stdin: ChildStdin = child.stdin.take().expect("stdin");
     let stdout: ChildStdout = child.stdout.take().expect("stdout");
     let mut reader = BufReader::new(stdout);
@@ -364,4 +374,116 @@ fn evidence_check_source_on_self_repo_is_opt_in() {
         "expected VERIFY_OK terminal; structured={structured}"
     );
     assert_eq!(structured["exit_code"].as_i64(), Some(0));
+}
+
+/// TEST-054 selector: a typo'd argument field on an
+/// `evidence_check` call (e.g. `workspace` instead of
+/// `workspace_path`) must fail at the MCP layer with a clear
+/// error — not be silently dropped and fall through to the
+/// server's CWD. Pins the `#[serde(deny_unknown_fields)]`
+/// contract on `CheckRequest`.
+#[test]
+fn evidence_check_rejects_unknown_field_typo() {
+    let mut frames = init_frames();
+    frames.push(json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "evidence_check",
+            "arguments": {
+                // Typo: missing `_path` suffix. Pre-fix, this
+                // would silently deserialize as an empty
+                // CheckRequest and fall through to server CWD.
+                "workspace": "/tmp/wrong-dir"
+            }
+        }
+    }));
+
+    let responses = session(&frames, 2);
+    assert_eq!(responses.len(), 2, "responses: {responses:?}");
+    let call_resp = &responses[1];
+    // rmcp surfaces serde deserialization failures as a JSON-RPC
+    // error object (or a structured tool error). Either shape is
+    // acceptable as long as it's NOT a successful run against
+    // server CWD. Pin "not a silent-success" by asserting either
+    // an error field exists or the terminal is an *_ERROR code.
+    let is_error = call_resp.get("error").is_some();
+    let terminal_is_error = call_resp
+        .pointer("/result/structuredContent/terminal")
+        .and_then(Value::as_str)
+        .is_some_and(|t| t.ends_with("_ERROR") || t.ends_with("_FAIL"));
+    let is_error_flag = call_resp
+        .pointer("/result/isError")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    assert!(
+        is_error || terminal_is_error || is_error_flag,
+        "expected either a JSON-RPC error, an *_ERROR/*_FAIL terminal, or isError:true \
+         on a typo'd field; got a clean success: {call_resp}"
+    );
+}
+
+/// TEST-054 selector: when a request omits `workspace_path`,
+/// the MCP handler MUST prepend a synthetic
+/// `MCP_WORKSPACE_FALLBACK` Warning diagnostic at the head of
+/// the returned `diagnostics` stream so the agent sees an
+/// observable signal before the CLI-produced diagnostics. The
+/// signal is the "agents don't silently run on the wrong
+/// workspace" contract.
+#[test]
+fn evidence_check_missing_workspace_path_emits_fallback_signal() {
+    // Spawn the server with an empty tempdir as CWD so the
+    // fallback "use server CWD" path lands somewhere that
+    // fails fast (no Cargo.toml → CLI_INVALID_ARGUMENT)
+    // instead of on the Evidence workspace root (where
+    // `cargo test --workspace` would run for minutes).
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let mut frames = init_frames();
+    frames.push(json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "evidence_check",
+            "arguments": {}
+        }
+    }));
+
+    let responses = session_in(&frames, 2, Some(tmp.path()));
+    assert_eq!(responses.len(), 2, "responses: {responses:?}");
+    let call_resp = &responses[1];
+    let structured = call_resp
+        .pointer("/result/structuredContent")
+        .unwrap_or_else(|| panic!("missing structuredContent: {call_resp}"));
+    let diagnostics = structured["diagnostics"]
+        .as_array()
+        .unwrap_or_else(|| panic!("diagnostics not array: {structured}"));
+
+    let first = diagnostics
+        .first()
+        .unwrap_or_else(|| panic!("diagnostics was empty: {structured}"));
+    assert_eq!(
+        first["code"].as_str(),
+        Some("MCP_WORKSPACE_FALLBACK"),
+        "first diagnostic must be the fallback signal; got {first}",
+    );
+    assert_eq!(
+        first["severity"].as_str(),
+        Some("warning"),
+        "fallback signal must be Warning severity; got {first}",
+    );
+
+    // Summary should include the fallback code with count >= 1.
+    let summary = structured["summary"]
+        .as_object()
+        .unwrap_or_else(|| panic!("summary not object: {structured}"));
+    assert!(
+        summary
+            .get("MCP_WORKSPACE_FALLBACK")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            >= 1,
+        "summary must track the fallback signal: {summary:?}"
+    );
 }

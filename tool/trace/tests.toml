@@ -639,3 +639,14 @@ test_selectors = [
     "coverage_e2e::coverage_none_does_not_invoke_llvmcov",
     "coverage_e2e::coverage_line_on_dev_degrades_gracefully_when_llvmcov_missing",
 ]
+
+[[tests]]
+uid = "1c3bf7f3-6b30-490c-a299-36667f7ed909"
+id = "TEST-054"
+title = "MCP handlers reject unknown-field typos + surface workspace-fallback signal"
+owner = "tool"
+traces_to = ["02c17b07-0364-4769-ae43-e86a139c25c3"]
+test_selectors = [
+    "mcp_surface::evidence_check_rejects_unknown_field_typo",
+    "mcp_surface::evidence_check_missing_workspace_path_emits_fallback_signal",
+]

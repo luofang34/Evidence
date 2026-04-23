@@ -109,11 +109,12 @@ impl Server {
         &self,
         Parameters(req): Parameters<DoctorRequest>,
     ) -> Result<Json<JsonlToolResponse>, String> {
-        let cwd = resolve_workspace(req.workspace_path.as_deref())?;
+        let (cwd, resolution) = resolve_workspace(req.workspace_path.as_deref())?;
         let captured = run_evidence(&["doctor", "--format=jsonl"], &cwd)
             .await
             .map_err(|e| e.to_string())?;
-        let (terminal, diagnostics, summary) = parse_jsonl(&captured.stdout);
+        let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
+        prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
         Ok(Json(JsonlToolResponse {
             exit_code: captured.exit_code,
             terminal,
@@ -148,7 +149,7 @@ impl Server {
         &self,
         Parameters(req): Parameters<CheckRequest>,
     ) -> Result<Json<JsonlToolResponse>, String> {
-        let cwd = resolve_workspace(req.workspace_path.as_deref())?;
+        let (cwd, resolution) = resolve_workspace(req.workspace_path.as_deref())?;
         let mut args: Vec<String> = vec!["check".into(), "--format=jsonl".into()];
         if let Some(mode) = req.mode.as_deref() {
             // Validate the mode up front to give the agent a
@@ -168,7 +169,8 @@ impl Server {
         let captured = run_evidence(&args_refs, &cwd)
             .await
             .map_err(|e| e.to_string())?;
-        let (terminal, diagnostics, summary) = parse_jsonl(&captured.stdout);
+        let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
+        prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
         Ok(Json(JsonlToolResponse {
             exit_code: captured.exit_code,
             terminal,
@@ -178,29 +180,90 @@ impl Server {
     }
 }
 
+/// Prepend the synthetic `MCP_WORKSPACE_FALLBACK` diagnostic +
+/// bump the `summary` count when the caller fell back to server
+/// CWD. No-op for `WorkspaceResolution::Given`. Mutating both
+/// vec + map keeps the response self-consistent (agents pattern-
+/// matching on either surface see the same count).
+fn prepend_fallback_signal(
+    resolution: WorkspaceResolution,
+    cwd: &std::path::Path,
+    diagnostics: &mut Vec<serde_json::Value>,
+    summary: &mut std::collections::BTreeMap<String, u32>,
+) {
+    if resolution != WorkspaceResolution::Fallback {
+        return;
+    }
+    diagnostics.insert(0, workspace_fallback_diagnostic(cwd));
+    *summary
+        .entry("MCP_WORKSPACE_FALLBACK".to_string())
+        .or_insert(0) += 1;
+}
+
 impl Default for Server {
     fn default() -> Self {
         Self::new()
     }
 }
 
+/// Classification of how a tool call's working directory was
+/// chosen, returned alongside the resolved path by
+/// [`resolve_workspace`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum WorkspaceResolution {
+    /// The request supplied an explicit `workspace_path`. No
+    /// agent-facing signal is needed.
+    Given,
+    /// The request omitted `workspace_path`; the handler fell
+    /// back to the server's CWD. Callers that produce a
+    /// user-visible diagnostic stream prepend a
+    /// `MCP_WORKSPACE_FALLBACK` Warning so an agent typo of
+    /// "omitted" vs an intentional no-argument call is
+    /// distinguishable from the response (HLR-054 / LLR-054).
+    Fallback,
+}
+
 /// Resolve an optional workspace-path request field against the
 /// server's CWD. Absolute paths pass through; relative paths are
 /// joined onto `current_dir`. The resolved path is returned
 /// without canonicalization — the CLI itself handles existence
-/// checks and emits structured errors on missing paths.
-///
-pub(crate) fn resolve_workspace(path: Option<&str>) -> Result<PathBuf, String> {
+/// checks and emits structured errors on missing paths. The
+/// [`WorkspaceResolution`] return value distinguishes an
+/// explicit path from a CWD fallback so the caller can emit
+/// `MCP_WORKSPACE_FALLBACK` on the `Fallback` arm.
+pub(crate) fn resolve_workspace(
+    path: Option<&str>,
+) -> Result<(PathBuf, WorkspaceResolution), String> {
     let cwd = std::env::current_dir().map_err(|e| format!("cannot resolve server CWD: {e}"))?;
     match path {
-        None => Ok(cwd),
+        None => Ok((cwd, WorkspaceResolution::Fallback)),
         Some(p) => {
             let requested = PathBuf::from(p);
-            if requested.is_absolute() {
-                Ok(requested)
+            let resolved = if requested.is_absolute() {
+                requested
             } else {
-                Ok(cwd.join(requested))
-            }
+                cwd.join(requested)
+            };
+            Ok((resolved, WorkspaceResolution::Given))
         }
     }
+}
+
+/// Build a synthetic `MCP_WORKSPACE_FALLBACK` Warning diagnostic
+/// shaped like the JSONL entries the CLI emits, so agents can
+/// pattern-match on `.code` uniformly across both MCP-layer and
+/// CLI-layer diagnostics. `cwd` is embedded in the message so
+/// the agent sees which directory actually ran — turning a
+/// silent fallback into an observable contract (HLR-054).
+fn workspace_fallback_diagnostic(cwd: &std::path::Path) -> serde_json::Value {
+    serde_json::json!({
+        "code": "MCP_WORKSPACE_FALLBACK",
+        "severity": "warning",
+        "message": format!(
+            "workspace_path omitted; using MCP server CWD {:?}. \
+             Pass an explicit workspace_path to silence this warning.",
+            cwd
+        ),
+        "subcommand": "mcp",
+    })
 }
