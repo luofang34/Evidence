@@ -827,9 +827,10 @@ Pins the three legs of LLR-065's contract:
   (structured `JsonlToolResponse`, `exit_code == 2`).
 """
 test_selectors = [
-    "subprocess::tests::spawn_timeout_defaults_when_env_unset",
-    "subprocess::tests::spawn_timeout_parses_valid_value",
-    "subprocess::tests::spawn_timeout_clamps_below_minimum",
-    "subprocess::tests::spawn_timeout_clamps_above_maximum",
-    "subprocess::tests::spawn_timeout_falls_back_on_malformed_env",
+    "subprocess::tests::resolve_timeout_defaults_when_env_unset",
+    "subprocess::tests::resolve_timeout_defaults_when_env_empty",
+    "subprocess::tests::resolve_timeout_parses_valid_value",
+    "subprocess::tests::resolve_timeout_clamps_below_minimum",
+    "subprocess::tests::resolve_timeout_clamps_above_maximum",
+    "subprocess::tests::resolve_timeout_falls_back_on_malformed_env",
 ]

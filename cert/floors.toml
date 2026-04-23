@@ -84,7 +84,7 @@ test_count = 314
 test_count = 149
 
 [per_crate.evidence-mcp]
-test_count = 19
+test_count = 25
 
 # Per-crate ceilings. library_panics is a ceiling, not a floor:
 # more panics is always worse. Placing a ceiling dimension under
