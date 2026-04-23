@@ -113,387 +113,187 @@ pub(super) fn determine_objective_status(
     }
 }
 
-/// Determine status for Table A-7 (testing) objectives.
+/// Determine status for Table A-7 (testing) objectives. Dispatches
+/// to per-objective helpers so each arm is independently testable
+/// (DO-178C single-responsibility for verification); pre-split,
+/// a 137-line match body bundled eight distinct state machines
+/// into one function.
 fn determine_a7_status(obj: &Objective, dal: Dal, evidence: &CrateEvidence) -> Verdict {
     match obj.id {
-        "A7-1" | "A7-2" => {
-            // HLR-level testing. Only reports any credit when tests
-            // actually passed; Some(false)/None both fall into
-            // NotMet so a red test run can't prop up the objective.
-            match evidence.tests_passed {
-                Some(true) if evidence.has_test_results => (
-                    ObjectiveStatusKind::Partial,
-                    vec!["tests/cargo_test_stdout.txt".to_string()],
-                    Some("aggregate test results available; per-requirement mapping requires test_selector".to_string()),
-                ),
-                Some(false) => (
-                    ObjectiveStatusKind::NotMet,
-                    vec!["tests/cargo_test_stdout.txt".to_string()],
-                    Some("tests ran but at least one failed".to_string()),
-                ),
-                _ => (
-                    ObjectiveStatusKind::NotMet,
-                    vec![],
-                    Some("no test results in bundle".to_string()),
-                ),
-            }
-        }
-        "A7-3" | "A7-4" => {
-            // LLR-level testing. Per-test outcome atoms
-            // (`tests/test_outcomes.jsonl`) upgrade this from
-            // Partial → Met because an auditor asking "show me
-            // the result of TEST-046" resolves to a specific row
-            // instead of the workspace-aggregate boolean.
-            match (evidence.tests_passed, evidence.has_per_test_outcomes) {
-                (Some(true), true) if evidence.has_test_results => (
-                    ObjectiveStatusKind::Met,
-                    vec![
-                        "tests/test_outcomes.jsonl".to_string(),
-                        "tests/cargo_test_stdout.txt".to_string(),
-                    ],
-                    Some("per-test outcome atoms captured in test_outcomes.jsonl".to_string()),
-                ),
-                (Some(true), false) if evidence.has_test_results => (
-                    ObjectiveStatusKind::Partial,
-                    vec!["tests/cargo_test_stdout.txt".to_string()],
-                    Some(
-                        "aggregate test results available; per-LLR mapping requires test_selector"
-                            .to_string(),
-                    ),
-                ),
-                (Some(false), _) => (
-                    ObjectiveStatusKind::NotMet,
-                    vec!["tests/cargo_test_stdout.txt".to_string()],
-                    Some("tests ran but at least one failed".to_string()),
-                ),
-                _ => (
-                    ObjectiveStatusKind::NotMet,
-                    vec![],
-                    Some("no test results in bundle".to_string()),
-                ),
-            }
-        }
-        "A7-5" => {
-            // Target compatibility — only "Met" when tests actually
-            // passed on the recorded target.
-            match evidence.tests_passed {
-                Some(true) if evidence.has_test_results => (
-                    ObjectiveStatusKind::Met,
-                    vec![
-                        "tests/cargo_test_stdout.txt".to_string(),
-                        "env.json".to_string(),
-                    ],
-                    None,
-                ),
-                Some(false) => (
-                    ObjectiveStatusKind::NotMet,
-                    vec!["tests/cargo_test_stdout.txt".to_string()],
-                    Some("tests ran but at least one failed".to_string()),
-                ),
-                _ => (
-                    ObjectiveStatusKind::NotMet,
-                    vec![],
-                    Some("no passing test results".to_string()),
-                ),
-            }
-        }
-        "A7-6" => {
-            // HLR test coverage
-            if evidence.has_trace_data
-                && evidence.has_test_results
-                && evidence.trace_validation_passed
-            {
-                (ObjectiveStatusKind::Partial, vec!["trace/matrix.md".to_string(), "tests/cargo_test_stdout.txt".to_string()], Some("traceability matrix shows HLR-to-test links; completeness requires manual review".to_string()))
-            } else {
-                (ObjectiveStatusKind::NotMet, vec![], None)
-            }
-        }
-        "A7-7" => {
-            // LLR test coverage
-            if evidence.has_trace_data
-                && evidence.has_test_results
-                && evidence.trace_validation_passed
-            {
-                (ObjectiveStatusKind::Partial, vec!["trace/matrix.md".to_string()], Some("traceability matrix shows LLR-to-test links; completeness requires manual review".to_string()))
-            } else {
-                (ObjectiveStatusKind::NotMet, vec![], None)
-            }
-        }
-        "A7-8" => {
-            // Statement coverage — upgrade to Met when the
-            // aggregate percent from `coverage/coverage_summary.json`
-            // meets the DO-178C threshold for this DAL.
-            coverage_verdict(
-                evidence.coverage_statement_percent,
-                dal.coverage_thresholds().statement_percent,
-                "statement",
-            )
-        }
-        "A7-9" => {
-            // Decision coverage — LLVM branch coverage is our
-            // approximation (see cert/QUALIFICATION.md for the
-            // semantic gap statement).
-            coverage_verdict(
-                evidence.coverage_branch_percent,
-                dal.coverage_thresholds().branch_percent,
-                "branch",
-            )
-        }
-        "A7-10" => {
-            // MC/DC coverage — tool capability gap, not a review
-            // item. NotMet is the honest verdict.
-            (
-                ObjectiveStatusKind::NotMet,
-                vec![],
-                Some("MC/DC analysis not yet supported".to_string()),
-            )
-        }
+        "A7-1" | "A7-2" => a7_1_2_hlr_testing(evidence),
+        "A7-3" | "A7-4" => a7_3_4_llr_testing(evidence),
+        "A7-5" => a7_5_target_compatibility(evidence),
+        "A7-6" => a7_6_hlr_test_coverage(evidence),
+        "A7-7" => a7_7_llr_test_coverage(evidence),
+        "A7-8" => a7_8_statement_coverage(dal, evidence),
+        "A7-9" => a7_9_decision_coverage(dal, evidence),
+        "A7-10" => a7_10_mcdc_coverage(),
         _ => (ObjectiveStatusKind::NotMet, vec![], None),
     }
 }
 
-#[cfg(test)]
-#[allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    reason = "test setup failures should panic immediately"
-)]
-mod tests {
-    use super::super::generator::generate_compliance_report;
-    use super::super::report::{CrateEvidence, ObjectiveStatusKind};
-    use crate::policy::Dal;
-
-    /// Core regression: a Some(false) verdict must NOT earn any
-    /// Table A-7 credit. The previous API treated `tests_passed:
-    /// bool` as "did the bundle record a test run", which let a
-    /// failing run still register as partial/met for A7-1..A7-5.
-    /// With Option<bool>, Some(false) and None both land in NotMet.
-    #[test]
-    fn test_failing_tests_mark_all_a7_objectives_not_met() {
-        let evidence = CrateEvidence {
-            has_trace_data: true,
-            trace_validation_passed: true,
-            has_test_results: true,
-            tests_passed: Some(false),
-            has_coverage_data: false,
-            has_per_test_outcomes: false,
-            ..CrateEvidence::default()
-        };
-        let report = generate_compliance_report("failing-crate", Dal::A, &evidence);
-
-        for id in ["A7-1", "A7-2", "A7-3", "A7-4", "A7-5"] {
-            let obj = report
-                .objectives
-                .iter()
-                .find(|o| o.objective_id == id)
-                .unwrap_or_else(|| panic!("objective {} missing from report", id));
-            assert_eq!(
-                obj.status,
-                ObjectiveStatusKind::NotMet,
-                "{} must be NotMet when tests_passed = Some(false), got {:?}",
-                id,
-                obj.status
-            );
-        }
-    }
-
-    /// No data at all (tests never ran or output couldn't be parsed)
-    /// also lands in NotMet for every A7-* with a "no test results"
-    /// note. Distinguishes from Some(false) in wording only; the
-    /// compliance verdict is the same.
-    #[test]
-    fn test_missing_tests_passed_data_marks_a7_not_met() {
-        let evidence = CrateEvidence {
-            has_trace_data: true,
-            trace_validation_passed: true,
-            has_test_results: false,
-            tests_passed: None,
-            has_coverage_data: false,
-            has_per_test_outcomes: false,
-            ..CrateEvidence::default()
-        };
-        let report = generate_compliance_report("no-tests-crate", Dal::A, &evidence);
-
-        for id in ["A7-1", "A7-2", "A7-3", "A7-4", "A7-5"] {
-            let obj = report
-                .objectives
-                .iter()
-                .find(|o| o.objective_id == id)
-                .unwrap_or_else(|| panic!("objective {} missing from report", id));
-            assert_eq!(
-                obj.status,
-                ObjectiveStatusKind::NotMet,
-                "{} must be NotMet when tests_passed = None, got {:?}",
-                id,
-                obj.status
-            );
-        }
-    }
-
-    /// Positive control: Some(true) earns the partial/met verdicts
-    /// Table A-7 was designed for, proving the gating logic hasn't
-    /// accidentally blocked the happy path.
-    #[test]
-    fn test_passing_tests_earn_a7_partial_or_met() {
-        let evidence = CrateEvidence {
-            has_trace_data: true,
-            trace_validation_passed: true,
-            has_test_results: true,
-            tests_passed: Some(true),
-            has_coverage_data: false,
-            has_per_test_outcomes: false,
-            ..CrateEvidence::default()
-        };
-        let report = generate_compliance_report("passing-crate", Dal::A, &evidence);
-
-        for id in ["A7-1", "A7-2", "A7-3", "A7-4"] {
-            let obj = report
-                .objectives
-                .iter()
-                .find(|o| o.objective_id == id)
-                .unwrap_or_else(|| panic!("objective {} missing from report", id));
-            assert_eq!(
-                obj.status,
-                ObjectiveStatusKind::Partial,
-                "{} must be Partial when tests pass, got {:?}",
-                id,
-                obj.status
-            );
-        }
-
-        let a7_5 = report
-            .objectives
-            .iter()
-            .find(|o| o.objective_id == "A7-5")
-            .expect("A7-5 missing");
-        assert_eq!(a7_5.status, ObjectiveStatusKind::Met);
-    }
-
-    /// Tables A-3, A-4, A-5, A-6 objectives (except the three the
-    /// tool can mechanically check — A3-6, A4-6, A6-5) must land in
-    /// ManualReviewRequired, not NotMet. Pins the semantic split
-    /// introduced alongside the enum.
-    #[test]
-    fn test_a3_a4_a5_a6_default_to_manual_review_at_dal_a() {
-        let evidence = CrateEvidence {
-            has_trace_data: true,
-            trace_validation_passed: true,
-            has_test_results: true,
-            tests_passed: Some(true),
-            has_coverage_data: false,
-            has_per_test_outcomes: false,
-            ..CrateEvidence::default()
-        };
-        let report = generate_compliance_report("review-crate", Dal::A, &evidence);
-
-        // Every objective in A-3/A-4/A-5/A-6 except A3-6, A4-6,
-        // A6-5 should be ManualReviewRequired. (A6-5 becomes
-        // Partial when trace validation passes.)
-        let expected_manual = |id: &str, table: &str| {
-            matches!(table, "Table A-3" | "Table A-4" | "Table A-5" | "Table A-6")
-                && !matches!(id, "A3-6" | "A4-6" | "A6-5")
-        };
-
-        for obj in &report.objectives {
-            if expected_manual(&obj.objective_id, &obj.table) {
-                assert_eq!(
-                    obj.status,
-                    ObjectiveStatusKind::ManualReviewRequired,
-                    "{} in {} should be ManualReviewRequired, got {:?}",
-                    obj.objective_id,
-                    obj.table,
-                    obj.status
-                );
-            }
-        }
-        // And the summary should reflect a non-zero review load.
-        assert!(
-            report.summary.manual_review_required > 0,
-            "summary.manual_review_required should be non-zero at DAL-A"
-        );
-    }
-
-    /// The four applicable buckets
-    /// (met + not_met + partial + manual_review_required) must sum
-    /// to exactly `applicable`. Catches off-by-one bugs in the
-    /// generator's match-over-enum.
-    #[test]
-    fn summary_buckets_cover_every_applicable_objective() {
-        for dal in [Dal::A, Dal::B, Dal::C, Dal::D] {
-            let evidence = CrateEvidence {
-                has_trace_data: true,
-                trace_validation_passed: true,
-                has_test_results: true,
-                tests_passed: Some(true),
-                has_coverage_data: false,
-                has_per_test_outcomes: false,
-                ..CrateEvidence::default()
-            };
-            let report = generate_compliance_report("exhaustive", dal, &evidence);
-            let s = &report.summary;
-            assert_eq!(
-                s.met + s.not_met + s.partial + s.manual_review_required,
-                s.applicable,
-                "DAL-{dal}: buckets must sum to applicable"
-            );
-        }
-    }
-
-    /// A-7 Obj-3/Obj-4 upgrade from `Partial` to `Met` when
-    /// `has_per_test_outcomes == true` alongside
-    /// `tests_passed == Some(true)`. Catches silent degradation
-    /// of the SVR credit when the per-test wire artifact lands.
-    #[test]
-    fn a7_3_upgrades_to_met_with_per_test_outcomes() {
-        // Evidence without per-test outcomes → Partial.
-        let without = CrateEvidence {
-            has_trace_data: true,
-            trace_validation_passed: true,
-            has_test_results: true,
-            tests_passed: Some(true),
-            has_coverage_data: false,
-            has_per_test_outcomes: false,
-            ..CrateEvidence::default()
-        };
-        let report_without = generate_compliance_report("u", Dal::C, &without);
-        let a7_3_without = report_without
-            .objectives
-            .iter()
-            .find(|o| o.objective_id == "A7-3")
-            .expect("A7-3 present");
-        assert_eq!(
-            a7_3_without.status,
+/// A7-1, A7-2: HLR-level testing. Only reports any credit when
+/// tests actually passed; `Some(false)` / `None` both fall into
+/// NotMet so a red test run can't prop up the objective.
+fn a7_1_2_hlr_testing(evidence: &CrateEvidence) -> Verdict {
+    match evidence.tests_passed {
+        Some(true) if evidence.has_test_results => (
             ObjectiveStatusKind::Partial,
-            "aggregate-only evidence must stay Partial"
-        );
-
-        // Same but with per-test outcomes → Met.
-        let with = CrateEvidence {
-            has_per_test_outcomes: true,
-            ..without
-        };
-        let report_with = generate_compliance_report("u", Dal::C, &with);
-        let a7_3_with = report_with
-            .objectives
-            .iter()
-            .find(|o| o.objective_id == "A7-3")
-            .expect("A7-3 present");
-        assert_eq!(
-            a7_3_with.status,
-            ObjectiveStatusKind::Met,
-            "per-test outcomes must upgrade A7-3 to Met"
-        );
-        // Same upgrade applies to A7-4 (applicable at DAL-B and
-        // above). Re-run on DAL-B to avoid NotApplicable skip.
-        let report_b = generate_compliance_report("u", Dal::B, &with);
-        let a7_4_b = report_b
-            .objectives
-            .iter()
-            .find(|o| o.objective_id == "A7-4")
-            .expect("A7-4 present at DAL-B");
-        assert_eq!(a7_4_b.status, ObjectiveStatusKind::Met);
+            vec!["tests/cargo_test_stdout.txt".to_string()],
+            Some(
+                "aggregate test results available; per-requirement mapping requires test_selector"
+                    .to_string(),
+            ),
+        ),
+        Some(false) => (
+            ObjectiveStatusKind::NotMet,
+            vec!["tests/cargo_test_stdout.txt".to_string()],
+            Some("tests ran but at least one failed".to_string()),
+        ),
+        _ => (
+            ObjectiveStatusKind::NotMet,
+            vec![],
+            Some("no test results in bundle".to_string()),
+        ),
     }
-    // A-7 Obj-5/6 upgrade tests live in
-    // `tests/compliance_coverage_upgrade.rs` (500-line limit).
 }
+
+/// A7-3, A7-4: LLR-level testing. Per-test outcome atoms
+/// (`tests/test_outcomes.jsonl`) upgrade this from Partial → Met
+/// because an auditor asking "show me the result of TEST-046"
+/// resolves to a specific row instead of the workspace-aggregate
+/// boolean.
+fn a7_3_4_llr_testing(evidence: &CrateEvidence) -> Verdict {
+    match (evidence.tests_passed, evidence.has_per_test_outcomes) {
+        (Some(true), true) if evidence.has_test_results => (
+            ObjectiveStatusKind::Met,
+            vec![
+                "tests/test_outcomes.jsonl".to_string(),
+                "tests/cargo_test_stdout.txt".to_string(),
+            ],
+            Some("per-test outcome atoms captured in test_outcomes.jsonl".to_string()),
+        ),
+        (Some(true), false) if evidence.has_test_results => (
+            ObjectiveStatusKind::Partial,
+            vec!["tests/cargo_test_stdout.txt".to_string()],
+            Some(
+                "aggregate test results available; per-LLR mapping requires test_selector"
+                    .to_string(),
+            ),
+        ),
+        (Some(false), _) => (
+            ObjectiveStatusKind::NotMet,
+            vec!["tests/cargo_test_stdout.txt".to_string()],
+            Some("tests ran but at least one failed".to_string()),
+        ),
+        _ => (
+            ObjectiveStatusKind::NotMet,
+            vec![],
+            Some("no test results in bundle".to_string()),
+        ),
+    }
+}
+
+/// A7-5: target compatibility — only "Met" when tests actually
+/// passed on the recorded target.
+fn a7_5_target_compatibility(evidence: &CrateEvidence) -> Verdict {
+    match evidence.tests_passed {
+        Some(true) if evidence.has_test_results => (
+            ObjectiveStatusKind::Met,
+            vec![
+                "tests/cargo_test_stdout.txt".to_string(),
+                "env.json".to_string(),
+            ],
+            None,
+        ),
+        Some(false) => (
+            ObjectiveStatusKind::NotMet,
+            vec!["tests/cargo_test_stdout.txt".to_string()],
+            Some("tests ran but at least one failed".to_string()),
+        ),
+        _ => (
+            ObjectiveStatusKind::NotMet,
+            vec![],
+            Some("no passing test results".to_string()),
+        ),
+    }
+}
+
+/// A7-6: HLR test coverage — requires trace, tests, and trace
+/// validation. Caps at Partial; full coverage claim needs manual
+/// review of the matrix.
+fn a7_6_hlr_test_coverage(evidence: &CrateEvidence) -> Verdict {
+    if evidence.has_trace_data && evidence.has_test_results && evidence.trace_validation_passed {
+        (
+            ObjectiveStatusKind::Partial,
+            vec![
+                "trace/matrix.md".to_string(),
+                "tests/cargo_test_stdout.txt".to_string(),
+            ],
+            Some(
+                "traceability matrix shows HLR-to-test links; completeness requires manual review"
+                    .to_string(),
+            ),
+        )
+    } else {
+        (ObjectiveStatusKind::NotMet, vec![], None)
+    }
+}
+
+/// A7-7: LLR test coverage — same gates as A7-6 but the evidence
+/// set is the LLR half of the matrix.
+fn a7_7_llr_test_coverage(evidence: &CrateEvidence) -> Verdict {
+    if evidence.has_trace_data && evidence.has_test_results && evidence.trace_validation_passed {
+        (
+            ObjectiveStatusKind::Partial,
+            vec!["trace/matrix.md".to_string()],
+            Some(
+                "traceability matrix shows LLR-to-test links; completeness requires manual review"
+                    .to_string(),
+            ),
+        )
+    } else {
+        (ObjectiveStatusKind::NotMet, vec![], None)
+    }
+}
+
+/// A7-8: statement coverage. Upgrades to Met when the aggregate
+/// percent from `coverage/coverage_summary.json` meets the
+/// DO-178C threshold for this DAL.
+fn a7_8_statement_coverage(dal: Dal, evidence: &CrateEvidence) -> Verdict {
+    coverage_verdict(
+        evidence.coverage_statement_percent,
+        dal.coverage_thresholds().statement_percent,
+        "statement",
+    )
+}
+
+/// A7-9: decision coverage — LLVM branch coverage is our
+/// approximation (see `cert/QUALIFICATION.md` for the semantic
+/// gap statement).
+fn a7_9_decision_coverage(dal: Dal, evidence: &CrateEvidence) -> Verdict {
+    coverage_verdict(
+        evidence.coverage_branch_percent,
+        dal.coverage_thresholds().branch_percent,
+        "branch",
+    )
+}
+
+/// A7-10: MC/DC coverage — tool capability gap, not a review
+/// item. NotMet is the honest verdict; see `cert/QUALIFICATION.md`
+/// for the rustc stabilization caveat.
+fn a7_10_mcdc_coverage() -> Verdict {
+    (
+        ObjectiveStatusKind::NotMet,
+        vec![],
+        Some("MC/DC analysis not yet supported".to_string()),
+    )
+}
+
+// Tests live in the sibling `status/tests.rs` via `#[path]` so
+// this file stays under the 500-line workspace limit. Each A7-*
+// helper gets a normal/robustness/BVA triplet (single-
+// responsibility verification per DO-178C DAL-A/B expectations).
+#[cfg(test)]
+#[path = "status/tests.rs"]
+mod tests;
