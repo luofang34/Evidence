@@ -64,6 +64,14 @@ A future PR adding rustc-stable MC/DC measurement populates those
 existing fields without breaking downstream consumers that pattern-match
 on `level == "statement"` or `level == "branch"`.
 
+`FileMeasurement` also carries a `branches: Option<BranchCoverage {
+covered, total }>` field sibling to `lines`, populated on
+`level == "branch"` and `None` on `level == "statement"`. This is
+the structural source for A-7 Obj-6 decision-coverage threshold
+enforcement — aggregation over a Branch measurement reads
+`branches`, never `lines`, so the compliance gate cannot be
+accidentally satisfied by line coverage.
+
 ## Rust-specific pattern-decision semantics
 
 The paper above (Section 4.3) defines 13 sub-pattern refutability
