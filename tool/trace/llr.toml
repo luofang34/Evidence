@@ -1679,3 +1679,47 @@ D. An empty `in_scope` with a loaded config means intent is
 known; honoring it is the right behavior.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "d67f45bf-c9d0-4f2a-87d1-0dfbf14d9262"
+id = "LLR-061"
+title = "validate_trace_links_phase returns TraceValidationResult; write_compliance_reports takes trace_validation_passed: bool"
+owner = "tool"
+traces_to = ["2087d91a-12ba-4b3a-ab43-632f670bad49"]
+modules = [
+    "cargo_evidence::cli::generate::phases::trace_validation::TraceValidationResult",
+    "cargo_evidence::cli::generate::phases::trace_validation::validate_trace_links_phase",
+    "cargo_evidence::cli::generate::phases::write_compliance_reports",
+]
+derived = false
+description = """
+`TraceValidationResult { passed: bool, short_circuit:
+Option<i32> }` is the return type of
+`validate_trace_links_phase`. Three-state encoding:
+
+  - `Passed = { passed: true, short_circuit: None }` — every
+    root validated; A3-6 claim "Met" is defensible.
+  - `WarnedContinuing = { passed: false, short_circuit: None }`
+    — non-strict profile saw a failure; caller threads
+    `passed: false` to compliance; A3-6 claim becomes
+    "Partial" per `determine_objective_status`.
+  - `StrictFailed = { passed: false, short_circuit: Some(code)
+    }` — strict profile short-circuited; caller returns
+    `code` before running any later phase, so compliance JSON
+    is not written for this run.
+
+`write_compliance_reports` signature adds a required
+`trace_validation_passed: bool` parameter forwarded into
+`CrateEvidence.trace_validation_passed`. The signature change
+is load-bearing: removing the parameter to re-introduce a
+hardcoded literal would be a visible PR diff, not a silent
+in-function change.
+
+`read_all_trace_files` read-failure path (missing or
+corrupt trace TOML) also flips `passed = false` under
+non-strict profile — the pre-fix contract was
+non-observable (returned `Ok(None)` either way); post-fix the
+warned-continue semantics cover both validation failures and
+read failures symmetrically.
+"""
+verification_methods = ["test"]

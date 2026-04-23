@@ -735,3 +735,20 @@ test_selectors = [
     "doctor_max_dal::mixed_overrides_take_highest",
     "doctor_max_dal::single_crate_at_dal_c_fires_gate_inclusively",
 ]
+
+[[tests]]
+uid = "cff40a9c-4036-4918-99e3-0611bee227c8"
+id = "TEST-061"
+title = "trace_validation_passed honesty — A3-6 / A4-6 Met/Partial/NotMet per (has_trace, passed) matrix"
+owner = "tool"
+traces_to = ["d67f45bf-c9d0-4f2a-87d1-0dfbf14d9262"]
+test_selectors = [
+    "compliance_trace_honesty::a3_6_normal_passed_and_present_is_met",
+    "compliance_trace_honesty::a4_6_normal_passed_and_present_is_met",
+    "compliance_trace_honesty::a3_6_robustness_warned_continuing_is_partial",
+    "compliance_trace_honesty::a4_6_robustness_warned_continuing_is_partial",
+    "compliance_trace_honesty::a3_6_partial_carries_reason_naming_the_gap",
+    "compliance_trace_honesty::a3_6_bva_no_trace_data_is_notmet_even_when_passed_true",
+    "compliance_trace_honesty::a3_6_bva_no_trace_data_is_notmet_even_when_passed_false",
+    "compliance_trace_honesty::a3_6_notmet_reason_is_no_trace_data_not_validation_failure",
+]

@@ -601,3 +601,36 @@ doctor surface.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "1eaaa60c-e8e0-4209-8ca5-51108495df61"
+id = "SYS-026"
+title = "Compliance claims shall reflect the actual outcome of the supporting check, not a hardcoded assumption"
+owner = "soi"
+scope = "soi"
+description = """
+A DO-178C compliance claim ("A3-6 Met: traceability passes")
+is only cert-defensible if the tool's state at claim-time
+actually matches the claim. Hardcoding the trace-validation
+verdict into the compliance report disconnects the claim from
+the observable: a run whose trace validation warned-and-
+continued still ships a bundle whose compliance JSON says
+"Met" — the audit surface reports one answer while the
+underlying state says another.
+
+SYS-026 closes that class of drift: every supporting-check
+result that feeds a compliance objective's status must be
+threaded from the producing phase to the compliance-writing
+phase, not substituted with a literal. Covers the
+trace-validation → A3-6/A4-6 feed today (fixed in LLR-061);
+same principle applies to future checks feeding Table-A
+objectives.
+
+The failure mode this defends is more subtle than a missing
+check — the check exists and runs, but its outcome is
+dropped on the floor. Type-level enforcement (the compliance-
+writing function takes the bool as a required parameter) is
+the load-bearing guard against regression.
+"""
+verification_methods = ["test"]
+traces_to = []

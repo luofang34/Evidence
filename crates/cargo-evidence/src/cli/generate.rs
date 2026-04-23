@@ -284,14 +284,15 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     }
 
     let policy = EvidencePolicy::for_dal(derived.max_dal);
-    if let Some(code) = phases::validate_trace_links_phase(
+    let trace_validation = phases::validate_trace_links_phase(
         &derived.trace_roots,
         &policy,
         profile,
         strict,
         quiet,
         json_output,
-    )? {
+    )?;
+    if let Some(code) = trace_validation.short_circuit {
         return Ok(code);
     }
 
@@ -306,6 +307,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         &builder,
         &derived.dal_map,
         &derived.trace_roots,
+        trace_validation.passed,
         quiet,
         json_output,
     )?;
