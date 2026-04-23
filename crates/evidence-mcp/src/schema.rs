@@ -193,3 +193,19 @@ pub struct PingResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub probe_error: Option<String>,
 }
+
+/// Input to `evidence_floors`.
+///
+/// `#[serde(deny_unknown_fields)]` — see [`CheckRequest`] for
+/// the agent-typo rationale.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FloorsRequest {
+    /// Absolute or MCP-server-CWD-relative path to the workspace
+    /// whose ratchet gate should be queried. Must contain
+    /// `cert/floors.toml`. Defaults to the server's CWD when
+    /// omitted (triggers an `MCP_WORKSPACE_FALLBACK` warning on
+    /// the response).
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+}
