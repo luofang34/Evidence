@@ -1446,3 +1446,29 @@ confused agent rather than silently ignoring it.
 """
 verification_methods = ["test"]
 emits = ["MCP_WORKSPACE_FALLBACK"]
+
+[[requirements]]
+uid = "4e98e1d9-6017-425e-b613-52853e97c2f3"
+id = "LLR-055"
+title = "Wire derived entries at cli/trace.rs + cli/generate/phases.rs"
+owner = "tool"
+traces_to = ["fb07d8c2-5d21-4989-b21e-09b62caa0299"]
+modules = [
+    "cargo_evidence::cli::trace::cmd_trace",
+    "cargo_evidence::cli::generate::phases::validate_trace_links_phase",
+]
+derived = false
+description = """
+At `cli/trace.rs:120` and `cli/generate/phases.rs:313`, replace
+the `&[]` placeholder in the `validate_trace_links_with_policy`
+call with `derived.as_ref().map(|d| d.requirements.as_slice()).unwrap_or(&[])`
+(pulling `derived` from the `TraceFiles` destructure in
+both places). The doctor's `check_trace` at
+`cli/doctor/checks.rs:43-45` already does the correct thing
+(accumulates `files.derived.map(|d| d.requirements)` across
+every root); this LLR brings the other two callsites to
+parity. No new diagnostic codes — existing Link-phase errors
+(`TRACE_DANGLING_LINK`, etc.) already fire correctly once the
+derived slice is present.
+"""
+verification_methods = ["test"]

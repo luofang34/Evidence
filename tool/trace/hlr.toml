@@ -1128,3 +1128,25 @@ fallback signal entirely.
 verification_methods = ["test"]
 traces_to = ["f1db3aa6-e745-4770-abeb-fe90be4e0cb4"]
 surfaces = ["agent MCP surface"]
+
+[[requirements]]
+uid = "fb07d8c2-5d21-4989-b21e-09b62caa0299"
+id = "HLR-055"
+title = "cmd_trace + cmd_generate pass derived.toml requirements into Link-phase validation"
+owner = "tool"
+scope = "component"
+description = """
+`crates/cargo-evidence/src/cli/trace.rs` and
+`crates/cargo-evidence/src/cli/generate/phases.rs` call
+`validate_trace_links_with_policy(..., &[], ...)` where the
+penultimate argument is the derived-requirement slice. Both
+callsites shall instead thread the real `derived.requirements`
+vector (from `read_all_trace_files().derived`) into the
+validator, matching the doctor's existing wire (see
+`cli/doctor/checks.rs:88-89`). Absent derived.toml files fall
+through to `&[]` cleanly — the fix is additive, not a schema
+change.
+"""
+verification_methods = ["test"]
+traces_to = ["f5aac59f-9dbd-48f7-80d1-2e1cc1a2fdd1"]
+surfaces = ["trace"]
