@@ -209,3 +209,56 @@ pub struct FloorsRequest {
     #[serde(default)]
     pub workspace_path: Option<String>,
 }
+
+/// Input to `evidence_diff`. Both paths are required — unlike
+/// the other MCP verbs, diff has no "current workspace" default;
+/// the agent must name the two bundles to compare.
+///
+/// `#[serde(deny_unknown_fields)]` matches the convention for
+/// the other MCP tool input shapes.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DiffRequest {
+    /// Path to the first bundle directory (the "before" side of
+    /// the comparison). Absolute, or relative to the MCP
+    /// server's CWD.
+    pub bundle_a_path: String,
+
+    /// Path to the second bundle directory (the "after" side
+    /// of the comparison). Absolute, or relative to the MCP
+    /// server's CWD.
+    pub bundle_b_path: String,
+}
+
+/// Response shape for `evidence_diff` — a one-shot blob-style
+/// comparison between two on-disk bundles.
+///
+/// The CLI's diff output is a single JSON document
+/// (`{bundle_a, bundle_b, inputs_diff, outputs_diff,
+/// metadata_diff, env_diff}`), not a JSONL stream, so the
+/// response shape does not mirror [`JsonlToolResponse`].
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct DiffToolResponse {
+    /// Exit code advertised back to the host. `0` on success
+    /// (differences ARE reported but do not flip the exit code;
+    /// diff reports, doesn't judge). `2` on tool-layer failure
+    /// (see `error`).
+    pub exit_code: i32,
+
+    /// The full diff blob as emitted by `cargo evidence diff
+    /// --json` on success. `None` on tool-layer failure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diff: Option<serde_json::Value>,
+
+    /// Server-layer warnings — version-skew signals from the
+    /// startup probe (HLR-060). Empty in the happy path.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<serde_json::Value>,
+
+    /// Tool-layer failure diagnostic when the subprocess could
+    /// not run or its stdout was not valid JSON. `None` on
+    /// success. Carries an `MCP_*` code from
+    /// `evidence_core::HAND_EMITTED_MCP_CODES`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<serde_json::Value>,
+}

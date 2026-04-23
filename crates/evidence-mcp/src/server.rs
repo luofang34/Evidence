@@ -21,15 +21,15 @@ use crate::schema::{
     CheckRequest, DoctorRequest, FloorsRequest, JsonlToolResponse, PingRequest, PingResponse,
     RulesRequest, RulesToolResponse,
 };
-use crate::subprocess::{MCP_MALFORMED_JSONL, RunError, parse_jsonl, run_evidence};
+use crate::subprocess::{MCP_MALFORMED_JSONL, parse_jsonl, run_evidence};
 use crate::version_probe::{VersionSkew, detect_with_probe, probe_cli_version, skew_diagnostic};
-use crate::workspace::{WorkspaceResolution, resolve_workspace, workspace_fallback_diagnostic};
+use crate::workspace::resolve_workspace;
 
-/// Exit code used for tool-layer subprocess failures. Mirrors
-/// the CLI's `EXIT_VERIFICATION_FAILURE` (2) so agents can't
-/// tell from `exit_code` alone whether the `evidence` CLI
-/// itself failed or the MCP wrapper gave up on the subprocess.
-const TOOL_FAILURE_EXIT_CODE: i32 = 2;
+mod responses;
+use responses::{
+    TOOL_FAILURE_EXIT_CODE, jsonl_response_from_run_error, mcp_diagnostic, ping_response_from_skew,
+    prepend_fallback_signal, prepend_skew_signal, rules_response_from_run_error,
+};
 
 /// MCP server handle. Stateless per-request — each tool call
 /// resolves its workspace path independently and spawns a fresh
@@ -317,184 +317,72 @@ impl Server {
             summary,
         }))
     }
+
+    /// `evidence_diff` — compare two evidence bundles on-disk
+    /// and return the structured delta across inputs, outputs,
+    /// metadata, and env.
+    ///
+    /// Wraps `cargo evidence diff <a> <b> --json`. Pure
+    /// inspection — reads both bundle directories, computes the
+    /// delta. Unlike the streaming verbs, the CLI emits a single
+    /// JSON blob here, so the response carries the raw `diff`
+    /// document under the `diff` field (`None` on tool-layer
+    /// failure) rather than a `terminal` + `diagnostics` +
+    /// `summary` triad.
+    #[tool(
+        name = "evidence_diff",
+        description = "Compare two evidence bundles on-disk. Wraps `cargo evidence diff \
+                       <a> <b> --json`; returns the structured delta across inputs, outputs, \
+                       metadata, and env as a single JSON blob. Pure inspection — does not \
+                       execute project code. Both bundle_a_path and bundle_b_path are \
+                       required; diff has no workspace default."
+    )]
+    pub async fn evidence_diff(
+        &self,
+        Parameters(req): Parameters<crate::schema::DiffRequest>,
+    ) -> Result<Json<crate::schema::DiffToolResponse>, String> {
+        let cwd = std::env::current_dir().map_err(|e| format!("cannot resolve server CWD: {e}"))?;
+        let warnings = skew_diagnostic(&self.version_skew)
+            .map(|d| vec![d])
+            .unwrap_or_default();
+        let captured = match run_evidence(
+            &["diff", &req.bundle_a_path, &req.bundle_b_path, "--json"],
+            &cwd,
+        )
+        .await
+        {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(Json(crate::schema::DiffToolResponse {
+                    exit_code: TOOL_FAILURE_EXIT_CODE,
+                    diff: None,
+                    warnings,
+                    error: Some(mcp_diagnostic(e.code(), &e.to_string())),
+                }));
+            }
+        };
+        match serde_json::from_slice::<serde_json::Value>(&captured.stdout) {
+            Ok(diff) => Ok(Json(crate::schema::DiffToolResponse {
+                exit_code: captured.exit_code,
+                diff: Some(diff),
+                warnings,
+                error: None,
+            })),
+            Err(e) => Ok(Json(crate::schema::DiffToolResponse {
+                exit_code: TOOL_FAILURE_EXIT_CODE,
+                diff: None,
+                warnings,
+                error: Some(mcp_diagnostic(
+                    MCP_MALFORMED_JSONL,
+                    &format!("cargo evidence diff --json produced invalid JSON: {e}"),
+                )),
+            })),
+        }
+    }
 }
 
 impl Default for Server {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Prepend the synthetic `MCP_WORKSPACE_FALLBACK` diagnostic +
-/// bump the `summary` count when the caller fell back to server
-/// CWD. No-op for `WorkspaceResolution::Given`. Mutating both
-/// vec + map keeps the response self-consistent (agents pattern-
-/// matching on either surface see the same count).
-fn prepend_fallback_signal(
-    resolution: WorkspaceResolution,
-    cwd: &std::path::Path,
-    diagnostics: &mut Vec<serde_json::Value>,
-    summary: &mut std::collections::BTreeMap<String, u32>,
-) {
-    if resolution != WorkspaceResolution::Fallback {
-        return;
-    }
-    diagnostics.insert(0, workspace_fallback_diagnostic(cwd));
-    *summary
-        .entry("MCP_WORKSPACE_FALLBACK".to_string())
-        .or_insert(0) += 1;
-}
-
-/// Prepend `MCP_VERSION_SKEW` / `MCP_VERSION_PROBE_FAILED` when
-/// the server's cached skew outcome is not `Matched`. No-op on
-/// match. Both the diagnostic vec and the summary map get
-/// updated so agents reading either surface see the same
-/// signal.
-fn prepend_skew_signal(
-    skew: &VersionSkew,
-    diagnostics: &mut Vec<serde_json::Value>,
-    summary: &mut std::collections::BTreeMap<String, u32>,
-) {
-    let Some(diag) = skew_diagnostic(skew) else {
-        return;
-    };
-    let code = diag
-        .get("code")
-        .and_then(|c| c.as_str())
-        .unwrap_or("")
-        .to_string();
-    diagnostics.insert(0, diag);
-    if !code.is_empty() {
-        *summary.entry(code).or_insert(0) += 1;
-    }
-}
-
-/// Build a minimal tool-layer diagnostic carrying the given
-/// `MCP_*` code + human message at `Severity::Error`. Output
-/// shape mirrors `evidence_core::diagnostic::emit_jsonl` so
-/// agents cannot tell a tool-layer diagnostic from a CLI-emitted
-/// one just by the JSON shape — they pattern-match on `.code`.
-fn mcp_diagnostic(code: &str, message: &str) -> serde_json::Value {
-    serde_json::json!({
-        "code": code,
-        "severity": "error",
-        "message": message,
-    })
-}
-
-/// Translate a [`RunError`] into a well-formed
-/// [`JsonlToolResponse`]. The response carries
-/// `exit_code = TOOL_FAILURE_EXIT_CODE`, the matching `MCP_*`
-/// code as both `terminal` and the single diagnostic entry, plus
-/// the workspace-fallback and version-skew signals when
-/// applicable (so agents see every signal — not just the
-/// subprocess failure — on a degraded call).
-fn jsonl_response_from_run_error(
-    err: &RunError,
-    resolution: WorkspaceResolution,
-    cwd: &std::path::Path,
-    skew: &VersionSkew,
-) -> JsonlToolResponse {
-    let code = err.code();
-    let message = err.to_string();
-    let diag = mcp_diagnostic(code, &message);
-    let mut diagnostics = vec![diag];
-    let mut summary = std::collections::BTreeMap::new();
-    summary.insert(code.to_string(), 1);
-    prepend_fallback_signal(resolution, cwd, &mut diagnostics, &mut summary);
-    prepend_skew_signal(skew, &mut diagnostics, &mut summary);
-    JsonlToolResponse {
-        exit_code: TOOL_FAILURE_EXIT_CODE,
-        terminal: code.to_string(),
-        diagnostics,
-        summary,
-    }
-}
-
-/// Translate a [`RunError`] into a [`RulesToolResponse`] whose
-/// `error` field carries the structured diagnostic. `rules` is
-/// empty, `count` is 0, `exit_code` is [`TOOL_FAILURE_EXIT_CODE`].
-/// `warnings` passes through whatever the caller built (version-
-/// skew probe result) so a degraded call still reports both
-/// signals.
-fn rules_response_from_run_error(
-    err: &RunError,
-    warnings: Vec<serde_json::Value>,
-) -> RulesToolResponse {
-    let code = err.code();
-    let message = err.to_string();
-    RulesToolResponse {
-        exit_code: TOOL_FAILURE_EXIT_CODE,
-        rules: Vec::new(),
-        count: 0,
-        warnings,
-        error: Some(mcp_diagnostic(code, &message)),
-    }
-}
-
-/// Build a [`PingResponse`] from the cached [`VersionSkew`]. Pure
-/// function on the enum — no spawn, no env access, testable in
-/// isolation for every variant.
-fn ping_response_from_skew(skew: &VersionSkew) -> PingResponse {
-    let mcp_version = env!("CARGO_PKG_VERSION").to_string();
-    match skew {
-        VersionSkew::Matched => PingResponse {
-            mcp_version: mcp_version.clone(),
-            cli_version: Some(mcp_version),
-            skew: "matched".to_string(),
-            probe_error: None,
-        },
-        VersionSkew::Skewed { cli, .. } => PingResponse {
-            mcp_version,
-            cli_version: Some(cli.clone()),
-            skew: "skewed".to_string(),
-            probe_error: None,
-        },
-        VersionSkew::ProbeFailed(reason) => PingResponse {
-            mcp_version,
-            cli_version: None,
-            skew: "probe_failed".to_string(),
-            probe_error: Some(reason.clone()),
-        },
-    }
-}
-
-#[cfg(test)]
-#[allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    reason = "test setup failures should panic immediately"
-)]
-mod tests {
-    use super::*;
-
-    /// TEST-066 selector: `ping_response_from_skew` maps every
-    /// `VersionSkew` variant to the documented `PingResponse`
-    /// shape. Pins the field-level contract for each branch.
-    #[test]
-    fn ping_response_shapes_for_matched_skewed_probe_failed() {
-        let mcp = env!("CARGO_PKG_VERSION").to_string();
-
-        let matched = ping_response_from_skew(&VersionSkew::Matched);
-        assert_eq!(matched.mcp_version, mcp);
-        assert_eq!(matched.cli_version.as_deref(), Some(mcp.as_str()));
-        assert_eq!(matched.skew, "matched");
-        assert!(matched.probe_error.is_none());
-
-        let skewed = ping_response_from_skew(&VersionSkew::Skewed {
-            mcp: mcp.clone(),
-            cli: "0.0.1-stale".to_string(),
-        });
-        assert_eq!(skewed.mcp_version, mcp);
-        assert_eq!(skewed.cli_version.as_deref(), Some("0.0.1-stale"));
-        assert_eq!(skewed.skew, "skewed");
-        assert!(skewed.probe_error.is_none());
-
-        let failed = ping_response_from_skew(&VersionSkew::ProbeFailed("no such file".to_string()));
-        assert_eq!(failed.mcp_version, mcp);
-        assert!(failed.cli_version.is_none());
-        assert_eq!(failed.skew, "probe_failed");
-        assert_eq!(failed.probe_error.as_deref(), Some("no such file"));
     }
 }
