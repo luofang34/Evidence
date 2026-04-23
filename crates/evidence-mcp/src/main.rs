@@ -15,14 +15,22 @@
 
 use evidence_mcp::Server;
 use rmcp::{ServiceExt, transport::io::stdio};
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
 fn init_tracing() {
+    // `from_env_lossy` preserves valid directives when RUST_LOG
+    // has a syntax error elsewhere in the string, and honors an
+    // empty RUST_LOG="" (which some sandboxes set unconditionally,
+    // defeating `try_from_default_env` and dropping into the
+    // fallback). `with_default_directive` supplies the baseline
+    // when the env var is unset or empty.
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::WARN.into())
+        .from_env_lossy();
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn")),
-        )
+        .with_env_filter(filter)
         .with_target(false)
         .init();
 }

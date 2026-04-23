@@ -128,6 +128,13 @@ impl Server {
     /// by a 10-minute timeout (`SPAWN_TIMEOUT` in the
     /// `subprocess` module).
     ///
+    /// `--mode=source` executes workspace tests and therefore
+    /// carries whatever side-effects those tests have (file
+    /// writes under the workspace, bound sockets, env mutations,
+    /// subprocess spawns). `--mode=bundle` is pure inspection —
+    /// it reads the bundle directory and verifies SHA256SUMS
+    /// without executing project code.
+    ///
     /// Agents use this as their primary validation call; `verify`
     /// is intentionally NOT exposed over MCP — `check` in bundle
     /// mode delegates to `verify` internally.
@@ -136,9 +143,14 @@ impl Server {
         description = "One-shot pass/gap validation of a workspace or bundle. Spawns \
                        `cargo evidence check --format=jsonl`; streams one REQ_PASS / \
                        REQ_GAP / REQ_SKIP per requirement then terminates with VERIFY_OK \
-                       (exit 0) or VERIFY_FAIL (exit 2). Source mode runs `cargo test \
-                       --workspace` — can take several minutes. Bundle mode delegates to \
-                       the `verify` pipeline."
+                       (exit 0) or VERIFY_FAIL (exit 2). \
+                       `--mode=source` EXECUTES the workspace's tests (`cargo test \
+                       --workspace`): can take several minutes and carries the usual \
+                       test-side-effects (file writes under the workspace, bound sockets, \
+                       env mutations, spawned processes). `--mode=bundle` is inspection- \
+                       only — reads the bundle directory and delegates to the `verify` \
+                       pipeline without executing project code. `--mode=auto` (default) \
+                       picks source or bundle based on the marker file at the given path."
     )]
     pub async fn evidence_check(
         &self,
