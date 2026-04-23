@@ -774,3 +774,35 @@ test_selectors = [
     "evidence_mcp::version_probe::tests::bva_empty_probe_output_treated_as_probe_failed",
     "evidence_mcp::version_probe::tests::bva_prerelease_suffix_counts_as_skew",
 ]
+
+[[tests]]
+uid = "41ebd13a-0384-48fa-b27d-1cfa9dda8d1b"
+id = "TEST-064"
+title = "MCP tool-layer failures surface as structured diagnostics with MCP_* codes"
+owner = "tool"
+traces_to = ["759ac6b4-ef4c-4d1d-8bfc-79f07ecef6eb"]
+description = """
+Pins the four legs of LLR-064's contract:
+
+- `RunError::code` returns the declared `MCP_*` string for
+  each enum variant (catches a future variant landing
+  without a code at the type).
+- `parse_jsonl` synthesizes `MCP_MALFORMED_JSONL` and
+  `MCP_NO_OUTPUT` with the prefix-aligned names.
+- `evidence_check` invoked with a `PATH` that cannot
+  resolve `cargo` returns a well-formed `JsonlToolResponse`
+  carrying `MCP_CARGO_NOT_FOUND` in its `diagnostics` and
+  `exit_code == 2`.
+- Every code in `HAND_EMITTED_MCP_CODES` appears as a string
+  literal somewhere under `crates/evidence-mcp/src`. Mirrors
+  the `every_doctor_code_emitted_in_source` meta-check on the
+  CLI hand-emitted set — keeps the MCP registry anchored to
+  real emit sites.
+"""
+test_selectors = [
+    "subprocess::tests::run_error_code_is_self_describing",
+    "subprocess::tests::parse_jsonl_empty_stream_is_mcp_no_output",
+    "subprocess::tests::parse_jsonl_malformed_line_surfaces_mcp_marker",
+    "mcp_failure_surface::evidence_check_cargo_not_found_returns_structured_diagnostic",
+    "mcp_codes_audit::every_mcp_code_emitted_in_source",
+]

@@ -20,9 +20,15 @@ use rmcp::{
 use crate::schema::{
     CheckRequest, DoctorRequest, JsonlToolResponse, RulesRequest, RulesToolResponse,
 };
-use crate::subprocess::{parse_jsonl, run_evidence};
+use crate::subprocess::{MCP_MALFORMED_JSONL, RunError, parse_jsonl, run_evidence};
 use crate::version_probe::{VersionSkew, detect_with_probe, probe_cli_version, skew_diagnostic};
 use crate::workspace::{WorkspaceResolution, resolve_workspace, workspace_fallback_diagnostic};
+
+/// Exit code used for tool-layer subprocess failures. Mirrors
+/// the CLI's `EXIT_VERIFICATION_FAILURE` (2) so agents can't
+/// tell from `exit_code` alone whether the `evidence` CLI
+/// itself failed or the MCP wrapper gave up on the subprocess.
+const TOOL_FAILURE_EXIT_CODE: i32 = 2;
 
 /// MCP server handle. Stateless per-request — each tool call
 /// resolves its workspace path independently and spawns a fresh
@@ -85,21 +91,35 @@ impl Server {
         _params: Parameters<RulesRequest>,
     ) -> Result<Json<RulesToolResponse>, String> {
         let cwd = std::env::current_dir().map_err(|e| format!("cannot resolve server CWD: {e}"))?;
-        let captured = run_evidence(&["rules", "--json"], &cwd)
-            .await
-            .map_err(|e| e.to_string())?;
-        let rules: Vec<serde_json::Value> = serde_json::from_slice(&captured.stdout)
-            .map_err(|e| format!("cargo evidence rules --json produced invalid JSON: {e}"))?;
-        let count = rules.len();
         let warnings = skew_diagnostic(&self.version_skew)
             .map(|d| vec![d])
             .unwrap_or_default();
-        Ok(Json(RulesToolResponse {
-            exit_code: captured.exit_code,
-            rules,
-            count,
-            warnings,
-        }))
+        let captured = match run_evidence(&["rules", "--json"], &cwd).await {
+            Ok(c) => c,
+            Err(e) => return Ok(Json(rules_response_from_run_error(&e, warnings))),
+        };
+        match serde_json::from_slice::<Vec<serde_json::Value>>(&captured.stdout) {
+            Ok(rules) => {
+                let count = rules.len();
+                Ok(Json(RulesToolResponse {
+                    exit_code: captured.exit_code,
+                    rules,
+                    count,
+                    warnings,
+                    error: None,
+                }))
+            }
+            Err(e) => Ok(Json(RulesToolResponse {
+                exit_code: TOOL_FAILURE_EXIT_CODE,
+                rules: Vec::new(),
+                count: 0,
+                warnings,
+                error: Some(mcp_diagnostic(
+                    MCP_MALFORMED_JSONL,
+                    &format!("cargo evidence rules --json produced invalid JSON: {e}"),
+                )),
+            })),
+        }
     }
 
     /// `evidence_doctor` — audit a workspace's rigor adoption.
@@ -126,9 +146,17 @@ impl Server {
         Parameters(req): Parameters<DoctorRequest>,
     ) -> Result<Json<JsonlToolResponse>, String> {
         let (cwd, resolution) = resolve_workspace(req.workspace_path.as_deref())?;
-        let captured = run_evidence(&["doctor", "--format=jsonl"], &cwd)
-            .await
-            .map_err(|e| e.to_string())?;
+        let captured = match run_evidence(&["doctor", "--format=jsonl"], &cwd).await {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(Json(jsonl_response_from_run_error(
+                    &e,
+                    resolution,
+                    &cwd,
+                    &self.version_skew,
+                )));
+            }
+        };
         let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
         prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
         prepend_skew_signal(&self.version_skew, &mut diagnostics, &mut summary);
@@ -195,9 +223,17 @@ impl Server {
             }
         }
         let args_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let captured = run_evidence(&args_refs, &cwd)
-            .await
-            .map_err(|e| e.to_string())?;
+        let captured = match run_evidence(&args_refs, &cwd).await {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(Json(jsonl_response_from_run_error(
+                    &e,
+                    resolution,
+                    &cwd,
+                    &self.version_skew,
+                )));
+            }
+        };
         let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
         prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
         prepend_skew_signal(&self.version_skew, &mut diagnostics, &mut summary);
@@ -257,5 +293,68 @@ fn prepend_skew_signal(
     diagnostics.insert(0, diag);
     if !code.is_empty() {
         *summary.entry(code).or_insert(0) += 1;
+    }
+}
+
+/// Build a minimal tool-layer diagnostic carrying the given
+/// `MCP_*` code + human message at `Severity::Error`. Output
+/// shape mirrors `evidence_core::diagnostic::emit_jsonl` so
+/// agents cannot tell a tool-layer diagnostic from a CLI-emitted
+/// one just by the JSON shape — they pattern-match on `.code`.
+fn mcp_diagnostic(code: &str, message: &str) -> serde_json::Value {
+    serde_json::json!({
+        "code": code,
+        "severity": "error",
+        "message": message,
+    })
+}
+
+/// Translate a [`RunError`] into a well-formed
+/// [`JsonlToolResponse`]. The response carries
+/// `exit_code = TOOL_FAILURE_EXIT_CODE`, the matching `MCP_*`
+/// code as both `terminal` and the single diagnostic entry, plus
+/// the workspace-fallback and version-skew signals when
+/// applicable (so agents see every signal — not just the
+/// subprocess failure — on a degraded call).
+fn jsonl_response_from_run_error(
+    err: &RunError,
+    resolution: WorkspaceResolution,
+    cwd: &std::path::Path,
+    skew: &VersionSkew,
+) -> JsonlToolResponse {
+    let code = err.code();
+    let message = err.to_string();
+    let diag = mcp_diagnostic(code, &message);
+    let mut diagnostics = vec![diag];
+    let mut summary = std::collections::BTreeMap::new();
+    summary.insert(code.to_string(), 1);
+    prepend_fallback_signal(resolution, cwd, &mut diagnostics, &mut summary);
+    prepend_skew_signal(skew, &mut diagnostics, &mut summary);
+    JsonlToolResponse {
+        exit_code: TOOL_FAILURE_EXIT_CODE,
+        terminal: code.to_string(),
+        diagnostics,
+        summary,
+    }
+}
+
+/// Translate a [`RunError`] into a [`RulesToolResponse`] whose
+/// `error` field carries the structured diagnostic. `rules` is
+/// empty, `count` is 0, `exit_code` is [`TOOL_FAILURE_EXIT_CODE`].
+/// `warnings` passes through whatever the caller built (version-
+/// skew probe result) so a degraded call still reports both
+/// signals.
+fn rules_response_from_run_error(
+    err: &RunError,
+    warnings: Vec<serde_json::Value>,
+) -> RulesToolResponse {
+    let code = err.code();
+    let message = err.to_string();
+    RulesToolResponse {
+        exit_code: TOOL_FAILURE_EXIT_CODE,
+        rules: Vec::new(),
+        count: 0,
+        warnings,
+        error: Some(mcp_diagnostic(code, &message)),
     }
 }

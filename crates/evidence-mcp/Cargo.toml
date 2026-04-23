@@ -35,6 +35,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "pro
 [dev-dependencies]
 assert_cmd = "2.1.2"
 tempfile = "3.24.0"
+walkdir.workspace = true
 
 [lints]
 workspace = true

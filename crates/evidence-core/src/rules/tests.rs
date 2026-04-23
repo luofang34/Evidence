@@ -67,6 +67,43 @@ fn cli_hand_emitted_set_is_disjoint_from_terminals() {
 }
 
 #[test]
+fn mcp_hand_emitted_set_is_disjoint_from_terminals() {
+    let terminals: BTreeSet<&str> = crate::TERMINAL_CODES.iter().copied().collect();
+    for c in HAND_EMITTED_MCP_CODES {
+        assert!(
+            !terminals.contains(c),
+            "HAND_EMITTED_MCP_CODES entry '{}' must not also be in TERMINAL_CODES",
+            c
+        );
+    }
+}
+
+#[test]
+fn cli_and_mcp_hand_emitted_sets_are_disjoint() {
+    let cli: BTreeSet<&str> = HAND_EMITTED_CLI_CODES.iter().copied().collect();
+    let mcp: BTreeSet<&str> = HAND_EMITTED_MCP_CODES.iter().copied().collect();
+    let overlap: Vec<&&str> = cli.intersection(&mcp).collect();
+    assert!(
+        overlap.is_empty(),
+        "a code appears in both HAND_EMITTED_CLI_CODES and HAND_EMITTED_MCP_CODES \
+         — each code must be audited against exactly one crate: {:?}",
+        overlap
+    );
+}
+
+#[test]
+fn mcp_hand_emitted_codes_carry_mcp_prefix() {
+    for c in HAND_EMITTED_MCP_CODES {
+        assert!(
+            c.starts_with("MCP_"),
+            "HAND_EMITTED_MCP_CODES entry '{}' must have MCP_ prefix; Domain::from_code \
+             routes domain-classification off the prefix",
+            c
+        );
+    }
+}
+
+#[test]
 fn rules_json_parses_round_trip() {
     let json = rules_json();
     let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");

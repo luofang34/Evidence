@@ -490,6 +490,41 @@
     "terminal": false
   },
   {
+    "code": "MCP_CARGO_NOT_FOUND",
+    "severity": "error",
+    "domain": "mcp",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "MCP_MALFORMED_JSONL",
+    "severity": "error",
+    "domain": "mcp",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "MCP_NO_OUTPUT",
+    "severity": "error",
+    "domain": "mcp",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "MCP_SUBPROCESS_SPAWN_FAILED",
+    "severity": "error",
+    "domain": "mcp",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "MCP_SUBPROCESS_TIMEOUT",
+    "severity": "error",
+    "domain": "mcp",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "MCP_VERSION_PROBE_FAILED",
     "severity": "warning",
     "domain": "mcp",

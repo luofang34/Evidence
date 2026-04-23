@@ -73,18 +73,29 @@ pub struct DoctorRequest {
 /// avoids forcing `schemars::JsonSchema` onto the core type and
 /// sidesteps a re-serialize cycle — agents pattern-match on
 /// `.code` anyway.
+///
+/// Tool-layer failures (subprocess couldn't spawn, timed out,
+/// produced nothing, or produced malformed JSONL) appear as a
+/// single synthesized `MCP_*` diagnostic with matching
+/// `terminal` and `exit_code == 2`, not as an rmcp `Err`.
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct JsonlToolResponse {
-    /// Process exit code from the spawned `cargo evidence` run.
-    /// `0` = success, `1` = runtime/argument error, `2` =
-    /// verification failure.
+    /// Process exit code advertised back to the host. `0` on
+    /// success, `1` on runtime/argument error from the CLI, `2`
+    /// on verification failure OR on tool-layer subprocess
+    /// failure (in which case `terminal` carries an `MCP_*`
+    /// code).
     pub exit_code: i32,
 
     /// `code` of the last (terminal) diagnostic in the stream.
     /// One of `evidence_core::TERMINAL_CODES` on a well-formed
     /// run (`VERIFY_OK`, `VERIFY_FAIL`, `VERIFY_ERROR`,
     /// `DOCTOR_OK`, `DOCTOR_FAIL`, `CLI_SUBCOMMAND_ERROR`).
-    /// Synthesized to `"NO_OUTPUT"` if the CLI emitted nothing.
+    /// `MCP_NO_OUTPUT` if the CLI emitted nothing,
+    /// `MCP_MALFORMED_JSONL` if at least one line failed to
+    /// parse, or a different `MCP_*` code from
+    /// `evidence_core::HAND_EMITTED_MCP_CODES` on subprocess
+    /// failure.
     pub terminal: String,
 
     /// Every parsed JSONL line from the run, in stream order.
@@ -99,20 +110,29 @@ pub struct JsonlToolResponse {
 
 /// Response shape for `evidence_rules` — a one-shot dump of the
 /// tool's diagnostic-code manifest.
+///
+/// On success, `error = None`, `rules` is the manifest, `count`
+/// equals `rules.len()`, and `exit_code` mirrors the CLI. On
+/// tool-layer failure the response stays well-formed: `rules`
+/// empty, `count == 0`, `exit_code == 2`, and `error` carries a
+/// single `MCP_*` diagnostic — agents pattern-match on
+/// `error.code` the same way they pattern-match on
+/// `JsonlToolResponse.terminal` for the streaming tools.
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct RulesToolResponse {
-    /// Exit code from `cargo evidence rules --json`. Should be 0
-    /// on any successful run; non-zero signals a CLI bug.
+    /// Exit code advertised back to the host. `0` on successful
+    /// pass-through; `2` on tool-layer failure (see `error`).
     pub exit_code: i32,
 
     /// The full rules manifest as emitted by the CLI — an array
     /// of `{code, severity, domain, has_fix_hint, terminal}`
-    /// objects, alphabetically sorted by `code`.
+    /// objects, alphabetically sorted by `code`. Empty on
+    /// tool-layer failure.
     pub rules: Vec<serde_json::Value>,
 
     /// Convenience: `rules.len()`. Agents can pin this against
     /// `evidence_core::RULES.len()` for a drift check without
-    /// deserializing every entry.
+    /// deserializing every entry. `0` on tool-layer failure.
     pub count: usize,
 
     /// Server-layer warnings synthesized by the MCP wrapper, not
@@ -124,4 +144,12 @@ pub struct RulesToolResponse {
     /// filter out server signals.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<serde_json::Value>,
+
+    /// Tool-layer failure diagnostic when the subprocess could
+    /// not run or its stdout was not valid JSON. `None` on
+    /// success. Carries an `MCP_*` code from
+    /// `evidence_core::HAND_EMITTED_MCP_CODES` with
+    /// `severity == "error"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<serde_json::Value>,
 }

@@ -185,6 +185,14 @@ fn rules_contains_every_code() {
 
 /// invariant (2): every non-terminal, non-hand-emitted
 /// `RULES` entry is backed by a real `DiagnosticCode::code()` impl.
+///
+/// Hand-emitted codes split across two registries so each set
+/// audits against its own crate:
+/// [`HAND_EMITTED_CLI_CODES`] against `cargo-evidence/src`,
+/// [`HAND_EMITTED_MCP_CODES`] against `evidence-mcp/src`.
+///
+/// [`HAND_EMITTED_CLI_CODES`]: evidence_core::HAND_EMITTED_CLI_CODES
+/// [`HAND_EMITTED_MCP_CODES`]: evidence_core::HAND_EMITTED_MCP_CODES
 #[test]
 fn every_rules_entry_is_implemented() {
     let walked = walked_codes();
@@ -192,6 +200,7 @@ fn every_rules_entry_is_implemented() {
         evidence_core::TERMINAL_CODES.iter().copied().collect();
     let hand_emitted: std::collections::BTreeSet<&str> = evidence_core::HAND_EMITTED_CLI_CODES
         .iter()
+        .chain(evidence_core::HAND_EMITTED_MCP_CODES.iter())
         .copied()
         .collect();
 
@@ -205,8 +214,8 @@ fn every_rules_entry_is_implemented() {
     assert!(
         orphans.is_empty(),
         "RULES entries name codes with no DiagnosticCode impl, TERMINAL_CODES \
-         entry, or HAND_EMITTED_CLI_CODES entry (delete the stale RULES row \
-         or restore its backing): {:?}",
+         entry, HAND_EMITTED_CLI_CODES entry, or HAND_EMITTED_MCP_CODES entry \
+         (delete the stale RULES row or restore its backing): {:?}",
         orphans
     );
 }
