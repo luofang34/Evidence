@@ -56,7 +56,7 @@ trace_hlr = 63
 # tool/trace/llr.toml — Low-Level Requirements.
 trace_llr = 68
 # tool/trace/tests.toml — Test Cases.
-trace_test = 69
+trace_test = 71
 
 # evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR

@@ -1901,6 +1901,17 @@ out of sync.
 failed subprocess populates `error` with the structured
 diagnostic, leaves `rules` empty, and sets `count = 0`; a
 successful run leaves `error = None`.
+
+Streaming-verb recipe: the JSONL-stream verbs (doctor, check,
+floors — and any future verb of the same shape) share a single
+`Server::run_streaming_verb(args, workspace_path)` helper that
+owns the `resolve_workspace` → `run_evidence` → (on error)
+`jsonl_response_from_run_error` | (on success) `parse_jsonl` →
+`prepend_fallback_signal` → `prepend_skew_signal` →
+`JsonlToolResponse` sequence. Each handler reduces to a
+one-liner naming its CLI args; skipping the skew-signal prepend
+on a new verb is no longer possible by construction, since the
+helper is the only path to the response shape.
 """
 verification_methods = ["test"]
 emits = [
