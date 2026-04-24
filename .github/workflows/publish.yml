@@ -21,10 +21,10 @@ run-name: >-
 #   for verification, or `dry_run=false` for a re-publish of the
 #   current workspace version without cutting a new tag (rare).
 #
-# Every path goes through the `production-release` GitHub environment
+# Every path goes through the `crates-io` GitHub environment
 # (reviewer-gated, deployment branches restricted to `main` +
 # `v*` tags). Trusted publishing pairs this workflow with per-crate
-# publisher entries on crates.io (`environment = production-release`).
+# publisher entries on crates.io (`environment = crates-io`).
 #
 # **No dev channel.** Bleeding-edge installs use git:
 #
@@ -67,7 +67,7 @@ jobs:
           || (inputs.dry_run && 'Publish [DRY-RUN]' || 'Publish [REAL] (dispatch)')
       }}
     runs-on: ubuntu-latest
-    environment: production-release
+    environment: crates-io
     permissions:
       id-token: write   # OIDC for trusted publishing
       contents: read
