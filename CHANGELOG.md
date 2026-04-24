@@ -9,35 +9,131 @@ All three workspace crates (`evidence-core`, `cargo-evidence`,
 `evidence-mcp`) share a single version; release entries cover all
 three unless noted.
 
-## [0.1.2] — 2026-04-23
+## [0.1.2] — 2026-04-24
 
 ### Added
 
-- `evidence-mcp` now probes `cargo evidence --version` at startup
-  and prepends `MCP_VERSION_SKEW` (versions disagree) or
-  `MCP_VERSION_PROBE_FAILED` (probe couldn't run) to every tool
-  response when the CLI it spawned isn't the version this MCP
-  server was built against. `RulesToolResponse` gains a
-  `warnings: [...]` field carrying these MCP-layer signals
-  separately from the `rules[]` manifest. Two new diagnostic
-  codes registered in `evidence_core::RULES`.
-- `cargo-evidence` and `evidence-mcp` binaries handle `--version`
-  and `--help` as direct-invocation flags. Previously the cargo-
-  subcommand dispatch form was the only path that accepted
-  these, so `evidence-mcp --version` hung on the MCP handshake
-  and `cargo-evidence --version` was rejected by clap.
+- **Three new MCP verbs.** `evidence-mcp` now exposes six tools
+  total (up from three):
+  - `evidence_ping` — cheap liveness + version-skew probe. No
+    subprocess spawn per call; reads the cached `VersionSkew`
+    captured at server startup. Use as a reachability check
+    before invoking expensive verbs.
+  - `evidence_floors` — query the ratchet-gate state. Wraps
+    `cargo evidence floors --format=jsonl`; streams
+    `FLOORS_DIMENSION_OK` / `FLOORS_BELOW_MIN` per dimension
+    and terminates with `FLOORS_OK` / `FLOORS_FAIL`.
+  - `evidence_diff` — compare two on-disk bundles. Wraps
+    `cargo evidence diff <a> <b> --json`; returns the raw
+    structured delta blob (inputs, outputs, metadata, env) as
+    a single JSON document.
+- **Structured MCP-layer failures.** Subprocess failures in any
+  MCP tool (cargo not on `PATH`, spawn error, timeout, malformed
+  JSONL output) now surface as a well-formed `JsonlToolResponse`
+  or `RulesToolResponse` carrying `exit_code == 2` plus a single
+  structured diagnostic with an `MCP_*` code. Previously these
+  went back as a free-form rmcp `Err(String)` that agents
+  couldn't pattern-match on. Five new codes in
+  `evidence_core::RULES` under `Domain::Mcp`:
+  `MCP_CARGO_NOT_FOUND`, `MCP_MALFORMED_JSONL`, `MCP_NO_OUTPUT`,
+  `MCP_SUBPROCESS_SPAWN_FAILED`, `MCP_SUBPROCESS_TIMEOUT`.
+- **`HAND_EMITTED_MCP_CODES`** public constant in
+  `evidence_core`, parallel to `HAND_EMITTED_CLI_CODES` and
+  disjoint from it. Each set audits against its own source tree;
+  `MCP_VERSION_PROBE_FAILED` / `MCP_VERSION_SKEW` /
+  `MCP_WORKSPACE_FALLBACK` migrate out of the CLI list into the
+  new MCP list.
+- **`RulesToolResponse.error: Option<Value>`** field. `None` on
+  success; on tool-layer failure carries the structured `MCP_*`
+  diagnostic.
+- **`EVIDENCE_MCP_TIMEOUT_SECS`** environment variable tunes the
+  per-spawn subprocess cap. Default 600 s, clamped to
+  `[60, 7200]`. Read on every call, so an operator can retune
+  without restarting the server; out-of-range values clamp with
+  a `tracing::warn!`, unparseable values fall back to the
+  default.
+- **Version-skew probe.** On startup `evidence-mcp` probes
+  `cargo evidence --version` and caches the result. Tool
+  responses prepend `MCP_VERSION_SKEW` (versions disagree) or
+  `MCP_VERSION_PROBE_FAILED` (probe couldn't run) when the
+  CLI's version doesn't match the MCP server's. The cached
+  outcome is surfaced directly by `evidence_ping`.
+  `RulesToolResponse` gains a `warnings: [...]` field carrying
+  these MCP-layer signals separately from the `rules[]`
+  manifest.
+- **`cargo-evidence` and `evidence-mcp` binaries handle
+  `--version` / `--help`** as direct-invocation flags.
+  Previously `evidence-mcp --version` hung on the MCP
+  handshake and `cargo-evidence --version` was rejected by
+  clap because the cargo-subcommand dispatch form was the only
+  path that accepted these.
+
+### Changed
+
+- **Synthesized parse terminals renamed for prefix alignment.**
+  `MALFORMED_JSONL` → `MCP_MALFORMED_JSONL`; `NO_OUTPUT` →
+  `MCP_NO_OUTPUT`. Both are MCP-layer signals (not CLI-emitted),
+  so the `MCP_` prefix now reflects domain ownership.
+- **`EnvFilter::from_env_lossy`** in the MCP binary's
+  tracing init (replaces `try_from_default_env().unwrap_or_else
+  (…)`). Preserves valid directives when `RUST_LOG` has a syntax
+  error elsewhere in the string, and honors empty `RUST_LOG=""`
+  (the Nix-sandbox-clears-RUST_LOG case) without dropping to the
+  silent fallback.
+- **`evidence_check` tool description** explicitly flags
+  side-effect scope: `--mode=source` executes the workspace's
+  tests (writes files, binds sockets, mutates env, spawns
+  processes); `--mode=bundle` is inspection-only.
+- **`VersionSkew::Matched(String)`** (internal enum) carries the
+  probed CLI version string. The byte-equality invariant is now
+  expressed at the type — consumers read `cli_version` from the
+  variant rather than substituting the MCP version (which would
+  silently misreport if the match check ever relaxed).
+
+### Fixed
+
+- **`cargo-evidence` binary** now supported `--version` on direct
+  invocation (not only via `cargo evidence --version` dispatch).
 
 ### Docs
 
 - `crates/evidence-mcp/README.md` gains a `claude mcp add
   evidence evidence-mcp` snippet for Claude Code (CLI) alongside
-  the existing Claude Desktop JSON config.
+  the existing Claude Desktop JSON config, a `Configuration`
+  table documenting `EVIDENCE_MCP_TIMEOUT_SECS` and `RUST_LOG`,
+  and an expanded tools table covering all six verbs with
+  inspection-vs-execution annotations.
 
 ### Internal
 
-- Trace entries added for the skew-detection surface: SYS-028
-  + HLR-060 + LLR-063 + TEST-063. Floors ratcheted
-  correspondingly.
+- Trace entries added for the full MCP-layer expansion:
+  SYS-028, HLR-060 through HLR-063, LLR-063 through LLR-068,
+  TEST-063 through TEST-071. Floors ratcheted correspondingly
+  (`diagnostic_codes`: 136 → 143, `trace_hlr`: 59 → 63,
+  `trace_llr`: 62 → 68, `trace_test`: 62 → 71,
+  `per_crate.evidence-mcp.test_count`: 11 → 37).
+- `crates/evidence-mcp/src/server.rs` streaming-verb handlers
+  (`evidence_doctor`, `evidence_check`, `evidence_floors`) share
+  a single `Server::run_streaming_verb` helper owning the
+  `resolve_workspace` → `run_evidence` → `parse_jsonl` → prepend-
+  fallback → prepend-skew pipeline. New verbs of the same shape
+  route through the helper by construction, so skipping the
+  skew-signal prepend is no longer possible.
+- `rules.rs` split: `HAND_EMITTED_CLI_CODES` /
+  `HAND_EMITTED_MCP_CODES` / `RESERVED_UNCLAIMED_CODES` move
+  into `rules/hand_emitted.rs` to keep the facade under the
+  workspace 500-line file limit.
+- `server.rs` split: response-builder helpers move into
+  `server/responses.rs` (pure functions over `VersionSkew` /
+  `RunError` / `WorkspaceResolution`, unit-tested in isolation).
+- Meta-bijection tests for `HAND_EMITTED_MCP_CODES`
+  (registry ⇔ `crates/evidence-mcp/src`) in both directions.
+- `RunError::code(&self) -> &'static str` pins each subprocess-
+  wrapper variant to its `MCP_*` code at the type site; the
+  response-building helper reads the code off the enum rather
+  than matching at each call-site.
+- Golden fixture `crates/cargo-evidence/tests/fixtures/golden_rules.json`
+  regenerated for the 143-code manifest.
 
 ## [0.1.1] — 2026-04-23
 

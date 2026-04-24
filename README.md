@@ -340,9 +340,9 @@ shape, same exit codes.
 **`verify` remains supported as the low-level primitive** for CI
 scripts and bash pipelines that want a stable bundle-only surface
 without argument-shape inference. The `evidence-mcp` wrapper exposes
-`check` as one of three MCP tools (alongside `rules` and `doctor`);
-it does not expose `verify` because `check` in bundle mode already
-delegates to it.
+`check` as one of six MCP tools (alongside `rules`, `doctor`,
+`floors`, `diff`, and `ping`); it does not expose `verify` because
+`check` in bundle mode already delegates to it.
 
 ### `cargo evidence generate`
 
@@ -677,11 +677,14 @@ bundles are reproducible across machines.
 
 ```
 crates/
-  evidence/          # Core library (evidence crate)
+  evidence-core/     # Core library (types, trace, verify, compliance)
   cargo-evidence/    # Cargo subcommand binary
+  evidence-mcp/      # MCP (Model Context Protocol) server binary
 schemas/             # JSON schemas for bundle files
-cert/                # Certification configuration (boundary, profiles, trace)
-docs/                # Compliance documentation
+cert/                # Certification configuration (boundary, profiles, floors)
+tool/trace/          # SYS / HLR / LLR / Test chain (this project's own trace)
+tools/               # Repo utilities (install-hooks.sh, regen-golden-fixtures.sh)
+scripts/             # CI mirror (local-ci.sh)
 ```
 
 ---
