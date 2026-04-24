@@ -123,6 +123,79 @@ fn evidence_floors_missing_workspace_path_emits_fallback_signal() {
             >= 1,
         "summary must track the fallback signal: {summary:?}"
     );
+
+    // Terminal: a tempdir with no `cert/floors.toml` hits the
+    // CLI's missing-config path, which emits FLOORS_OK as a
+    // friendly "gate not configured" info. Pin the terminal so
+    // a regression that drops it (or flips it to empty) fires
+    // here, not at the next reviewer's eyeball.
+    assert_eq!(
+        structured["terminal"].as_str(),
+        Some("FLOORS_OK"),
+        "expected FLOORS_OK on fallback-to-tempdir (no floors config); structured={structured}"
+    );
+}
+
+/// TEST-070 selector: `evidence_floors` on a workspace whose
+/// `cert/floors.toml` declares an unsatisfiable floor surfaces
+/// `FLOORS_FAIL` + `FLOORS_BELOW_MIN`. Exercises the failure-
+/// path shape symmetric to `evidence_floors_on_self_repo_
+/// terminates_with_floors_ok`.
+#[test]
+fn evidence_floors_below_floor_terminates_with_floors_fail() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cert = tmp.path().join("cert");
+    std::fs::create_dir(&cert).expect("create cert dir");
+    // `diagnostic_codes` measures `evidence_core::RULES.len()` —
+    // a compiled-in constant — so the measurement is available
+    // regardless of workspace contents. Floor = 999_999 is
+    // unreachable; current will be whatever the crate ships.
+    std::fs::write(
+        cert.join("floors.toml"),
+        "schema_version = 1\n\n[floors]\ndiagnostic_codes = 999999\n",
+    )
+    .expect("write floors.toml");
+
+    let mut frames = init_frames();
+    frames.push(json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "evidence_floors",
+            "arguments": {"workspace_path": tmp.path().to_str().expect("utf-8 path")}
+        }
+    }));
+
+    let responses = session(&frames, 2);
+    assert_eq!(responses.len(), 2, "responses: {responses:?}");
+
+    let call_resp = &responses[1];
+    let structured = call_resp
+        .pointer("/result/structuredContent")
+        .unwrap_or_else(|| panic!("missing structuredContent: {call_resp}"));
+
+    assert_eq!(
+        structured["terminal"].as_str(),
+        Some("FLOORS_FAIL"),
+        "expected FLOORS_FAIL terminal; structured={structured}"
+    );
+    assert_eq!(
+        structured["exit_code"].as_i64(),
+        Some(2),
+        "expected exit_code == 2 on FLOORS_FAIL; structured={structured}"
+    );
+
+    let diagnostics = structured["diagnostics"]
+        .as_array()
+        .unwrap_or_else(|| panic!("diagnostics not array: {structured}"));
+    let has_below_min = diagnostics
+        .iter()
+        .any(|d| d.get("code").and_then(Value::as_str) == Some("FLOORS_BELOW_MIN"));
+    assert!(
+        has_below_min,
+        "expected at least one FLOORS_BELOW_MIN diagnostic; got: {diagnostics:?}"
+    );
 }
 
 /// TEST-067 selector: a typo'd argument field on

@@ -59,6 +59,50 @@ pub struct Server {
 #[tool_handler(router = self.tool_router, name = "evidence-mcp")]
 impl ServerHandler for Server {}
 
+impl Server {
+    /// Shared body for every JSONL-streaming MCP verb
+    /// (`evidence_doctor`, `evidence_check`, `evidence_floors`,
+    /// and any future verb of the same shape). Owns the full
+    /// pipeline: resolve the caller's workspace path (falling
+    /// back to server CWD with the `MCP_WORKSPACE_FALLBACK`
+    /// warning), spawn `cargo evidence <args>` under the
+    /// subprocess-timeout cap, parse the JSONL stream, and
+    /// chain the workspace-fallback + version-skew signals
+    /// onto the response.
+    ///
+    /// A handler delegates with `self.run_streaming_verb(&["doctor",
+    /// "--format=jsonl"], req.workspace_path.as_deref()).await`.
+    /// Skipping the helper is the only way to miss the
+    /// skew-signal prepend — LLR-064 pins the routing.
+    async fn run_streaming_verb(
+        &self,
+        args: &[&str],
+        workspace_path: Option<&str>,
+    ) -> Result<JsonlToolResponse, String> {
+        let (cwd, resolution) = resolve_workspace(workspace_path)?;
+        let captured = match run_evidence(args, &cwd).await {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(jsonl_response_from_run_error(
+                    &e,
+                    resolution,
+                    &cwd,
+                    &self.version_skew,
+                ));
+            }
+        };
+        let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
+        prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
+        prepend_skew_signal(&self.version_skew, &mut diagnostics, &mut summary);
+        Ok(JsonlToolResponse {
+            exit_code: captured.exit_code,
+            terminal,
+            diagnostics,
+            summary,
+        })
+    }
+}
+
 #[tool_router(router = tool_router)]
 impl Server {
     /// Build a fresh server handle. Registers the tool methods on
@@ -146,27 +190,10 @@ impl Server {
         &self,
         Parameters(req): Parameters<DoctorRequest>,
     ) -> Result<Json<JsonlToolResponse>, String> {
-        let (cwd, resolution) = resolve_workspace(req.workspace_path.as_deref())?;
-        let captured = match run_evidence(&["doctor", "--format=jsonl"], &cwd).await {
-            Ok(c) => c,
-            Err(e) => {
-                return Ok(Json(jsonl_response_from_run_error(
-                    &e,
-                    resolution,
-                    &cwd,
-                    &self.version_skew,
-                )));
-            }
-        };
-        let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
-        prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
-        prepend_skew_signal(&self.version_skew, &mut diagnostics, &mut summary);
-        Ok(Json(JsonlToolResponse {
-            exit_code: captured.exit_code,
-            terminal,
-            diagnostics,
-            summary,
-        }))
+        Ok(Json(
+            self.run_streaming_verb(&["doctor", "--format=jsonl"], req.workspace_path.as_deref())
+                .await?,
+        ))
     }
 
     /// `evidence_check` — one-shot pass/gap validation of a
@@ -207,7 +234,6 @@ impl Server {
         &self,
         Parameters(req): Parameters<CheckRequest>,
     ) -> Result<Json<JsonlToolResponse>, String> {
-        let (cwd, resolution) = resolve_workspace(req.workspace_path.as_deref())?;
         let mut args: Vec<String> = vec!["check".into(), "--format=jsonl".into()];
         if let Some(mode) = req.mode.as_deref() {
             // Validate the mode up front to give the agent a
@@ -224,26 +250,10 @@ impl Server {
             }
         }
         let args_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let captured = match run_evidence(&args_refs, &cwd).await {
-            Ok(c) => c,
-            Err(e) => {
-                return Ok(Json(jsonl_response_from_run_error(
-                    &e,
-                    resolution,
-                    &cwd,
-                    &self.version_skew,
-                )));
-            }
-        };
-        let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
-        prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
-        prepend_skew_signal(&self.version_skew, &mut diagnostics, &mut summary);
-        Ok(Json(JsonlToolResponse {
-            exit_code: captured.exit_code,
-            terminal,
-            diagnostics,
-            summary,
-        }))
+        Ok(Json(
+            self.run_streaming_verb(&args_refs, req.workspace_path.as_deref())
+                .await?,
+        ))
     }
 
     /// `evidence_ping` — cheap liveness + version-skew probe.
@@ -295,27 +305,10 @@ impl Server {
         &self,
         Parameters(req): Parameters<FloorsRequest>,
     ) -> Result<Json<JsonlToolResponse>, String> {
-        let (cwd, resolution) = resolve_workspace(req.workspace_path.as_deref())?;
-        let captured = match run_evidence(&["floors", "--format=jsonl"], &cwd).await {
-            Ok(c) => c,
-            Err(e) => {
-                return Ok(Json(jsonl_response_from_run_error(
-                    &e,
-                    resolution,
-                    &cwd,
-                    &self.version_skew,
-                )));
-            }
-        };
-        let (terminal, mut diagnostics, mut summary) = parse_jsonl(&captured.stdout);
-        prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
-        prepend_skew_signal(&self.version_skew, &mut diagnostics, &mut summary);
-        Ok(Json(JsonlToolResponse {
-            exit_code: captured.exit_code,
-            terminal,
-            diagnostics,
-            summary,
-        }))
+        Ok(Json(
+            self.run_streaming_verb(&["floors", "--format=jsonl"], req.workspace_path.as_deref())
+                .await?,
+        ))
     }
 
     /// `evidence_diff` — compare two evidence bundles on-disk

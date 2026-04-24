@@ -1,15 +1,20 @@
 //! Meta-bijection for `evidence_core::HAND_EMITTED_MCP_CODES`.
 //!
-//! Every entry in the registry must appear as a string literal
-//! somewhere under `crates/evidence-mcp/src` — either as the
-//! body of a `pub(crate) const MCP_*: &str = "MCP_*"` declaration
-//! (the parse-terminal case), inside a `RunError::code` match
-//! arm (the subprocess-wrapper case), or as the argument to
-//! `workspace_fallback_diagnostic` (the workspace-fallback case).
+//! Two-way check:
+//!
+//! - Registry → source (`every_mcp_code_emitted_in_source`):
+//!   every entry in the registry must appear as a string
+//!   literal somewhere under `crates/evidence-mcp/src`. Catches
+//!   the pseudo-code anti-pattern — a code declared in RULES
+//!   but never actually emitted.
+//! - Source → registry (`every_mcp_literal_in_source_is_registered`):
+//!   every `MCP_*` string literal in source must be in the
+//!   registry. Catches the silent-contract-break case — a new
+//!   code emitted from the server but never added to the public
+//!   vocabulary.
 //!
 //! Mirrors `doctor_checks_locked::every_doctor_code_emitted_in_source`
-//! on the CLI side. A new code landing in the registry without a
-//! real emit site fires here, not at runtime.
+//! on the CLI side, extended with the reverse direction.
 
 #![allow(
     clippy::unwrap_used,
@@ -42,6 +47,77 @@ fn every_mcp_code_emitted_in_source() {
          string literal under {src:?} (pseudo-code anti-pattern): \
          {missing:?}. Either emit the code or remove it from the registry.",
     );
+}
+
+/// TEST-071 selector: every `MCP_*` string literal under
+/// `crates/evidence-mcp/src` must be in
+/// `evidence_core::HAND_EMITTED_MCP_CODES`. Reverse direction
+/// of `every_mcp_code_emitted_in_source` — catches the case
+/// where a handler emits a new code that the public registry
+/// doesn't know about.
+#[test]
+fn every_mcp_literal_in_source_is_registered() {
+    let src = mcp_src_root();
+    let haystack = read_all_rs_files(&src);
+
+    let registry: std::collections::BTreeSet<&'static str> = evidence_core::HAND_EMITTED_MCP_CODES
+        .iter()
+        .copied()
+        .collect();
+
+    let literals = extract_mcp_literals(&haystack);
+    let mut orphans: Vec<String> = literals
+        .into_iter()
+        .filter(|lit| !registry.contains(lit.as_str()))
+        .collect();
+    orphans.sort();
+    orphans.dedup();
+
+    assert!(
+        orphans.is_empty(),
+        "the following `MCP_*` string literal(s) are emitted \
+         from {src:?} but not registered in \
+         evidence_core::HAND_EMITTED_MCP_CODES (silent contract \
+         break — agents pattern-matching on `.code` against the \
+         rules manifest would miss these): {orphans:?}. Either \
+         register the code or rename the literal.",
+    );
+}
+
+/// Extract every `MCP_*` string literal from the given
+/// concatenated source text. A literal is an `MCP_` followed by
+/// one or more uppercase letters, digits, or underscores,
+/// immediately preceded by `"` and immediately followed by `"`.
+/// Anchoring on the double quotes avoids matching identifiers,
+/// doc-comment mentions, or partial substrings in longer codes.
+fn extract_mcp_literals(haystack: &str) -> Vec<String> {
+    let bytes = haystack.as_bytes();
+    let mut out: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i + 5 < bytes.len() {
+        if bytes[i] == b'"' && &bytes[i + 1..i + 5] == b"MCP_" {
+            let start = i + 1;
+            let mut end = start + 4;
+            while end < bytes.len() {
+                let c = bytes[end];
+                if c.is_ascii_uppercase() || c.is_ascii_digit() || c == b'_' {
+                    end += 1;
+                } else {
+                    break;
+                }
+            }
+            if end < bytes.len() && bytes[end] == b'"' {
+                let lit = std::str::from_utf8(&bytes[start..end]).unwrap_or("");
+                if !lit.is_empty() {
+                    out.push(lit.to_string());
+                }
+                i = end + 1;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
 }
 
 fn mcp_src_root() -> PathBuf {
