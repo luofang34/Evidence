@@ -935,3 +935,53 @@ in the response.
 test_selectors = [
     "mcp_surface::tools_list_advertises_all_six_verbs",
 ]
+
+[[tests]]
+uid = "1ad01fde-ee89-4f0f-9213-8d3cd8321eec"
+id = "TEST-070"
+title = "evidence_floors on an unsatisfiable config surfaces FLOORS_FAIL + FLOORS_BELOW_MIN"
+owner = "tool"
+traces_to = ["bb4cf169-cb26-4c99-b647-3854406e33f2"]
+description = """
+Pins the failure-path shape of the MCP floors verb. The
+happy-path test (TEST-067) covers FLOORS_OK on the self-repo;
+this one fabricates a tempdir config declaring an
+unsatisfiable `diagnostic_codes` floor and asserts the full
+failure-response triad:
+
+- `terminal == "FLOORS_FAIL"`.
+- `exit_code == 2`.
+- `diagnostics[]` contains at least one
+  `FLOORS_BELOW_MIN` entry naming the failing dimension.
+
+Also strengthens `evidence_floors_missing_workspace_path_emits_fallback_signal`
+(TEST-067) to pin the terminal on the fallback path — the
+existing assertion only checks the prepended signal; the
+full-response-shape assertion catches a regression that
+would leave terminal empty or drop it to something else.
+"""
+test_selectors = [
+    "mcp_floors_surface::evidence_floors_below_floor_terminates_with_floors_fail",
+    "mcp_floors_surface::evidence_floors_missing_workspace_path_emits_fallback_signal",
+]
+
+[[tests]]
+uid = "bc7fa234-110a-437d-82c9-d5bfcfb13ba3"
+id = "TEST-071"
+title = "every MCP_* literal under crates/evidence-mcp/src is registered in HAND_EMITTED_MCP_CODES"
+owner = "tool"
+traces_to = ["759ac6b4-ef4c-4d1d-8bfc-79f07ecef6eb"]
+description = """
+Reverse-bijection pin on `HAND_EMITTED_MCP_CODES`. The
+existing `every_mcp_code_emitted_in_source` (TEST-064) goes
+registry → source: every declared code must appear in source.
+This one goes source → registry: every `MCP_*` string literal
+appearing in `crates/evidence-mcp/src` must be in the registry.
+Catches the silent-contract-break case where a new code is
+emitted from the server but never added to the public
+vocabulary — agents pattern-matching on `.code` against the
+rules manifest would miss it.
+"""
+test_selectors = [
+    "mcp_codes_audit::every_mcp_literal_in_source_is_registered",
+]
