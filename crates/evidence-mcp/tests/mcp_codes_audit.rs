@@ -88,8 +88,15 @@ fn every_mcp_literal_in_source_is_registered() {
 /// concatenated source text. A literal is an `MCP_` followed by
 /// one or more uppercase letters, digits, or underscores,
 /// immediately preceded by `"` and immediately followed by `"`.
-/// Anchoring on the double quotes avoids matching identifiers,
-/// doc-comment mentions, or partial substrings in longer codes.
+/// Anchoring on the double quotes avoids matching identifiers
+/// or partial substrings inside longer codes.
+///
+/// Scope caveat: a quoted `MCP_*` inside a doc comment (e.g.,
+/// `/// see "MCP_FUTURE_CODE"`) would be picked up as a
+/// literal. No such mention exists today; if one ever does, the
+/// fix is either register the code or rewrite the comment.
+/// Tightening the scanner to skip `//` / `///` contexts would
+/// double its length for negligible gain.
 fn extract_mcp_literals(haystack: &str) -> Vec<String> {
     let bytes = haystack.as_bytes();
     let mut out: Vec<String> = Vec::new();
@@ -107,7 +114,12 @@ fn extract_mcp_literals(haystack: &str) -> Vec<String> {
                 }
             }
             if end < bytes.len() && bytes[end] == b'"' {
-                let lit = std::str::from_utf8(&bytes[start..end]).unwrap_or("");
+                // The inner loop only advances over ASCII bytes
+                // (upper, digit, or `_`), so the subslice is
+                // ASCII by construction — expect rather than
+                // unwrap_or("") signals the intent.
+                let lit = std::str::from_utf8(&bytes[start..end])
+                    .expect("ascii-only subslice from the inner character class");
                 if !lit.is_empty() {
                     out.push(lit.to_string());
                 }

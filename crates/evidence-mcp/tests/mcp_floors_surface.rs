@@ -189,12 +189,23 @@ fn evidence_floors_below_floor_terminates_with_floors_fail() {
     let diagnostics = structured["diagnostics"]
         .as_array()
         .unwrap_or_else(|| panic!("diagnostics not array: {structured}"));
-    let has_below_min = diagnostics
-        .iter()
-        .any(|d| d.get("code").and_then(Value::as_str) == Some("FLOORS_BELOW_MIN"));
+    // The FLOORS_BELOW_MIN diagnostic must name `diagnostic_codes`
+    // specifically — a regression that flips which dimension
+    // gets flagged (or emits the code without a dimension at
+    // all) would pass a looser "any FLOORS_BELOW_MIN present"
+    // check. The CLI today encodes the dimension as the
+    // message prefix (`"{dimension} ({kind}): current=…"`);
+    // assert the prefix rather than a dedicated field since
+    // Diagnostic carries no structured `dimension` slot yet.
+    let below_min_for_dim = diagnostics.iter().find(|d| {
+        d.get("code").and_then(Value::as_str) == Some("FLOORS_BELOW_MIN")
+            && d.get("message")
+                .and_then(Value::as_str)
+                .is_some_and(|m| m.starts_with("diagnostic_codes "))
+    });
     assert!(
-        has_below_min,
-        "expected at least one FLOORS_BELOW_MIN diagnostic; got: {diagnostics:?}"
+        below_min_for_dim.is_some(),
+        "expected a FLOORS_BELOW_MIN diagnostic naming `diagnostic_codes`; got: {diagnostics:?}"
     );
 }
 
