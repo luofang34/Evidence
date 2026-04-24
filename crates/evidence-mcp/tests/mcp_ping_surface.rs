@@ -41,6 +41,24 @@ fn evidence_ping_matched_returns_versions_and_matched_skew() {
     );
 
     let call_resp = &responses[1];
+
+    // Happy path rides on structuredContent, not a JSON-RPC
+    // error or rmcp's isError flag. Match the failure-surface
+    // convention so a regression that starts routing ping
+    // through the error path fires loud.
+    assert!(
+        call_resp.get("error").is_none(),
+        "expected no JSON-RPC error object; got {call_resp}"
+    );
+    let is_error = call_resp
+        .pointer("/result/isError")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    assert!(
+        !is_error,
+        "happy-path ping must not set isError==true; got {call_resp}"
+    );
+
     let structured = call_resp
         .pointer("/result/structuredContent")
         .unwrap_or_else(|| panic!("missing structuredContent: {call_resp}"));

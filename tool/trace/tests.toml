@@ -913,3 +913,25 @@ test_selectors = [
     "mcp_diff_surface::evidence_diff_rejects_unknown_field_typo",
     "mcp_diff_surface::evidence_diff_rejects_missing_required_arguments",
 ]
+
+[[tests]]
+uid = "c0135830-dc4a-4dcf-9ec8-871cec30e3ad"
+id = "TEST-069"
+title = "tools/list advertises every MCP verb the server claims to expose"
+owner = "tool"
+traces_to = ["65b81ee1-b646-490e-8c1b-c2f9ad183970"]
+description = """
+Drift-prevention pin on the rmcp `ToolRouter` registration.
+A regression that silently drops a `#[tool]` method from the
+generated router (for example, a macro-expansion failure that
+skips one method) would pass the per-verb surface tests but
+leave the dropped verb absent from `tools/list`. The test
+issues a `tools/list` request after the init handshake and
+asserts that all six advertised verbs
+(`evidence_rules`, `evidence_doctor`, `evidence_check`,
+`evidence_ping`, `evidence_floors`, `evidence_diff`) appear
+in the response.
+"""
+test_selectors = [
+    "mcp_surface::tools_list_advertises_all_six_verbs",
+]

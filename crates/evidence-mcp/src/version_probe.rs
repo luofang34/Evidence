@@ -25,12 +25,22 @@ use std::process::Command;
 use std::time::Duration;
 
 /// Outcome of the startup version probe.
+///
+/// `Matched` carries the probed string — byte-equal to
+/// `env!("CARGO_PKG_VERSION")` at construction time — so
+/// consumers that want the CLI version on a successful probe
+/// read it off the variant rather than substituting the
+/// evidence-mcp version. A future fuzzy-match relaxation
+/// (e.g. semver-equal smoothing over pre-release suffixes)
+/// would otherwise silently make `cli_version` lie to the
+/// caller.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum VersionSkew {
     /// Probe succeeded; `evidence-mcp`'s version matches the
-    /// spawned CLI's version. No signal needed on tool
-    /// responses.
-    Matched,
+    /// spawned CLI's version. The `String` carries the probed
+    /// value (byte-equal to `env!("CARGO_PKG_VERSION")` by the
+    /// invariant enforced in [`detect_with_probe`]).
+    Matched(String),
     /// Probe succeeded but the two versions disagree. Agents
     /// should see a warning carrying both strings.
     Skewed { mcp: String, cli: String },
@@ -58,7 +68,7 @@ where
 {
     let mcp = env!("CARGO_PKG_VERSION").to_string();
     match probe() {
-        Ok(cli) if cli == mcp => VersionSkew::Matched,
+        Ok(cli) if cli == mcp => VersionSkew::Matched(cli),
         Ok(cli) => VersionSkew::Skewed { mcp, cli },
         Err(e) => VersionSkew::ProbeFailed(e),
     }
@@ -158,7 +168,7 @@ fn wait_with_timeout(
 /// both MCP-layer warnings on `.code` uniformly.
 pub(crate) fn skew_diagnostic(skew: &VersionSkew) -> Option<serde_json::Value> {
     match skew {
-        VersionSkew::Matched => None,
+        VersionSkew::Matched(_) => None,
         VersionSkew::Skewed { mcp, cli } => Some(serde_json::json!({
             "code": "MCP_VERSION_SKEW",
             "severity": "warning",
@@ -194,12 +204,13 @@ mod tests {
     use super::*;
 
     /// Normal: probe returns the same version as `evidence-mcp`'s
-    /// `CARGO_PKG_VERSION` → Matched. No warning synthesized.
+    /// `CARGO_PKG_VERSION` → Matched carrying the probed string
+    /// (byte-equal to `mcp`). No warning synthesized.
     #[test]
     fn normal_matching_versions_yield_matched_no_diagnostic() {
         let mcp = env!("CARGO_PKG_VERSION").to_string();
         let skew = detect_with_probe(|| Ok(mcp.clone()));
-        assert_eq!(skew, VersionSkew::Matched);
+        assert_eq!(skew, VersionSkew::Matched(mcp));
         assert!(skew_diagnostic(&skew).is_none());
     }
 
