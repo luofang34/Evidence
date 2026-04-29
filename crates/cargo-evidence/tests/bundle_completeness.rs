@@ -141,6 +141,7 @@ fn build_bundle(
         test_summary,
         tool_command_failures: failures,
         dal_map: BTreeMap::new(),
+        boundary_policy: evidence_core::BoundaryPolicy::default(),
     };
     fs::write(
         bundle_dir.join("index.json"),

@@ -129,6 +129,7 @@ mod tests {
                 stderr_tail: String::new(),
             }],
             dal_map: std::collections::BTreeMap::new(),
+            boundary_policy: crate::policy::BoundaryPolicy::default(),
         };
         check_bundle_completeness(&index, &mut errors);
         assert!(

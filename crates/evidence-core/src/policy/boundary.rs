@@ -88,9 +88,10 @@ pub struct BoundaryScope {
 }
 
 /// Boundary policy rules.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct BoundaryPolicy {
     /// Whether to forbid dependencies on out-of-scope workspace crates
+    #[serde(default)]
     pub no_out_of_scope_deps: bool,
     /// Whether to forbid build.rs in boundary crates (DO-178C determinism)
     #[serde(default)]

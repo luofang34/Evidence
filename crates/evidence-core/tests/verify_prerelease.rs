@@ -118,6 +118,7 @@ fn build_prerelease_bundle(profile: evidence_core::Profile) -> (TempDir, PathBuf
         test_summary: None,
         tool_command_failures: Vec::new(),
         dal_map: BTreeMap::new(),
+        boundary_policy: evidence_core::BoundaryPolicy::default(),
     };
     fs::write(
         bundle_dir.join("index.json"),

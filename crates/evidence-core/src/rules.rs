@@ -111,7 +111,17 @@ pub const RULES: &[RuleEntry] = &[
         Severity::Error,
         Domain::Boundary,
     ),
+    r(
+        "BOUNDARY_VERIFY_METADATA_MISSING",
+        Severity::Error,
+        Domain::Boundary,
+    ),
     r("BUNDLE_ALREADY_EXISTS", Severity::Error, Domain::Bundle),
+    r(
+        "BUNDLE_CARGO_METADATA_FAILED",
+        Severity::Error,
+        Domain::Bundle,
+    ),
     r("BUNDLE_CURRENT_DIR_FAILED", Severity::Error, Domain::Bundle),
     r("BUNDLE_DIRTY_GIT_TREE", Severity::Error, Domain::Bundle),
     r("BUNDLE_GIT_FAILED", Severity::Error, Domain::Bundle),
@@ -286,6 +296,16 @@ pub const RULES: &[RuleEntry] = &[
     r("TRACE_REGISTER_FAILED", Severity::Error, Domain::Trace),
     r("TRACE_SELECTOR_UNRESOLVED", Severity::Error, Domain::Trace),
     r("TRACE_WRONG_TARGET_KIND", Severity::Error, Domain::Trace),
+    r(
+        "VERIFY_BOUNDARY_BUILD_RS_DETECTED",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_BOUNDARY_PROC_MACRO_DETECTED",
+        Severity::Error,
+        Domain::Verify,
+    ),
     r(
         "VERIFY_BUNDLE_INCOMPLETE",
         Severity::Warning,

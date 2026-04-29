@@ -117,6 +117,20 @@ pub struct EvidenceIndex {
     /// Empty map for bundles generated before DAL support was added.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub dal_map: BTreeMap<String, String>,
+    /// Boundary policy flags as captured from `cert/boundary.toml`
+    /// at generate time. Verify-time consults this to know which
+    /// rules the bundle claimed, so the recheck doesn't depend on
+    /// a verifier-local `boundary.toml`. Defaults to all-`false`
+    /// (`#[serde(default)]`) so bundles generated before this field
+    /// existed still deserialize — they're treated as "no boundary
+    /// policy claim made", i.e. the verify-time recheck is skipped
+    /// for legacy bundles.
+    #[serde(default, skip_serializing_if = "is_default_boundary_policy")]
+    pub boundary_policy: crate::policy::BoundaryPolicy,
+}
+
+fn is_default_boundary_policy(p: &crate::policy::BoundaryPolicy) -> bool {
+    !p.no_out_of_scope_deps && !p.forbid_build_rs && !p.forbid_proc_macros
 }
 
 #[cfg(test)]
@@ -155,6 +169,7 @@ mod tests {
             test_summary: None,
             tool_command_failures: Vec::new(),
             dal_map: BTreeMap::new(),
+            boundary_policy: crate::policy::BoundaryPolicy::default(),
         };
         assert!(idx.bundle_complete);
         assert_eq!(idx.profile, Profile::Cert);

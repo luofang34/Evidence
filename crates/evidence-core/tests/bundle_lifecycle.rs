@@ -109,6 +109,7 @@ fn test_overwrite_protection() {
         require_clean_git: false,
         fail_on_dirty: false,
         dal_map: BTreeMap::new(),
+        boundary_policy: evidence_core::BoundaryPolicy::default(),
     };
 
     // First builder succeeds and creates the bundle directory.
@@ -207,6 +208,7 @@ fn test_toctou_detection() {
         require_clean_git: false,
         fail_on_dirty: false,
         dal_map: BTreeMap::new(),
+        boundary_policy: evidence_core::BoundaryPolicy::default(),
     };
 
     let builder = EvidenceBuilder::new_with_provider(config, MutatingGitProvider::new())
