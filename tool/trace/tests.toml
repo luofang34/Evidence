@@ -1019,3 +1019,83 @@ test_selectors = [
     "verify_e2e::json_wraps_verify_key_io_failure",
     "verify_e2e::human_prints_error_on_unreadable_verify_key",
 ]
+
+[[tests]]
+uid = "cd052b29-706a-4763-99d6-7a067361d657"
+id = "TEST-075"
+title = "clean fixture workspace passes both boundary policies"
+owner = "tool"
+traces_to = [
+    "6737b21f-831a-4350-aa6e-b20f29c5417c",
+    "192b70f3-50a9-4df7-ac74-34b3aea4347a",
+]
+description = """
+Negative-case baseline: a fixture workspace where every in-scope
+crate is a plain library (no `build.rs`, no `proc-macro` target)
+and `boundary.toml` enables both `forbid_build_rs = true` and
+`forbid_proc_macros = true` must pass `check_no_build_rs` and
+`check_no_proc_macros` cleanly. Without this baseline, the two
+positive-case tests below would not pin per-crate scoping — a
+broken implementation could fire on every workspace and still
+look correct on the violation tests.
+"""
+test_selectors = [
+    "evidence_core::boundary_check::tests::clean_workspace_passes_forbid_build_rs",
+    "evidence_core::boundary_check::tests::clean_workspace_passes_forbid_proc_macros",
+]
+
+[[tests]]
+uid = "160d174b-e54f-47e7-8e80-78d2e3278540"
+id = "TEST-076"
+title = "in-scope crate with build.rs fires BOUNDARY_FORBIDDEN_BUILD_RS"
+owner = "tool"
+traces_to = ["6737b21f-831a-4350-aa6e-b20f29c5417c"]
+description = """
+Fixture has one in-scope crate with `build.rs` and (separately)
+one in-scope crate with `build.rs` + `links = "libz"`. The first
+fires `BOUNDARY_FORBIDDEN_BUILD_RS` with no `links` annotation in
+the message; the second fires the same code with `links =
+"libz"` interpolated into the message. Pins both the detection
+and the Layer-2 informational `links` surfacing.
+"""
+test_selectors = [
+    "evidence_core::boundary_check::tests::in_scope_build_rs_fires_violation",
+    "evidence_core::boundary_check::tests::in_scope_build_rs_with_links_surfaces_links_in_message",
+]
+
+[[tests]]
+uid = "b58f1d4a-1cfd-485a-b360-88b1093f8c48"
+id = "TEST-077"
+title = "in-scope crate with proc-macro target fires BOUNDARY_FORBIDDEN_PROC_MACRO"
+owner = "tool"
+traces_to = ["192b70f3-50a9-4df7-ac74-34b3aea4347a"]
+description = """
+Fixture has one in-scope crate exposing a `[lib] proc-macro =
+true` target. `check_no_proc_macros` returns
+`BoundaryCheckError::ForbiddenProcMacro` with the offending
+crate name; the diagnostic carries
+`BOUNDARY_FORBIDDEN_PROC_MACRO`.
+"""
+test_selectors = [
+    "evidence_core::boundary_check::tests::in_scope_proc_macro_fires_violation",
+]
+
+[[tests]]
+uid = "8144c774-5c22-4463-9765-9323f88401c8"
+id = "TEST-078"
+title = "out-of-scope crate with build.rs / proc-macro does not fire either check"
+owner = "tool"
+traces_to = [
+    "6737b21f-831a-4350-aa6e-b20f29c5417c",
+    "192b70f3-50a9-4df7-ac74-34b3aea4347a",
+]
+description = """
+Per-crate scoping invariant. A `build.rs` or proc-macro target
+in a crate that is NOT listed in `boundary.toml`’s `in_scope`
+set is fine — the policy applies only to the certified surface.
+Fixture exercises both negative cases in one workspace.
+"""
+test_selectors = [
+    "evidence_core::boundary_check::tests::out_of_scope_build_rs_does_not_fire",
+    "evidence_core::boundary_check::tests::out_of_scope_proc_macro_does_not_fire",
+]

@@ -2145,3 +2145,67 @@ verification_methods = ["test"]
 emits = [
     "VERIFY_RUNTIME_READ_VERIFY_KEY",
 ]
+
+[[requirements]]
+uid = "6737b21f-831a-4350-aa6e-b20f29c5417c"
+id = "LLR-070"
+title = "check_no_build_rs flags in-scope crates with kind=custom-build targets"
+owner = "tool"
+traces_to = ["beae070b-5998-48f4-8fd9-235ed14c93d5"]
+modules = [
+    "evidence_core::boundary_check::check_no_build_rs",
+]
+derived = false
+description = """
+`check_no_build_rs(in_scope: &[String], workspace_root: &Path)
+-> Result<(), BoundaryCheckError>` parses `cargo metadata
+--format-version 1` (same shell-out as the existing
+`check_no_out_of_scope_deps`) and walks `packages[]`. A package
+is a violation iff its `name` is in `in_scope` AND its
+`targets[]` contains a target with `kind == ["custom-build"]`.
+
+On at least one violation, returns
+`BoundaryCheckError::ForbiddenBuildRs { violations }` where
+each violation carries `(crate_name, build_script_path,
+links)`. The diagnostic message includes `links = "<value>"`
+when the package declares a `links` field, strictly
+informational — it does not gate a separate code, but it tells
+the auditor whether the build.rs is also a native-FFI bridge
+(load-bearing for the determinism analysis).
+
+The enforce_boundary_policy phase runs this only when
+`policy.forbid_build_rs == true`; preserves per-crate scoping
+so a build.rs under an out-of-scope crate (e.g. a test fixture
+or an integration-only utility) does not fire the check.
+"""
+verification_methods = ["test"]
+emits = ["BOUNDARY_FORBIDDEN_BUILD_RS"]
+
+[[requirements]]
+uid = "192b70f3-50a9-4df7-ac74-34b3aea4347a"
+id = "LLR-071"
+title = "check_no_proc_macros flags in-scope crates with kind=proc-macro targets"
+owner = "tool"
+traces_to = ["49d5c8b2-5c51-4046-a08d-ffde61f6c846"]
+modules = [
+    "evidence_core::boundary_check::check_no_proc_macros",
+]
+derived = false
+description = """
+`check_no_proc_macros(in_scope: &[String], workspace_root:
+&Path) -> Result<(), BoundaryCheckError>` parses `cargo
+metadata --format-version 1` and walks `packages[]`. A package
+is a violation iff its `name` is in `in_scope` AND its
+`targets[]` contains a target with `kind == ["proc-macro"]`.
+
+On at least one violation, returns
+`BoundaryCheckError::ForbiddenProcMacro { violations }` where
+each violation is just the crate name (proc-macro detection has
+no auxiliary metadata to surface, unlike build_rs’s `links`).
+
+The enforce_boundary_policy phase runs this only when
+`policy.forbid_proc_macros == true`; preserves per-crate
+scoping.
+"""
+verification_methods = ["test"]
+emits = ["BOUNDARY_FORBIDDEN_PROC_MACRO"]
