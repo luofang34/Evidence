@@ -147,14 +147,11 @@ impl BoundaryPolicy {
         //
         // `no_out_of_scope_deps` — enforced in
         // `evidence_core::boundary_check::check_no_out_of_scope_deps`.
-        let mut rules = Vec::new();
-        if self.forbid_build_rs {
-            rules.push("forbid_build_rs");
-        }
-        if self.forbid_proc_macros {
-            rules.push("forbid_proc_macros");
-        }
-        rules
+        // `forbid_build_rs` — enforced in
+        // `evidence_core::boundary_check::check_no_build_rs`.
+        // `forbid_proc_macros` — enforced in
+        // `evidence_core::boundary_check::check_no_proc_macros`.
+        Vec::new()
     }
 }
 
@@ -379,34 +376,24 @@ default_dal = "C"
     }
 
     #[test]
-    fn unimplemented_enabled_rules_reports_each_enabled_flag() {
-        // `no_out_of_scope_deps` is now enforced (see
-        // `evidence_core::boundary_check`) so it's not in the
-        // unimplemented list even when enabled — preflight lets it
-        // through and the real check fires in the library.
-        assert!(
-            policy_all(true, false, false)
-                .unimplemented_enabled_rules()
-                .is_empty()
-        );
-        assert_eq!(
-            policy_all(false, true, false).unimplemented_enabled_rules(),
-            vec!["forbid_build_rs"]
-        );
-        assert_eq!(
-            policy_all(false, false, true).unimplemented_enabled_rules(),
-            vec!["forbid_proc_macros"]
-        );
-    }
-
-    #[test]
-    fn unimplemented_enabled_rules_lists_remaining_unimpl_when_all_enabled() {
-        // Only the two flags whose enforcement hasn't landed yet
-        // appear; `no_out_of_scope_deps` is now enforced.
-        assert_eq!(
-            policy_all(true, true, true).unimplemented_enabled_rules(),
-            vec!["forbid_build_rs", "forbid_proc_macros"]
-        );
+    fn unimplemented_enabled_rules_is_empty_for_every_combination() {
+        // Every `BoundaryPolicy` flag now has real enforcement in
+        // `evidence_core::boundary_check`. The preflight refusal
+        // surface is empty — the library-level checks fire on
+        // violations directly. If a future flag lands without
+        // enforcement, this test fires immediately.
+        for (a, b, c) in [
+            (false, false, false),
+            (true, false, false),
+            (false, true, false),
+            (false, false, true),
+            (true, true, true),
+        ] {
+            assert!(
+                policy_all(a, b, c).unimplemented_enabled_rules().is_empty(),
+                "expected empty for ({a}, {b}, {c})"
+            );
+        }
     }
 
     /// default_empty() must never trip the preflight — that would

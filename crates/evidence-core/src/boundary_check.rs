@@ -14,9 +14,13 @@
 //!   scope. External (registry / git / path-outside-workspace) deps
 //!   are not considered — this rule only polices workspace-to-
 //!   workspace crossings.
-//!
-//! Rules not yet implemented: `forbid_build_rs`, `forbid_proc_macros`.
-//! The generate preflight refuses bundles for those.
+//! - `forbid_build_rs`: [`check_no_build_rs`] flags any in-scope
+//!   crate carrying a target with `kind == ["custom-build"]`. The
+//!   diagnostic also surfaces the package's `links` value (when
+//!   set) so an auditor sees a native-FFI binding without
+//!   re-running `cargo metadata` by hand.
+//! - `forbid_proc_macros`: [`check_no_proc_macros`] flags any
+//!   in-scope crate with a target of `kind == ["proc-macro"]`.
 //!
 //! [`BoundaryPolicy`]: crate::policy::BoundaryPolicy
 //! [`BoundaryPolicy::unimplemented_enabled_rules`]: crate::policy::BoundaryPolicy::unimplemented_enabled_rules
@@ -40,6 +44,27 @@ pub struct BoundaryViolation {
     pub crate_name: String,
     /// Out-of-scope workspace crate reached via that dep graph.
     pub offending_dep: String,
+}
+
+/// A `forbid_build_rs` violation. Carries the offending crate plus
+/// the `links` value (if any) so the diagnostic message can surface
+/// native-FFI bindings — load-bearing context for the determinism
+/// auditor without forcing them to re-run `cargo metadata`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BuildRsViolation {
+    /// In-scope crate that has a `build.rs`.
+    pub crate_name: String,
+    /// Value of `package.links` (e.g. `"libz"`), if declared.
+    pub links: Option<String>,
+}
+
+/// A `forbid_proc_macros` violation. Just the offender's name —
+/// proc-macro detection has no auxiliary metadata to surface, unlike
+/// build_rs's `links`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProcMacroViolation {
+    /// In-scope crate exposing a `[lib] proc-macro = true` target.
+    pub crate_name: String,
 }
 
 /// Errors returned by the boundary-check routines.
@@ -69,6 +94,48 @@ pub enum BoundaryCheckError {
         /// Count, materialized for the error message.
         count: usize,
     },
+    /// One or more in-scope crates have a `build.rs`. The error
+    /// message lists each crate plus its `links` value (if any) so
+    /// an auditor sees the determinism-impacting bindings without
+    /// re-running `cargo metadata` by hand.
+    #[error(
+        "{count} in-scope crate(s) have build.rs: {}",
+        fmt_build_rs(violations)
+    )]
+    ForbiddenBuildRs {
+        /// Violations found.
+        violations: Vec<BuildRsViolation>,
+        /// Count, materialized for the error message.
+        count: usize,
+    },
+    /// One or more in-scope crates expose a proc-macro target.
+    #[error(
+        "{count} in-scope crate(s) expose proc-macro targets: {}",
+        fmt_proc_macro(violations)
+    )]
+    ForbiddenProcMacro {
+        /// Violations found.
+        violations: Vec<ProcMacroViolation>,
+        /// Count, materialized for the error message.
+        count: usize,
+    },
+}
+
+fn fmt_build_rs(v: &[BuildRsViolation]) -> String {
+    v.iter()
+        .map(|x| match &x.links {
+            Some(l) => format!("{} (links = \"{}\")", x.crate_name, l),
+            None => x.crate_name.clone(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn fmt_proc_macro(v: &[ProcMacroViolation]) -> String {
+    v.iter()
+        .map(|x| x.crate_name.clone())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 impl DiagnosticCode for BoundaryCheckError {
@@ -78,6 +145,8 @@ impl DiagnosticCode for BoundaryCheckError {
             BoundaryCheckError::ParseMetadata(_) => "BOUNDARY_PARSE_METADATA_FAILED",
             BoundaryCheckError::UnknownInScopeCrate(_) => "BOUNDARY_UNKNOWN_IN_SCOPE_CRATE",
             BoundaryCheckError::OutOfScopeDeps { .. } => "BOUNDARY_OUT_OF_SCOPE_DEPS",
+            BoundaryCheckError::ForbiddenBuildRs { .. } => "BOUNDARY_FORBIDDEN_BUILD_RS",
+            BoundaryCheckError::ForbiddenProcMacro { .. } => "BOUNDARY_FORBIDDEN_PROC_MACRO",
         }
     }
 
@@ -206,6 +275,98 @@ fn find_out_of_scope_deps(
     Ok(violations)
 }
 
+/// Enforce the `forbid_build_rs` boundary rule.
+///
+/// Shells out to `cargo metadata --format-version 1`, walks
+/// `packages[]`, and flags every package whose `name` is in `in_scope`
+/// AND whose `targets[]` contains a target with `kind ==
+/// ["custom-build"]`. Per-crate scoping is preserved — a `build.rs`
+/// in an out-of-scope crate is fine.
+pub fn check_no_build_rs(
+    in_scope: &[String],
+    workspace_root: &Path,
+) -> Result<(), BoundaryCheckError> {
+    let output = run_cargo_metadata(workspace_root)?;
+    let metadata: Metadata = serde_json::from_str(&output)?;
+    let violations = find_build_rs_violations(in_scope, &metadata)?;
+    if violations.is_empty() {
+        return Ok(());
+    }
+    let count = violations.len();
+    Err(BoundaryCheckError::ForbiddenBuildRs { violations, count })
+}
+
+/// Enforce the `forbid_proc_macros` boundary rule.
+///
+/// Shells out to `cargo metadata --format-version 1`, walks
+/// `packages[]`, and flags every package whose `name` is in `in_scope`
+/// AND whose `targets[]` contains a target with `kind ==
+/// ["proc-macro"]`. Per-crate scoping is preserved.
+pub fn check_no_proc_macros(
+    in_scope: &[String],
+    workspace_root: &Path,
+) -> Result<(), BoundaryCheckError> {
+    let output = run_cargo_metadata(workspace_root)?;
+    let metadata: Metadata = serde_json::from_str(&output)?;
+    let violations = find_proc_macro_violations(in_scope, &metadata)?;
+    if violations.is_empty() {
+        return Ok(());
+    }
+    let count = violations.len();
+    Err(BoundaryCheckError::ForbiddenProcMacro { violations, count })
+}
+
+/// Pure walk over `Metadata`, factored out so unit tests feed
+/// synthetic JSON without shelling out.
+fn find_build_rs_violations(
+    in_scope: &[String],
+    metadata: &Metadata,
+) -> Result<Vec<BuildRsViolation>, BoundaryCheckError> {
+    let in_scope_set: BTreeSet<&str> = in_scope.iter().map(String::as_str).collect();
+    let mut out: Vec<BuildRsViolation> = metadata
+        .packages
+        .iter()
+        .filter(|p| in_scope_set.contains(p.name.as_str()))
+        .filter(|p| p.targets.iter().any(target_is_build_rs))
+        .map(|p| BuildRsViolation {
+            crate_name: p.name.clone(),
+            links: p.links.clone(),
+        })
+        .collect();
+    out.sort();
+    out.dedup();
+    Ok(out)
+}
+
+/// Pure walk over `Metadata` for proc-macro detection. Same
+/// scoping invariant as `find_build_rs_violations`.
+fn find_proc_macro_violations(
+    in_scope: &[String],
+    metadata: &Metadata,
+) -> Result<Vec<ProcMacroViolation>, BoundaryCheckError> {
+    let in_scope_set: BTreeSet<&str> = in_scope.iter().map(String::as_str).collect();
+    let mut out: Vec<ProcMacroViolation> = metadata
+        .packages
+        .iter()
+        .filter(|p| in_scope_set.contains(p.name.as_str()))
+        .filter(|p| p.targets.iter().any(target_is_proc_macro))
+        .map(|p| ProcMacroViolation {
+            crate_name: p.name.clone(),
+        })
+        .collect();
+    out.sort();
+    out.dedup();
+    Ok(out)
+}
+
+fn target_is_build_rs(t: &Target) -> bool {
+    t.kind.iter().any(|k| k == "custom-build")
+}
+
+fn target_is_proc_macro(t: &Target) -> bool {
+    t.kind.iter().any(|k| k == "proc-macro")
+}
+
 // ============================================================================
 // Cargo metadata subset we actually parse
 // ============================================================================
@@ -224,6 +385,16 @@ struct Metadata {
 struct Package {
     name: String,
     id: String,
+    #[serde(default)]
+    targets: Vec<Target>,
+    #[serde(default)]
+    links: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Target {
+    #[serde(default)]
+    kind: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -258,192 +429,32 @@ impl Ord for BoundaryViolation {
     }
 }
 
-#[cfg(test)]
-#[allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    reason = "test setup failures should panic immediately"
-)]
-mod tests {
-    use super::*;
-
-    // Synthetic metadata fixtures. Cargo's real JSON has dozens of
-    // fields we don't use — serde drops them via default behavior,
-    // so the test fixtures only need to carry the keys `Metadata`
-    // actually deserializes.
-
-    fn pkg(name: &str, id: &str) -> serde_json::Value {
-        serde_json::json!({"name": name, "id": id})
-    }
-
-    fn node(id: &str, dep_ids: &[&str]) -> serde_json::Value {
-        let deps: Vec<serde_json::Value> = dep_ids
-            .iter()
-            .map(|d| serde_json::json!({"pkg": d}))
-            .collect();
-        serde_json::json!({"id": id, "deps": deps})
-    }
-
-    fn fixture(
-        packages: Vec<serde_json::Value>,
-        ws_members: Vec<&str>,
-        nodes: Vec<serde_json::Value>,
-    ) -> Metadata {
-        let j = serde_json::json!({
-            "packages": packages,
-            "workspace_members": ws_members,
-            "resolve": {"nodes": nodes},
-        });
-        serde_json::from_value(j).unwrap()
-    }
-
-    #[test]
-    fn no_violations_when_in_scope_depends_only_on_external_crates() {
-        // Workspace: { evidence }. evidence → serde (external).
-        // in_scope = ["evidence"]. No workspace-to-workspace dep
-        // edge exists, so the rule has no work to do.
-        let m = fixture(
-            vec![
-                pkg("evidence", "path+file:///e#0.1.0"),
-                pkg("serde", "registry+https://crates.io#serde@1"),
-            ],
-            vec!["path+file:///e#0.1.0"],
-            vec![
-                node(
-                    "path+file:///e#0.1.0",
-                    &["registry+https://crates.io#serde@1"],
-                ),
-                node("registry+https://crates.io#serde@1", &[]),
-            ],
-        );
-        let v = find_out_of_scope_deps(&["evidence".into()], &m).unwrap();
-        assert!(v.is_empty());
-    }
-
-    #[test]
-    fn no_violations_when_every_workspace_dep_is_in_scope() {
-        // Workspace: { cargo-evidence, evidence }.
-        // cargo-evidence → evidence. Both in scope: no violation.
-        let m = fixture(
-            vec![
-                pkg("cargo-evidence", "path+file:///ce#0.1.0"),
-                pkg("evidence", "path+file:///e#0.1.0"),
-            ],
-            vec!["path+file:///ce#0.1.0", "path+file:///e#0.1.0"],
-            vec![
-                node("path+file:///ce#0.1.0", &["path+file:///e#0.1.0"]),
-                node("path+file:///e#0.1.0", &[]),
-            ],
-        );
-        let v = find_out_of_scope_deps(&["cargo-evidence".into(), "evidence".into()], &m).unwrap();
-        assert!(v.is_empty());
-    }
-
-    #[test]
-    fn flags_direct_workspace_dep_not_in_scope() {
-        // Workspace: { cargo-evidence, evidence }.
-        // cargo-evidence → evidence. Only cargo-evidence in scope.
-        // evidence is a workspace member but not in scope → violation.
-        let m = fixture(
-            vec![
-                pkg("cargo-evidence", "path+file:///ce#0.1.0"),
-                pkg("evidence", "path+file:///e#0.1.0"),
-            ],
-            vec!["path+file:///ce#0.1.0", "path+file:///e#0.1.0"],
-            vec![
-                node("path+file:///ce#0.1.0", &["path+file:///e#0.1.0"]),
-                node("path+file:///e#0.1.0", &[]),
-            ],
-        );
-        let v = find_out_of_scope_deps(&["cargo-evidence".into()], &m).unwrap();
-        assert_eq!(v.len(), 1);
-        assert_eq!(
-            v[0],
-            BoundaryViolation {
-                rule: "no_out_of_scope_deps",
-                crate_name: "cargo-evidence".into(),
-                offending_dep: "evidence".into(),
-            }
-        );
-    }
-
-    #[test]
-    fn flags_transitive_workspace_dep_not_in_scope() {
-        // Workspace: { a, b, c }. a → b → c. Only `a` in scope.
-        // BFS from `a` reaches `b` (violation) and `c` (violation).
-        let m = fixture(
-            vec![
-                pkg("a", "path+file:///a#0.1.0"),
-                pkg("b", "path+file:///b#0.1.0"),
-                pkg("c", "path+file:///c#0.1.0"),
-            ],
-            vec![
-                "path+file:///a#0.1.0",
-                "path+file:///b#0.1.0",
-                "path+file:///c#0.1.0",
-            ],
-            vec![
-                node("path+file:///a#0.1.0", &["path+file:///b#0.1.0"]),
-                node("path+file:///b#0.1.0", &["path+file:///c#0.1.0"]),
-                node("path+file:///c#0.1.0", &[]),
-            ],
-        );
-        let v = find_out_of_scope_deps(&["a".into()], &m).unwrap();
-        let names: Vec<&str> = v.iter().map(|x| x.offending_dep.as_str()).collect();
-        assert_eq!(names, vec!["b", "c"]);
-    }
-
-    #[test]
-    fn typos_in_in_scope_are_reported() {
-        // in_scope references a crate that isn't a workspace member.
-        // Catches stale / typo'd boundary.toml fast — otherwise the
-        // typo'd entry would be silently skipped and the user would
-        // get a false "no violations" green light.
-        let m = fixture(
-            vec![pkg("evidence", "path+file:///e#0.1.0")],
-            vec!["path+file:///e#0.1.0"],
-            vec![node("path+file:///e#0.1.0", &[])],
-        );
-        let err = find_out_of_scope_deps(&["typo-crate".into()], &m).unwrap_err();
-        assert!(
-            matches!(err, BoundaryCheckError::UnknownInScopeCrate(name) if name == "typo-crate")
-        );
-    }
-
-    #[test]
-    fn diamond_dep_is_deduplicated() {
-        // a → b, a → c, both b and c → d. Only `a` in scope.
-        // d shows up once, not twice.
-        let m = fixture(
-            vec![
-                pkg("a", "path+file:///a#0.1.0"),
-                pkg("b", "path+file:///b#0.1.0"),
-                pkg("c", "path+file:///c#0.1.0"),
-                pkg("d", "path+file:///d#0.1.0"),
-            ],
-            vec![
-                "path+file:///a#0.1.0",
-                "path+file:///b#0.1.0",
-                "path+file:///c#0.1.0",
-                "path+file:///d#0.1.0",
-            ],
-            vec![
-                node(
-                    "path+file:///a#0.1.0",
-                    &["path+file:///b#0.1.0", "path+file:///c#0.1.0"],
-                ),
-                node("path+file:///b#0.1.0", &["path+file:///d#0.1.0"]),
-                node("path+file:///c#0.1.0", &["path+file:///d#0.1.0"]),
-                node("path+file:///d#0.1.0", &[]),
-            ],
-        );
-        let v = find_out_of_scope_deps(&["a".into()], &m).unwrap();
-        let ds: Vec<&str> = v
-            .iter()
-            .filter(|x| x.offending_dep == "d")
-            .map(|x| x.offending_dep.as_str())
-            .collect();
-        assert_eq!(ds.len(), 1, "diamond dep should not double-count");
+impl PartialOrd for BuildRsViolation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
+
+impl Ord for BuildRsViolation {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (&self.crate_name, &self.links).cmp(&(&other.crate_name, &other.links))
+    }
+}
+
+impl PartialOrd for ProcMacroViolation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ProcMacroViolation {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.crate_name.cmp(&other.crate_name)
+    }
+}
+
+// Tests live in a sibling file pulled in via `#[path]` so this
+// facade stays under the workspace 500-line limit.
+#[cfg(test)]
+#[path = "boundary_check/tests.rs"]
+mod tests;

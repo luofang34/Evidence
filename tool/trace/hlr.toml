@@ -1459,3 +1459,66 @@ streaming verbs — there's no `terminal` / `diagnostics` /
 surfaces = ["agent MCP surface"]
 verification_methods = ["test"]
 traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
+
+[[requirements]]
+uid = "beae070b-5998-48f4-8fd9-235ed14c93d5"
+id = "HLR-064"
+title = "Boundary policy can forbid build scripts in in-scope crates"
+owner = "tool"
+scope = "component"
+description = """
+When `cert/boundary.toml` sets `forbid_build_rs = true`,
+`cargo evidence generate` refuses to produce a bundle if any
+in-scope crate has a `build.rs`. Refusal applies before bundle
+assembly and surfaces a `BOUNDARY_FORBIDDEN_BUILD_RS` finding
+listing every offender with its `build.rs` path plus, when set,
+the package’s `links` value (native FFI binding) for the
+auditor.
+
+Rationale: build scripts run arbitrary host code at build time,
+so the resulting object files are a function of the build host,
+not just the repository state. DAL-A/B determinism requires the
+build output to be reproducible from `(git_sha, toolchain)`
+alone; an enabled build.rs invalidates that. Per-crate scoping
+is preserved — a build.rs in an out-of-scope crate is fine.
+
+The rule is enforced at both generate-time and verify-time so a
+bundle re-verified after a build.rs is added between generate
+and verify is still caught (LLR-072).
+"""
+verification_methods = ["test"]
+traces_to = ["5af6e706-6aef-411d-811d-747633876695"]
+
+[[requirements]]
+uid = "49d5c8b2-5c51-4046-a08d-ffde61f6c846"
+id = "HLR-065"
+title = "Boundary policy can forbid proc-macros in in-scope crates"
+owner = "tool"
+scope = "component"
+description = """
+When `cert/boundary.toml` sets `forbid_proc_macros = true`,
+`cargo evidence generate` refuses to produce a bundle if any
+in-scope crate exposes a target with `kind = ["proc-macro"]`.
+Refusal applies before bundle assembly and surfaces a
+`BOUNDARY_FORBIDDEN_PROC_MACRO` finding listing every
+offender.
+
+Rationale: proc-macros execute arbitrary code at compile time
+and synthesize source that is not present in the
+version-controlled tree. The DO-178C auditability assumption
+— every line of in-scope code is reviewable in the repository
+— doesn’t hold for proc-macro-expanded code: an auditor would
+have to re-run the macro to see what was actually compiled.
+For in-scope crates this is a non-starter at high DALs.
+
+Distinct HLR from build_rs (HLR-064) because the rationale
+differs (auditability of generated source vs determinism of
+host-side build); a future relaxation of one rule should not
+drag the other along.
+
+The rule is enforced at both generate-time and verify-time so a
+bundle re-verified after a proc-macro is added between generate
+and verify is still caught (LLR-072).
+"""
+verification_methods = ["test"]
+traces_to = ["5af6e706-6aef-411d-811d-747633876695"]

@@ -21,6 +21,20 @@
     "terminal": false
   },
   {
+    "code": "BOUNDARY_FORBIDDEN_BUILD_RS",
+    "severity": "error",
+    "domain": "boundary",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "BOUNDARY_FORBIDDEN_PROC_MACRO",
+    "severity": "error",
+    "domain": "boundary",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "BOUNDARY_OUT_OF_SCOPE_DEPS",
     "severity": "error",
     "domain": "boundary",
