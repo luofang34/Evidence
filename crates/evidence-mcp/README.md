@@ -142,6 +142,33 @@ All `MCP_*` codes appearing in any response field are
 registered in `evidence_core::HAND_EMITTED_MCP_CODES` — agents
 pattern-match on `.code` against that list.
 
+## Failure-shape contract
+
+`exit_code` is documentation, not the machine contract. Two
+distinct failure classes deliberately share `exit_code = 2`:
+
+| Failure class | Origin | Terminal / `error.code` |
+|---|---|---|
+| **CLI verification failure** | `cargo evidence` ran to completion and reported one of its own failure terminals | `VERIFY_FAIL` / `DOCTOR_FAIL` / `FLOORS_FAIL` |
+| **MCP tool-layer failure** | The wrapper couldn't run the subprocess to completion | `MCP_CARGO_NOT_FOUND` / `MCP_SUBPROCESS_SPAWN_FAILED` / `MCP_SUBPROCESS_TIMEOUT` / `MCP_MALFORMED_JSONL` / `MCP_NO_OUTPUT` |
+
+**Dispatch on the structured field, not on `exit_code`.** Per
+verb:
+
+- `evidence_check` / `evidence_doctor` / `evidence_floors` —
+  read `JsonlToolResponse.terminal`.
+- `evidence_rules` / `evidence_diff` — read the `code` field on
+  `error` (when `error.is_some()`).
+- `evidence_ping` — read `skew`.
+
+Hosts that branch on `exit_code` alone cannot distinguish a
+real CLI verification fail from a wrapper failure. The bit is
+intentionally erased there because the structured field
+already carries the discriminator at machine precision; the
+`exit_code = 2` collision is a deliberate design choice
+documented at
+[`TOOL_FAILURE_EXIT_CODE`](https://docs.rs/evidence-mcp).
+
 ## What this crate is not
 
 - Not a Rust library API for programmatic access to evidence bundles
