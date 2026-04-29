@@ -8,9 +8,19 @@
 # rule end-to-end on every PR: any new workspace crate that a listed
 # crate reaches has to be listed here or the generate fails loudly.
 #
-# `forbid_build_rs` / `forbid_proc_macros` stay false — enforcement
-# for those rules is not wired up yet (the generate preflight would
-# refuse the run, see cli/generate/policy.rs).
+# `forbid_build_rs` / `forbid_proc_macros` stay false — for this
+# workspace specifically. Both rules ship with full enforcement
+# (see `evidence_core::boundary_check::check_no_build_rs` /
+# `check_no_proc_macros`) plus a verify-time recheck against
+# `cargo_metadata.json` (LLR-072). The reason this workspace
+# can't enable `forbid_build_rs = true` is that
+# `evidence-core/build.rs` is load-bearing — it embeds the
+# engine's own git SHA into the binary via
+# `EVIDENCE_ENGINE_GIT_SHA`, so bundles can prove which tool
+# build produced them (SYS-017 / engine-source verification).
+# Removing it would break that provenance chain. Other projects
+# without engine-provenance constraints should set both flags to
+# `true` at DAL-A/B per their certification posture.
 
 [schema]
 version = "0.0.1"
