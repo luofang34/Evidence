@@ -1099,3 +1099,35 @@ test_selectors = [
     "evidence_core::boundary_check::tests::out_of_scope_build_rs_does_not_fire",
     "evidence_core::boundary_check::tests::out_of_scope_proc_macro_does_not_fire",
 ]
+
+[[tests]]
+uid = "154e2d72-14c9-497d-95e2-9f3c4141f27d"
+id = "TEST-079"
+title = "cargo_metadata.json projection + verify-time recheck + missing-artifact BVA"
+owner = "tool"
+traces_to = ["a939e8ed-6a1e-4982-8639-0414ee32c33a"]
+description = """
+Four branches:
+
+  - Projection determinism: `CargoMetadataProjection::from_metadata_json`
+    on the same input produces byte-identical JSON across runs
+    (sorted packages by name; kind / links retained verbatim).
+  - Schema round-trip: writing then re-reading the projection
+    yields the same struct (Serialize/Deserialize symmetry).
+  - Recheck path: a tampered `cargo_metadata.json` claiming a
+    violating in-scope package fires the same
+    `BOUNDARY_FORBIDDEN_BUILD_RS` /
+    `BOUNDARY_FORBIDDEN_PROC_MACRO` code at verify time as
+    generate would.
+  - BVA path: when `index.boundary_policy` claims
+    `forbid_build_rs = true` but the bundle is missing
+    `cargo_metadata.json` (older bundle / tamper),
+    `verify_bundle_with_key` emits
+    `BOUNDARY_VERIFY_METADATA_MISSING`.
+"""
+test_selectors = [
+    "evidence_core::cargo_metadata::tests::projection_is_deterministic",
+    "evidence_core::cargo_metadata::tests::projection_round_trip",
+    "evidence_core::verify::bundle::tests::tampered_cargo_metadata_fires_recheck",
+    "evidence_core::verify::bundle::tests::missing_cargo_metadata_fires_metadata_missing",
+]

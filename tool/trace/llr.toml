@@ -2209,3 +2209,65 @@ scoping.
 """
 verification_methods = ["test"]
 emits = ["BOUNDARY_FORBIDDEN_PROC_MACRO"]
+
+[[requirements]]
+uid = "a939e8ed-6a1e-4982-8639-0414ee32c33a"
+id = "LLR-072"
+title = "cargo_metadata.json bundle artifact + verify-time recheck of forbid_build_rs / forbid_proc_macros"
+owner = "tool"
+traces_to = [
+    "beae070b-5998-48f4-8fd9-235ed14c93d5",
+    "49d5c8b2-5c51-4046-a08d-ffde61f6c846",
+]
+modules = [
+    "evidence_core::cargo_metadata::CargoMetadataProjection",
+    "evidence_core::bundle::builder::EvidenceBuilder::finalize",
+    "evidence_core::verify::bundle::verify_bundle_with_key",
+]
+derived = false
+description = """
+The bundle includes a deterministic projection of `cargo
+metadata --format-version 1` as `cargo_metadata.json` whenever
+the generate-time `BoundaryPolicy` enables either
+`forbid_build_rs` or `forbid_proc_macros`. Format: a sorted
+array of `{ name, targets[].kind, links }` entries — the
+minimum needed for the recheck. Sorted by `name` ascending so
+the artifact is byte-stable across re-runs and across hosts
+(SYS-003).
+
+`EvidenceIndex.boundary_policy` (additive, `#[serde(default)]`)
+records the flag values at generate time so verify can replay
+the contract without consulting the verifier’s local
+`boundary.toml`. Old bundles deserialize with the field absent,
+yielding the all-`false` default — verify treats them as
+"forbid_build_rs / forbid_proc_macros not claimed at generate
+time", which is bug-compatible with pre-PR-C bundles.
+
+Verify-time pipeline (in `verify_bundle_with_key`):
+  1. Parse `index.json` and read `boundary_policy`.
+  2. If neither `forbid_build_rs` nor `forbid_proc_macros` is
+     true, skip the recheck (the bundle didn’t claim it).
+  3. Otherwise, look for `cargo_metadata.json` in the bundle.
+     If missing, push a `VerifyError::BoundaryVerifyMetadataMissing`
+     finding (code `BOUNDARY_VERIFY_METADATA_MISSING`).
+  4. If present, parse it as `CargoMetadataProjection` and
+     re-run `check_no_build_rs` / `check_no_proc_macros`
+     against the projection plus `index.dal_map.keys()` as
+     the in-scope set (the same in-scope set generate used).
+     Any violation pushes the same
+     `BOUNDARY_FORBIDDEN_BUILD_RS` /
+     `BOUNDARY_FORBIDDEN_PROC_MACRO` code generate would have.
+
+BOUNDARY_VERIFY_METADATA_MISSING fires only when generate
+claimed the rules but the artifact is absent (older bundle
+that predates PR C, tampered bundle that deleted the file).
+The forward path (artifact present + matches projection) is
+the SHA256SUMS contract — the existing hash check catches
+tampering at the byte level.
+"""
+verification_methods = ["test"]
+emits = [
+    "BOUNDARY_FORBIDDEN_BUILD_RS",
+    "BOUNDARY_FORBIDDEN_PROC_MACRO",
+    "BOUNDARY_VERIFY_METADATA_MISSING",
+]
