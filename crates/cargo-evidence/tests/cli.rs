@@ -356,19 +356,29 @@ fn test_generate_requires_out_dir() {
 // ============================================================================
 // Generate: policy-not-implemented gate
 // ============================================================================
+//
+// `assert_policy_implementable` was the safety rail that refused
+// generate when boundary.toml enabled a rule whose enforcement
+// hadn't shipped, so a bundle could not silently overclaim. As of
+// this PR every `BoundaryPolicy` flag is enforced, so the
+// "does not enforce" refusal path no longer exists at integration
+// scope. The unit test
+// `unimplemented_enabled_rules_is_empty_for_every_combination`
+// in `evidence_core::policy::boundary` pins the empty-list invariant.
+// If a future flag lands without enforcement, that unit test fires
+// immediately, and a parallel integration test would land alongside
+// the new flag.
 
-/// Enabling a boundary-policy rule whose enforcement is not wired up
-/// in this release must fail the generate preflight with a message
-/// that names the offending rule. Otherwise a user can write
-/// `forbid_build_rs = true` in boundary.toml, get a bundle stamped
-/// cert-ready, and the tool will have made a certification claim
-/// under a rule it never actually checked.
-///
-/// When real enforcement for a rule lands, this test needs a flag
-/// that stays unimplemented (or it should be rewritten around one of
-/// the remaining unimplemented rules).
+/// Positive control on the implemented gates: a `boundary.toml`
+/// with `forbid_build_rs = true` and `forbid_proc_macros = true`
+/// but `in_scope = []` must not stall generate at the boundary
+/// preflight — there is no in-scope crate, so neither check has
+/// work to do. Pins the per-crate scoping invariant for the
+/// implemented rules at integration scope: a project that wants
+/// to assert the rules even before scoping crates should not see
+/// false positives.
 #[test]
-fn test_generate_refuses_unimplemented_policy_rule() {
+fn test_generate_passes_when_implemented_policy_has_no_in_scope_violation() {
     let tmp = TempDir::new().unwrap();
     fs::create_dir_all(tmp.path().join("cert")).unwrap();
     fs::write(
@@ -384,7 +394,7 @@ in_scope = []
 [policy]
 no_out_of_scope_deps = false
 forbid_build_rs = true
-forbid_proc_macros = false
+forbid_proc_macros = true
 "#,
             ver = evidence_core::schema_versions::BOUNDARY
         ),
@@ -392,7 +402,7 @@ forbid_proc_macros = false
     .unwrap();
 
     let out = TempDir::new().unwrap();
-    cargo_evidence()
+    let assert = cargo_evidence()
         .arg("evidence")
         .arg("generate")
         .arg("--out-dir")
@@ -400,10 +410,21 @@ forbid_proc_macros = false
         .arg("--profile")
         .arg("dev")
         .current_dir(tmp.path())
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("forbid_build_rs"))
-        .stderr(predicate::str::contains("does not enforce"));
+        .assert();
+    // The run may still fail downstream (no Cargo.toml, no git, etc.),
+    // but the failure must not name `forbid_build_rs` /
+    // `forbid_proc_macros` as the cause — those checks have no
+    // in-scope crate to inspect.
+    let output = assert.get_output();
+    let stderr = std::str::from_utf8(&output.stderr).unwrap_or("");
+    assert!(
+        !stderr.contains("forbid_build_rs is enabled and"),
+        "boundary preflight must not fire on empty in_scope; stderr:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("forbid_proc_macros is enabled and"),
+        "boundary preflight must not fire on empty in_scope; stderr:\n{stderr}"
+    );
 }
 
 /// Positive control: the `init`-scaffolded template must not trip

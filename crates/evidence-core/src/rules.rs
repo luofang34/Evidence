@@ -87,6 +87,16 @@ pub const RULES: &[RuleEntry] = &[
         Domain::Boundary,
     ),
     r(
+        "BOUNDARY_FORBIDDEN_BUILD_RS",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
+        "BOUNDARY_FORBIDDEN_PROC_MACRO",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
         "BOUNDARY_OUT_OF_SCOPE_DEPS",
         Severity::Error,
         Domain::Boundary,

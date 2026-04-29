@@ -51,7 +51,10 @@ pub mod util;
 pub mod verify;
 
 // Re-export key types for convenience
-pub use boundary_check::{BoundaryCheckError, BoundaryViolation, check_no_out_of_scope_deps};
+pub use boundary_check::{
+    BoundaryCheckError, BoundaryViolation, BuildRsViolation, ProcMacroViolation, check_no_build_rs,
+    check_no_out_of_scope_deps, check_no_proc_macros,
+};
 pub use bundle::{
     CommandRecord, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, TestSummary,
     ToolCommandFailure, parse_cargo_test_output, parse_cargo_test_output_detailed, sign_bundle,

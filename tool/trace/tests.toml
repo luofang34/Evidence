@@ -120,10 +120,10 @@ test_selector = "verify_consistency::test_verify_rejects_phantom_trace_output_no
 [[tests]]
 uid = "c818cd84-8d25-457e-b18e-a613c691964d"
 id = "TEST-015"
-title = "Cert profile refuses generate on dirty git tree"
+title = "init-scaffolded template does not trip the policy-implementable gate"
 owner = "tool"
 traces_to = ["bb176fd9-7859-4ec1-bbc0-088d2518dc54"]
-test_selector = "cli::test_generate_refuses_unimplemented_policy_rule"
+test_selector = "cli::test_init_template_does_not_trip_policy_gate"
 
 [[tests]]
 uid = "a8bc1428-d088-40b5-8b9f-84c33667fc4c"
