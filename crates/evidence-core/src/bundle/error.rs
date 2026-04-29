@@ -98,9 +98,28 @@ pub enum BuilderError {
         /// SHA observed at `finalize()` time.
         current_sha: String,
     },
+    /// `cargo metadata --format-version 1` failed when the builder
+    /// tried to write `cargo_metadata.json` into the bundle. Distinct
+    /// from `RunCommand` so the diagnostic carries
+    /// `BUNDLE_CARGO_METADATA_FAILED` rather than the generic run-
+    /// command code — the Layer-3 verify-time recheck can't proceed
+    /// without the artifact.
+    #[error("running `cargo metadata` for cargo_metadata.json artifact")]
+    CargoMetadataRun(#[source] crate::util::CmdError),
+    /// `CargoMetadataProjection::from_raw_metadata` failed on the
+    /// output of `cargo metadata`. Same diagnostic-code rationale as
+    /// `CargoMetadataRun`.
+    #[error("parsing cargo metadata for projection")]
+    CargoMetadataProject(#[source] crate::cargo_metadata::ProjectionError),
 }
 
 impl DiagnosticCode for BuilderError {
+    // `#[rustfmt::skip]` keeps the merged variant arm on a single
+    // line — the `diagnostic_codes_locked` walker matches
+    // `=> "CODE"` directly and doesn't follow `=> { "CODE" }` block
+    // forms. Two-variant or-patterns wrap into block form by default,
+    // so the attribute pins single-line form for every arm.
+    #[rustfmt::skip]
     fn code(&self) -> &'static str {
         // `Git(_)` and `Hash(_)` keep their own BUNDLE_* codes rather
         // than forwarding to the inner error's code; wrapping them
@@ -108,16 +127,17 @@ impl DiagnosticCode for BuilderError {
         // this?" signal that agents care about. Inner detail is still
         // reachable via `std::error::Error::source()`.
         match self {
-            BuilderError::Git(_) => "BUNDLE_GIT_FAILED",
-            BuilderError::Hash(_) => "BUNDLE_HASH_FAILED",
-            BuilderError::DirtyGitTree { .. } => "BUNDLE_DIRTY_GIT_TREE",
-            BuilderError::BundleExists { .. } => "BUNDLE_ALREADY_EXISTS",
-            BuilderError::Io { .. } => "BUNDLE_IO_FAILED",
-            BuilderError::RunCommand { .. } => "BUNDLE_RUN_COMMAND_FAILED",
-            BuilderError::CurrentDir(_) => "BUNDLE_CURRENT_DIR_FAILED",
-            BuilderError::Serialize { .. } => "BUNDLE_SERIALIZE_FAILED",
-            BuilderError::ParseEnv(_) => "BUNDLE_PARSE_ENV_FAILED",
-            BuilderError::Toctou { .. } => "BUNDLE_TOCTOU",
+            BuilderError::Git(_)                                                   => "BUNDLE_GIT_FAILED",
+            BuilderError::Hash(_)                                                  => "BUNDLE_HASH_FAILED",
+            BuilderError::DirtyGitTree { .. }                                      => "BUNDLE_DIRTY_GIT_TREE",
+            BuilderError::BundleExists { .. }                                      => "BUNDLE_ALREADY_EXISTS",
+            BuilderError::Io { .. }                                                => "BUNDLE_IO_FAILED",
+            BuilderError::RunCommand { .. }                                        => "BUNDLE_RUN_COMMAND_FAILED",
+            BuilderError::CurrentDir(_)                                            => "BUNDLE_CURRENT_DIR_FAILED",
+            BuilderError::Serialize { .. }                                         => "BUNDLE_SERIALIZE_FAILED",
+            BuilderError::ParseEnv(_)                                              => "BUNDLE_PARSE_ENV_FAILED",
+            BuilderError::Toctou { .. }                                            => "BUNDLE_TOCTOU",
+            BuilderError::CargoMetadataRun(_) | BuilderError::CargoMetadataProject(_) => "BUNDLE_CARGO_METADATA_FAILED",
         }
     }
 
@@ -137,7 +157,9 @@ impl DiagnosticCode for BuilderError {
             | BuilderError::CurrentDir(_)
             | BuilderError::Serialize { .. }
             | BuilderError::ParseEnv(_)
-            | BuilderError::Toctou { .. } => None,
+            | BuilderError::Toctou { .. }
+            | BuilderError::CargoMetadataRun(_)
+            | BuilderError::CargoMetadataProject(_) => None,
         };
         file.map(|file| Location {
             file: Some(file),

@@ -22,6 +22,7 @@ mod consistency;
 mod cross_file;
 mod engine_source;
 mod errors;
+mod errors_display;
 mod llr_selectors;
 mod paths;
 mod runtime_error;

@@ -86,6 +86,7 @@ pub(super) fn build_config(
         require_clean_git: strict,
         fail_on_dirty: strict,
         dal_map: dal_map.clone(),
+        boundary_policy: policy.clone(),
     };
     (
         config,

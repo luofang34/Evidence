@@ -34,6 +34,7 @@
 
 pub mod boundary_check;
 pub mod bundle;
+pub mod cargo_metadata;
 pub mod compliance;
 pub mod coverage;
 pub mod diagnostic;
@@ -59,6 +60,10 @@ pub use bundle::{
     CommandRecord, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, TestSummary,
     ToolCommandFailure, parse_cargo_test_output, parse_cargo_test_output_detailed, sign_bundle,
     verify_bundle_signature,
+};
+pub use cargo_metadata::{
+    CargoMetadataProjection, PackageProjection, ProjectionError, TargetProjection,
+    check_build_rs_in_projection, check_proc_macros_in_projection,
 };
 pub use compliance::{
     Applicability, ComplianceReport, ComplianceSummary, CrateEvidence, OBJECTIVES, ObjectiveStatus,

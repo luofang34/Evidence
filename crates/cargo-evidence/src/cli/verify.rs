@@ -276,6 +276,9 @@ pub fn cmd_verify(
                     VE::ToolCommandsFailedSilently { .. } => "tool_commands_failed_silently",
                     VE::TestSummaryAbsentOnFailedRun { .. } => "test_summary_absent_on_failed_run",
                     VE::LlrTestSelectorUnresolved { .. } => "llr_test_selector_unresolved",
+                    VE::BoundaryVerifyMetadataMissing   => "boundary_verify_metadata_missing",
+                    VE::BoundaryVerifyForbiddenBuildRs { .. } => "boundary_verify_build_rs",
+                    VE::BoundaryVerifyForbiddenProcMacro { .. } => "boundary_verify_proc_macro",
                 };
                 checks.push(VerifyCheck {
                     name: name.to_string(),

@@ -23,27 +23,11 @@ use super::test_summary::TestSummary;
 use super::time::{utc_compact_stamp, utc_now_rfc3339};
 use crate::git::{GitSnapshot, RealGitProvider};
 use crate::hash::{hash_file_into, hash_file_relative_into, write_sha256sums};
-use crate::policy::{Dal, Profile};
+use crate::policy::Profile;
 use crate::traits::GitProvider;
 
-/// Configuration for evidence bundle generation.
-#[derive(Debug, Clone)]
-pub struct EvidenceBuildConfig {
-    /// Output directory for bundles
-    pub output_root: PathBuf,
-    /// Active profile (type-safe enum, not a free-form string)
-    pub profile: Profile,
-    /// Crates in scope for certification
-    pub in_scope_crates: Vec<String>,
-    /// Trace roots to scan
-    pub trace_roots: Vec<String>,
-    /// Whether to require clean git
-    pub require_clean_git: bool,
-    /// Whether to fail on dirty git
-    pub fail_on_dirty: bool,
-    /// Resolved per-crate DAL map (crate_name -> Dal).
-    pub dal_map: BTreeMap<String, Dal>,
-}
+mod config;
+pub use config::EvidenceBuildConfig;
 
 /// Builder for creating evidence bundles.
 pub struct EvidenceBuilder {
@@ -423,6 +407,20 @@ impl EvidenceBuilder {
             source,
         })?;
 
+        // Step 1.5: When boundary policy claims `forbid_build_rs` or
+        // `forbid_proc_macros`, write a deterministic projection of
+        // `cargo metadata --format-version 1` into the bundle as
+        // `cargo_metadata.json`. The artifact lets verify-time re-run
+        // the same checks against the bundle the bundle claimed at
+        // generate time (LLR-072). Land it before `write_sha256sums`
+        // so the integrity chain auto-binds it like every other
+        // content file.
+        if self.config.boundary_policy.forbid_build_rs
+            || self.config.boundary_policy.forbid_proc_macros
+        {
+            write_cargo_metadata_projection(&self.bundle_dir)?;
+        }
+
         // Step 2: Write SHA256SUMS covering the content layer only.
         // index.json does not exist yet so it is naturally excluded.
         write_sha256sums(&self.bundle_dir, &sha256sums_path)?;
@@ -469,6 +467,7 @@ impl EvidenceBuilder {
                 .iter()
                 .map(|(k, v)| (k.clone(), v.to_string()))
                 .collect(),
+            boundary_policy: self.config.boundary_policy.clone(),
         };
 
         let index_path = self.bundle_dir.join("index.json");
@@ -486,3 +485,6 @@ impl EvidenceBuilder {
         Ok(self.bundle_dir.clone())
     }
 }
+
+mod cargo_metadata_artifact;
+use cargo_metadata_artifact::write_cargo_metadata_projection;
