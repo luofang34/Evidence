@@ -70,8 +70,10 @@ pub use compliance::{
     ObjectiveStatusKind, generate_compliance_report,
 };
 pub use coverage::{
-    BranchCoverage, ConditionCoverage, CoverageLevel, CoverageReport, DecisionCoverage,
-    FileMeasurement, LineCoverage, LlvmCovParseError, Measurement, parse_llvm_cov_export,
+    BranchCoverage, ConditionCoverage, CoverageLevel, CoverageReport, CoverageThresholdViolation,
+    DecisionCoverage, FileMeasurement, LineCoverage, LlvmCovParseError, Measurement,
+    aggregate_branches_percent, aggregate_lines_percent, evaluate_thresholds,
+    parse_llvm_cov_export,
 };
 pub use diagnostic::{Diagnostic, DiagnosticCode, FixHint, Location, Severity, TERMINAL_CODES};
 pub use env::{DeterministicManifest, EnvFingerprint, Host};

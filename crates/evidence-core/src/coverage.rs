@@ -15,9 +15,14 @@
 
 mod llvm_cov_json;
 mod report;
+mod thresholds;
 
 pub use llvm_cov_json::{LlvmCovParseError, parse_llvm_cov_export};
 pub use report::{
     BranchCoverage, ConditionCoverage, CoverageLevel, CoverageReport, DecisionCoverage,
     FileMeasurement, LineCoverage, Measurement,
+};
+pub use thresholds::{
+    CoverageThresholdViolation, aggregate_branches_percent, aggregate_lines_percent,
+    evaluate_thresholds,
 };
