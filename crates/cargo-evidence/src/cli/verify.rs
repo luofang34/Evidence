@@ -485,4 +485,3 @@ fn cmd_verify_jsonl(
         }
     }
 }
-
