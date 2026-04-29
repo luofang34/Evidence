@@ -985,3 +985,37 @@ rules manifest would miss it.
 test_selectors = [
     "mcp_codes_audit::every_mcp_literal_in_source_is_registered",
 ]
+
+[[tests]]
+uid = "33ed3802-036f-443a-b465-b56a500c6428"
+id = "TEST-072"
+title = "verify --verify-key I/O failure emits structured diag + VERIFY_ERROR terminal"
+owner = "tool"
+traces_to = ["4abf426c-da46-4307-ba7d-9d7dbfd86f63"]
+description = """
+Four selectors covering the variant + the three CLI formats:
+
+  - The unit test on `VerifyRuntimeError::ReadVerifyKey` pins
+    `code()` and `location()` so the variant’s
+    `DiagnosticCode` impl stays bijective with
+    `VERIFY_RUNTIME_READ_VERIFY_KEY`.
+  - The `--format=jsonl` integration test verifies that
+    pointing `--verify-key` at a nonexistent path produces
+    exactly two JSONL lines: a finding line carrying
+    `code = VERIFY_RUNTIME_READ_VERIFY_KEY` + the
+    user-supplied path, and the terminal line
+    `code = VERIFY_ERROR`. Exit code = 1.
+  - The `--format=json` integration test verifies the wrapped
+    `VerifyOutput { success: false, checks: [{ name:
+    "verify_key", status: "fail", message: ... }],
+    error: Some(msg) }` shape. Exit code = 1.
+  - The `--format=human` integration test verifies the
+    `error: reading verify key from <path>` line on stderr.
+    Exit code = 1.
+"""
+test_selectors = [
+    "evidence_core::verify::runtime_error::tests::read_verify_key_code_and_location",
+    "verify_e2e::jsonl_emits_terminal_on_unreadable_verify_key",
+    "verify_e2e::json_wraps_verify_key_io_failure",
+    "verify_e2e::human_prints_error_on_unreadable_verify_key",
+]

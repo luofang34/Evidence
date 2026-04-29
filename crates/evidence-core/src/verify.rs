@@ -9,6 +9,7 @@
 //! | `engine_source` | `check_engine_source` cross-shape                   |
 //! | `cross_file`    | env.json ↔ index.json field consistency             |
 //! | `consistency`   | trace_outputs / test_summary / dal_map cross-checks |
+//! | `runtime_error` | `VerifyRuntimeError` enum + `DiagnosticCode` impl   |
 //! | `bundle`        | orchestrator: `verify_bundle[_with_key]`            |
 //!
 //! Re-exports below keep the crate's public API flat — consumers
@@ -23,7 +24,9 @@ mod engine_source;
 mod errors;
 mod llr_selectors;
 mod paths;
+mod runtime_error;
 
-pub use bundle::{VerifyRuntimeError, verify_bundle, verify_bundle_with_key};
+pub use bundle::{verify_bundle, verify_bundle_with_key};
 pub use errors::{VerifyError, VerifyResult};
 pub use paths::REQUIRED_FILES;
+pub use runtime_error::VerifyRuntimeError;

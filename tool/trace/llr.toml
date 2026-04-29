@@ -1902,6 +1902,19 @@ failed subprocess populates `error` with the structured
 diagnostic, leaves `rules` empty, and sets `count = 0`; a
 successful run leaves `error = None`.
 
+`exit_code` is documentation, not the machine contract. Two
+failure classes — CLI verification failure (the subprocess
+ran to completion and emitted its own `_FAIL` terminal) and
+MCP tool-layer failure (the wrapper synthesized an `MCP_*`
+terminal because the subprocess could not be run to
+completion) — deliberately share `exit_code == 2`. Hosts must
+dispatch on the structured field: `terminal` for JSONL-stream
+verbs, `error.code` for rules / diff. The bit that would
+distinguish the two classes lives in those fields by design;
+collapsing the `exit_code` lane keeps every wire response on
+the same numeric ladder as `cargo evidence` invocations
+without forcing hosts to maintain two parallel decode tables.
+
 Streaming-verb recipe: the JSONL-stream verbs (doctor, check,
 floors — and any future verb of the same shape) share a single
 `Server::run_streaming_verb(args, workspace_path)` helper that
@@ -2090,3 +2103,45 @@ single JSON blob, not a JSONL stream — reusing
 CLI emits.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "4abf426c-da46-4307-ba7d-9d7dbfd86f63"
+id = "LLR-069"
+title = "verify --verify-key I/O failure emits VERIFY_RUNTIME_READ_VERIFY_KEY + VERIFY_ERROR terminal"
+owner = "tool"
+traces_to = ["f6d35f65-4a38-4ad9-ba2a-b5c4e3d7da41"]
+modules = [
+    "evidence_core::verify::bundle",
+    "cargo_evidence::cli::verify",
+]
+derived = false
+description = """
+`cmd_verify_jsonl` and `cmd_verify` both load the
+`--verify-key` file before calling `verify_bundle_with_key`.
+When `fs::read(path)` fails (missing or unreadable key), the
+verify pipeline has already started its user-visible run, so
+Schema Rule 1 (HLR-001) requires exactly one terminal on the
+`--format=jsonl` stream. The handler emits a structured
+`VERIFY_RUNTIME_READ_VERIFY_KEY` finding (path + os-error
+message), then the `VERIFY_ERROR` terminal, then exits 1.
+
+The code is distinct from `VERIFY_RUNTIME_READ_FILE` because
+the failure precedes any bundle-file access — the path
+carried in the diagnostic is the user-supplied key path, not
+a bundle-relative path. The bijection between
+`VerifyRuntimeError` variants and `VERIFY_RUNTIME_*` codes
+stays one-to-one.
+
+For `--format=human` and `--format=json` the same shape
+applies via `fail_verify(&bundle_path, "verify_key", ...,
+EXIT_ERROR)` so all three formats agree (HLR-016): the
+run records a `verify_key` check at status `fail` with the
+os-error message, prints `error: reading verify key from
+<path>` to stderr (human) or wraps the failure in
+`VerifyOutput { success: false, error: Some(msg) }` (json),
+and exits 1.
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_RUNTIME_READ_VERIFY_KEY",
+]

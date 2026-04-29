@@ -7,13 +7,10 @@
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use thiserror::Error;
-
-use crate::bundle::{EvidenceIndex, SigningError};
-use crate::diagnostic::{DiagnosticCode, Location, Severity};
-use crate::hash::{HashError, sha256_file};
+use crate::bundle::EvidenceIndex;
+use crate::hash::sha256_file;
 use crate::policy::Profile;
 
 use super::consistency::{check_dal_map, check_test_summary, check_trace_outputs_hashed};
@@ -21,85 +18,7 @@ use super::cross_file::check_env_vs_index;
 use super::engine_source::check_engine_source;
 use super::errors::{VerifyError, VerifyResult};
 use super::paths::{KNOWN_META_FILES, REQUIRED_FILES, is_safe_bundle_path};
-
-/// Catastrophic errors that abort verification before per-check
-/// accumulation begins.
-///
-/// Distinct from [`VerifyError`]: `VerifyError` records a *validation
-/// finding* (a bundle field or hash disagrees); `VerifyRuntimeError`
-/// records an *I/O or parsing fault* where the verifier can't even
-/// get far enough to make a finding.
-#[derive(Debug, Error)]
-pub enum VerifyRuntimeError {
-    /// Bundle path does not exist or is not a directory.
-    #[error("Bundle path does not exist or is not a directory: {0}")]
-    BundleNotFound(PathBuf),
-    /// I/O failure reading a bundle file.
-    #[error("reading {path}")]
-    ReadFile {
-        /// Bundle-relative path whose read failed.
-        path: PathBuf,
-        /// Underlying OS error.
-        #[source]
-        source: std::io::Error,
-    },
-    /// `index.json` failed to parse as JSON.
-    #[error("parsing index.json")]
-    ParseIndex(#[source] serde_json::Error),
-    /// File tree walk raised an error (bundle contained an
-    /// unreadable directory or symlink).
-    #[error("walking bundle tree")]
-    Walk(#[source] walkdir::Error),
-    /// A file hash couldn't be computed.
-    #[error(transparent)]
-    Hash(#[from] HashError),
-    /// HMAC signature verification had an I/O or envelope error
-    /// (distinct from the signature being invalid, which is a
-    /// [`VerifyError::HmacFailure`]).
-    #[error(transparent)]
-    Signing(#[from] SigningError),
-}
-
-impl DiagnosticCode for VerifyRuntimeError {
-    fn code(&self) -> &'static str {
-        // Runtime faults that abort verify before it can make any
-        // findings. These map to exit code 1 (not 2), per the
-        // Schema Rule 1 contract.
-        match self {
-            VerifyRuntimeError::BundleNotFound(_) => "VERIFY_RUNTIME_BUNDLE_NOT_FOUND",
-            VerifyRuntimeError::ReadFile { .. } => "VERIFY_RUNTIME_READ_FILE",
-            VerifyRuntimeError::ParseIndex(_) => "VERIFY_RUNTIME_PARSE_INDEX",
-            VerifyRuntimeError::Walk(_) => "VERIFY_RUNTIME_WALK",
-            VerifyRuntimeError::Hash(_) => "VERIFY_RUNTIME_HASH",
-            VerifyRuntimeError::Signing(_) => "VERIFY_RUNTIME_SIGNING",
-        }
-    }
-
-    fn severity(&self) -> Severity {
-        Severity::Error
-    }
-
-    fn location(&self) -> Option<Location> {
-        match self {
-            VerifyRuntimeError::BundleNotFound(p) => Some(Location {
-                file: Some(p.clone()),
-                ..Location::default()
-            }),
-            VerifyRuntimeError::ReadFile { path, .. } => Some(Location {
-                file: Some(path.clone()),
-                ..Location::default()
-            }),
-            // Remaining variants wrap inner errors without surfacing
-            // a path at this layer. `Hash(HashError)` and friends
-            // would grow their own `DiagnosticCode` impls and the
-            // wrapper would then forward via `source()`.
-            VerifyRuntimeError::ParseIndex(_)
-            | VerifyRuntimeError::Walk(_)
-            | VerifyRuntimeError::Hash(_)
-            | VerifyRuntimeError::Signing(_) => None,
-        }
-    }
-}
+use super::runtime_error::VerifyRuntimeError;
 
 /// Verify an evidence bundle at the given path.
 ///

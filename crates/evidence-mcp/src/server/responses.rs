@@ -17,6 +17,33 @@ use crate::workspace::{WorkspaceResolution, workspace_fallback_diagnostic};
 /// the CLI's `EXIT_VERIFICATION_FAILURE` (2) so agents can't
 /// tell from `exit_code` alone whether the `evidence` CLI
 /// itself failed or the MCP wrapper gave up on the subprocess.
+///
+/// **`exit_code` is documentation, not the machine contract.**
+/// Two failure classes deliberately share `2`:
+///
+///   1. CLI verification failure — the `cargo evidence` run
+///      finished and emitted its own JSONL terminal
+///      (`VERIFY_FAIL`, `DOCTOR_FAIL`, `FLOORS_FAIL`).
+///   2. MCP tool-layer failure — the wrapper couldn't run the
+///      subprocess to completion (cargo not on `PATH`, spawn
+///      error, timeout, malformed JSONL output) and synthesized
+///      an `MCP_*` terminal in place of the CLI's terminal.
+///
+/// The structured fields are the canonical machine signal:
+///
+///   - JSONL verbs (`evidence_check`, `evidence_doctor`,
+///     `evidence_floors`) — dispatch on
+///     [`JsonlToolResponse::terminal`](crate::schema::JsonlToolResponse).
+///   - Rules verb (`evidence_rules`) — dispatch on the `code`
+///     field of `error`
+///     ([`RulesToolResponse::error`](crate::schema::RulesToolResponse)).
+///   - Diff verb (`evidence_diff`) — same `error.code` shape.
+///
+/// Hosts must not pattern-match on `exit_code` to distinguish
+/// the two failure classes — the bit is intentionally erased
+/// here. If a future host needs distinct exit semantics, the
+/// sharpening would land in a new field, not by sliding the
+/// `exit_code` value.
 pub(super) const TOOL_FAILURE_EXIT_CODE: i32 = 2;
 
 /// Prepend the synthetic `MCP_WORKSPACE_FALLBACK` diagnostic +
