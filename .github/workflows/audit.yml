@@ -1,0 +1,90 @@
+name: Security Audit
+
+# Runs `cargo audit` against the workspace `Cargo.lock` to surface
+# RustSec advisories (known vulnerabilities, unmaintained crates,
+# unsound code, yanked versions). Two trigger paths:
+#
+# - Per-PR + push-to-main, scoped to changes that could move the
+#   dep graph or the audit invocation itself. A new vulnerable
+#   transitive dep gets caught at review time, not after merge.
+# - Weekly cron (Monday 06:00 UTC). The advisory database grows by
+#   ~10 entries/week; an old commit can become vulnerable without
+#   the lockfile changing. Cron picks that up against the latest
+#   db without waiting for the next PR.
+#
+# Failure mode: any vulnerability OR warning fails the job (the
+# default `cargo audit --deny warnings` posture). Advisories are
+# *not* informational — DAL-A/B projects can't ship cert evidence
+# while a known unsound dep sits in the graph. Pinning to
+# `--deny warnings` keeps unmaintained / yanked / unsound noise from
+# becoming a permanent floor of warnings nobody acts on.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/*/Cargo.toml"
+      - ".github/workflows/audit.yml"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/*/Cargo.toml"
+      - ".github/workflows/audit.yml"
+  schedule:
+    # Monday 06:00 UTC — early enough that a finding is visible
+    # before the US west coast comes online for the workweek.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+# Opt into Node.js 24 runtime for any action still pinning Node.js 20
+# (matches the convention in ci.yml).
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+# Serialize back-to-back runs on the same ref so a quick succession
+# of pushes doesn't queue stale audits. Cron and dispatch get their
+# own group key so they're never cancelled by a PR run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust 1.95
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95"
+
+      - name: Cache cargo-audit binary
+        id: cache-audit
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          # Cache key folds in toolchain so a Rust upgrade rebuilds
+          # the binary against the new ABI. Date keeps the binary
+          # fresh enough that `cargo audit` itself receives security
+          # fixes within a week.
+          key: cargo-audit-${{ runner.os }}-rust-1.95-${{ github.run_id }}
+          restore-keys: |
+            cargo-audit-${{ runner.os }}-rust-1.95-
+
+      - name: Install cargo-audit
+        if: steps.cache-audit.outputs.cache-hit != 'true'
+        run: cargo install --locked cargo-audit
+
+      - name: Run cargo audit (deny warnings)
+        # `--deny warnings` flips unmaintained / unsound / yanked
+        # advisories from soft warnings to hard failures — see
+        # workflow header for the rationale. The advisory DB is
+        # fetched fresh on each run (cargo-audit's default).
+        run: cargo audit --deny warnings
