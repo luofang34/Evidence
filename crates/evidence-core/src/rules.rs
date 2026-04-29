@@ -342,6 +342,11 @@ pub const RULES: &[RuleEntry] = &[
         Domain::Verify,
     ),
     r("VERIFY_RUNTIME_READ_FILE", Severity::Error, Domain::Verify),
+    r(
+        "VERIFY_RUNTIME_READ_VERIFY_KEY",
+        Severity::Error,
+        Domain::Verify,
+    ),
     r("VERIFY_RUNTIME_SIGNING", Severity::Error, Domain::Verify),
     r("VERIFY_RUNTIME_WALK", Severity::Error, Domain::Verify),
     r(

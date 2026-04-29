@@ -945,6 +945,13 @@
     "terminal": false
   },
   {
+    "code": "VERIFY_RUNTIME_READ_VERIFY_KEY",
+    "severity": "error",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "VERIFY_RUNTIME_SIGNING",
     "severity": "error",
     "domain": "verify",

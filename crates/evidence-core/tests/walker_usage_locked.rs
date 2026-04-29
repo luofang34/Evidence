@@ -70,6 +70,9 @@ const ALLOWED_READ_DIR_FILES: &[&str] = &[
     // Single-dir bundle-finder — same pattern as the compliance
     // baseline test.
     "tests/verify_jsonl.rs",
+    // Single-dir bundle-finder — same pattern, cross-format
+    // verify-key runtime-fault tests.
+    "tests/verify_e2e.rs",
     // Single-dir bundle-finder — same pattern.
     "tests/check_bundle_mode.rs",
     // Single-dir bundle-finder — same pattern, coverage e2e.

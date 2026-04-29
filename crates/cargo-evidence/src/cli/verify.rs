@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::Serialize;
 
 use evidence_core::diagnostic::{Diagnostic, DiagnosticCode, Severity};
@@ -15,8 +15,10 @@ use super::output::{emit_json, emit_jsonl};
 
 mod incomplete_bundle;
 mod skipped_notices;
+mod terminals;
 use incomplete_bundle::maybe_emit_bundle_incomplete_warning;
 use skipped_notices::maybe_emit_llr_check_skipped_no_outcomes;
+use terminals::{terminal_error, terminal_fail, terminal_ok};
 
 #[derive(Serialize)]
 struct VerifyOutput {
@@ -144,11 +146,34 @@ pub fn cmd_verify(
         );
     }
 
-    // Load verify key if provided
+    // Load verify key if provided. An I/O failure here is a runtime
+    // fault (key file missing / unreadable) — mirror the
+    // bundle-not-found shape above so all three formats stay
+    // HLR-016-consistent: human prints `error: ...`, json wraps the
+    // failure in `VerifyOutput { success: false, ... }`, both exit 1.
     let key_bytes = match &verify_key {
-        Some(path) => {
-            Some(fs::read(path).with_context(|| format!("reading verify key from {:?}", path))?)
-        }
+        Some(path) => match fs::read(path) {
+            Ok(bytes) => Some(bytes),
+            Err(source) => {
+                let err = VerifyRuntimeError::ReadVerifyKey {
+                    path: path.clone(),
+                    source,
+                };
+                let msg = err.to_string();
+                return fail_verify(
+                    json_output,
+                    &bundle_path,
+                    vec![VerifyCheck {
+                        name: "verify_key".to_string(),
+                        status: "fail".to_string(),
+                        message: Some(msg.clone()),
+                    }],
+                    "error:",
+                    msg,
+                    EXIT_ERROR,
+                );
+            }
+        },
         None => None,
     };
 
@@ -354,16 +379,27 @@ fn cmd_verify_jsonl(
         return Ok(EXIT_VERIFICATION_FAILURE);
     }
 
-    // Load verify key. `fs::read` failure here is a runtime fault (the
-    // caller's key file is missing / unreadable) — anyhow's `?` with
-    // `with_context` bubbles it up as an `Err(anyhow)`, which main's
-    // `run` prints to stderr and returns exit 1. No JSONL surfacing
-    // for key-file I/O is intentional: the error precedes verify, so
-    // there is no bundle-level diagnostic to correlate with.
+    // Load verify key. An I/O failure (missing / unreadable key
+    // file) is a runtime fault but must still emit the JSONL
+    // terminal pair — Schema Rule 1 mandates exactly one terminal
+    // per --format=jsonl run, and the user-visible verify pipeline
+    // already started. Mirror the BundleNotFound shape above:
+    // emit the structured `VERIFY_RUNTIME_READ_VERIFY_KEY` finding,
+    // then the `VERIFY_ERROR` terminal, then exit 1.
     let key_bytes = match &verify_key {
-        Some(path) => {
-            Some(fs::read(path).with_context(|| format!("reading verify key from {:?}", path))?)
-        }
+        Some(path) => match fs::read(path) {
+            Ok(bytes) => Some(bytes),
+            Err(source) => {
+                let err = VerifyRuntimeError::ReadVerifyKey {
+                    path: path.clone(),
+                    source,
+                };
+                let msg = err.to_string();
+                emit_jsonl(&err.to_diagnostic())?;
+                emit_jsonl(&terminal_error(&msg))?;
+                return Ok(EXIT_ERROR);
+            }
+        },
         None => None,
     };
 
@@ -450,38 +486,3 @@ fn cmd_verify_jsonl(
     }
 }
 
-fn terminal_ok(message: &str) -> Diagnostic {
-    Diagnostic {
-        code: "VERIFY_OK".to_string(),
-        severity: Severity::Info,
-        message: message.to_string(),
-        location: None,
-        fix_hint: None,
-        subcommand: None,
-        root_cause_uid: None,
-    }
-}
-
-fn terminal_fail(message: &str) -> Diagnostic {
-    Diagnostic {
-        code: "VERIFY_FAIL".to_string(),
-        severity: Severity::Error,
-        message: message.to_string(),
-        location: None,
-        fix_hint: None,
-        subcommand: None,
-        root_cause_uid: None,
-    }
-}
-
-fn terminal_error(message: &str) -> Diagnostic {
-    Diagnostic {
-        code: "VERIFY_ERROR".to_string(),
-        severity: Severity::Error,
-        message: message.to_string(),
-        location: None,
-        fix_hint: None,
-        subcommand: None,
-        root_cause_uid: None,
-    }
-}
