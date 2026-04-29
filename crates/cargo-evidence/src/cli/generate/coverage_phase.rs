@@ -17,8 +17,7 @@ use std::process::{Command, Stdio};
 use anyhow::{Context, Result};
 use evidence_core::bundle::EvidenceBuilder;
 use evidence_core::{
-    CoverageLevel, CoverageReport, Dal, DalCoverageThresholds, Diagnostic, Location, Measurement,
-    Profile, Severity, parse_llvm_cov_export,
+    CoverageLevel, Dal, Diagnostic, Location, Profile, Severity, parse_llvm_cov_export,
 };
 use tempfile::TempDir;
 
@@ -142,7 +141,7 @@ pub fn run_coverage_phase(
     let enforce_thresholds = matches!(profile, Profile::Cert | Profile::Record);
     if enforce_thresholds {
         let thresholds = max_dal.coverage_thresholds();
-        let violations = threshold_violations(&report, thresholds);
+        let violations = evidence_core::evaluate_thresholds(&report, thresholds);
         if !violations.is_empty() {
             for v in &violations {
                 emit_below_threshold(v, jsonl_output, quiet)?;
@@ -154,91 +153,11 @@ pub fn run_coverage_phase(
     Ok(CoverageOutcome::Emitted)
 }
 
-/// Observed aggregate percentage per-level in `report`, compared
-/// against `thresholds`. One [`ThresholdViolation`] per
-/// dimension that falls short.
-#[derive(Debug, Clone)]
-struct ThresholdViolation {
-    dimension: &'static str,
-    current_percent: f64,
-    threshold_percent: u8,
-}
-
-fn threshold_violations(
-    report: &CoverageReport,
-    thresholds: DalCoverageThresholds,
-) -> Vec<ThresholdViolation> {
-    let mut violations = Vec::new();
-    if let Some(min) = thresholds.statement_percent
-        && let Some(m) = measurement_for(report, CoverageLevel::Statement)
-    {
-        let pct = aggregate_lines_percent(m);
-        if pct < f64::from(min) {
-            violations.push(ThresholdViolation {
-                dimension: "statement",
-                current_percent: pct,
-                threshold_percent: min,
-            });
-        }
-    }
-    if let Some(min) = thresholds.branch_percent
-        && let Some(m) = measurement_for(report, CoverageLevel::Branch)
-    {
-        let pct = aggregate_branches_percent(m);
-        if pct < f64::from(min) {
-            violations.push(ThresholdViolation {
-                dimension: "branch",
-                current_percent: pct,
-                threshold_percent: min,
-            });
-        }
-    }
-    violations
-}
-
-fn measurement_for(report: &CoverageReport, level: CoverageLevel) -> Option<&Measurement> {
-    report.measurements.iter().find(|m| m.level == level)
-}
-
-/// Aggregate percentage for `CoverageLevel::Statement`. Sums
-/// per-file line counts. Zero denominator (no executable lines
-/// across the measurement) returns `0.0`, never NaN —
-/// divide-by-zero on a u64 total would otherwise break f64
-/// comparison at every downstream call-site.
-fn aggregate_lines_percent(m: &Measurement) -> f64 {
-    let total: u64 = m.per_file.iter().map(|f| f.lines.total).sum();
-    if total == 0 {
-        return 0.0;
-    }
-    let covered: u64 = m.per_file.iter().map(|f| f.lines.covered).sum();
-    (covered as f64 / total as f64) * 100.0
-}
-
-/// Aggregate percentage for `CoverageLevel::Branch`. Sums
-/// per-file `branches.{covered,total}`; files whose `branches`
-/// field is `None` contribute `0/0` (no contribution). Zero
-/// denominator → `0.0` (no NaN). Separation from
-/// [`aggregate_lines_percent`] is load-bearing: summing
-/// `lines.*` at branch level was the pre-fix bug — tool
-/// reported branch thresholds as met using line-coverage data.
-fn aggregate_branches_percent(m: &Measurement) -> f64 {
-    let total: u64 = m
-        .per_file
-        .iter()
-        .map(|f| f.branches.as_ref().map_or(0, |b| b.total))
-        .sum();
-    if total == 0 {
-        return 0.0;
-    }
-    let covered: u64 = m
-        .per_file
-        .iter()
-        .map(|f| f.branches.as_ref().map_or(0, |b| b.covered))
-        .sum();
-    (covered as f64 / total as f64) * 100.0
-}
-
-fn emit_below_threshold(v: &ThresholdViolation, jsonl_output: bool, quiet: bool) -> Result<()> {
+fn emit_below_threshold(
+    v: &evidence_core::CoverageThresholdViolation,
+    jsonl_output: bool,
+    quiet: bool,
+) -> Result<()> {
     let message = format!(
         "coverage below DAL threshold: {} = {:.2}%, required ≥ {}%",
         v.dimension, v.current_percent, v.threshold_percent
