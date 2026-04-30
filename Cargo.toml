@@ -6,7 +6,7 @@ members = ["crates/*"]
 # 0.x.y signals unstable under SemVer — breaking changes may land in
 # any minor bump. Downstream tooling that needs cert-grade stability
 # should pin an exact version and upgrade deliberately.
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -34,7 +34,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 
 # Internal crates
-evidence-core = { version = "0.1.2", path = "crates/evidence-core" }
+evidence-core = { version = "0.1.3", path = "crates/evidence-core" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

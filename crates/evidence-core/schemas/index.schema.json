@@ -157,6 +157,25 @@
         "enum": ["A", "B", "C", "D"]
       },
       "description": "Per-crate DAL (Design Assurance Level) assignments. Key is crate name, value is DAL level."
+    },
+    "boundary_policy": {
+      "type": "object",
+      "description": "Boundary policy flags as captured from cert/boundary.toml at generate time. Recorded so verify-time can replay the rules without consulting the verifier's local boundary.toml. Omitted from index.json when all flags are false (the default for legacy bundles). Added in 0.1.3.",
+      "properties": {
+        "no_out_of_scope_deps": {
+          "type": "boolean",
+          "description": "Was check_no_out_of_scope_deps enforced at generate time?"
+        },
+        "forbid_build_rs": {
+          "type": "boolean",
+          "description": "Was check_no_build_rs enforced? When true, verify-time replays the rule against cargo_metadata.json (LLR-072)."
+        },
+        "forbid_proc_macros": {
+          "type": "boolean",
+          "description": "Was check_no_proc_macros enforced? Same verify-time replay path as forbid_build_rs."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
