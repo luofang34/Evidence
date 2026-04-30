@@ -80,6 +80,11 @@ pub enum Schema {
     Hashes,
     /// `deterministic-manifest.json` — cross-host reproducibility contract.
     DeterministicManifest,
+    /// `cargo_metadata.json` — deterministic projection of
+    /// `cargo metadata` written when boundary policy enables
+    /// `forbid_build_rs` or `forbid_proc_macros`. Verify-time
+    /// recheck reads this artifact (LLR-072).
+    CargoMetadata,
     /// `diagnostic.schema.json` — wire-format schema for the `--format=jsonl`
     /// streaming output. Not a bundle file; excluded from `for_filename`
     /// and `for_content` on purpose.
@@ -95,6 +100,7 @@ impl Schema {
             Schema::Commands => SCHEMA_COMMANDS,
             Schema::Hashes => SCHEMA_HASHES,
             Schema::DeterministicManifest => SCHEMA_DETERMINISTIC_MANIFEST,
+            Schema::CargoMetadata => SCHEMA_CARGO_METADATA,
             Schema::Diagnostic => SCHEMA_DIAGNOSTIC,
         }
     }
@@ -108,6 +114,7 @@ impl Schema {
             Schema::Commands => "commands",
             Schema::Hashes => "hashes",
             Schema::DeterministicManifest => "deterministic-manifest",
+            Schema::CargoMetadata => "cargo-metadata",
             Schema::Diagnostic => "diagnostic",
         }
     }
@@ -124,6 +131,8 @@ impl Schema {
             Some(Schema::Commands)
         } else if name == "deterministic-manifest.json" {
             Some(Schema::DeterministicManifest)
+        } else if name == "cargo_metadata.json" {
+            Some(Schema::CargoMetadata)
         } else if name.contains("hashes") {
             Some(Schema::Hashes)
         } else {
@@ -174,6 +183,7 @@ const SCHEMA_COMMANDS: &str = include_str!("../schemas/commands.schema.json");
 const SCHEMA_HASHES: &str = include_str!("../schemas/hashes.schema.json");
 const SCHEMA_DETERMINISTIC_MANIFEST: &str =
     include_str!("../schemas/deterministic-manifest.schema.json");
+const SCHEMA_CARGO_METADATA: &str = include_str!("../schemas/cargo_metadata.schema.json");
 const SCHEMA_DIAGNOSTIC: &str = include_str!("../schemas/diagnostic.schema.json");
 
 // ============================================================================
@@ -263,6 +273,7 @@ mod tests {
             Schema::Commands,
             Schema::Hashes,
             Schema::DeterministicManifest,
+            Schema::CargoMetadata,
             Schema::Diagnostic,
         ] {
             let value: Value = serde_json::from_str(s.source()).expect("parse");

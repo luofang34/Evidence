@@ -79,8 +79,16 @@ jobs:
             cargo-audit-${{ runner.os }}-rust-1.95-
 
       - name: Install cargo-audit
+        # `--force` is load-bearing: GitHub `actions/cache` reports
+        # `cache-hit == 'true'` only on EXACT key match. A
+        # `restore-keys` fall-back DOES restore the binary but
+        # leaves `cache-hit == 'false'`, so this step still runs
+        # and `cargo install` would error on "binary already
+        # exists in destination". `--force` overwrites the stale
+        # binary if one happens to be there from the partial
+        # restore.
         if: steps.cache-audit.outputs.cache-hit != 'true'
-        run: cargo install --locked cargo-audit
+        run: cargo install --locked --force cargo-audit
 
       - name: Run cargo audit (deny warnings)
         # `--deny warnings` flips unmaintained / unsound / yanked

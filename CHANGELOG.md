@@ -9,6 +9,142 @@ All three workspace crates (`evidence-core`, `cargo-evidence`,
 `evidence-mcp`) share a single version; release entries cover all
 three unless noted.
 
+## [0.1.3] — 2026-04-30
+
+### Added
+
+- **`forbid_build_rs` and `forbid_proc_macros` boundary policies
+  now have full enforcement.** Both flags were declared in
+  `BoundaryPolicy` since 0.1.0 but were rejected by the generate
+  preflight as "unimplemented" — a safety rail to keep bundles
+  from silently overclaiming. As of 0.1.3 the rules are enforced
+  at three points:
+  - **Generate-time detection** in
+    `evidence_core::boundary_check::check_no_build_rs` /
+    `check_no_proc_macros`. Both shell out to
+    `cargo metadata --format-version 1` (no new crate dep) and
+    flag any in-scope crate whose `targets[].kind` contains
+    `"custom-build"` or `"proc-macro"`. Per-crate scoping is
+    preserved — out-of-scope crates with build.rs / proc-macro
+    are fine. Codes: `BOUNDARY_FORBIDDEN_BUILD_RS`,
+    `BOUNDARY_FORBIDDEN_PROC_MACRO`.
+  - **`links =` informational surfacing.** When a
+    `BOUNDARY_FORBIDDEN_BUILD_RS` violation fires, the
+    diagnostic message includes the package's `links` value
+    (when set) — e.g. `crate 'foo' has build.rs (links =
+    "libz")`. Auditors see the native-FFI binding without
+    re-running `cargo metadata` by hand. Strictly informational;
+    no separate violation code.
+  - **Verify-time recheck** against a new bundle artifact
+    `cargo_metadata.json`. The artifact is a deterministic
+    projection (sorted `packages[]` of
+    `{ name, targets[].kind, links }`) written into the bundle
+    when either flag is enabled at generate time. Verify
+    replays the rules against the cached projection — closes
+    the window where a build.rs / proc-macro added between
+    generate and verify would otherwise pass silently. New
+    codes: `BOUNDARY_VERIFY_METADATA_MISSING` (artifact required
+    but absent), `VERIFY_BOUNDARY_BUILD_RS_DETECTED`,
+    `VERIFY_BOUNDARY_PROC_MACRO_DETECTED`.
+- **`EvidenceIndex.boundary_policy`** field. Additive,
+  `#[serde(default)]` — old bundles deserialize with all-`false`
+  defaults so the verify-time recheck no-ops on legacy bundles.
+  Captures the policy flags at generate time so verify can
+  replay the contract without consulting the verifier's local
+  `boundary.toml`. The new field is omitted from `index.json`
+  serialization when the policy is the all-`false` default
+  (`skip_serializing_if`), so bundles with no policy claim look
+  byte-identical to pre-0.1.3 bundles.
+- **`evidence_core::CargoMetadataProjection`** public type +
+  `from_raw_metadata` / `from_projection_json` /
+  `to_canonical_json` constructors. New module
+  `evidence_core::cargo_metadata`. The projection sorts packages
+  by name on construction and serializes deterministically — two
+  hosts with the same git state produce byte-identical
+  artifacts (SYS-003).
+- **`VERIFY_RUNTIME_READ_VERIFY_KEY` diagnostic code.** Closes
+  an HLR-001 violation: `cargo evidence verify --verify-key
+  <path> --format=jsonl` previously short-circuited via
+  `Err(anyhow)` when the key file was missing or unreadable,
+  dropping the run on the floor without emitting a JSONL
+  terminal. The new code fires a structured finding + the
+  `VERIFY_ERROR` terminal across all three output formats
+  (`--format={human,json,jsonl}`).
+- **CI security audit.** New `.github/workflows/audit.yml`
+  runs `cargo audit --deny warnings` on PR + push-to-main
+  (path-scoped to dep-graph changes), Monday 06:00 UTC cron,
+  and `workflow_dispatch`. `--deny warnings` flips
+  unmaintained / unsound / yanked advisories from soft to hard
+  failures — DAL-A/B projects can't ship cert evidence while a
+  known unsound dep sits in the graph.
+
+### Changed
+
+- **MCP `exit_code` contract documented as a non-machine
+  signal.** `TOOL_FAILURE_EXIT_CODE = 2` deliberately collides
+  with `cargo evidence`'s own `EXIT_VERIFICATION_FAILURE` —
+  agents can't distinguish CLI verification failure from MCP
+  tool-layer failure by `exit_code` alone. The contract now
+  spells out (in the `evidence-mcp` README's
+  "Failure-shape contract" section, in the
+  `TOOL_FAILURE_EXIT_CODE` doc comment, and in LLR-064) that
+  hosts must dispatch on `terminal` (JSONL verbs) or
+  `error.code` (rules / diff verbs) — never on `exit_code`.
+  Behaviour unchanged; documentation tightened to prevent host
+  implementers from defaulting to the simpler-looking
+  `exit_code` dispatch.
+- **`evaluate_thresholds` (renamed from `threshold_violations`)
+  + `aggregate_lines_percent` / `aggregate_branches_percent`
+  moved to `evidence_core::coverage`** for test discoverability.
+  Previously buried in `cargo_evidence::cli::generate::coverage_phase`,
+  these are now reachable via `cargo test --workspace
+  threshold_integration_*` without needing `--all-targets` or
+  `--bins` (Cargo's binary-unit-test convention was filtering
+  the regression tests out).
+- **`BoundaryPolicy`** gains `Default` + `PartialEq` derives.
+  Public API; downstream code matching on the struct is
+  unaffected.
+
+### Fixed
+
+- **`cargo evidence verify --verify-key` JSONL terminal
+  contract.** See
+  `VERIFY_RUNTIME_READ_VERIFY_KEY` under Added. Previously
+  violated HLR-001 on key-read I/O failure; now emits exactly
+  one terminal as Schema Rule 1 requires.
+
+### Internal
+
+- New `evidence_core::cargo_metadata` module + sibling tests.
+- New `evidence_core::coverage::thresholds` module owning the
+  threshold-evaluation logic.
+- `bundle/builder.rs` split into `builder.rs` +
+  `builder/config.rs` + `builder/cargo_metadata_artifact.rs`
+  (workspace 500-line limit).
+- `verify/errors.rs` Display impl extracted to
+  `verify/errors_display.rs`.
+- `verify/bundle.rs` gains `check_boundary_recheck`
+  function (LLR-072).
+- Schema versions stay at `"0.0.1"` per pre-1.0 convention —
+  every additive bundle/wire-format change rewrites the
+  documentation in place.
+- Trace entries: HLR-064, HLR-065 (boundary determinism vs
+  auditability split); LLR-070, LLR-071 (per-policy detection);
+  LLR-072 (verify-time recheck artifact); TEST-072 through
+  TEST-079.
+- Floors ratcheted: `diagnostic_codes` 143 → 150,
+  `trace_hlr` 63 → 65, `trace_llr` 68 → 72,
+  `trace_test` 71 → 77, `per_crate.evidence-core.test_count`
+  314 → 351, `per_crate.cargo-evidence.test_count` 149 → 133
+  (net relocation: coverage threshold tests moved to
+  evidence-core; workspace test mass conserved).
+- `cert/boundary.toml` documents why this workspace can't
+  enable `forbid_build_rs = true`: `evidence-core/build.rs`
+  is load-bearing for engine-provenance via
+  `EVIDENCE_ENGINE_GIT_SHA` (SYS-017). Other projects without
+  equivalent constraints should set both flags to `true` at
+  DAL-A/B.
+
 ## [0.1.2] — 2026-04-24
 
 ### Added
@@ -204,6 +340,7 @@ project README (section `Release cadence`) and in the git log —
 a per-PR enumeration was not maintained for the 0.1.0 arc. Future
 releases will use this file.
 
+[0.1.3]: https://github.com/luofang34/Evidence/releases/tag/v0.1.3
 [0.1.2]: https://github.com/luofang34/Evidence/releases/tag/v0.1.2
 [0.1.1]: https://github.com/luofang34/Evidence/releases/tag/v0.1.1
 [0.1.0]: https://github.com/luofang34/Evidence/releases/tag/v0.1.0

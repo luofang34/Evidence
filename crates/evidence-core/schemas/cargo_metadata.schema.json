@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://navigate.dev/schema/evidence/cargo_metadata.schema.json",
+  "title": "CargoMetadataProjection",
+  "description": "Deterministic projection of `cargo metadata --format-version 1` written to the bundle as `cargo_metadata.json` when boundary.toml enables `forbid_build_rs` or `forbid_proc_macros`. Verify-time replays the boundary checks against this cached projection so a build.rs / proc-macro added between generate and verify is caught (LLR-072). Sorted by `name` ascending so two hosts with the same git state produce byte-identical bundles (SYS-003).",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Package `name` from Cargo.toml"
+      },
+      "targets": {
+        "type": "array",
+        "description": "Targets the package declares. Empty array is legal (some workspace metadata-only crates).",
+        "items": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "array",
+              "description": "Target kind discriminator from cargo metadata. Common values: [\"lib\"], [\"bin\"], [\"custom-build\"] (build.rs), [\"proc-macro\"], [\"test\"], [\"bench\"], [\"example\"]. The verify-time recheck keys on `\"custom-build\"` and `\"proc-macro\"`.",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        }
+      },
+      "links": {
+        "type": ["string", "null"],
+        "description": "Value of the package's `links` field (e.g. \"libz\") if it declares a native library binding, otherwise omitted/null. Surfaced informationally in `BOUNDARY_FORBIDDEN_BUILD_RS` diagnostics so auditors see native-FFI hints without re-running cargo metadata."
+      }
+    },
+    "required": ["name", "targets"],
+    "additionalProperties": false
+  }
+}
