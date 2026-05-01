@@ -1229,3 +1229,34 @@ test_selectors = [
     "help_listing::test_cargo_evidence_help_lists_subcommands",
     "help_listing::test_cargo_evidence_dash_h_exits_zero",
 ]
+
+[[tests]]
+uid = "d7e510f6-733b-451e-9902-db37efba063d"
+id = "TEST-083"
+title = "editor_duplicates_locked: clean tree + dogfood fires on synthetic duplicate"
+owner = "tool"
+traces_to = ["f634ed35-6c3e-4d71-90a2-dbaee1d086ab"]
+description = """
+Three branches mirroring the pattern of
+`rot_prone_markers_locked`:
+
+  - Load-bearing regression: the current tree is clean. Walks
+    the workspace via `walkdir::WalkDir::new(root)
+    .follow_links(false)`, applies the editor-duplicate regex
+    to each basename, asserts the hit list is empty.
+
+  - Positive dogfood: writes a synthetic `crates/fake/src/
+    helpers 2.rs` into a tempdir tree and asserts the same scan
+    function fires on it (1+ hit, the basename appears in the
+    failure listing).
+
+  - Negative dogfood: writes a tempdir tree containing
+    `mcdc_2024.rs` (a legitimate filename whose digits happen to
+    follow non-space characters) and asserts zero hits — the
+    leading-space anchor must not over-flag.
+"""
+test_selectors = [
+    "editor_duplicates_locked::current_tree_is_clean",
+    "editor_duplicates_locked::fires_on_synthetic_duplicate",
+    "editor_duplicates_locked::passes_on_legitimate_digits_filename",
+]
