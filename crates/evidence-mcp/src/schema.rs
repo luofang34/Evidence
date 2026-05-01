@@ -93,7 +93,7 @@ pub struct JsonlToolResponse {
     /// success, `1` on runtime/argument error from the CLI, `2`
     /// on verification failure OR on tool-layer subprocess
     /// failure (in which case `terminal` carries an `MCP_*`
-    /// code). Documentation field — see [`success`] for the
+    /// code). Documentation field — see [`Self::success`] for the
     /// canonical pass/fail dispatch.
     pub exit_code: i32,
 
@@ -138,7 +138,7 @@ pub struct RulesToolResponse {
 
     /// Exit code advertised back to the host. `0` on successful
     /// pass-through; `2` on tool-layer failure (see `error`).
-    /// Documentation field — see [`success`] for the canonical
+    /// Documentation field — see [`Self::success`] for the canonical
     /// pass/fail dispatch.
     pub exit_code: i32,
 
@@ -266,7 +266,7 @@ pub struct DiffToolResponse {
     /// Exit code advertised back to the host. `0` on success
     /// (differences ARE reported but do not flip the exit code;
     /// diff reports, doesn't judge). `2` on tool-layer failure
-    /// (see `error`). Documentation field — see [`success`] for
+    /// (see `error`). Documentation field — see [`Self::success`] for
     /// the canonical pass/fail dispatch.
     pub exit_code: i32,
 
