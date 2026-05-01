@@ -204,12 +204,12 @@ jobs:
 
   trace-self-validate:
     # Dogfood the tool's own trace format against its own source.
-    # `tool/trace/{sys,hlr,llr,tests}.toml` covers the full DO-178C
+    # `cert/trace/{sys,hlr,llr,tests}.toml` covers the full DO-178C
     # §5.1 chain (SYS → HLR → LLR → Test); a validation failure here
     # means either a link broke (UUID renamed without a corresponding
     # edit) or the format can't express something new we tried to
     # write — the latter is a format-change ticket recorded in
-    # `tool/trace/README.md`, not a bug in this job.
+    # `cert/trace/README.md`, not a bug in this job.
     #
     # `needs: check` intentionally NOT set — runs in parallel, does
     # its own release build. Linux-only; trace validation is
@@ -241,7 +241,7 @@ jobs:
       - name: Build release binary
         run: cargo build --release -p cargo-evidence
 
-      - name: Validate tool/trace (enforcement flags on, discovery picks tool/trace)
+      - name: Validate cert/trace (enforcement flags on, discovery picks cert/trace)
         run: |
           # Trace-only validation — fast, no `cargo test` run.
           # `check .` (below) is the agent-facing one-shot that also
@@ -327,9 +327,9 @@ jobs:
           # without a UUID — the pre-commit workflow missed a step.
           out=$(./target/release/cargo-evidence evidence trace \
             --backfill-uuids \
-            --trace-roots tool/trace 2>&1)
+            --trace-roots cert/trace 2>&1)
           if printf '%s' "$out" | grep -qE 'assigned [1-9]'; then
-            echo "::error::tool/trace/*.toml contains entries without UUIDs. Run \`cargo evidence trace --backfill-uuids --trace-roots tool/trace\` locally and commit."
+            echo "::error::cert/trace/*.toml contains entries without UUIDs. Run \`cargo evidence trace --backfill-uuids --trace-roots cert/trace\` locally and commit."
             printf '%s\n' "$out"
             exit 1
           fi

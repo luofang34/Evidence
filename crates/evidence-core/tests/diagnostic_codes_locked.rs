@@ -252,12 +252,12 @@ fn rules_terminal_set_matches_terminal_codes() {
 fn every_code_is_claimed_by_an_llr() {
     let trace = evidence_core::read_all_trace_files(
         workspace_root()
-            .join("tool")
+            .join("cert")
             .join("trace")
             .to_str()
             .expect("workspace path is UTF-8"),
     )
-    .expect("tool/trace must load");
+    .expect("cert/trace must load");
 
     let rules: std::collections::BTreeSet<&str> =
         evidence_core::RULES.iter().map(|r| r.code).collect();
@@ -290,7 +290,7 @@ fn every_code_is_claimed_by_an_llr() {
         .collect();
     assert!(
         unclaimed.is_empty(),
-        "RULES code(s) not claimed by any LLR.emits in tool/trace/llr.toml \
+        "RULES code(s) not claimed by any LLR.emits in cert/trace/llr.toml \
          (add the code to an LLR that owns its emit path, or add a \
          RESERVED_UNCLAIMED_CODES entry with written justification): {:?}",
         unclaimed
@@ -318,7 +318,7 @@ fn code_regex_validator_catches_known_shapes() {
 
 /// TEST-043 bijection regression. Every `LinkError::code()`
 /// return must (a) appear in `RULES` and (b) be claimed by at least
-/// one `LLR.emits` list in `tool/trace/llr.toml`. Catches a new
+/// one `LLR.emits` list in `cert/trace/llr.toml`. Catches a new
 /// variant landing in `LinkError` without the matching `RULES` +
 /// `LLR.emits` edits — the kind of silent-drift hit with the
 /// three pseudo-codes. The `every_code_is_claimed_by_an_llr`
@@ -400,12 +400,12 @@ fn link_error_codes_in_rules_and_claimed() {
 
     let trace = evidence_core::read_all_trace_files(
         workspace_root()
-            .join("tool")
+            .join("cert")
             .join("trace")
             .to_str()
             .expect("workspace path is UTF-8"),
     )
-    .expect("tool/trace must load");
+    .expect("cert/trace must load");
     let claimed: std::collections::BTreeSet<String> = trace
         .llr
         .requirements
@@ -433,7 +433,7 @@ fn link_error_codes_in_rules_and_claimed() {
     assert!(
         unclaimed.is_empty(),
         "LinkError variants whose code() is not claimed by any LLR.emits \
-         in tool/trace/llr.toml: {:?} — add the code to LLR-041's emits (or \
+         in cert/trace/llr.toml: {:?} — add the code to LLR-041's emits (or \
          another LLR that describes the new emit path)",
         unclaimed
     );

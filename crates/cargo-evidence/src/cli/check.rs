@@ -3,7 +3,7 @@
 //! Dispatches on argument shape (auto mode) or explicit `--mode`:
 //!
 //! - **Source mode.** Runs `cargo test --workspace --no-fail-fast`,
-//!   parses stdout into a per-test outcome map, walks `tool/trace/`
+//!   parses stdout into a per-test outcome map, walks `cert/trace/`
 //!   (or `cert/trace/` via discovery), emits one
 //!   `REQ_PASS` / `REQ_GAP` / `REQ_SKIP` diagnostic per requirement.
 //!   Each `REQ_GAP` for a derived failure carries `root_cause_uid`;
@@ -226,12 +226,12 @@ fn cmd_check_source(workspace_root: &Path, format: OutputFormat, quiet: bool) ->
         }
     };
 
-    // Phase 3: load trace. Discovery picks tool/trace → cert/trace per
+    // Phase 3: load trace. Discovery picks cert/trace → cert/trace per
     // LLR-023; fall back to cert/boundary.toml otherwise. Every path
     // resolves against `workspace_root` — the argument to
     // `check --mode=source <PATH>` — NOT the process CWD. An auditor
     // invoking `check --mode=source /downstream` from a parent
-    // directory gets `/downstream/tool/trace/` discovered, not the
+    // directory gets `/downstream/cert/trace/` discovered, not the
     // caller's own.
     if show_progress {
         eprintln!("check: validating trace…");

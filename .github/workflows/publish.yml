@@ -109,9 +109,9 @@ jobs:
         run: |
           for crate in evidence-core cargo-evidence evidence-mcp; do
             cargo package --list -p "$crate" --allow-dirty > /tmp/pkg-"$crate".txt
-            if grep -qE '^(tool/trace|cert/baselines)/' /tmp/pkg-"$crate".txt; then
+            if grep -qE '^(cert/trace|cert/baselines)/' /tmp/pkg-"$crate".txt; then
               echo "::error::Tarball for $crate contains workspace-root paths"
-              grep -E '^(tool/trace|cert/baselines)/' /tmp/pkg-"$crate".txt
+              grep -E '^(cert/trace|cert/baselines)/' /tmp/pkg-"$crate".txt
               exit 1
             fi
           done

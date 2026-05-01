@@ -347,7 +347,7 @@ pub enum Commands {
         /// When set, an HLR with empty `traces_to` fails Link-phase
         /// validation. Off by default; projects without a SYS layer
         /// keep validating cleanly. The tool's own CI enables this
-        /// flag on `tool/trace/` to keep the SYS layer load-bearing.
+        /// flag on `cert/trace/` to keep the SYS layer load-bearing.
         #[arg(long)]
         require_hlr_sys_trace: bool,
 

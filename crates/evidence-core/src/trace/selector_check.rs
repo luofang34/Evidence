@@ -31,7 +31,7 @@
 //! `#[test]` throughout. If a downstream project hits a macro
 //! collision, a future PR can swap the resolver for a `syn`-based
 //! one behind a `--strict` flag; the journal entry in
-//! `tool/trace/README.md` documents that escape hatch.
+//! `cert/trace/README.md` documents that escape hatch.
 
 use std::fs;
 use std::path::{Path, PathBuf};

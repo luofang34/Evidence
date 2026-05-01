@@ -28,13 +28,13 @@ version = "0.0.1"
 [scope]
 in_scope = ["evidence-core", "cargo-evidence", "evidence-mcp"]
 
-# Trace root directories (relative to workspace root). This repo's
-# self-trace lives at `tool/trace/`; auto-discovery in
-# `default_trace_roots()` already prefers that location, but the
-# boundary.toml value is the documented fallback auditors read first.
-# Keep the two in sync so an auditor opening this file doesn't head
-# to a non-existent directory.
-trace_roots = ["tool/trace"]
+# Trace root directories (relative to workspace root). The
+# canonical layout puts traces under `cert/trace/` alongside this
+# config; `default_trace_roots` discovers that location
+# automatically. The explicit value here is documentary so an
+# auditor opening this file knows exactly where the trace lives
+# without having to read the discovery code.
+trace_roots = ["cert/trace"]
 
 # Workspace crates explicitly forbidden as dependencies
 explicit_forbidden = []

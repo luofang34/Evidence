@@ -4,10 +4,10 @@
 //! Walks:
 //!
 //! - `crates/**/{src,tests}/**/*.rs` — production + test source.
-//! - `**/*.md` except `tool/trace/README.md` — top-level docs (README,
+//! - `**/*.md` except `cert/trace/README.md` — top-level docs (README,
 //!   per-crate docs). The trace journal is audit provenance and stays
 //!   excluded.
-//! - `cert/**/*.toml` — our own cert state. `tool/trace/**` stays
+//! - `cert/**/*.toml` — our own cert state. `cert/trace/**` stays
 //!   excluded (legitimate audit trail).
 //!
 //! Applies a pinned regex pattern set and fails via `assert!` with
@@ -28,7 +28,7 @@
 //!
 //! ## Out of scope
 //!
-//! - `tool/trace/**` — PR refs in trace TOML are audit provenance,
+//! - `cert/trace/**` — PR refs in trace TOML are audit provenance,
 //!   legitimate.
 //! - Commit messages — immutable history.
 //! - Stable identifiers (`LLR-NNN`, `TEST-NNN`, function names).
@@ -123,8 +123,8 @@ fn banned_patterns() -> Vec<(&'static str, Regex)> {
 /// Scope:
 /// - `crates/**/*.rs` (excluding `target/`, `fixtures/`).
 /// - `**/*.md` at the workspace root and under `crates/`, but NOT
-///   `tool/trace/README.md` (audit journal; legitimate PR refs).
-/// - `cert/**/*.toml` (our own cert state); `tool/trace/**/*.toml`
+///   `cert/trace/README.md` (audit journal; legitimate PR refs).
+/// - `cert/**/*.toml` (our own cert state); `cert/trace/**/*.toml`
 ///   stays excluded — entries legitimately cite the implementing PR.
 fn collect_scan_targets(workspace_root: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
@@ -146,7 +146,7 @@ fn collect_rs(root: &Path, out: &mut Vec<PathBuf>) {
 }
 
 /// Walk `.md` files. Skips `target/`, `.git/`, `node_modules/`,
-/// `tool/trace/` (journal = audit provenance). When invoked from
+/// `cert/trace/` (journal = audit provenance). When invoked from
 /// the workspace root, also skips `cert/` (the toml walker handles
 /// it).
 fn collect_md(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
@@ -166,7 +166,7 @@ fn collect_md(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
             ) {
                 return false;
             }
-            // Skip tool/trace at any depth: the journal there is
+            // Skip cert/trace at any depth: the journal there is
             // audit trail, not rot.
             if e.file_type().is_dir()
                 && e.file_name().to_str() == Some("trace")
@@ -174,7 +174,7 @@ fn collect_md(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
                     .parent()
                     .and_then(|p| p.file_name())
                     .and_then(|n| n.to_str())
-                    == Some("tool")
+                    == Some("cert")
             {
                 return false;
             }
@@ -191,6 +191,22 @@ fn collect_md(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
 
 fn collect_toml_under(root: &Path, out: &mut Vec<PathBuf>) {
     let files = traversal::walk(root)
+        .filter_entry(|e| {
+            // Skip cert/trace/ — the trace TOMLs are an audit
+            // journal whose PR refs are legitimate provenance, not
+            // rot.
+            if e.file_type().is_dir()
+                && e.file_name().to_str() == Some("trace")
+                && e.path()
+                    .parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
+                    == Some("cert")
+            {
+                return false;
+            }
+            true
+        })
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file() && traversal::has_ext(e.path(), "toml"))
         .map(|e| e.into_path());

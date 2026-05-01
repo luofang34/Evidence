@@ -7,7 +7,7 @@
 //! The six MVP checks:
 //!
 //! - **trace validity** (`DOCTOR_TRACE_INVALID` on fail) — load
-//!   `tool/trace/` and run the SYS / surface / selector bijections
+//!   `cert/trace/` and run the SYS / surface / selector bijections
 //!   the tool's own CI enables on itself.
 //! - **floors present + satisfied**
 //!   (`DOCTOR_FLOORS_MISSING` / `DOCTOR_FLOORS_VIOLATED`) — load

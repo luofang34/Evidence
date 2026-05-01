@@ -23,7 +23,7 @@
 //! value for `mode`).
 //!
 //! See [`Server`] for the handler + tool methods. See SYS-018 /
-//! HLR-050 / LLR-050 / TEST-050 in `tool/trace/` for the requirements
+//! HLR-050 / LLR-050 / TEST-050 in `cert/trace/` for the requirements
 //! chain behind this crate; LLR-062 covers the `serverInfo` identity
 //! override and the `lib.rs`-as-facade split; LLR-063 covers the
 //! version-skew probe; LLR-064 pins the structured tool-layer
