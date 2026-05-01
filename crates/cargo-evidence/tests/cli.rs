@@ -468,3 +468,8 @@ fn test_init_template_does_not_trip_policy_gate() {
         stderr
     );
 }
+
+// TEST-080's integration arm lives in
+// `crates/cargo-evidence/tests/dal_qualification_gate.rs` (its own
+// integration-test file) so this orchestrator stays under the
+// workspace 500-line limit.

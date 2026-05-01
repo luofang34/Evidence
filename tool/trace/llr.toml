@@ -2272,3 +2272,48 @@ emits = [
     "VERIFY_BOUNDARY_BUILD_RS_DETECTED",
     "VERIFY_BOUNDARY_PROC_MACRO_DETECTED",
 ]
+
+[[requirements]]
+uid = "08152f7f-56c4-47f7-ae99-f03d0e114a67"
+id = "LLR-073"
+title = "check_dal_a_mcdc_evidence + enforce_dal_qualification gate"
+owner = "tool"
+traces_to = ["c222804b-4d4f-4dfd-8765-2fd51a730ecc"]
+modules = [
+    "evidence_core::boundary_check::check_dal_a_mcdc_evidence",
+    "evidence_core::policy::dal::AuxiliaryMcdcTool",
+    "cargo_evidence::cli::generate::policy::enforce_dal_qualification",
+]
+derived = false
+description = """
+Library side: `evidence_core::check_dal_a_mcdc_evidence(dal_map,
+auxiliary_mcdc_tool)` returns `Ok(())` when no in-scope crate is
+at DAL-A OR an `AuxiliaryMcdcTool` reference is present.
+Returns `BoundaryCheckError::DalAMissingAuxiliaryMcdc { dal_a_crates,
+count }` (code `BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC`)
+otherwise. Library is policy-free — the dev/cert severity split
+lives at the CLI layer.
+
+CLI side: `enforce_dal_qualification(derived, profile,
+json_output)` is called from `cmd_generate` immediately after
+`enforce_boundary_policy`. On `Profile::Dev` a violation emits
+a one-line Warning to stderr and the run proceeds. On
+`Profile::Cert` / `Profile::Record` the violation triggers the
+standard failure envelope (`fail` helper) and returns
+`Ok(Some(EXIT_ERROR))` so the orchestrator short-circuits
+before bundle assembly.
+
+The message names every offender crate, points at the three
+remediation paths (record auxiliary tool, lower DAL, wait for
+upstream rustc), and cites rust-lang/rust#144999 +
+rust-lang/rust#124144 so the auditor can verify the upstream
+state independently.
+
+`AuxiliaryMcdcTool` is a public type in
+`evidence_core::policy::dal` carrying `name`, optional
+`qualification_id`, and optional `report` (bundle-relative
+path). `boundary.toml` reads it under `[dal.auxiliary_mcdc_tool]`
+via serde.
+"""
+verification_methods = ["test"]
+emits = ["BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC"]

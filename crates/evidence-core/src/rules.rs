@@ -87,6 +87,11 @@ pub const RULES: &[RuleEntry] = &[
         Domain::Boundary,
     ),
     r(
+        "BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC",
+        Severity::Error,
+        Domain::Boundary,
+    ),
+    r(
         "BOUNDARY_FORBIDDEN_BUILD_RS",
         Severity::Error,
         Domain::Boundary,

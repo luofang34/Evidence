@@ -367,3 +367,73 @@ fn out_of_scope_proc_macro_does_not_fire() {
         v
     );
 }
+
+// ============================================================================
+// LLR-073 / TEST-080: DAL-A MC/DC qualification gate
+// ============================================================================
+
+use crate::policy::{AuxiliaryMcdcTool, Dal};
+use std::collections::BTreeMap;
+
+fn aux_tool() -> AuxiliaryMcdcTool {
+    AuxiliaryMcdcTool {
+        name: "LDRA TBvision".into(),
+        qualification_id: Some("TQL-1-LDRA-001".into()),
+        report: Some("auxiliary/mcdc.json".into()),
+    }
+}
+
+#[test]
+fn dal_a_mcdc_check_passes_when_no_dal_a_in_scope() {
+    let mut dal_map = BTreeMap::new();
+    dal_map.insert("crate_b".into(), Dal::B);
+    dal_map.insert("crate_d".into(), Dal::D);
+    assert!(check_dal_a_mcdc_evidence(&dal_map, None).is_ok());
+}
+
+#[test]
+fn dal_a_mcdc_check_passes_when_auxiliary_tool_set() {
+    let mut dal_map = BTreeMap::new();
+    dal_map.insert("crate_a1".into(), Dal::A);
+    dal_map.insert("crate_a2".into(), Dal::A);
+    let tool = aux_tool();
+    assert!(check_dal_a_mcdc_evidence(&dal_map, Some(&tool)).is_ok());
+}
+
+#[test]
+fn dal_a_mcdc_check_fires_on_dal_a_without_tool() {
+    let mut dal_map = BTreeMap::new();
+    // Insert in non-sorted order to verify the error sorts offenders.
+    dal_map.insert("zeta_crate".into(), Dal::A);
+    dal_map.insert("alpha_crate".into(), Dal::A);
+    dal_map.insert("dal_b_crate".into(), Dal::B);
+    let err = check_dal_a_mcdc_evidence(&dal_map, None).unwrap_err();
+    match err {
+        BoundaryCheckError::DalAMissingAuxiliaryMcdc {
+            dal_a_crates,
+            count,
+        } => {
+            assert_eq!(count, 2);
+            assert_eq!(dal_a_crates, vec!["alpha_crate", "zeta_crate"]);
+        }
+        other => panic!("wrong variant: {:?}", other),
+    }
+}
+
+#[test]
+fn dal_a_mcdc_error_message_lists_crates_and_cites_upstream() {
+    let mut dal_map = BTreeMap::new();
+    dal_map.insert("flight_core".into(), Dal::A);
+    let err = check_dal_a_mcdc_evidence(&dal_map, None).unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("flight_core"),
+        "message must name the offender crate: {:?}",
+        msg
+    );
+    assert!(
+        msg.contains("DAL-A"),
+        "message must name the DAL: {:?}",
+        msg
+    );
+}

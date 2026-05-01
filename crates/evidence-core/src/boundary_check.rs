@@ -119,6 +119,31 @@ pub enum BoundaryCheckError {
         /// Count, materialized for the error message.
         count: usize,
     },
+    /// One or more in-scope crates are at DAL-A but the project's
+    /// `cert/boundary.toml` does not record an
+    /// [`AuxiliaryMcdcTool`] reference. DO-178C Annex A Table A-7
+    /// Obj-7 (MC/DC) is required at DAL-A; stable Rust cannot emit
+    /// MC/DC instrumentation today (the unstable
+    /// `-Zcoverage-options=mcdc` flag was removed by
+    /// rust-lang/rust#144999, merged 2025-08-08), so the only
+    /// viable path is to record an external qualified tool's
+    /// evidence by reference. Absent ⇒ the bundle would silently
+    /// underclaim Obj-7; this error fails generate at cert/record
+    /// before bundle assembly so an auditor never sees a
+    /// `VERIFY_OK` terminal sitting alongside an `A7-10 NotMet`
+    /// status row.
+    ///
+    /// [`AuxiliaryMcdcTool`]: crate::policy::AuxiliaryMcdcTool
+    #[error(
+        "{count} in-scope crate(s) at DAL-A without an auxiliary MC/DC tool reference: {}",
+        dal_a_crates.join(", ")
+    )]
+    DalAMissingAuxiliaryMcdc {
+        /// Sorted list of in-scope crates currently at DAL-A.
+        dal_a_crates: Vec<String>,
+        /// Count, materialized for the error message.
+        count: usize,
+    },
 }
 
 fn fmt_build_rs(v: &[BuildRsViolation]) -> String {
@@ -139,14 +164,21 @@ fn fmt_proc_macro(v: &[ProcMacroViolation]) -> String {
 }
 
 impl DiagnosticCode for BoundaryCheckError {
+    // `#[rustfmt::skip]` keeps every arm on a single line — the
+    // `diagnostic_codes_locked` walker matches `=> "CODE"`
+    // directly and doesn't follow `=> { "CODE" }` block forms.
+    // Long variant names wrap into block form by default, so the
+    // attribute pins single-line form for every arm.
+    #[rustfmt::skip]
     fn code(&self) -> &'static str {
         match self {
-            BoundaryCheckError::CargoMetadata(_) => "BOUNDARY_CARGO_METADATA_FAILED",
-            BoundaryCheckError::ParseMetadata(_) => "BOUNDARY_PARSE_METADATA_FAILED",
-            BoundaryCheckError::UnknownInScopeCrate(_) => "BOUNDARY_UNKNOWN_IN_SCOPE_CRATE",
-            BoundaryCheckError::OutOfScopeDeps { .. } => "BOUNDARY_OUT_OF_SCOPE_DEPS",
-            BoundaryCheckError::ForbiddenBuildRs { .. } => "BOUNDARY_FORBIDDEN_BUILD_RS",
-            BoundaryCheckError::ForbiddenProcMacro { .. } => "BOUNDARY_FORBIDDEN_PROC_MACRO",
+            BoundaryCheckError::CargoMetadata(_)             => "BOUNDARY_CARGO_METADATA_FAILED",
+            BoundaryCheckError::ParseMetadata(_)             => "BOUNDARY_PARSE_METADATA_FAILED",
+            BoundaryCheckError::UnknownInScopeCrate(_)       => "BOUNDARY_UNKNOWN_IN_SCOPE_CRATE",
+            BoundaryCheckError::OutOfScopeDeps { .. }        => "BOUNDARY_OUT_OF_SCOPE_DEPS",
+            BoundaryCheckError::ForbiddenBuildRs { .. }      => "BOUNDARY_FORBIDDEN_BUILD_RS",
+            BoundaryCheckError::ForbiddenProcMacro { .. }    => "BOUNDARY_FORBIDDEN_PROC_MACRO",
+            BoundaryCheckError::DalAMissingAuxiliaryMcdc { .. } => "BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC",
         }
     }
 
@@ -275,6 +307,40 @@ fn find_out_of_scope_deps(
     Ok(violations)
 }
 
+/// Enforce the DAL-A MC/DC qualification gate.
+///
+/// Returns `Ok(())` when no in-scope crate is at DAL-A OR when an
+/// auxiliary MC/DC tool reference is present in the policy.
+/// Returns [`BoundaryCheckError::DalAMissingAuxiliaryMcdc`] listing
+/// the offender crate names otherwise. See the variant's docs for
+/// the upstream-Rust rationale.
+///
+/// Caller (the CLI) decides whether to convert the error into a
+/// hard fail (cert / record profile) or a warning (dev profile).
+/// The library function is policy-free — it just returns the fact.
+pub fn check_dal_a_mcdc_evidence(
+    dal_map: &std::collections::BTreeMap<String, crate::policy::Dal>,
+    auxiliary_mcdc_tool: Option<&crate::policy::AuxiliaryMcdcTool>,
+) -> Result<(), BoundaryCheckError> {
+    if auxiliary_mcdc_tool.is_some() {
+        return Ok(());
+    }
+    let mut dal_a_crates: Vec<String> = dal_map
+        .iter()
+        .filter(|(_, dal)| **dal == crate::policy::Dal::A)
+        .map(|(name, _)| name.clone())
+        .collect();
+    if dal_a_crates.is_empty() {
+        return Ok(());
+    }
+    dal_a_crates.sort();
+    let count = dal_a_crates.len();
+    Err(BoundaryCheckError::DalAMissingAuxiliaryMcdc {
+        dal_a_crates,
+        count,
+    })
+}
+
 /// Enforce the `forbid_build_rs` boundary rule.
 ///
 /// Shells out to `cargo metadata --format-version 1`, walks
@@ -367,51 +433,8 @@ fn target_is_proc_macro(t: &Target) -> bool {
     t.kind.iter().any(|k| k == "proc-macro")
 }
 
-// ============================================================================
-// Cargo metadata subset we actually parse
-// ============================================================================
-
-// Only the fields we use. Extra keys in cargo's output are ignored
-// by serde's default.
-
-#[derive(Debug, Deserialize)]
-struct Metadata {
-    packages: Vec<Package>,
-    workspace_members: Vec<String>,
-    resolve: Resolve,
-}
-
-#[derive(Debug, Deserialize)]
-struct Package {
-    name: String,
-    id: String,
-    #[serde(default)]
-    targets: Vec<Target>,
-    #[serde(default)]
-    links: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Target {
-    #[serde(default)]
-    kind: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Resolve {
-    nodes: Vec<Node>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Node {
-    id: String,
-    deps: Vec<NodeDep>,
-}
-
-#[derive(Debug, Deserialize)]
-struct NodeDep {
-    pkg: String,
-}
+mod metadata;
+use metadata::{Metadata, Target};
 
 impl PartialOrd for BoundaryViolation {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {

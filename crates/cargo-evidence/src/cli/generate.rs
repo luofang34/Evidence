@@ -229,6 +229,9 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     if let Some(code) = policy::enforce_boundary_policy(&derived, profile, json_output)? {
         return Ok(code);
     }
+    if let Some(code) = policy::enforce_dal_qualification(&derived, profile, json_output)? {
+        return Ok(code);
+    }
     let strict = matches!(profile, Profile::Cert | Profile::Record);
     let mut builder = match phases::init_builder(config, profile, quiet, json_output)? {
         Ok(b) => b,

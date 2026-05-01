@@ -53,8 +53,8 @@ pub mod verify;
 
 // Re-export key types for convenience
 pub use boundary_check::{
-    BoundaryCheckError, BoundaryViolation, BuildRsViolation, ProcMacroViolation, check_no_build_rs,
-    check_no_out_of_scope_deps, check_no_proc_macros,
+    BoundaryCheckError, BoundaryViolation, BuildRsViolation, ProcMacroViolation,
+    check_dal_a_mcdc_evidence, check_no_build_rs, check_no_out_of_scope_deps, check_no_proc_macros,
 };
 pub use bundle::{
     CommandRecord, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, TestSummary,
@@ -81,8 +81,8 @@ pub use floors::{FloorsConfig, LoadOutcome, current_measurements};
 pub use git::{GitSnapshot, RealGitProvider, check_shallow_clone, is_dirty_or_unknown};
 pub use hash::{sha256, sha256_file};
 pub use policy::{
-    BoundaryConfig, BoundaryPolicy, Dal, DalConfig, DalCoverageThresholds, EvidencePolicy, Profile,
-    TracePolicy, load_trace_roots,
+    AuxiliaryMcdcTool, BoundaryConfig, BoundaryPolicy, Dal, DalConfig, DalCoverageThresholds,
+    EvidencePolicy, Profile, TracePolicy, load_trace_roots,
 };
 pub use rules::{
     Domain, HAND_EMITTED_CLI_CODES, HAND_EMITTED_MCP_CODES, RESERVED_UNCLAIMED_CODES, RULES,
