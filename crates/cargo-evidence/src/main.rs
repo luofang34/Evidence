@@ -18,7 +18,7 @@
     reason = "CLI is the anyhow/main-function layer; library code is typed via thiserror"
 )]
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use evidence_core::diagnostic::{Diagnostic, Severity};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
@@ -56,16 +56,7 @@ fn main() {
                 std::process::exit(0);
             }
             "-h" | "--help" => {
-                println!(
-                    "cargo-evidence {} — DO-178C / DO-330 evidence bundles for Rust crates.\n\
-                     \n\
-                     Invoke as a cargo subcommand:\n\
-                     \n\
-                       cargo evidence <COMMAND> [ARGS]\n\
-                     \n\
-                     See `cargo evidence --help` for the full command list.",
-                    env!("CARGO_PKG_VERSION")
-                );
+                print_direct_help();
                 std::process::exit(0);
             }
             _ => {}
@@ -73,6 +64,37 @@ fn main() {
     }
     let exit_code = run();
     std::process::exit(exit_code);
+}
+
+/// Render `--help` for direct binary invocation
+/// (`cargo-evidence --help`, not `cargo evidence --help`).
+///
+/// Reuses clap's render tree on `EvidenceArgs` so every subcommand
+/// declared via `#[derive(Subcommand)]` appears automatically — no
+/// hand-typed list to drift. Two render passes:
+///
+/// 1. A one-line banner naming the binary version + both invocation
+///    forms.
+/// 2. clap's long-help for `EvidenceArgs`, which already includes
+///    the `Commands:` block produced by clap's auto-help renderer.
+///
+/// Stdout is the right destination for `--help` (mirrors clap's own
+/// behavior); errors writing it are swallowed because exiting with a
+/// stack trace from `--help` would surprise users.
+fn print_direct_help() {
+    println!(
+        "cargo-evidence {} — DO-178C / DO-330 evidence bundles for Rust crates.",
+        env!("CARGO_PKG_VERSION")
+    );
+    println!();
+    println!("This binary is intended to run as a cargo subcommand:");
+    println!();
+    println!("    cargo evidence <COMMAND> [ARGS]");
+    println!();
+    println!("Direct invocation (`cargo-evidence ...`) is also supported.");
+    println!();
+    let mut cmd = cli::args::EvidenceArgs::command();
+    let _ = cmd.print_long_help();
 }
 
 /// Install the `tracing` subscriber for the library's diagnostic

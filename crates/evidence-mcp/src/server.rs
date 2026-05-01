@@ -27,8 +27,9 @@ use crate::workspace::resolve_workspace;
 
 mod responses;
 use responses::{
-    TOOL_FAILURE_EXIT_CODE, jsonl_response_from_run_error, mcp_diagnostic, ping_response_from_skew,
-    prepend_fallback_signal, prepend_skew_signal, rules_response_from_run_error,
+    TOOL_FAILURE_EXIT_CODE, blob_success, jsonl_response_from_run_error, jsonl_success,
+    mcp_diagnostic, ping_response_from_skew, prepend_fallback_signal, prepend_skew_signal,
+    rules_response_from_run_error,
 };
 
 /// MCP server handle. Stateless per-request — each tool call
@@ -95,6 +96,7 @@ impl Server {
         prepend_fallback_signal(resolution, &cwd, &mut diagnostics, &mut summary);
         prepend_skew_signal(&self.version_skew, &mut diagnostics, &mut summary);
         Ok(JsonlToolResponse {
+            success: jsonl_success(captured.exit_code, &terminal),
             exit_code: captured.exit_code,
             terminal,
             diagnostics,
@@ -147,6 +149,7 @@ impl Server {
             Ok(rules) => {
                 let count = rules.len();
                 Ok(Json(RulesToolResponse {
+                    success: blob_success(captured.exit_code, None),
                     exit_code: captured.exit_code,
                     rules,
                     count,
@@ -154,16 +157,20 @@ impl Server {
                     error: None,
                 }))
             }
-            Err(e) => Ok(Json(RulesToolResponse {
-                exit_code: TOOL_FAILURE_EXIT_CODE,
-                rules: Vec::new(),
-                count: 0,
-                warnings,
-                error: Some(mcp_diagnostic(
+            Err(e) => {
+                let error = Some(mcp_diagnostic(
                     MCP_MALFORMED_JSONL,
                     &format!("cargo evidence rules --json produced invalid JSON: {e}"),
-                )),
-            })),
+                ));
+                Ok(Json(RulesToolResponse {
+                    success: blob_success(TOOL_FAILURE_EXIT_CODE, error.as_ref()),
+                    exit_code: TOOL_FAILURE_EXIT_CODE,
+                    rules: Vec::new(),
+                    count: 0,
+                    warnings,
+                    error,
+                }))
+            }
         }
     }
 
@@ -346,30 +353,37 @@ impl Server {
         {
             Ok(c) => c,
             Err(e) => {
+                let error = Some(mcp_diagnostic(e.code(), &e.to_string()));
                 return Ok(Json(crate::schema::DiffToolResponse {
+                    success: blob_success(TOOL_FAILURE_EXIT_CODE, error.as_ref()),
                     exit_code: TOOL_FAILURE_EXIT_CODE,
                     diff: None,
                     warnings,
-                    error: Some(mcp_diagnostic(e.code(), &e.to_string())),
+                    error,
                 }));
             }
         };
         match serde_json::from_slice::<serde_json::Value>(&captured.stdout) {
             Ok(diff) => Ok(Json(crate::schema::DiffToolResponse {
+                success: blob_success(captured.exit_code, None),
                 exit_code: captured.exit_code,
                 diff: Some(diff),
                 warnings,
                 error: None,
             })),
-            Err(e) => Ok(Json(crate::schema::DiffToolResponse {
-                exit_code: TOOL_FAILURE_EXIT_CODE,
-                diff: None,
-                warnings,
-                error: Some(mcp_diagnostic(
+            Err(e) => {
+                let error = Some(mcp_diagnostic(
                     MCP_MALFORMED_JSONL,
                     &format!("cargo evidence diff --json produced invalid JSON: {e}"),
-                )),
-            })),
+                ));
+                Ok(Json(crate::schema::DiffToolResponse {
+                    success: blob_success(TOOL_FAILURE_EXIT_CODE, error.as_ref()),
+                    exit_code: TOOL_FAILURE_EXIT_CODE,
+                    diff: None,
+                    warnings,
+                    error,
+                }))
+            }
         }
     }
 }

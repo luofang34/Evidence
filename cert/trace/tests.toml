@@ -1186,14 +1186,14 @@ Coverage matrix for the success boolean derivation:
     states are already structured.
 """
 test_selectors = [
-    "evidence_mcp::schema::tests::jsonl_response_success_true_on_ok_terminal",
-    "evidence_mcp::schema::tests::jsonl_response_success_false_on_fail_terminal",
-    "evidence_mcp::schema::tests::jsonl_response_success_false_on_mcp_synthetic",
-    "evidence_mcp::schema::tests::rules_response_success_true_when_error_none",
-    "evidence_mcp::schema::tests::rules_response_success_false_when_error_some",
-    "evidence_mcp::schema::tests::rules_response_warnings_do_not_flip_success",
-    "evidence_mcp::schema::tests::diff_response_success_true_when_error_none",
-    "evidence_mcp::schema::tests::diff_response_success_false_when_error_some",
+    "evidence_mcp::server::responses::tests::jsonl_response_success_true_on_ok_terminal",
+    "evidence_mcp::server::responses::tests::jsonl_response_success_false_on_fail_terminal",
+    "evidence_mcp::server::responses::tests::jsonl_response_success_false_on_mcp_synthetic",
+    "evidence_mcp::server::responses::tests::rules_response_success_true_when_error_none",
+    "evidence_mcp::server::responses::tests::rules_response_success_false_when_error_some",
+    "evidence_mcp::server::responses::tests::rules_response_warnings_do_not_flip_success",
+    "evidence_mcp::server::responses::tests::diff_response_success_true_when_error_none",
+    "evidence_mcp::server::responses::tests::diff_response_success_false_when_error_some",
 ]
 
 [[tests]]
@@ -1226,6 +1226,6 @@ subcommand" error on stderr with exit 2 — the intercept's only job
 is to handle `--help` / `--version`, not all unhandled invocations.
 """
 test_selectors = [
-    "cli::test_cargo_evidence_help_lists_subcommands",
-    "cli::test_cargo_evidence_dash_h_exits_zero",
+    "help_listing::test_cargo_evidence_help_lists_subcommands",
+    "help_listing::test_cargo_evidence_dash_h_exits_zero",
 ]

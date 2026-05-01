@@ -209,11 +209,15 @@ evidence/cert-20260207-143022Z-a1b2c3d4/
 ### content_hash vs deterministic_hash — when to compare which
 
 Use `content_hash` when you need to attest that **every recorded byte**
-is unchanged. It is the integrity hash in the classical sense and is
-what `sha256sum -c SHA256SUMS` inside the bundle will attest to
-(subject to the `index.json` exclusion). Comparing `content_hash`
-across hosts is meaningless because the bundles legitimately record
-different host identities.
+is unchanged. It is the integrity hash in the classical sense — an
+integrity re-check, **not** DO-178C verification independence — and
+is what `sha256sum -c SHA256SUMS` inside the bundle will attest to
+(subject to the `index.json` exclusion). The check answers "have these
+files been tampered with since this tool wrote them?", not "did this
+tool record the right hashes in the first place?" — see the
+**Tool Qualification Level** section below for the full independence
+discussion. Comparing `content_hash` across hosts is meaningless
+because the bundles legitimately record different host identities.
 
 Use `deterministic_hash` when you need to confirm that two bundles
 **represent the same logical build** (same commit, same toolchain,

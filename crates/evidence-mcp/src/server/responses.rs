@@ -90,6 +90,24 @@ pub(super) fn prepend_skew_signal(
     }
 }
 
+/// Derive [`JsonlToolResponse::success`] from the structured
+/// fields. `true` exactly when `exit_code == 0` AND `terminal`
+/// has the `_OK` suffix — both conditions must hold so a
+/// tool-layer synthesizer that flips one without the other still
+/// produces `success == false`.
+pub(super) fn jsonl_success(exit_code: i32, terminal: &str) -> bool {
+    exit_code == 0 && terminal.ends_with("_OK")
+}
+
+/// Derive [`RulesToolResponse::success`] /
+/// [`DiffToolResponse::success`] from the structured fields.
+/// `true` exactly when `exit_code == 0` AND no error was
+/// surfaced. Server-layer `warnings` (version-skew prepends) are
+/// informational and do not flip the bit.
+pub(super) fn blob_success(exit_code: i32, error: Option<&serde_json::Value>) -> bool {
+    exit_code == 0 && error.is_none()
+}
+
 /// Build a minimal tool-layer diagnostic carrying the given
 /// `MCP_*` code + human message at `Severity::Error`. Output
 /// shape mirrors `evidence_core::diagnostic::emit_jsonl` so
@@ -125,6 +143,7 @@ pub(super) fn jsonl_response_from_run_error(
     prepend_fallback_signal(resolution, cwd, &mut diagnostics, &mut summary);
     prepend_skew_signal(skew, &mut diagnostics, &mut summary);
     JsonlToolResponse {
+        success: jsonl_success(TOOL_FAILURE_EXIT_CODE, code),
         exit_code: TOOL_FAILURE_EXIT_CODE,
         terminal: code.to_string(),
         diagnostics,
@@ -144,12 +163,14 @@ pub(super) fn rules_response_from_run_error(
 ) -> RulesToolResponse {
     let code = err.code();
     let message = err.to_string();
+    let error = Some(mcp_diagnostic(code, &message));
     RulesToolResponse {
+        success: blob_success(TOOL_FAILURE_EXIT_CODE, error.as_ref()),
         exit_code: TOOL_FAILURE_EXIT_CODE,
         rules: Vec::new(),
         count: 0,
         warnings,
-        error: Some(mcp_diagnostic(code, &message)),
+        error,
     }
 }
 
@@ -189,6 +210,77 @@ pub(super) fn ping_response_from_skew(skew: &VersionSkew) -> PingResponse {
 )]
 mod tests {
     use super::*;
+
+    use crate::subprocess::RunError;
+
+    /// TEST-081: `jsonl_success` is true on `_OK` terminal + exit 0,
+    /// false on `_FAIL` / `_ERROR` / non-zero exit. The two
+    /// conditions form an AND so a tool-layer synthesizer that flips
+    /// only one cannot accidentally produce `success == true`.
+    #[test]
+    fn jsonl_response_success_true_on_ok_terminal() {
+        assert!(jsonl_success(0, "VERIFY_OK"));
+        assert!(jsonl_success(0, "DOCTOR_OK"));
+        assert!(jsonl_success(0, "FLOORS_OK"));
+    }
+
+    #[test]
+    fn jsonl_response_success_false_on_fail_terminal() {
+        assert!(!jsonl_success(2, "VERIFY_FAIL"));
+        assert!(!jsonl_success(1, "VERIFY_ERROR"));
+        assert!(!jsonl_success(0, "VERIFY_FAIL"));
+        assert!(!jsonl_success(2, "VERIFY_OK"));
+    }
+
+    #[test]
+    fn jsonl_response_success_false_on_mcp_synthetic() {
+        let resp = jsonl_response_from_run_error(
+            &RunError::Timeout { timeout_secs: 600 },
+            WorkspaceResolution::Given,
+            std::path::Path::new("/"),
+            &VersionSkew::Matched(env!("CARGO_PKG_VERSION").to_string()),
+        );
+        assert!(!resp.success);
+        assert_eq!(resp.exit_code, TOOL_FAILURE_EXIT_CODE);
+        assert!(!resp.terminal.ends_with("_OK"));
+    }
+
+    #[test]
+    fn rules_response_success_true_when_error_none() {
+        assert!(blob_success(0, None));
+    }
+
+    #[test]
+    fn rules_response_success_false_when_error_some() {
+        let err = mcp_diagnostic("MCP_MALFORMED_JSONL", "test");
+        assert!(!blob_success(2, Some(&err)));
+        assert!(!blob_success(0, Some(&err)));
+        assert!(!blob_success(2, None));
+    }
+
+    #[test]
+    fn rules_response_warnings_do_not_flip_success() {
+        let resp = RulesToolResponse {
+            success: blob_success(0, None),
+            exit_code: 0,
+            rules: Vec::new(),
+            count: 0,
+            warnings: vec![mcp_diagnostic("MCP_VERSION_SKEW", "0.1 vs 0.2")],
+            error: None,
+        };
+        assert!(resp.success);
+    }
+
+    #[test]
+    fn diff_response_success_true_when_error_none() {
+        assert!(blob_success(0, None));
+    }
+
+    #[test]
+    fn diff_response_success_false_when_error_some() {
+        let err = mcp_diagnostic("MCP_MALFORMED_JSONL", "diff");
+        assert!(!blob_success(2, Some(&err)));
+    }
 
     /// TEST-066 selector: `ping_response_from_skew` maps every
     /// `VersionSkew` variant to the documented `PingResponse`

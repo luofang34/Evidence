@@ -80,11 +80,21 @@ pub struct DoctorRequest {
 /// `terminal` and `exit_code == 2`, not as an rmcp `Err`.
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct JsonlToolResponse {
+    /// Canonical machine signal: `true` exactly when
+    /// `exit_code == 0` AND `terminal.ends_with("_OK")`. Hosts
+    /// pattern-match on this field to learn pass/fail without
+    /// having to colliding-`exit_code`-vs-string-suffix the
+    /// terminal. Both conditions must hold; a tool-layer `MCP_*`
+    /// failure flips both, so the field stays consistent on
+    /// every degraded path.
+    pub success: bool,
+
     /// Process exit code advertised back to the host. `0` on
     /// success, `1` on runtime/argument error from the CLI, `2`
     /// on verification failure OR on tool-layer subprocess
     /// failure (in which case `terminal` carries an `MCP_*`
-    /// code).
+    /// code). Documentation field — see [`success`] for the
+    /// canonical pass/fail dispatch.
     pub exit_code: i32,
 
     /// `code` of the last (terminal) diagnostic in the stream.
@@ -120,8 +130,16 @@ pub struct JsonlToolResponse {
 /// `JsonlToolResponse.terminal` for the streaming tools.
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct RulesToolResponse {
+    /// Canonical machine signal: `true` exactly when
+    /// `exit_code == 0` AND `error.is_none()`. Server-layer
+    /// `warnings` (version-skew prepends) are informational and
+    /// do not flip `success`.
+    pub success: bool,
+
     /// Exit code advertised back to the host. `0` on successful
     /// pass-through; `2` on tool-layer failure (see `error`).
+    /// Documentation field — see [`success`] for the canonical
+    /// pass/fail dispatch.
     pub exit_code: i32,
 
     /// The full rules manifest as emitted by the CLI — an array
@@ -239,10 +257,17 @@ pub struct DiffRequest {
 /// response shape does not mirror [`JsonlToolResponse`].
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct DiffToolResponse {
+    /// Canonical machine signal: `true` exactly when
+    /// `exit_code == 0` AND `error.is_none()`. Diff reports
+    /// differences via the `diff` blob and exits 0 even when
+    /// bundles differ — finding a delta is still success here.
+    pub success: bool,
+
     /// Exit code advertised back to the host. `0` on success
     /// (differences ARE reported but do not flip the exit code;
     /// diff reports, doesn't judge). `2` on tool-layer failure
-    /// (see `error`).
+    /// (see `error`). Documentation field — see [`success`] for
+    /// the canonical pass/fail dispatch.
     pub exit_code: i32,
 
     /// The full diff blob as emitted by `cargo evidence diff
