@@ -1,13 +1,13 @@
 //! Gate against narrative trace-ID references (SYS/HLR/LLR/TEST/
-//! DERIVED-NNN) that don't resolve to a real entry in `tool/trace/`
+//! DERIVED-NNN) that don't resolve to a real entry in `cert/trace/`
 //! (LLR-046).
 //!
 //! Walks:
 //!
 //! - `crates/**/{src,tests}/**/*.rs` — production + test source.
-//! - `**/*.md` except `tool/trace/README.md` — top-level docs.
-//! - `**/*.toml` outside `tool/trace/` — our own cert state, Cargo
-//!   manifests, etc. `tool/trace/**/*.toml` is the ground-truth
+//! - `**/*.md` except `cert/trace/README.md` — top-level docs.
+//! - `**/*.toml` outside `cert/trace/` — our own cert state, Cargo
+//!   manifests, etc. `cert/trace/**/*.toml` is the ground-truth
 //!   registry and is excluded from the walk (its own `id` fields
 //!   are what we're validating against).
 //!
@@ -64,7 +64,7 @@ fn workspace_root() -> PathBuf {
 /// "LLR-NNN")`).
 ///
 /// Current exemptions — all illustrative / local-fixture refs in
-/// test-file prose, not cross-references to `tool/trace/`:
+/// test-file prose, not cross-references to `cert/trace/`:
 const RESERVED_TEXT_REFS: &[(&str, &str)] = &[
     // Illustrative example of the single-digit fixture-ID shape in
     // `comment_window`'s docstring. Not a trace ref.
@@ -74,16 +74,16 @@ const RESERVED_TEXT_REFS: &[(&str, &str)] = &[
     ("trace_id_refs_locked.rs", "LLR-999"),
     // Narrative reference to a locally-constructed synthetic
     // fixture in `check_source_tree.rs`. Not a cross-reference to
-    // `tool/trace/`.
+    // `cert/trace/`.
     ("check_source_tree.rs", "TEST-1"),
     // `check_source_correctness.rs` seeds a downstream tempdir
     // fixture with a synthetic `DOWNSTREAM-`-prefixed trace ID;
     // the scanner strips the prefix and sees a bare single-digit
-    // test ref. Not a cross-reference to `tool/trace/`.
+    // test ref. Not a cross-reference to `cert/trace/`.
     ("check_source_correctness.rs", "TEST-1"),
 ];
 
-/// Per-kind valid-ID set loaded from `tool/trace/`.
+/// Per-kind valid-ID set loaded from `cert/trace/`.
 struct TraceIdSets {
     sys: BTreeSet<String>,
     hlr: BTreeSet<String>,
@@ -94,13 +94,13 @@ struct TraceIdSets {
 
 fn load_trace_id_sets(workspace: &Path) -> TraceIdSets {
     let trace_root = workspace
-        .join("tool")
+        .join("cert")
         .join("trace")
         .to_str()
         .expect("path is UTF-8")
         .to_string();
     let trace =
-        evidence_core::read_all_trace_files(&trace_root).expect("tool/trace must load cleanly");
+        evidence_core::read_all_trace_files(&trace_root).expect("cert/trace must load cleanly");
     let sys: BTreeSet<String> = trace
         .sys
         .requirements
@@ -281,24 +281,24 @@ fn is_reserved(rel: &str, full_ref: &str) -> bool {
         .any(|(path_suffix, r)| normalized.ends_with(path_suffix) && *r == full_ref)
 }
 
-/// Populate `<workspace>/tool/trace/` from the real workspace so
+/// Populate `<workspace>/cert/trace/` from the real workspace so
 /// `scan_tree(workspace)` resolves ghost refs against the real
 /// `read_all_trace_files` valid-ID set. Unix uses a symlink;
 /// Windows falls back to copying the four toml files (cheap; they
 /// are small).
 fn setup_fake_workspace_with_real_trace(workspace: &Path) {
     let real = workspace_root();
-    let fake_trace = workspace.join("tool").join("trace");
-    fs::create_dir_all(workspace.join("tool")).expect("mkdir tool");
+    let fake_trace = workspace.join("cert").join("trace");
+    fs::create_dir_all(workspace.join("cert")).expect("mkdir tool");
     #[cfg(unix)]
-    std::os::unix::fs::symlink(real.join("tool").join("trace"), &fake_trace)
+    std::os::unix::fs::symlink(real.join("cert").join("trace"), &fake_trace)
         .expect("symlink trace");
     #[cfg(not(unix))]
     {
         fs::create_dir_all(&fake_trace).expect("mkdir trace");
         for name in ["sys.toml", "hlr.toml", "llr.toml", "tests.toml"] {
             fs::copy(
-                real.join("tool").join("trace").join(name),
+                real.join("cert").join("trace").join(name),
                 fake_trace.join(name),
             )
             .expect("copy trace file");
@@ -313,7 +313,7 @@ fn current_tree_is_clean() {
     assert!(
         hits.is_empty(),
         "found {} trace-ID reference(s) in source/docs that don't resolve to any \
-         entry in tool/trace/. A deleted or renumbered trace entry has left stale \
+         entry in cert/trace/. A deleted or renumbered trace entry has left stale \
          narrative pointers behind. Either restore the referenced entry, update \
          the reference to a still-valid identifier, or add the (file, ref) pair \
          to RESERVED_TEXT_REFS with written justification.\n\n{}",
@@ -336,7 +336,7 @@ fn id_with_kind(kind: &str, id: &str) -> String {
 /// gate, naming the offending file:line.
 #[test]
 fn fires_on_ghost_reference() {
-    // The gate always loads the real `tool/trace/` (via
+    // The gate always loads the real `cert/trace/` (via
     // `read_all_trace_files`), so the fixture only needs to
     // contain a grep'd ref that isn't in the real set. LLR-999
     // is guaranteed not to exist.

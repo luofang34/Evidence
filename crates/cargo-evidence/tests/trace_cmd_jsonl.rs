@@ -36,7 +36,7 @@ fn cargo_evidence() -> Command {
     Command::cargo_bin("cargo-evidence").unwrap()
 }
 
-/// Copy the tool's own `tool/trace/` into a tempdir and tamper one
+/// Copy the tool's own `cert/trace/` into a tempdir and tamper one
 /// HLR's `surfaces` to contain a string not in `KNOWN_SURFACES`.
 /// The resulting trace fails surface-bijection validation with at
 /// least one `TRACE_HLR_SURFACE_UNKNOWN` event and one
@@ -44,7 +44,7 @@ fn cargo_evidence() -> Command {
 /// replaced, so the original surface is now orphaned).
 fn tampered_trace_dir() -> TempDir {
     let tmp = TempDir::new().expect("tempdir");
-    let src = workspace_root().join("tool").join("trace");
+    let src = workspace_root().join("cert").join("trace");
     for name in ["sys.toml", "hlr.toml", "llr.toml", "tests.toml"] {
         std::fs::copy(src.join(name), tmp.path().join(name)).expect("copy trace file");
     }
@@ -78,7 +78,7 @@ fn trace_validate_jsonl_happy_path() {
             "--require-hlr-sys-trace",
             "--require-hlr-surface-bijection",
             "--trace-roots",
-            "tool/trace",
+            "cert/trace",
         ])
         .output()
         .expect("spawn");

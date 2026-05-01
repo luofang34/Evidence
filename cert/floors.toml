@@ -49,13 +49,13 @@ diagnostic_codes = 151
 #  DOCTOR_OK / DOCTOR_FAIL).
 terminal_codes = 13
 
-# tool/trace/sys.toml — System Requirements.
+# cert/trace/sys.toml — System Requirements.
 trace_sys = 28
-# tool/trace/hlr.toml — High-Level Requirements.
+# cert/trace/hlr.toml — High-Level Requirements.
 trace_hlr = 66
-# tool/trace/llr.toml — Low-Level Requirements.
+# cert/trace/llr.toml — Low-Level Requirements.
 trace_llr = 73
-# tool/trace/tests.toml — Test Cases.
+# cert/trace/tests.toml — Test Cases.
 trace_test = 78
 
 # evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
@@ -78,7 +78,7 @@ known_surfaces = 21
 
 [per_crate.evidence-core]
 # `#[test]` attribute count inside crates/evidence-core/**/*.rs.
-test_count = 355
+test_count = 358
 
 [per_crate.cargo-evidence]
 test_count = 134

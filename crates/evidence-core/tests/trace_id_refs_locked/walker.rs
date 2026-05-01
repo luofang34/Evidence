@@ -22,10 +22,10 @@ use super::traversal;
 /// Scope:
 /// - `crates/**/*.rs` (excluding `target/`, `fixtures/`).
 /// - `**/*.md` at workspace root and under `crates/`, but NOT
-///   `tool/trace/README.md` (journal = audit provenance; stale
+///   `cert/trace/README.md` (journal = audit provenance; stale
 ///   refs there would be historical artifacts, not drift).
-/// - `**/*.toml` outside `tool/trace/` — Cargo manifests, cert
-///   baselines, floors.toml. `tool/trace/**/*.toml` is the
+/// - `**/*.toml` outside `cert/trace/` — Cargo manifests, cert
+///   baselines, floors.toml. `cert/trace/**/*.toml` is the
 ///   ground truth we validate against and is explicitly excluded.
 pub fn collect_scan_targets(workspace: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
@@ -56,7 +56,7 @@ fn collect_by_ext(root: &Path, ext: &str, out: &mut Vec<PathBuf>) {
     out.extend(files);
 }
 
-/// Walk `.md` files, skipping `tool/trace/` (journal = audit
+/// Walk `.md` files, skipping `cert/trace/` (journal = audit
 /// provenance) at any depth, and — when invoked from the workspace
 /// root — top-level `cert/` so the toml walker owns that subtree.
 fn collect_md_non_trace(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
@@ -82,7 +82,7 @@ fn collect_md_non_trace(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: 
                     .parent()
                     .and_then(|p| p.file_name())
                     .and_then(|n| n.to_str())
-                    == Some("tool")
+                    == Some("cert")
             {
                 return false;
             }
@@ -97,7 +97,7 @@ fn collect_md_non_trace(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: 
     out.extend(files);
 }
 
-/// Walk `.toml` files, skipping `tool/trace/` (the source of
+/// Walk `.toml` files, skipping `cert/trace/` (the source of
 /// truth) and standard noise dirs.
 fn collect_toml_non_trace(root: &Path, out: &mut Vec<PathBuf>) {
     let files = traversal::walk(root)
@@ -121,7 +121,7 @@ fn collect_toml_non_trace(root: &Path, out: &mut Vec<PathBuf>) {
                     .parent()
                     .and_then(|p| p.file_name())
                     .and_then(|n| n.to_str())
-                    == Some("tool")
+                    == Some("cert")
             {
                 return false;
             }

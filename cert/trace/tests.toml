@@ -184,7 +184,7 @@ test_selector = "trace_sys_layer::selector_check_flags_dangling_selector"
 [[tests]]
 uid = "f9278d5b-373f-4493-a607-0e105ac84a0a"
 id = "TEST-023"
-title = "Trace defaults to tool/trace when --trace-roots is absent"
+title = "Trace defaults to cert/trace when --trace-roots is absent"
 owner = "tool"
 traces_to = ["6be1b61b-0aeb-4c05-b2ef-f82fc7c00e55"]
 test_selector = "trace_discovery::trace_defaults_to_tool_trace_when_flag_absent"
@@ -473,7 +473,7 @@ owner = "tool"
 traces_to = ["ec50f98b-9a1d-4f7b-bc33-df56c7faab2a"]
 description = """
 Integration tests in `crates/cargo-evidence/tests/doctor_cmd.rs`:
-- Rigorous fixture (synthetic repo with tool/trace, cert/floors.toml,
+- Rigorous fixture (synthetic repo with cert/trace, cert/floors.toml,
   cert/boundary.toml, .github/workflows/ci.yml mentioning cargo
   evidence, README with `Override-Deterministic-Baseline:`) exits 0
   with `DOCTOR_OK` terminal and one `_OK` diagnostic per check.

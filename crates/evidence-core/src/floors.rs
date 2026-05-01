@@ -249,25 +249,31 @@ pub fn count_terminals() -> u64 {
     crate::TERMINAL_CODES.len() as u64
 }
 
-/// Per-layer trace entry counts by reading `tool/trace/` through the
-/// production loader (same path `trace --validate` uses, so a future
-/// loader change is reflected here). Returns `(sys, hlr, llr, test)`;
-/// on load failure every layer is reported as 0 — the caller's floor
-/// comparison will fire and name the affected dimension.
+/// Per-layer trace entry counts. Returns `(sys, hlr, llr, test)`;
+/// on missing trace root or load failure every layer is reported as
+/// 0 — the caller's floor comparison will fire and name the affected
+/// dimension.
+///
+/// Trace-root resolution goes through
+/// [`crate::trace::default_trace_roots`] so the answer matches what
+/// every other `cargo evidence` verb sees. A project whose
+/// `boundary.toml` lists multiple `scope.trace_roots` gets the
+/// per-layer counts summed across them.
 pub fn count_trace_per_layer(workspace_root: &Path) -> (u64, u64, u64, u64) {
-    let trace_root = workspace_root.join("tool").join("trace");
-    let Some(trace_root_str) = trace_root.to_str() else {
+    let roots = crate::trace::default_trace_roots(workspace_root);
+    if roots.is_empty() {
         return (0, 0, 0, 0);
-    };
-    match read_all_trace_files(trace_root_str) {
-        Ok(tf) => (
-            tf.sys.requirements.len() as u64,
-            tf.hlr.requirements.len() as u64,
-            tf.llr.requirements.len() as u64,
-            tf.tests.tests.len() as u64,
-        ),
-        Err(_) => (0, 0, 0, 0),
     }
+    let mut totals = (0u64, 0u64, 0u64, 0u64);
+    for root in &roots {
+        if let Ok(tf) = read_all_trace_files(root) {
+            totals.0 += tf.sys.requirements.len() as u64;
+            totals.1 += tf.hlr.requirements.len() as u64;
+            totals.2 += tf.llr.requirements.len() as u64;
+            totals.3 += tf.tests.tests.len() as u64;
+        }
+    }
+    totals
 }
 
 /// Count `#[test]` attribute occurrences inside `root` recursively.

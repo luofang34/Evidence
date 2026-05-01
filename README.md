@@ -328,7 +328,7 @@ cargo evidence --format=jsonl check .              # streaming per-requirement d
 
 In source mode, `check` runs `cargo test --workspace`, parses outcomes,
 and emits one `REQ_PASS` / `REQ_GAP` / `REQ_SKIP` diagnostic per
-requirement in the discovered trace (`tool/trace/` or `cert/trace/`).
+requirement in the discovered trace (`cert/trace/` or `cert/trace/`).
 `REQ_GAP` events carry a `FixHint` for mechanically-fixable cases
 (missing UUID, empty `traces_to` under policy, dangling
 `test_selector`), and derived GAPs at higher layers carry
@@ -491,9 +491,9 @@ diagnostic_codes = 10    # evidence_core::RULES.len() if you use it
 Only the dimensions you list are enforced — missing ones are
 skipped, not assumed-zero. Point at a custom path via
 `cargo evidence floors --config path/to/floors.toml` if your layout
-differs. Measurement helpers that need workspace subdirs (`tool/trace/`,
+differs. Measurement helpers that need workspace subdirs (`cert/trace/`,
 `crates/*/src/`) gracefully degrade to 0 when the dirs are absent,
-so a single-crate project without a `tool/trace/` directory can
+so a single-crate project without a `cert/trace/` directory can
 still enforce `test_count` and `diagnostic_codes` without
 configuring the other dimensions.
 
@@ -513,7 +513,7 @@ consumes; every code here is (a) backed by a
 `DiagnosticCode::code()` impl or by the `TERMINAL_CODES` /
 `HAND_EMITTED_CLI_CODES` sets, and (b)
 claimed by at least one LLR's `emits` list in
-`tool/trace/llr.toml`. Four bijection invariants in
+`cert/trace/llr.toml`. Four bijection invariants in
 `diagnostic_codes_locked` fail CI if those relationships ever drift
 — adding a code without updating `RULES` or writing an owning LLR
 is not possible silently.
@@ -725,7 +725,7 @@ crates/
   evidence-mcp/      # MCP (Model Context Protocol) server binary
 schemas/             # JSON schemas for bundle files
 cert/                # Certification configuration (boundary, profiles, floors)
-tool/trace/          # SYS / HLR / LLR / Test chain (this project's own trace)
+cert/trace/          # SYS / HLR / LLR / Test chain (this project's own trace)
 tools/               # Repo utilities (install-hooks.sh, regen-golden-fixtures.sh)
 scripts/             # CI mirror (local-ci.sh)
 ```

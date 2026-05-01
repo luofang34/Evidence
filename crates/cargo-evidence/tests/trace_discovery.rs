@@ -2,7 +2,7 @@
 //! `--trace-roots` discovery (LLR-023).
 //!
 //! When `--trace-roots` is absent, `cmd_trace` auto-discovers
-//! `./tool/trace/` first, then `./cert/trace/`, then falls back to
+//! `./cert/trace/` first, then `./cert/trace/`, then falls back to
 //! reading `cert/boundary.toml`. Explicit `--trace-roots` always
 //! wins and never reaches the discovery path.
 
@@ -100,12 +100,12 @@ traces_to = ["{llr_uid}"]
     .unwrap();
 }
 
-/// TEST-023: When `--trace-roots` is absent and `./tool/trace/`
+/// TEST-023: When `--trace-roots` is absent and `./cert/trace/`
 /// exists, discovery picks it without any flag.
 #[test]
 fn trace_defaults_to_tool_trace_when_flag_absent() {
     let tmp = TempDir::new().unwrap();
-    seed_minimal_trace(&tmp.path().join("tool/trace"));
+    seed_minimal_trace(&tmp.path().join("cert/trace"));
 
     cargo_evidence()
         .env("RUST_LOG", "info")
@@ -116,15 +116,15 @@ fn trace_defaults_to_tool_trace_when_flag_absent() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "[✓] tool/trace: validation passed",
+            "[✓] cert/trace: validation passed",
         ))
         .stderr(predicate::str::contains(
-            "auto-discovered trace root 'tool/trace'",
+            "auto-discovered trace root 'cert/trace'",
         ));
 }
 
 /// TEST-023 pair: `./cert/trace/` is the fallback when
-/// `./tool/trace/` is absent. Explicit convention ordering pins
+/// `./cert/trace/` is absent. Explicit convention ordering pins
 /// the behavior so an existing cert-only project still works.
 #[test]
 fn trace_falls_back_to_cert_trace_when_tool_trace_absent() {
@@ -153,7 +153,7 @@ fn trace_falls_back_to_cert_trace_when_tool_trace_absent() {
 #[test]
 fn explicit_trace_roots_wins_over_discovery() {
     let tmp = TempDir::new().unwrap();
-    seed_minimal_trace(&tmp.path().join("tool/trace"));
+    seed_minimal_trace(&tmp.path().join("cert/trace"));
     seed_minimal_trace(&tmp.path().join("cert/trace"));
     seed_minimal_trace(&tmp.path().join("custom/trace"));
 

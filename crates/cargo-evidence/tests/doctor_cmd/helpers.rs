@@ -33,7 +33,7 @@ pub fn workspace_root() -> PathBuf {
 }
 
 /// Build a synthetic "rigorous" fixture — has everything doctor
-/// checks for. Uses symlinks to the real `tool/trace/` on Unix so
+/// checks for. Uses symlinks to the real `cert/trace/` on Unix so
 /// the trace validator runs against schema-valid entries; Windows
 /// falls back to copying the four toml files.
 pub fn setup_rigorous_fixture() -> TempDir {
@@ -41,20 +41,20 @@ pub fn setup_rigorous_fixture() -> TempDir {
     let root = tmp.path();
 
     let real = workspace_root();
-    fs::create_dir_all(root.join("tool")).unwrap();
+    fs::create_dir_all(root.join("cert")).unwrap();
     #[cfg(unix)]
     std::os::unix::fs::symlink(
-        real.join("tool").join("trace"),
-        root.join("tool").join("trace"),
+        real.join("cert").join("trace"),
+        root.join("cert").join("trace"),
     )
     .unwrap();
     #[cfg(not(unix))]
     {
-        let fake_trace = root.join("tool").join("trace");
+        let fake_trace = root.join("cert").join("trace");
         fs::create_dir_all(&fake_trace).unwrap();
         for name in ["sys.toml", "hlr.toml", "llr.toml", "tests.toml"] {
             fs::copy(
-                real.join("tool").join("trace").join(name),
+                real.join("cert").join("trace").join(name),
                 fake_trace.join(name),
             )
             .unwrap();
@@ -70,7 +70,7 @@ pub fn setup_rigorous_fixture() -> TempDir {
     fs::write(
         root.join("cert").join("boundary.toml"),
         "[schema]\nversion = \"0.0.1\"\n\n\
-         [scope]\nin_scope = [\"evidence\"]\ntrace_roots = [\"tool/trace\"]\n\n\
+         [scope]\nin_scope = [\"evidence\"]\ntrace_roots = [\"cert/trace\"]\n\n\
          [policy]\nno_out_of_scope_deps = false\n\
          forbid_build_rs = false\n\
          forbid_proc_macros = false\n",

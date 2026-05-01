@@ -499,14 +499,14 @@ verification_methods = ["test"]
 [[requirements]]
 uid = "6be1b61b-0aeb-4c05-b2ef-f82fc7c00e55"
 id = "LLR-023"
-title = "default_trace_roots picks tool/trace or cert/trace"
+title = "default_trace_roots picks cert/trace or cert/trace"
 owner = "tool"
 traces_to = ["911fe168-04d7-49ee-99f4-d7a5a7a6fb1c"]
 modules = ["cargo_evidence::cli::trace::default_trace_roots"]
 derived = false
 description = """
 default_trace_roots returns Option<Vec<String>> by probing for
-./tool/trace/ then ./cert/trace/. cmd_trace calls it only when
+./cert/trace/ then ./cert/trace/. cmd_trace calls it only when
 --trace-roots is absent; explicit flag always wins. Logs chosen root
 via tracing::info!.
 """
@@ -678,7 +678,7 @@ derived = false
 description = """
 `LlrEntry` gains `emits: Vec<String>` with `#[serde(default,
 skip_serializing_if = "Vec::is_empty")]`. A locked-codes invariant
-loads `tool/trace/llr.toml` via `read_all_trace_files`, collects
+loads `cert/trace/llr.toml` via `read_all_trace_files`, collects
 the union of `emits` across all LLRs, and asserts that union
 equals `RULES.code` minus an explicit `reserved_unclaimed` set. The
 invariant also asserts every `emits` string is a real code in
@@ -721,7 +721,7 @@ Two integration tests under `crates/cargo-evidence/tests/` run
 on a committed synthetic source tree, normalize known-
 nondeterministic fields (timestamps; libtest `finished in`
 durations), and byte-diff against committed fixture files. The
-synthetic source tree is independent of `tool/trace/` so the
+synthetic source tree is independent of `cert/trace/` so the
 fixture doesn't drift when the tool's own self-trace grows.
 """
 verification_methods = ["test"]
@@ -1039,8 +1039,8 @@ derived = false
 description = '''
 A Rust `#[test] fn` in
 `crates/evidence-core/tests/trace_id_refs_locked.rs` walks `.rs` under
-`crates/**/{src,tests}/**`, `.md` (excluding `tool/trace/README.md`),
-and `.toml` outside `tool/trace/`. Greps
+`crates/**/{src,tests}/**`, `.md` (excluding `cert/trace/README.md`),
+and `.toml` outside `cert/trace/`. Greps
 `\b(SYS|HLR|LLR|TEST|DERIVED)-\d+\b`, loads trace IDs via
 `evidence_core::read_all_trace_files`, partitions grep'd refs by kind,
 asserts each exists. Fails via `assert!` with sorted

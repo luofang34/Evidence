@@ -132,10 +132,10 @@ path = "src/lib.rs"
 /// against the `<PATH>` argument, not the process CWD. An
 /// auditor running `cargo evidence check --mode=source
 /// /downstream` from a parent directory would otherwise silently
-/// get the caller's own `tool/trace/` and DAL policy — a
+/// get the caller's own `cert/trace/` and DAL policy — a
 /// confidently-wrong cert verdict.
 ///
-/// Setup: tempdir with its own `tool/trace/` containing a
+/// Setup: tempdir with its own `cert/trace/` containing a
 /// `DOWNSTREAM-*`-prefixed chain. Invoke `check` from a CWD that
 /// has a DIFFERENT trace (the Evidence repo — its trace uses
 /// `HLR-001` / `TEST-001` IDs). The JSONL stream must mention
@@ -144,12 +144,12 @@ path = "src/lib.rs"
 #[test]
 fn check_source_uses_argument_workspace_not_cwd() {
     // Build the downstream fixture: a minimal Rust workspace with
-    // its own tool/trace/ tree.
+    // its own cert/trace/ tree.
     let downstream = TempDir::new().expect("tempdir");
     seed_minimal_cargo_workspace(downstream.path());
-    seed_minimal_trace(&downstream.path().join("tool/trace"));
+    seed_minimal_trace(&downstream.path().join("cert/trace"));
 
-    // Caller CWD: the Evidence repo itself. Its tool/trace
+    // Caller CWD: the Evidence repo itself. Its cert/trace
     // contains TEST-001, HLR-001, etc. If the pre-#72 bug
     // returned, the JSONL would stream those.
     let caller_cwd = std::env::var("CARGO_MANIFEST_DIR")
@@ -184,7 +184,7 @@ fn check_source_uses_argument_workspace_not_cwd() {
     );
 
     // Negative regression pin: the caller CWD's TEST-001 canary
-    // (a stable ID in this repo's tool/trace) MUST NOT appear.
+    // (a stable ID in this repo's cert/trace) MUST NOT appear.
     // If trace loading silently fell back to CWD, that REQ_PASS
     // line would stream — its absence proves the workspace-not-
     // CWD bug is fixed.
@@ -391,7 +391,7 @@ fn verify_missing_bundle_exit_code_consistent_across_formats() {
 fn test_failure_keeps_normal_req_gap_path_not_runtime_failure() {
     let tmp = TempDir::new().expect("tempdir");
     seed_cargo_workspace_with_failing_test(tmp.path());
-    // Failing-test fixture has no tool/trace, so the trace-phase
+    // Failing-test fixture has no cert/trace, so the trace-phase
     // emits empty requirements. That's fine — this test pins the
     // DISAMBIGUATION behaviour, which is at phase 2 (parse).
 
@@ -417,14 +417,14 @@ fn test_failure_keeps_normal_req_gap_path_not_runtime_failure() {
 }
 
 /// **Boundary-trace-roots rebase regression.** The convention
-/// paths (`tool/trace`, `cert/trace`) rebase against the `<PATH>`
+/// paths (`cert/trace`, `cert/trace`) rebase against the `<PATH>`
 /// argument, but the boundary-fallback path in
 /// `default_trace_roots` used to return entries verbatim. A
 /// downstream project with `trace_roots = ["custom/trace"]` in its
 /// `cert/boundary.toml` would silently resolve against the caller's
 /// CWD and emit VERIFY_OK with 0 requirements.
 ///
-/// Setup: downstream tempdir has NO `tool/trace/` (so the
+/// Setup: downstream tempdir has NO `cert/trace/` (so the
 /// convention auto-discovery misses), has `cert/boundary.toml`
 /// configuring `trace_roots = ["custom/trace"]`, and has the real
 /// trace files under `custom/trace/`. Invoke from a caller CWD
@@ -434,7 +434,7 @@ fn test_failure_keeps_normal_req_gap_path_not_runtime_failure() {
 fn check_source_rebases_boundary_trace_roots() {
     let downstream = TempDir::new().expect("tempdir");
     seed_minimal_cargo_workspace(downstream.path());
-    // Note: NO tool/trace here — forces the fallback through
+    // Note: NO cert/trace here — forces the fallback through
     // `load_trace_roots(cert/boundary.toml)`.
     fs::create_dir_all(downstream.path().join("cert")).unwrap();
     fs::write(

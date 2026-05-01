@@ -6,7 +6,7 @@ use anyhow::Result;
 
 use evidence_core::diagnostic::{Diagnostic, DiagnosticCode, Location, Severity};
 use evidence_core::{
-    BoundaryConfig, EvidencePolicy, backfill_uuids, load_trace_roots,
+    BoundaryConfig, EvidencePolicy, backfill_uuids,
     trace::{
         LinkError, TraceFiles, TraceValidationError, read_all_trace_files, resolve_test_selectors,
         validate_trace_links_with_policy,
@@ -62,8 +62,8 @@ pub fn cmd_trace(
 
     // `cargo evidence trace` doesn't accept a workspace PATH argument;
     // it operates on the process CWD. Passing `Path::new(".")`
-    // preserves the pre-#72 behaviour: `workspace_root.join("tool/trace")`
-    // becomes `./tool/trace`, which is CWD-relative exactly as before.
+    // preserves the pre-#72 behaviour: `workspace_root.join("cert/trace")`
+    // becomes `./cert/trace`, which is CWD-relative exactly as before.
     // Contrast with `cmd_check_source` which resolves `default_trace_roots`
     // against its explicit `<PATH>` argument — see check.rs.
     let roots: Vec<String> = trace_roots_arg
@@ -290,83 +290,10 @@ pub fn cmd_trace(
     Ok(EXIT_SUCCESS)
 }
 
-/// Resolve trace roots when `--trace-roots` is absent.
-///
-/// Discovery order (first existing wins), all resolved relative
-/// to `workspace_root`:
-///
-/// 1. `<workspace_root>/tool/trace/` — the tool's own self-trace
-///    convention. Picked first so the self-trace is always the
-///    primary target when run from the tool's own workspace root.
-/// 2. `<workspace_root>/cert/trace/` — the cert-profile bundle-
-///    generation dogfood convention, inherited from pre-self-trace
-///    days.
-/// 3. Fall back to
-///    `load_trace_roots(<workspace_root>/cert/boundary.toml)` which
-///    reads the `scope.trace_roots` array for config-driven
-///    projects that don't follow the on-disk convention. Entries
-///    from `boundary.toml` are returned as-written (callers must
-///    resolve relative entries against the workspace if needed);
-///    in practice `cmd_check_source` already joins each entry onto
-///    its own `workspace_root` before handing to
-///    `read_all_trace_files`.
-///
-/// `workspace_root` is the argument `cargo evidence check <PATH>`
-/// resolves to, NOT the process CWD. Auditors invoking `check
-/// --mode=source /downstream` from a parent directory must get
-/// `/downstream/tool/trace/` discovered, not the caller's own
-/// `tool/trace/`. Explicit `--trace-roots` always wins and never
-/// reaches this function. Chosen root is logged via `tracing::info!`
-/// so agents reading stderr can see which source the run consumed.
-pub fn default_trace_roots(workspace_root: &Path) -> Vec<String> {
-    // When workspace_root is CWD (`.` or empty), keep the returned
-    // paths un-prefixed (`tool/trace`, not `./tool/trace`) so stderr
-    // and test expectations stay readable. The `is_dir()` check
-    // still works on the un-prefixed path because it resolves
-    // against CWD. For any explicit workspace PATH, prefix it.
-    let is_cwd = workspace_root == Path::new(".") || workspace_root == Path::new("");
-    for convention in ["tool/trace", "cert/trace"] {
-        let candidate = if is_cwd {
-            PathBuf::from(convention)
-        } else {
-            workspace_root.join(convention)
-        };
-        if candidate.is_dir() {
-            tracing::info!(
-                "trace: auto-discovered trace root '{}' (no --trace-roots given)",
-                candidate.display()
-            );
-            return vec![candidate.to_string_lossy().into_owned()];
-        }
-    }
-    let boundary_path = if is_cwd {
-        PathBuf::from("cert/boundary.toml")
-    } else {
-        workspace_root.join("cert/boundary.toml")
-    };
-    tracing::info!(
-        "trace: no on-disk trace root convention found; falling back to {}",
-        boundary_path.display()
-    );
-    // The auto-discovered convention paths (tool/trace,
-    // cert/trace) rebase against `workspace_root`; rebase
-    // explicitly-configured `scope.trace_roots` entries the
-    // same way so `check --mode=source /downstream` with
-    // `trace_roots = ["custom/trace"]` in
-    // /downstream/cert/boundary.toml resolves against the
-    // argument, not the caller's CWD.
-    let raw = load_trace_roots(&boundary_path);
-    raw.into_iter()
-        .map(|s| {
-            let p = Path::new(&s);
-            if p.is_absolute() || is_cwd {
-                s
-            } else {
-                workspace_root.join(p).to_string_lossy().into_owned()
-            }
-        })
-        .collect()
-}
+/// Re-export of [`evidence_core::trace::default_trace_roots`] —
+/// the single trace-root discovery path every `cargo evidence` verb
+/// shares with `evidence_core::floors::count_trace_per_layer`.
+pub use evidence_core::trace::default_trace_roots;
 
 /// Stream one JSONL `Diagnostic` per `LinkError` variant inside the
 /// `TraceValidationError::Link` envelope. Register-phase errors

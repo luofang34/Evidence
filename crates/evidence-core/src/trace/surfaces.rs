@@ -31,7 +31,7 @@
 /// to KNOWN_SURFACES would fire the unclaimed-surface rule
 /// immediately. The gap is itself the point of this bijection —
 /// a follow-up PR adds HLRs for these subcommands (tracked in
-/// tool/trace/README journal).
+/// cert/trace/README journal).
 pub const KNOWN_SURFACES: &[&str] = &[
     // Group 1 — CLI verb names (lowercase; match the `Commands::*`
     // variants exactly).

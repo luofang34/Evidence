@@ -367,7 +367,7 @@ owner = "tool"
 scope = "component"
 description = """
 When --trace-roots is absent, `cargo evidence trace` discovers
-./tool/trace/ first, then ./cert/trace/, using the first that exists.
+./cert/trace/ first, then ./cert/trace/, using the first that exists.
 Explicit --trace-roots always wins; discovery only fires on absence.
 The chosen root is logged via tracing::info!.
 """
@@ -824,10 +824,10 @@ owner = "tool"
 scope = "component"
 description = '''
 A Rust integration test walks `.rs` under `crates/**/{src,tests}/**`,
-`.md` files (excluding `tool/trace/README.md`), and non-
-`tool/trace/` `.toml` files. Every match of
+`.md` files (excluding `cert/trace/README.md`), and non-
+`cert/trace/` `.toml` files. Every match of
 `\b(SYS|HLR|LLR|TEST|DERIVED)-\d+\b` must resolve to an entry
-in the loaded `tool/trace/` set (parsed via
+in the loaded `cert/trace/` set (parsed via
 `read_all_trace_files`), partitioned by kind. Unresolved refs
 fire the gate via `assert!` with the offending `file:line` +
 the ghost identifier; no `Diagnostic` wire shape, no new `RULES`

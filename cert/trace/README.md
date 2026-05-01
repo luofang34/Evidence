@@ -107,12 +107,12 @@ Observation: `cargo evidence trace --backfill-uuids` writes each file
 back via `toml::to_string_pretty`, which does not preserve comments.
 PR #44's hand-written top-of-file commentary and inter-entry group
 headers were lost when the UID rotation ran. Minimal `#
-tool/trace/<name>.toml — … (see ../README.md)` headers were
+cert/trace/<name>.toml — … (see ../README.md)` headers were
 reinstated by hand; the richer commentary is now in `README.md`
 only.
 
 Workaround: treat README.md as canonical documentation, use brief
-`# tool/trace/<name>.toml — …` file headers that survive backfill
+`# cert/trace/<name>.toml — …` file headers that survive backfill
 because the stripper only rewrites `[[sections]]`. Accept the loss
 of inter-entry group separators for now.
 
@@ -149,7 +149,7 @@ unaffected; the tool's own CI enables it.
 
 #### [2026-04 · PR #44b · closed] UUIDs rotated, hand-crafting banned
 
-The original `tool/trace/*.toml` files landed in PR #44 used
+The original `cert/trace/*.toml` files landed in PR #44 used
 hand-authored deterministic UUIDs (`11…000001` per-layer-prefix
 scheme). Pre-ship is cheap to rotate — PR #44b replaced every UID
 with a real machine-generated v4 from `trace --backfill-uuids` and
@@ -256,7 +256,7 @@ Independent enforcement signals on the SYS contract (as of PR #44b):
 2. `TEST-021` (integration test) asserts the above path fires.
 3. `TEST-022` (integration test) asserts `--check-test-selectors`
    fires on a dangling selector.
-4. `TEST-023` (integration test) asserts `tool/trace/` discovery
+4. `TEST-023` (integration test) asserts `cert/trace/` discovery
    works without `--trace-roots`.
 5. `TEST-024` (`ci_self_check`) greps the committed `ci.yml` to
    assert both enforcement flags are wired on `trace-self-validate`.

@@ -68,7 +68,7 @@ fn rigorous_fixture_passes() {
 
 #[test]
 fn sloppy_fixture_fails_with_named_codes() {
-    // Empty tempdir — no tool/trace, no cert/, no .github/, no README.
+    // Empty tempdir — no cert/trace, no cert/, no .github/, no README.
     // With DAL-D as the implicit default (boundary missing), the
     // trace check is lenient and an empty trace directory passes
     // (link-validity on zero links trivially holds). The sloppy
@@ -112,9 +112,9 @@ fn downstream_dal_d_fixture_passes() {
     // Minimal DAL-D project shape: HLR with empty surfaces, empty
     // traces_to (no SYS layer). No derived. Each entry has a real
     // UUID so register-phase validation passes.
-    fs::create_dir_all(root.join("tool").join("trace")).unwrap();
+    fs::create_dir_all(root.join("cert").join("trace")).unwrap();
     fs::write(
-        root.join("tool").join("trace").join("hlr.toml"),
+        root.join("cert").join("trace").join("hlr.toml"),
         "[schema]\nversion = \"0.0.1\"\n\n[meta]\ndocument_id = \"DS-HLR\"\nrevision = \"1.0\"\n\n\
          [[requirements]]\nuid = \"91d2a98f-7b89-4e3c-8d1d-4b7f8e77a9b4\"\nid = \"HLR-001\"\n\
          title = \"Downstream HLR\"\nowner = \"downstream\"\nscope = \"component\"\n\
@@ -123,19 +123,19 @@ fn downstream_dal_d_fixture_passes() {
     )
     .unwrap();
     fs::write(
-        root.join("tool").join("trace").join("sys.toml"),
+        root.join("cert").join("trace").join("sys.toml"),
         "requirements = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
          [meta]\ndocument_id = \"DS-SYS\"\nrevision = \"1.0\"\n",
     )
     .unwrap();
     fs::write(
-        root.join("tool").join("trace").join("llr.toml"),
+        root.join("cert").join("trace").join("llr.toml"),
         "requirements = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
          [meta]\ndocument_id = \"DS-LLR\"\nrevision = \"1.0\"\n",
     )
     .unwrap();
     fs::write(
-        root.join("tool").join("trace").join("tests.toml"),
+        root.join("cert").join("trace").join("tests.toml"),
         "tests = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
          [meta]\ndocument_id = \"DS-TESTS\"\nrevision = \"1.0\"\n",
     )
@@ -146,7 +146,7 @@ fn downstream_dal_d_fixture_passes() {
     fs::write(
         root.join("cert").join("boundary.toml"),
         "[schema]\nversion = \"0.0.1\"\n\n[scope]\nin_scope = [\"downstream\"]\n\
-         trace_roots = [\"tool/trace\"]\n\n[policy]\nno_out_of_scope_deps = false\n\
+         trace_roots = [\"cert/trace\"]\n\n[policy]\nno_out_of_scope_deps = false\n\
          forbid_build_rs = false\nforbid_proc_macros = false\n\n\
          [dal]\ndefault_dal = \"D\"\n",
     )
@@ -205,9 +205,9 @@ fn downstream_dal_a_fixture_catches_missing_sys() {
 
     // HLR with empty traces_to + valid UUID — would pass at DAL-D,
     // must fail at DAL-A via require_hlr_sys_trace.
-    fs::create_dir_all(root.join("tool").join("trace")).unwrap();
+    fs::create_dir_all(root.join("cert").join("trace")).unwrap();
     fs::write(
-        root.join("tool").join("trace").join("hlr.toml"),
+        root.join("cert").join("trace").join("hlr.toml"),
         "[schema]\nversion = \"0.0.1\"\n\n[meta]\ndocument_id = \"DS-HLR\"\nrevision = \"1.0\"\n\n\
          [[requirements]]\nuid = \"91d2a98f-7b89-4e3c-8d1d-4b7f8e77a9b4\"\nid = \"HLR-001\"\n\
          title = \"Orphaned HLR\"\nowner = \"downstream\"\nscope = \"component\"\n\
@@ -221,7 +221,7 @@ fn downstream_dal_a_fixture_catches_missing_sys() {
         ("tests.toml", "DS-TESTS", "tests"),
     ] {
         fs::write(
-            root.join("tool").join("trace").join(name),
+            root.join("cert").join("trace").join(name),
             format!(
                 "{} = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
                  [meta]\ndocument_id = \"{}\"\nrevision = \"1.0\"\n",
@@ -235,7 +235,7 @@ fn downstream_dal_a_fixture_catches_missing_sys() {
     fs::write(
         root.join("cert").join("boundary.toml"),
         "[schema]\nversion = \"0.0.1\"\n\n[scope]\nin_scope = [\"downstream\"]\n\
-         trace_roots = [\"tool/trace\"]\n\n[policy]\nno_out_of_scope_deps = false\n\
+         trace_roots = [\"cert/trace\"]\n\n[policy]\nno_out_of_scope_deps = false\n\
          forbid_build_rs = false\nforbid_proc_macros = false\n\n\
          [dal]\ndefault_dal = \"A\"\n",
     )
@@ -327,9 +327,9 @@ fn fallback_note_appears_when_boundary_missing_and_trace_fails() {
 
     // Valid trace layout with a dangling traces_to — fails at any
     // DAL level including DAL-D's lenient default.
-    fs::create_dir_all(root.join("tool").join("trace")).unwrap();
+    fs::create_dir_all(root.join("cert").join("trace")).unwrap();
     fs::write(
-        root.join("tool").join("trace").join("hlr.toml"),
+        root.join("cert").join("trace").join("hlr.toml"),
         "[schema]\nversion = \"0.0.1\"\n\n[meta]\ndocument_id = \"DS-HLR\"\nrevision = \"1.0\"\n\n\
          [[requirements]]\nuid = \"91d2a98f-7b89-4e3c-8d1d-4b7f8e77a9b4\"\nid = \"HLR-001\"\n\
          title = \"Dangling HLR\"\nowner = \"downstream\"\nscope = \"component\"\n\
@@ -343,7 +343,7 @@ fn fallback_note_appears_when_boundary_missing_and_trace_fails() {
         ("tests.toml", "DS-TESTS", "tests"),
     ] {
         fs::write(
-            root.join("tool").join("trace").join(name),
+            root.join("cert").join("trace").join(name),
             format!(
                 "{} = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
                  [meta]\ndocument_id = \"{}\"\nrevision = \"1.0\"\n",
@@ -404,7 +404,7 @@ fn current_workspace_passes_doctor() {
 }
 
 /// **DAL-A empty-trace silent-pass gate.** `check_trace` used to
-/// load only `<workspace>/tool/trace`, and
+/// load only `<workspace>/cert/trace`, and
 /// `validate_trace_links_with_policy` on an empty-everything tree
 /// is trivially valid (no HLR to iterate → DAL-A's
 /// `require_hlr_sys_trace` has nothing to fail on). Result:
@@ -417,12 +417,12 @@ fn dal_a_empty_trace_fires_doctor_trace_empty() {
     let tmp = TempDir::new().expect("tempdir");
     let root = tmp.path();
 
-    // Populate `tool/trace/` with valid TOML but zero requirements.
+    // Populate `cert/trace/` with valid TOML but zero requirements.
     // This is the scenario commit 4 specifically catches — a
     // readable but empty trace tree, distinct from
     // `DOCTOR_TRACE_INVALID` which fires on unreadable / missing
     // roots.
-    fs::create_dir_all(root.join("tool").join("trace")).unwrap();
+    fs::create_dir_all(root.join("cert").join("trace")).unwrap();
     for (name, content) in [
         (
             "hlr.toml",
@@ -445,7 +445,7 @@ fn dal_a_empty_trace_fires_doctor_trace_empty() {
              [meta]\ndocument_id = \"DS-TESTS\"\nrevision = \"1.0\"\n",
         ),
     ] {
-        fs::write(root.join("tool").join("trace").join(name), content).unwrap();
+        fs::write(root.join("cert").join("trace").join(name), content).unwrap();
     }
 
     // DAL-A boundary.
@@ -453,7 +453,7 @@ fn dal_a_empty_trace_fires_doctor_trace_empty() {
     fs::write(
         root.join("cert").join("boundary.toml"),
         "[schema]\nversion = \"0.0.1\"\n\n[scope]\nin_scope = [\"downstream\"]\n\
-         trace_roots = [\"tool/trace\"]\n\n[policy]\nno_out_of_scope_deps = false\n\
+         trace_roots = [\"cert/trace\"]\n\n[policy]\nno_out_of_scope_deps = false\n\
          forbid_build_rs = false\nforbid_proc_macros = false\n\n\
          [dal]\ndefault_dal = \"A\"\n",
     )

@@ -225,7 +225,7 @@ fn count_library_panics_catches_bare_panic_outside_strings() {
 }
 
 /// Downstream users without a `crates/` directory (or without
-/// `tool/trace/`) shouldn't see the measurements blow up — helpers
+/// `cert/trace/`) shouldn't see the measurements blow up — helpers
 /// gracefully degrade to 0 (workspace-wide) or an empty map (per-
 /// crate) so an external project can opt into specific floors
 /// without setting up the full workspace layout we use.
