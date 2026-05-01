@@ -94,7 +94,12 @@ fn print_direct_help() {
     println!("Direct invocation (`cargo-evidence ...`) is also supported.");
     println!();
     let mut cmd = cli::args::EvidenceArgs::command();
-    let _ = cmd.print_long_help();
+    // Broken pipe (`cargo-evidence --help | head`) is the only
+    // realistic failure mode here; dropping the Result mirrors the
+    // way every Unix tool handles SIGPIPE on --help. The drop also
+    // satisfies clippy::let_underscore_must_use without re-routing
+    // through tracing (which isn't initialized at this point).
+    drop(cmd.print_long_help());
 }
 
 /// Install the `tracing` subscriber for the library's diagnostic
