@@ -1522,3 +1522,38 @@ and verify is still caught (LLR-072).
 """
 verification_methods = ["test"]
 traces_to = ["5af6e706-6aef-411d-811d-747633876695"]
+
+[[requirements]]
+uid = "c222804b-4d4f-4dfd-8765-2fd51a730ecc"
+id = "HLR-066"
+title = "DAL-A in-scope crate without auxiliary MC/DC tool reference fails cert/record generate"
+owner = "tool"
+scope = "component"
+description = """
+At cert / record profile, `cargo evidence generate` refuses to
+assemble a bundle when any in-scope crate carries DAL-A and the
+project’s `cert/boundary.toml` does not record an
+auxiliary qualified MC/DC tool reference under the
+`[dal.auxiliary_mcdc_tool]` table.
+
+Rationale: DO-178C Annex A Table A-7 Obj-7 requires Modified
+Condition / Decision Coverage at DAL-A. Stable Rust cannot emit
+MC/DC instrumentation today — the unstable
+`-Zcoverage-options=mcdc` flag was removed by
+rust-lang/rust#144999 (merged 2025-08-08); tracking issue
+rust-lang/rust#124144 has no active reimplementation. The only
+viable path for a DAL-A submission is to record an external
+qualified tool’s evidence (LDRA TBvision, VectorCAST, Rapita
+RVS) by reference. Without that reference the bundle would
+silently underclaim Obj-7 (the bundle’s
+`compliance/<crate>.json` would mark A7-10 as `NotMet` while
+the terminal could still be `VERIFY_OK` because branch
+coverage was met) — a known sharp edge an auditor would catch
+but a careless DER might miss.
+
+On dev profile the same condition emits a Warning to stderr
+and allows the run to proceed, so projects iterating on DAL
+assignment locally are not blocked.
+"""
+verification_methods = ["test"]
+traces_to = ["5af6e706-6aef-411d-811d-747633876695"]

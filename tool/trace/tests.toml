@@ -1131,3 +1131,32 @@ test_selectors = [
     "evidence_core::verify::bundle::tests::tampered_cargo_metadata_fires_recheck",
     "evidence_core::verify::bundle::tests::missing_cargo_metadata_fires_metadata_missing",
 ]
+
+[[tests]]
+uid = "313c6de1-f7a2-43cb-8e9f-887dc09f87c7"
+id = "TEST-080"
+title = "DAL-A MC/DC fail-loud at cert/record; warn-only at dev; bypass when auxiliary tool set"
+owner = "tool"
+traces_to = ["08152f7f-56c4-47f7-ae99-f03d0e114a67"]
+description = """
+Four selectors covering the full decision matrix of the
+LLR-073 gate:
+
+  - Pure-library check passes when DAL-A is absent or the
+    auxiliary tool reference is present.
+  - Pure-library check returns the typed error variant with
+    sorted offender names when DAL-A is in scope without an
+    auxiliary tool reference.
+  - Integration test: `cargo evidence generate --profile cert`
+    on a fixture with one DAL-A crate + no `[dal.auxiliary_mcdc_tool]`
+    fails with the JSON failure envelope carrying the
+    `BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC`-shaped message.
+  - Integration test: same fixture under `--profile dev`
+    emits a stderr warning and continues to bundle assembly.
+"""
+test_selectors = [
+    "evidence_core::boundary_check::tests::dal_a_mcdc_check_passes_when_no_dal_a_in_scope",
+    "evidence_core::boundary_check::tests::dal_a_mcdc_check_passes_when_auxiliary_tool_set",
+    "evidence_core::boundary_check::tests::dal_a_mcdc_check_fires_on_dal_a_without_tool",
+    "dal_qualification_gate::test_generate_dev_profile_warns_on_dal_a_without_mcdc_tool_but_continues",
+]
