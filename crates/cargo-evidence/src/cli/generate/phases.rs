@@ -29,6 +29,11 @@ pub(super) struct BoundaryDerived {
     /// Raw policy flags, carried so the policy-implementability
     /// check can fire before the builder is constructed.
     pub(super) policy: BoundaryPolicy,
+    /// Auxiliary MC/DC tool reference, propagated from
+    /// `boundary.toml`'s `[dal]` section so the DAL-A
+    /// qualification gate can read it without re-loading the
+    /// config. `None` ⇒ no external MC/DC evidence claimed.
+    pub(super) auxiliary_mcdc_tool: Option<evidence_core::AuxiliaryMcdcTool>,
 }
 
 // Phase 1 — preflight checks (shallow-clone, cert-dirty)
@@ -77,6 +82,7 @@ pub(super) fn build_config(
     let dal_map = boundary_config.dal_map();
     let max_dal = dal_map.values().copied().max().unwrap_or_default();
     let policy = boundary_config.policy.clone();
+    let auxiliary_mcdc_tool = boundary_config.dal.auxiliary_mcdc_tool.clone();
     let strict = matches!(profile, Profile::Cert | Profile::Record);
     let config = EvidenceBuildConfig {
         output_root,
@@ -96,6 +102,7 @@ pub(super) fn build_config(
             dal_map,
             max_dal,
             policy,
+            auxiliary_mcdc_tool,
         },
     )
 }

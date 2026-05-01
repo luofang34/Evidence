@@ -137,6 +137,49 @@ pub struct DalConfig {
     /// Per-crate DAL overrides. Key is crate name.
     #[serde(default)]
     pub crate_overrides: BTreeMap<String, Dal>,
+    /// Reference to an auxiliary qualified MC/DC tool whose evidence
+    /// the project records by reference. Required at DAL-A (DO-178C
+    /// Table A-7 Obj-7) because stable Rust cannot currently emit
+    /// MC/DC instrumentation — the unstable `-Zcoverage-options=mcdc`
+    /// flag was removed by rust-lang/rust#144999 (merged 2025-08-08)
+    /// and tracking issue rust-lang/rust#124144 has no active
+    /// reimplementation.
+    ///
+    /// Absent ⇒ this project produces no MC/DC evidence in-band.
+    /// Present ⇒ the project asserts MC/DC is satisfied via the
+    /// named auxiliary tool (LDRA, VectorCAST, Rapita RVS, etc.).
+    /// The tool's qualification ID and report path live in the
+    /// nested struct so an auditor can cross-reference both at
+    /// review time. Free-form `name` is a reviewer-readable label
+    /// (e.g. `"LDRA TBvision"`); `report` is the bundle-relative
+    /// path the auxiliary report is recorded under (the bundle
+    /// pipeline does not validate the file's content, only its
+    /// presence + hash). See HLR-066 / LLR-073.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auxiliary_mcdc_tool: Option<AuxiliaryMcdcTool>,
+}
+
+/// Reference to an external qualified MC/DC tool whose evidence is
+/// recorded by reference rather than measured in-band. See
+/// [`DalConfig::auxiliary_mcdc_tool`].
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct AuxiliaryMcdcTool {
+    /// Reviewer-readable label, e.g. `"LDRA TBvision"`.
+    pub name: String,
+    /// Tool qualification ID assigned by the auxiliary vendor /
+    /// project. Free-form so projects can fold in their own
+    /// internal tracking ID. Absent ⇒ this is treated as an
+    /// undocumented reference and the auditor must resolve it
+    /// out-of-band.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qualification_id: Option<String>,
+    /// Bundle-relative path the auxiliary report is recorded
+    /// under. Absent today ⇒ the project asserts MC/DC was
+    /// measured externally but does not bind a specific report
+    /// into the bundle. A future schema extension may make this
+    /// required when DAL-A is in scope.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub report: Option<String>,
 }
 
 impl Default for DalConfig {
@@ -144,6 +187,7 @@ impl Default for DalConfig {
         Self {
             default_dal: Dal::D,
             crate_overrides: BTreeMap::new(),
+            auxiliary_mcdc_tool: None,
         }
     }
 }

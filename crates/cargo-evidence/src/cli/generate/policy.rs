@@ -161,3 +161,58 @@ pub(super) fn enforce_boundary_policy(
 
     Ok(None)
 }
+
+/// DAL-A qualification gate: refuse to assemble a cert/record bundle
+/// when any in-scope crate is at DAL-A and the policy does not record
+/// an [`evidence_core::AuxiliaryMcdcTool`] reference. DO-178C Annex A
+/// Table A-7 Obj-7 (MC/DC) is required at DAL-A; stable Rust cannot
+/// emit MC/DC instrumentation today (rust-lang/rust#144999 removed
+/// the unstable flag), so the only viable path is to record an
+/// external qualified tool's evidence by reference.
+///
+/// On `Profile::Dev`, fires a Warning-severity diagnostic and
+/// returns `Ok(None)` — dev iteration is unblocked. On
+/// `Profile::Cert` / `Profile::Record`, fails the run with a
+/// JSON/text envelope so the caller can short-circuit.
+pub(super) fn enforce_dal_qualification(
+    derived: &BoundaryDerived,
+    profile: Profile,
+    json_output: bool,
+) -> Result<Option<i32>> {
+    match evidence_core::check_dal_a_mcdc_evidence(
+        &derived.dal_map,
+        derived.auxiliary_mcdc_tool.as_ref(),
+    ) {
+        Ok(()) => Ok(None),
+        Err(evidence_core::BoundaryCheckError::DalAMissingAuxiliaryMcdc {
+            dal_a_crates, ..
+        }) => {
+            let lines: Vec<String> = dal_a_crates.iter().map(|c| format!("  - {}", c)).collect();
+            let msg = format!(
+                "DAL-A qualification gap: stable Rust cannot emit MC/DC \
+                 instrumentation (rust-lang/rust#144999, merged 2025-08-08). \
+                 {} in-scope crate(s) at DAL-A but no `[dal.auxiliary_mcdc_tool]` \
+                 entry in cert/boundary.toml records an external qualified MC/DC \
+                 tool's evidence:\n{}\n\
+                 Either: (a) record the auxiliary tool reference in \
+                 boundary.toml's `[dal]` section (name, qualification_id, \
+                 report) so the bundle binds external MC/DC evidence by \
+                 reference, OR (b) lower the affected crate(s) to DAL-B \
+                 (which does not require MC/DC), OR (c) wait for upstream \
+                 rustc to reintroduce MC/DC instrumentation \
+                 (tracking: rust-lang/rust#124144).",
+                dal_a_crates.len(),
+                lines.join("\n")
+            );
+            // dev profile downgrades to a stderr warning + continue;
+            // cert/record fails the run.
+            if matches!(profile, Profile::Dev) {
+                eprintln!("warning: {}", msg);
+                Ok(None)
+            } else {
+                fail(json_output, profile, msg).map(Some)
+            }
+        }
+        Err(e) => Err(anyhow::Error::new(e).context("running DAL-A MC/DC qualification gate")),
+    }
+}

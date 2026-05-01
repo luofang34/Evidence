@@ -21,6 +21,13 @@
     "terminal": false
   },
   {
+    "code": "BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC",
+    "severity": "error",
+    "domain": "boundary",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "BOUNDARY_FORBIDDEN_BUILD_RS",
     "severity": "error",
     "domain": "boundary",
