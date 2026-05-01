@@ -545,11 +545,54 @@ candidate.
 - **Classification:** Development tool + Verification tool.
 - **Qualification status:** Not qualified. The tool has not undergone DO-330
   qualification; no Tool Qualification Plan, Tool Qualification Data, or
-  independent assessor review exists. Treat any TQL number you may see in older
-  notes as an aspirational target, not a current claim.
-- **Self-verification concern:** The tool generates AND verifies its own bundles.
-  For independent verification, run `sha256sum -c SHA256SUMS` against the bundle
-  with a separate utility, or use a different verifier.
+  independent assessor review exists. The TQL ceiling discussed in older
+  internal notes (TQL-3 / TQL-5) was an aspirational target, not a current
+  claim — it is retired here to avoid downstream confusion. The minimum
+  viable qualification package (PSAC + SVVP + SVR + SCM Plan + SQA Plan +
+  Qualification Report, signed by an independent DER) does not exist; a
+  template-shaped placeholder for projects to fill in is in the 1.0 backlog
+  (`cert/DO-330-TEMPLATE/`).
+- **No independent-verification path today.** The tool generates AND verifies
+  its own bundles — they share the same binary. `sha256sum -c SHA256SUMS` from
+  a separate utility re-checks *integrity* of the recorded hashes, but it
+  cannot answer the auditor's actual question: *did the tool-under-qualification
+  record the correct hashes in the first place?* That answer requires either
+  (a) re-running this tool with the same inputs and comparing the resulting
+  `content_hash` byte-for-byte (which is what the cross-host CI gate does
+  internally — see `.github/workflows/ci.yml`), or (b) a separately-developed
+  verifier with its own qualification story. Option (b) does not exist yet
+  and is in the 1.0 backlog.
+
+### MC/DC coverage at DAL-A — currently unavailable
+
+DO-178C DAL-A requires Modified Condition/Decision Coverage at the source-
+code level. Stable Rust does not currently expose MC/DC instrumentation:
+the `-Zcoverage-options=mcdc` nightly flag was removed upstream by
+[rust-lang/rust#144999](https://github.com/rust-lang/rust/pull/144999)
+(merged 2025-08-08). The tracking issue
+[rust-lang/rust#124144](https://github.com/rust-lang/rust/issues/124144)
+remains open with no active reimplementation.
+
+**Practical consequences for projects using this tool today:**
+
+- A DAL-A project running `cargo evidence generate --profile cert` will
+  produce a bundle whose `compliance/<crate>.json` reports DO-178C objective
+  A7-10 (MC/DC coverage) as `NotMet`. The bundle's terminal can still be
+  `VERIFY_OK` because branch coverage was met. **A careful auditor reads the
+  A7-10 line and rejects the submission; a careless one signs off.** This
+  asymmetry is a known sharp edge — see the 0.2 backlog item
+  *"DAL-A fail-loud on missing MC/DC."*
+- Projects pursuing actual DAL-A certification today need an auxiliary
+  qualified MC/DC tool (LDRA, VectorCAST, Rapita) and must record its
+  output by reference in their own qualification submission. This tool's
+  bundle does not yet have a schema hook for that reference; that's also
+  in the 0.2 backlog.
+
+The `CoverageLevel::Mcdc` enum variant + the `decisions: Vec<DecisionCoverage>`
+and `conditions: Vec<ConditionCoverage>` per-file vectors in the bundle's
+coverage schema are forward-looking placeholders so the wire format can absorb
+rustc's future re-implementation without a breaking schema bump. They emit
+empty arrays today.
 
 ### ADR-001: Evidence Engine Invariants
 
