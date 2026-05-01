@@ -2317,3 +2317,95 @@ via serde.
 """
 verification_methods = ["test"]
 emits = ["BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC"]
+
+[[requirements]]
+uid = "c27cc5cb-ab24-4928-8d5c-2a2bdeb0659d"
+id = "LLR-074"
+title = "ToolResponse.success boolean derivation in evidence-mcp"
+owner = "tool"
+traces_to = ["48a416ff-8555-4a26-b802-bc854cc4d0fd"]
+modules = [
+    "evidence_mcp::schema::JsonlToolResponse",
+    "evidence_mcp::schema::RulesToolResponse",
+    "evidence_mcp::schema::DiffToolResponse",
+]
+derived = false
+description = """
+`JsonlToolResponse`, `RulesToolResponse`, and `DiffToolResponse` each
+carry a top-level `success: bool` field. The boolean is computed by
+`evidence_mcp` after the subprocess produces (or fails to produce)
+output and after any tool-layer error is folded in:
+
+  - `JsonlToolResponse::success = exit_code == 0 && terminal.ends_with("_OK")`
+    where `terminal` is the last parsed JSONL line's `code`. The two-
+    condition rule covers the case where a tool-layer failure
+    synthesizes a `MCP_*` terminal (which is not `_OK`-suffixed) AND
+    sets `exit_code == 2`; success is false in either failure mode
+    independently, so a buggy synthesizer that flips one without the
+    other still produces `success == false`.
+  - `RulesToolResponse::success = exit_code == 0 && error.is_none()`.
+    The CLI's `evidence rules` returns the manifest in stdout and
+    never emits a JSONL terminal — the CLI's success indicator is
+    exit 0 + parseable output. Server-layer warnings (version-skew
+    prepends) are informational and do not affect success.
+  - `DiffToolResponse::success = exit_code == 0 && error.is_none()`.
+    Diff reports differences via the `diff` blob and exits 0 even
+    when bundles differ; the boolean is true in that case.
+
+Field is `pub success: bool` on each struct, schemars-derived (no
+custom `JsonSchema` impl), and serialized by serde — the JSON Schema
+advertised to MCP hosts gains a `"success": {"type": "boolean"}`
+property automatically. Field is mandatory (not `Option<bool>`,
+not `default`-skipped); MCP hosts can rely on it being present in
+every response.
+
+The derivation lives next to the response constructors in
+`evidence_mcp::server::responses` (and equivalents for the other two
+shapes) so a future change to terminal codes or error paths can't
+silently desync the boolean from the structured state.
+
+Crate-level test in `evidence_mcp::schema::tests` pins each derivation
+rule against a known input grid; an additional integration test in
+`crates/evidence-mcp/tests/success_field.rs` rounds the boolean
+across the four MCP verbs (check / doctor / floors / rules) under
+both happy and failure paths.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "76f2567f-3d6d-4633-9d2c-00d03cc2b529"
+id = "LLR-075"
+title = "main.rs --help intercept reuses clap's render tree"
+owner = "tool"
+traces_to = ["34234f8b-9f0b-47d4-829e-aed0ac96d51c"]
+modules = ["cargo_evidence::main"]
+derived = false
+description = """
+`crates/cargo-evidence/src/main.rs`'s `-h` / `--help` intercept builds
+a `clap::Command` for the `EvidenceArgs` parser and renders its
+long-help directly, instead of printing a hand-typed redirect stub.
+
+Concretely: the intercept calls `EvidenceArgs::command()` (the
+clap-generated `CommandFactory` impl), prepends a one-line banner
+naming the binary version and the dual invocation form
+(`cargo evidence` + direct), then writes the long-form help via
+`cmd.write_long_help(&mut stdout)`. The result includes clap's auto-
+generated `Commands:` block — every variant of the `Commands` enum
+in `cli::args` appears with its `#[command(about = …)]` description.
+
+Output stays under 80-column wrap-friendly when terminal width is
+fixed (clap's default render); this is a UX courtesy, not a
+testable contract — the test pins only that each subcommand name
+appears at least once in the rendered output.
+
+Exit code: `0` on success, matching clap's auto-help convention.
+
+The intercept lives at the top of `main()` (before the
+`CargoCli::parse()` call) because the cargo subcommand dispatch form
+(`cargo-evidence evidence …`) and the direct form
+(`cargo-evidence --help`) take different argv shapes — clap's
+`CargoCli::parse()` accepts only the dispatch form. The intercept's
+`std::env::args().nth(1)` peek catches the direct form before clap
+errors out.
+"""
+verification_methods = ["test"]

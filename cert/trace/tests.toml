@@ -1160,3 +1160,72 @@ test_selectors = [
     "evidence_core::boundary_check::tests::dal_a_mcdc_check_fires_on_dal_a_without_tool",
     "dal_qualification_gate::test_generate_dev_profile_warns_on_dal_a_without_mcdc_tool_but_continues",
 ]
+
+[[tests]]
+uid = "af0b2d2c-1f59-49f5-9480-17a956929127"
+id = "TEST-081"
+title = "ToolResponse.success boolean across all four shapes + happy/failure paths"
+owner = "tool"
+traces_to = ["c27cc5cb-ab24-4928-8d5c-2a2bdeb0659d"]
+description = """
+Coverage matrix for the success boolean derivation:
+
+  - `JsonlToolResponse`: success is true on a `_OK`-terminal +
+    exit 0 (verify happy path); false on a `_FAIL` terminal + exit 2
+    (verification failure); false on an `MCP_*` terminal + exit 2
+    (tool-layer failure synthesized when subprocess can't spawn).
+  - `RulesToolResponse`: success is true when `error.is_none()` +
+    exit 0; false when subprocess produced unparseable JSON
+    (`error = Some(MCP_MALFORMED_RULES_BLOB)`); server-layer
+    warnings (version-skew prepends) leave success unchanged.
+  - `DiffToolResponse`: success is true on exit 0 even when bundles
+    differ (diff reports, doesn't judge); false on tool-layer
+    failure.
+  - `PingResponse`: not part of this contract — ping has no failure
+    path that would warrant a success bool, and its three skew
+    states are already structured.
+"""
+test_selectors = [
+    "evidence_mcp::schema::tests::jsonl_response_success_true_on_ok_terminal",
+    "evidence_mcp::schema::tests::jsonl_response_success_false_on_fail_terminal",
+    "evidence_mcp::schema::tests::jsonl_response_success_false_on_mcp_synthetic",
+    "evidence_mcp::schema::tests::rules_response_success_true_when_error_none",
+    "evidence_mcp::schema::tests::rules_response_success_false_when_error_some",
+    "evidence_mcp::schema::tests::rules_response_warnings_do_not_flip_success",
+    "evidence_mcp::schema::tests::diff_response_success_true_when_error_none",
+    "evidence_mcp::schema::tests::diff_response_success_false_when_error_some",
+]
+
+[[tests]]
+uid = "281db1d7-43e7-4b4e-8cf8-be6d12133dd9"
+id = "TEST-082"
+title = "cargo-evidence --help direct invocation lists every subcommand"
+owner = "tool"
+traces_to = ["76f2567f-3d6d-4633-9d2c-00d03cc2b529"]
+description = """
+Spawns the built `cargo-evidence` binary with `--help` directly
+(no cargo dispatch), captures stdout, and asserts:
+
+  - Exit code 0.
+  - Banner line names the version + both invocation forms.
+  - Every subcommand variant in `cli::args::Commands` appears as a
+    standalone token in the rendered output, asserted by walking
+    the enum at runtime via a strum-like fallback (the test pins
+    against a hand-curated list `["generate", "verify", "check",
+    "diff", "doctor", "init", "schema", "trace", "rules",
+    "floors"]` — adding a new subcommand without updating this list
+    fails the test, which is the desired drift-guard).
+  - `cargo-evidence -h` produces identical output (clap renders
+    short and long help separately; this test pins long help, but
+    a sibling assertion confirms `-h` exits 0 with non-empty
+    stdout).
+
+Negative branch: `cargo-evidence` (no args) still parses through
+clap's `CargoCli::parse()` and surfaces clap's "missing required
+subcommand" error on stderr with exit 2 — the intercept's only job
+is to handle `--help` / `--version`, not all unhandled invocations.
+"""
+test_selectors = [
+    "cli::test_cargo_evidence_help_lists_subcommands",
+    "cli::test_cargo_evidence_dash_h_exits_zero",
+]

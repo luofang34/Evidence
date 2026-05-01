@@ -1557,3 +1557,100 @@ assignment locally are not blocked.
 """
 verification_methods = ["test"]
 traces_to = ["5af6e706-6aef-411d-811d-747633876695"]
+
+[[requirements]]
+uid = "48a416ff-8555-4a26-b802-bc854cc4d0fd"
+id = "HLR-067"
+title = "MCP tool responses carry an explicit success boolean"
+owner = "tool"
+scope = "component"
+description = """
+Every MCP tool response — `JsonlToolResponse`, `RulesToolResponse`,
+`DiffToolResponse` — carries a top-level `success: bool` field that is
+`true` exactly when the underlying CLI run produced no error. The
+field is additive and structured so a host need not pattern-match on
+`exit_code`, scan the diagnostics array, or string-suffix the
+`terminal` to learn pass/fail. Existing fields (`exit_code`,
+`terminal`, `error`) remain unchanged for callers that already parse
+them.
+
+Derivation rules, fixed in the schema docstrings:
+
+  - `JsonlToolResponse.success`: `terminal.ends_with("_OK")` and
+    `exit_code == 0`. Both conditions must hold; a tool-layer
+    `MCP_*` error sets `terminal` to the MCP code AND flips
+    `exit_code` to 2, so success is false.
+  - `RulesToolResponse.success`: `error.is_none() && exit_code == 0`.
+    Server-layer `warnings` (version-skew prepends) are
+    informational and do not flip success.
+  - `DiffToolResponse.success`: `error.is_none() && exit_code == 0`.
+    Diff reports differences but does not judge them; finding a
+    delta is still success.
+
+Rationale: LLR-064 documented the contract that hosts must
+dispatch on `terminal` / `error.code` rather than on `exit_code`,
+because the CLI's verification-fail (exit 2) and the MCP's tool-layer
+fail (also exit 2) deliberately collide. Documentation alone does
+not prevent an implementer from defaulting to the simple
+`exit_code != 0` dispatch and conflating the two failure classes —
+the contract should be machine-evident, not just human-readable.
+A single boolean derived deterministically from the structured
+fields makes the contract bullet-proof: hosts have one canonical
+field to read.
+
+The boolean is computed inside `evidence-mcp` (not produced by the
+CLI), so the CLI's exit-code semantics stay unchanged. Older agents
+that ignore unknown JSON fields keep working; newer agents read
+`success` directly. The field is documented as the canonical
+machine signal in `crates/evidence-mcp/README.md`'s "Failure-shape
+contract" section.
+"""
+verification_methods = ["test"]
+traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
+surfaces = ["agent MCP surface"]
+
+[[requirements]]
+uid = "34234f8b-9f0b-47d4-829e-aed0ac96d51c"
+id = "HLR-068"
+title = "Direct cargo-evidence --help invocation lists subcommands, not a redirect stub"
+owner = "tool"
+scope = "component"
+description = """
+`cargo-evidence --help` and `cargo-evidence -h`, when invoked
+directly (binary path resolved via `which cargo-evidence` rather
+than the cargo subcommand dispatch `cargo evidence ...`), print a
+usable summary of every subcommand. Output is reachable without
+needing the user/agent to know that the canonical invocation form
+is `cargo evidence ...`.
+
+Output shape, fixed by the test:
+
+  - First line: `cargo-evidence <version> — DO-178C / DO-330
+    evidence bundles for Rust crates.`
+  - Invocation hint paragraph naming both forms (`cargo evidence`
+    and direct binary).
+  - A `SUBCOMMANDS:` block listing every variant of the `Commands`
+    enum in `cli::args` with its one-line description (clap's
+    auto-help rendering, generated from the `#[command(about = …)]`
+    attributes on each variant). New subcommands appear
+    automatically when added — the binary intercept must not
+    drift from clap's view.
+
+Existing behavior preserved:
+
+  - `cargo evidence --help` (the cargo subcommand path) continues
+    to flow through clap's `#[command(version)]` /
+    `#[command(about)]` auto-handler on `EvidenceArgs`, unchanged.
+  - `cargo-evidence --version` / `-V` continues to print
+    `cargo-evidence <version>` and exit 0.
+
+Rationale: an agent that pins the binary path with
+`which cargo-evidence` and runs the resolved path's `--help`
+directly currently gets a four-line stub directing back to
+`cargo evidence --help`. That asymmetry is friction without
+purpose: the help content already exists in clap's render tree.
+The intercept should reuse that render tree, not paper over it.
+"""
+verification_methods = ["test"]
+traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
+surfaces = ["agent MCP surface"]

@@ -52,11 +52,11 @@ terminal_codes = 13
 # cert/trace/sys.toml — System Requirements.
 trace_sys = 28
 # cert/trace/hlr.toml — High-Level Requirements.
-trace_hlr = 66
+trace_hlr = 68
 # cert/trace/llr.toml — Low-Level Requirements.
-trace_llr = 73
+trace_llr = 75
 # cert/trace/tests.toml — Test Cases.
-trace_test = 78
+trace_test = 80
 
 # evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
