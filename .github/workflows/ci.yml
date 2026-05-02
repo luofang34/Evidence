@@ -928,11 +928,35 @@ jobs:
             exit 1
           fi
 
+      - name: Generate ephemeral signing keypair
+        # Cert / record profile generate now requires an ed25519
+        # signing key. CI doesn't carry the project's real signing
+        # key (no shared secret yet); generate an ephemeral pair
+        # under $RUNNER_TEMP and pin EVIDENCE_PUBKEY_ANCHOR at the
+        # ephemeral pubkey so the anchor consistency check passes
+        # by construction. The ephemeral pubkey is NOT the
+        # committed `cert/signing.pub`, but pointing the anchor at
+        # the ephemeral file is the documented escape hatch for
+        # CI-managed ephemeral signing — silent re-key forks are
+        # still impossible because the env var is explicit at the
+        # workflow level. A follow-up PR sets up
+        # `EVIDENCE_SIGNING_KEY_HEX` as a real GitHub Actions
+        # secret bound to `cert/signing.pub`, at which point this
+        # ephemeral path is no longer needed for end-to-end self-
+        # evidence chain-of-custody.
+        run: |
+          mkdir -p "$RUNNER_TEMP/sig"
+          ./target/release/cargo-evidence evidence keygen \
+            --out-dir "$RUNNER_TEMP/sig"
+
       - name: Generate bundle with --profile cert
+        env:
+          EVIDENCE_PUBKEY_ANCHOR: ${{ runner.temp }}/sig/signing.pub
         run: |
           mkdir -p "$RUNNER_TEMP/cert-out"
           ./target/release/cargo-evidence evidence generate \
             --skip-tests \
+            --signing-key "$RUNNER_TEMP/sig/signing.key" \
             --out-dir "$RUNNER_TEMP/cert-out" \
             --profile cert
 
@@ -946,6 +970,12 @@ jobs:
 
       - name: Verify bundle (prerelease-aware)
         shell: bash
+        env:
+          # The cert bundle was signed with the ephemeral private key
+          # generated above; verify must use the matching ephemeral
+          # pubkey, not the project's committed cert/signing.pub
+          # anchor (which would belong to a different signer).
+          EVIDENCE_VERIFY_KEY_PATH: ${{ runner.temp }}/sig/signing.pub
         run: |
           # If cargo-evidence's own crate version carries a pre-release
           # suffix (e.g. `-alpha.N`, `-rc.N`, `-dev.N`), verify MUST

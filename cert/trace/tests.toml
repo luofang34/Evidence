@@ -1302,12 +1302,12 @@ anchor files:
     seed → anyhow error carrying SIGN_PUBKEY_ANCHOR_MISMATCH.
 Plus two helpers covering signing-key path resolution priority:
   - resolve_signing_key_path_prefers_explicit_flag.
-  - resolve_signing_key_path_returns_none_when_nothing_set.
+  - resolve_signing_key_path_returns_none_when_neither_explicit_nor_env.
 """
 test_selectors = [
     "cli::generate::finalize::tests::anchor_absent_is_ok",
     "cli::generate::finalize::tests::anchor_match_is_ok",
     "cli::generate::finalize::tests::anchor_mismatch_refuses",
     "cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
-    "cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_nothing_set",
+    "cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env",
 ]

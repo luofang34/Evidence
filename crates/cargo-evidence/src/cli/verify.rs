@@ -90,7 +90,7 @@ pub fn cmd_verify(
     verify_key: Option<PathBuf>,
     format: OutputFormat,
 ) -> Result<i32> {
-    let verify_key = resolve_verify_key_path(verify_key);
+    let verify_key = resolve_verify_key_path(verify_key, &bundle_path);
     // Jsonl takes a dedicated streaming path so each finding flushes
     // per-line and a terminal `VERIFY_OK` / `VERIFY_FAIL` event lands
     // last — Schema Rules 1, 2, 4. Human and Json both round up to

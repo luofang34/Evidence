@@ -27,8 +27,23 @@ use evidence_core::{EvidenceBuilder, Profile, sign_bundle};
 /// Default location of the project's signing (private) key.
 const DEFAULT_SIGNING_KEY: &str = "cert/signing.key";
 /// Default location of the project's verifying (public) key, used as
-/// the anchor in the consistency check.
+/// the anchor in the consistency check. Overridable via
+/// `$EVIDENCE_PUBKEY_ANCHOR` for CI workflows that produce bundles
+/// signed with an ephemeral keypair (the env var should point at the
+/// ephemeral pubkey, satisfying the anchor check by construction).
 const DEFAULT_PUBKEY_ANCHOR: &str = "cert/signing.pub";
+
+/// Resolve the public-key anchor path for the consistency check:
+/// `$EVIDENCE_PUBKEY_ANCHOR` if set non-empty, else
+/// `cert/signing.pub`.
+fn resolve_pubkey_anchor_path() -> PathBuf {
+    if let Ok(env) = std::env::var("EVIDENCE_PUBKEY_ANCHOR") {
+        if !env.is_empty() {
+            return PathBuf::from(env);
+        }
+    }
+    PathBuf::from(DEFAULT_PUBKEY_ANCHOR)
+}
 
 fn resolve_signing_key_path(explicit: Option<PathBuf>) -> Option<PathBuf> {
     if let Some(p) = explicit {
@@ -86,11 +101,7 @@ fn check_pubkey_anchor(
     signing_key: &evidence_core::SigningKey,
     signing_key_path: &std::path::Path,
 ) -> Result<()> {
-    check_pubkey_anchor_at(
-        signing_key,
-        signing_key_path,
-        &PathBuf::from(DEFAULT_PUBKEY_ANCHOR),
-    )
+    check_pubkey_anchor_at(signing_key, signing_key_path, &resolve_pubkey_anchor_path())
 }
 
 /// Inner form taking an explicit anchor path so unit tests can

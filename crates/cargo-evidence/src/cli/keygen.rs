@@ -95,6 +95,11 @@ enum KeygenError {
         #[source]
         source: std::io::Error,
     },
+    /// Setting restrictive permissions on the private-key file
+    /// failed. Unix-only — Windows / non-Unix targets do not
+    /// distinguish "owner-only readable" at the POSIX-permission
+    /// layer and the `chmod_private` stub there is a no-op.
+    #[cfg(unix)]
     #[error("setting restrictive permissions on {path}: {source}")]
     Chmod {
         path: PathBuf,
