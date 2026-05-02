@@ -931,9 +931,7 @@ asserts that all six advertised verbs
 `evidence_ping`, `evidence_floors`, `evidence_diff`) appear
 in the response.
 """
-test_selectors = [
-    "mcp_surface::tools_list_advertises_all_six_verbs",
-]
+test_selectors = ["mcp_surface::tools_list_advertises_all_six_verbs"]
 
 [[tests]]
 uid = "1ad01fde-ee89-4f0f-9213-8d3cd8321eec"
@@ -981,9 +979,7 @@ emitted from the server but never added to the public
 vocabulary — agents pattern-matching on `.code` against the
 rules manifest would miss it.
 """
-test_selectors = [
-    "mcp_codes_audit::every_mcp_literal_in_source_is_registered",
-]
+test_selectors = ["mcp_codes_audit::every_mcp_literal_in_source_is_registered"]
 
 [[tests]]
 uid = "33ed3802-036f-443a-b465-b56a500c6428"
@@ -1075,9 +1071,7 @@ true` target. `check_no_proc_macros` returns
 crate name; the diagnostic carries
 `BOUNDARY_FORBIDDEN_PROC_MACRO`.
 """
-test_selectors = [
-    "evidence_core::boundary_check::tests::in_scope_proc_macro_fires_violation",
-]
+test_selectors = ["evidence_core::boundary_check::tests::in_scope_proc_macro_fires_violation"]
 
 [[tests]]
 uid = "8144c774-5c22-4463-9765-9323f88401c8"
@@ -1258,4 +1252,62 @@ test_selectors = [
     "editor_duplicates_locked::current_tree_is_clean",
     "editor_duplicates_locked::fires_on_synthetic_duplicate",
     "editor_duplicates_locked::passes_on_legitimate_digits_filename",
+]
+
+[[tests]]
+uid = "92ca41f0-30ba-4c22-8dd0-0aa0b7d96111"
+id = "TEST-084"
+title = "keygen lifecycle: create / refuse-overwrite / rotate / log"
+owner = "tool"
+traces_to = ["2edcdfa5-d7e7-4115-a3fa-8ed36354aa1b"]
+description = """
+Six tests exercising cmd_keygen against tempdirs, plus a Unix-only
+permission check:
+  - first_time_create_writes_both_files: keypair files appear, no
+    KEY-ROTATION-LOG is written.
+  - refuses_overwrite_without_rotate: second create returns
+    EXIT_ERROR.
+  - rotate_requires_existing_pair: --rotate against an empty dir
+    returns EXIT_ERROR.
+  - rotate_overwrites_and_logs: keypair changes; log records the
+    --reason text.
+  - rotate_without_reason_is_an_error: --rotate without --reason is
+    a top-level anyhow error.
+  - rotate_appends_each_log_line: two rotations produce two lines.
+  - signing_key_chmod_600_on_unix: signing.key has owner-rw mode.
+"""
+test_selectors = [
+    "cli::keygen::tests::first_time_create_writes_both_files",
+    "cli::keygen::tests::refuses_overwrite_without_rotate",
+    "cli::keygen::tests::rotate_requires_existing_pair",
+    "cli::keygen::tests::rotate_overwrites_and_logs",
+    "cli::keygen::tests::rotate_without_reason_is_an_error",
+    "cli::keygen::tests::rotate_appends_each_log_line",
+    "cli::keygen::tests::signing_key_chmod_600_on_unix",
+]
+
+[[tests]]
+uid = "eb395589-4eb1-4052-b215-2d424085e694"
+id = "TEST-085"
+title = "anchor consistency: missing / match / mismatch"
+owner = "tool"
+traces_to = ["3f015ac7-8a76-405b-a180-a2f0183a4b85"]
+description = """
+Three tests exercising check_pubkey_anchor_at against tempdir
+anchor files:
+  - anchor_absent_is_ok: missing anchor file → Ok(()).
+  - anchor_match_is_ok: anchor pubkey == signing-key.verifying_key →
+    Ok(()).
+  - anchor_mismatch_refuses: anchor written from a different signing
+    seed → anyhow error carrying SIGN_PUBKEY_ANCHOR_MISMATCH.
+Plus two helpers covering signing-key path resolution priority:
+  - resolve_signing_key_path_prefers_explicit_flag.
+  - resolve_signing_key_path_returns_none_when_nothing_set.
+"""
+test_selectors = [
+    "cli::generate::finalize::tests::anchor_absent_is_ok",
+    "cli::generate::finalize::tests::anchor_match_is_ok",
+    "cli::generate::finalize::tests::anchor_mismatch_refuses",
+    "cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
+    "cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_nothing_set",
 ]

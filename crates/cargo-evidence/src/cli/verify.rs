@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use anyhow::Result;
 use serde::Serialize;
 
-use evidence_core::SigningError;
 use evidence_core::diagnostic::{Diagnostic, DiagnosticCode, Severity};
 use evidence_core::verify::VerifyRuntimeError;
 use evidence_core::{VerifyResult, read_verifying_key, verify_bundle_with_key};
@@ -14,9 +13,11 @@ use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFor
 use super::output::{emit_json, emit_jsonl};
 
 mod incomplete_bundle;
+mod key_resolve;
 mod skipped_notices;
 mod terminals;
 use incomplete_bundle::maybe_emit_bundle_incomplete_warning;
+use key_resolve::{classify_key_load_diagnostic, resolve_verify_key_path};
 use skipped_notices::maybe_emit_llr_check_skipped_no_outcomes;
 use terminals::{terminal_error, terminal_fail, terminal_ok};
 
@@ -89,6 +90,7 @@ pub fn cmd_verify(
     verify_key: Option<PathBuf>,
     format: OutputFormat,
 ) -> Result<i32> {
+    let verify_key = resolve_verify_key_path(verify_key);
     // Jsonl takes a dedicated streaming path so each finding flushes
     // per-line and a terminal `VERIFY_OK` / `VERIFY_FAIL` event lands
     // last — Schema Rules 1, 2, 4. Human and Json both round up to
@@ -467,22 +469,5 @@ fn cmd_verify_jsonl(
             emit_jsonl(&terminal_error(&runtime_msg))?;
             Ok(EXIT_ERROR)
         }
-    }
-}
-
-/// Classify a verify-key load failure: I/O failures route through
-/// `VerifyRuntimeError::ReadVerifyKey` (preserving the documented
-/// `VERIFY_RUNTIME_READ_VERIFY_KEY` surface); parse failures keep the
-/// underlying `SigningError` (`SIGN_INVALID_KEY` etc.). Returns the
-/// structured `Diagnostic` for the JSONL stream; callers needing the
-/// human-readable text read it off `diagnostic.message`.
-fn classify_key_load_diagnostic(path: &std::path::Path, err: SigningError) -> Diagnostic {
-    match err {
-        SigningError::Read { source, .. } => VerifyRuntimeError::ReadVerifyKey {
-            path: path.to_path_buf(),
-            source,
-        }
-        .to_diagnostic(),
-        other => other.to_diagnostic(),
     }
 }

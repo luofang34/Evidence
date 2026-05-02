@@ -2087,9 +2087,7 @@ os-error message, prints `error: reading verify key from
 and exits 1.
 """
 verification_methods = ["test"]
-emits = [
-    "VERIFY_RUNTIME_READ_VERIFY_KEY",
-]
+emits = ["VERIFY_RUNTIME_READ_VERIFY_KEY"]
 
 [[requirements]]
 uid = "6737b21f-831a-4350-aa6e-b20f29c5417c"
@@ -2097,9 +2095,7 @@ id = "LLR-070"
 title = "check_no_build_rs flags in-scope crates with kind=custom-build targets"
 owner = "tool"
 traces_to = ["beae070b-5998-48f4-8fd9-235ed14c93d5"]
-modules = [
-    "evidence_core::boundary_check::check_no_build_rs",
-]
+modules = ["evidence_core::boundary_check::check_no_build_rs"]
 description = """
 `check_no_build_rs(in_scope: &[String], workspace_root: &Path)
 -> Result<(), BoundaryCheckError>` parses `cargo metadata
@@ -2131,9 +2127,7 @@ id = "LLR-071"
 title = "check_no_proc_macros flags in-scope crates with kind=proc-macro targets"
 owner = "tool"
 traces_to = ["49d5c8b2-5c51-4046-a08d-ffde61f6c846"]
-modules = [
-    "evidence_core::boundary_check::check_no_proc_macros",
-]
+modules = ["evidence_core::boundary_check::check_no_proc_macros"]
 description = """
 `check_no_proc_macros(in_scope: &[String], workspace_root:
 &Path) -> Result<(), BoundaryCheckError>` parses `cargo
@@ -2356,7 +2350,7 @@ title = "editor_duplicates_locked walks the repo and fires on ` N.<ext>` filenam
 owner = "tool"
 traces_to = ["202c2281-f2d7-4e43-8a6e-93da96f92add"]
 modules = ["evidence_core::tests::editor_duplicates_locked"]
-description = """
+description = '''
 Integration test under `crates/evidence-core/tests/`. Walks the
 workspace from `CARGO_MANIFEST_DIR`'s grandparent (the repo root)
 using `walkdir::WalkDir::new(root).follow_links(false)`, prunes
@@ -2365,7 +2359,7 @@ the conventional skip directories
 collected list of every basename matching the pinned regex:
 
   ```text
-  ^.+ ([0-9]{1,2})\\.(rs|toml|yml|yaml|md|json|lock)$
+  ^.+ ([0-9]{1,2})\.(rs|toml|yml|yaml|md|json|lock)$
   ```
 
 The leading-space-then-digit anchor matters: it specifically
@@ -2388,5 +2382,52 @@ justification beside the const.
 Cross-platform note: walks paths via `walkdir` and normalizes
 separators to `/` before suffix-matching the reserved list, per
 the `project_path_separator_on_windows` memory.
+'''
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "2edcdfa5-d7e7-4115-a3fa-8ed36354aa1b"
+id = "LLR-077"
+title = "cmd_keygen create + rotate dispatch"
+owner = "tool"
+traces_to = ["b874c97f-dbcd-424f-a1fe-15b16cf36876"]
+modules = ["cargo_evidence::cli::keygen::cmd_keygen"]
+description = """
+cmd_keygen branches on the `rotate` flag. The create branch refuses if
+either signing.key or signing.pub already exists (Outcome::RefusedExists
+→ KEYGEN_KEY_EXISTS finding + KEYGEN_FAIL terminal, exit 1). The rotate
+branch refuses if either file is missing (Outcome::RefusedRotateMissing
+→ same code pair) and refuses up-front if --reason is missing (top-level
+anyhow error). On success, both branches generate a fresh keypair via
+evidence_core::{generate_signing_key, write_signing_key,
+write_verifying_key}, best-effort chmod 600 on signing.key (Unix only),
+and emit KEYGEN_OK; the rotate branch additionally appends a single
+line to KEY-ROTATION-LOG carrying timestamp + new pubkey hex + reason.
 """
 verification_methods = ["test"]
+emits = [
+    "KEYGEN_OK",
+    "KEYGEN_FAIL",
+    "KEYGEN_KEY_EXISTS",
+]
+
+[[requirements]]
+uid = "3f015ac7-8a76-405b-a180-a2f0183a4b85"
+id = "LLR-078"
+title = "finalize::check_pubkey_anchor refuses on mismatch"
+owner = "tool"
+traces_to = ["14e47afb-0e80-45e3-b795-c263671a221a"]
+modules = ["cargo_evidence::cli::generate::finalize::check_pubkey_anchor"]
+description = """
+After writing BUNDLE.sig, the finalize phase calls check_pubkey_anchor
+with the just-used signing key. When `cert/signing.pub` exists the
+function reads it via evidence_core::read_verifying_key and compares
+its 32-byte representation to signing_key.verifying_key().to_bytes().
+Mismatch returns an anyhow error carrying SIGN_PUBKEY_ANCHOR_MISMATCH
+and the two paths involved; missing anchor file is a no-op (Ok(())).
+The inner check_pubkey_anchor_at takes the anchor path explicitly so
+unit tests can drive comparisons against tempdir fixtures rather than
+the real cert/signing.pub.
+"""
+verification_methods = ["test"]
+emits = ["SIGN_PUBKEY_ANCHOR_MISMATCH"]

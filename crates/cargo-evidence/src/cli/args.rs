@@ -197,7 +197,10 @@ impl OutputFormat {
 pub enum Commands {
     /// Generate a new evidence bundle for the current build (default command)
     Generate {
-        /// Path to HMAC signing key file (raw bytes)
+        /// Path to the ed25519 signing (private) key file (32-byte
+        /// hex, 64 chars + optional trailing newline). Defaults to
+        /// `cert/signing.key` and `$EVIDENCE_SIGNING_KEY_PATH` in
+        /// that order; cert/record profiles fail if no key resolves.
         #[arg(long)]
         sign_key: Option<PathBuf>,
 
@@ -227,7 +230,10 @@ pub enum Commands {
         #[arg(long)]
         strict: bool,
 
-        /// Path to HMAC verification key file (raw bytes)
+        /// Path to the ed25519 verifying (public) key file (32-byte
+        /// hex, 64 chars + optional trailing newline). Defaults to
+        /// `cert/signing.pub` and `$EVIDENCE_VERIFY_KEY_PATH` in
+        /// that order.
         #[arg(long)]
         verify_key: Option<PathBuf>,
 
@@ -254,6 +260,32 @@ pub enum Commands {
         /// Overwrite existing files
         #[arg(long)]
         force: bool,
+    },
+
+    /// Manage the project's ed25519 signing keypair (lifecycle: create / rotate).
+    ///
+    /// First run writes `cert/signing.key` (private; gitignored)
+    /// and `cert/signing.pub` (public; commit). Refuses if either
+    /// file already exists. To rotate an existing keypair, pass
+    /// `--rotate --reason <text>`; the rotation appends one line
+    /// to `cert/KEY-ROTATION-LOG` so the transition is reviewable.
+    Keygen {
+        /// Replace an existing keypair. Refuses unless both
+        /// `signing.key` and `signing.pub` already exist.
+        #[arg(long)]
+        rotate: bool,
+
+        /// Reason for rotation. Required with `--rotate`; recorded
+        /// alongside the new public-key fingerprint and timestamp
+        /// in `cert/KEY-ROTATION-LOG`.
+        #[arg(long)]
+        reason: Option<String>,
+
+        /// Override the directory holding `signing.key`,
+        /// `signing.pub`, and `KEY-ROTATION-LOG`. Defaults to
+        /// `cert/`.
+        #[arg(long)]
+        out_dir: Option<PathBuf>,
     },
 
     /// Manage and validate evidence schemas

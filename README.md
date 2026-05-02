@@ -320,22 +320,35 @@ the metadata-layer tampering gap.
 **Generating and verifying:**
 
 ```bash
-# One-time: generate an ed25519 keypair (any tool that produces 32-byte
-# raw private + 32-byte raw public works; openssl shown here).
-# A native `cargo evidence keygen` subcommand is planned.
-openssl genpkey -algorithm ed25519 -outform raw -out signing.key.raw
-xxd -p -c 64 signing.key.raw > cert/signing.key
-openssl pkey -in signing.key.raw -inform raw -pubout -outform raw -out signing.pub.raw
-xxd -p -c 64 signing.pub.raw > cert/signing.pub
-chmod 600 cert/signing.key   # private — never commit
-# Commit cert/signing.pub; gitignore cert/signing.key.
+# One-time: generate the project's ed25519 keypair. Refuses if a
+# pair already exists; use `keygen --rotate --reason <text>` to
+# replace one (rotation is appended to cert/KEY-ROTATION-LOG).
+cargo evidence keygen
+# → writes cert/signing.key (gitignored, mode 0600 on Unix)
+# → writes cert/signing.pub (commit this; it's the public anchor)
 
-# Sign during generate
-cargo evidence generate --signing-key cert/signing.key --out-dir /tmp/evidence
+# Sign during generate. Without --signing-key, the tool falls back
+# to $EVIDENCE_SIGNING_KEY_PATH and then cert/signing.key in that
+# order. Cert/Record profiles fail loud if no key resolves.
+cargo evidence generate --out-dir /tmp/evidence
 
-# Verify with public key
-cargo evidence verify /tmp/evidence/<bundle> --verify-key cert/signing.pub
+# Verify with public key. Without --verify-key, the tool falls
+# back to $EVIDENCE_VERIFY_KEY_PATH and then cert/signing.pub.
+cargo evidence verify /tmp/evidence/<bundle>
 ```
+
+**Anchor consistency.** When `cert/signing.pub` is present, the
+public key derived from the signing key being used must match it
+byte-for-byte. Mismatch (`SIGN_PUBKEY_ANCHOR_MISMATCH`) refuses the
+generate run — the silent re-key defense: if a developer regenerates
+a keypair without going through `cargo evidence keygen --rotate`,
+the next `generate` catches the drift before the bundle ships.
+
+**Rotation audit trail.** `cargo evidence keygen --rotate --reason
+"<text>"` appends one line to `cert/KEY-ROTATION-LOG` carrying the
+timestamp, new public key hex, and the reason. That file is the
+project's keypair-history-of-record and should be committed
+alongside the new `cert/signing.pub`.
 
 ### Captured Output Normalization
 

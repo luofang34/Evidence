@@ -116,7 +116,10 @@ restriction on `Command::new` outside the git module would convert
 this from manual analysis to mechanical, but the soft analysis
 suffices for the current dev-profile shipping bar.
 """
-verification_methods = ["test", "analysis"]
+verification_methods = [
+    "test",
+    "analysis",
+]
 traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
 surfaces = ["generate"]
 
@@ -164,7 +167,10 @@ justify in the diff"). DERIVED-001 captures the BTreeMap-only
 choice as a derived design requirement so the obligation is visible
 in the trace store rather than implicit in code review.
 """
-verification_methods = ["test", "analysis"]
+verification_methods = [
+    "test",
+    "analysis",
+]
 traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
 surfaces = ["generate"]
 
@@ -200,7 +206,10 @@ attribute (e.g., `#[deterministic_manifest(included|excluded)]`)
 would mechanize the obligation; the manual analysis suffices for
 the current shipping bar.
 """
-verification_methods = ["test", "analysis"]
+verification_methods = [
+    "test",
+    "analysis",
+]
 traces_to = ["ee75dd4a-972d-44e1-96dd-1bc08c8f8726"]
 surfaces = ["generate"]
 
@@ -1427,9 +1436,9 @@ ping is deliberately NOT a wrapper over any `cargo evidence`
 subcommand — its value is being cheap. That asymmetry is the
 surface contract.
 """
-surfaces = ["agent MCP surface"]
 verification_methods = ["test"]
 traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
+surfaces = ["agent MCP surface"]
 
 [[requirements]]
 uid = "0ba7d479-c45b-4786-9ff9-7e7a75565765"
@@ -1467,9 +1476,9 @@ name each dimension that regressed — `diagnostic_codes`,
 `trace_llr`, `per_crate.evidence-mcp.test_count`, etc. — and
 suggest fixes that only touch the specific inputs.
 """
-surfaces = ["agent MCP surface"]
 verification_methods = ["test"]
 traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
+surfaces = ["agent MCP surface"]
 
 [[requirements]]
 uid = "b38d6ef2-1287-4087-b580-b81450f596a3"
@@ -1509,9 +1518,9 @@ JSON blob (not JSONL), the response shape differs from the
 streaming verbs — there's no `terminal` / `diagnostics` /
 `summary` triad.
 """
-surfaces = ["agent MCP surface"]
 verification_methods = ["test"]
 traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
+surfaces = ["agent MCP surface"]
 
 [[requirements]]
 uid = "beae070b-5998-48f4-8fd9-235ed14c93d5"
@@ -1714,7 +1723,7 @@ id = "HLR-069"
 title = "Repository contains no editor-duplicate artifacts (` N.<ext>` filenames)"
 owner = "tool"
 scope = "component"
-description = """
+description = '''
 A mechanical gate refuses any path under the repository whose
 basename matches the editor-duplicate pattern: stem + ` ` (single
 ASCII space) + small-integer suffix + extension, for any of the
@@ -1723,7 +1732,7 @@ extensions the project recognizes as cert-relevant
 
 Concrete pattern, fixed in the test:
 
-  - Regex (basename, anchored): `^.+ ([0-9]{1,2})\\.(rs|toml|yml|yaml|md|json|lock)$`.
+  - Regex (basename, anchored): `^.+ ([0-9]{1,2})\.(rs|toml|yml|yaml|md|json|lock)$`.
   - Walks `crates/**`, `cert/**`, `tool/**`, `.github/**`, plus
     repo-root `*.md` / `*.toml`. Excludes `target/`, `.git/`,
     `node_modules/`, `fixtures/`, `cert/trace/` (audit journal).
@@ -1746,7 +1755,48 @@ artifact that is genuinely load-bearing (say, a third-party
 file the project consumes whose name happens to match the
 pattern) gets an entry here with written justification. The
 default state is zero exemptions.
-"""
+'''
 verification_methods = ["test"]
 traces_to = ["4b63a601-9770-4c3a-bfe4-e1d70e050c65"]
 surfaces = ["editor-duplicate gate"]
+
+[[requirements]]
+uid = "b874c97f-dbcd-424f-a1fe-15b16cf36876"
+id = "HLR-070"
+title = "cargo evidence keygen: explicit create + rotate"
+owner = "tool"
+scope = "component"
+description = """
+The `keygen` subcommand creates `cert/signing.{key,pub}` on first use
+and refuses if either file already exists (KEYGEN_KEY_EXISTS finding +
+KEYGEN_FAIL terminal). With `--rotate --reason <text>` it overwrites
+both files with a fresh keypair and appends one line to
+`cert/KEY-ROTATION-LOG` carrying the timestamp, new public-key hex,
+and reason. `--rotate` against an empty dir refuses (KEYGEN_KEY_EXISTS
++ KEYGEN_FAIL); `--rotate` without `--reason` refuses with a
+top-level CLI error. Successful create or rotate emits KEYGEN_OK.
+"""
+verification_methods = ["test"]
+traces_to = ["d469f0fa-0816-47a8-9452-b73e65f4cfd7"]
+surfaces = ["keygen"]
+
+[[requirements]]
+uid = "14e47afb-0e80-45e3-b795-c263671a221a"
+id = "HLR-071"
+title = "Generate refuses on signing.pub anchor mismatch"
+owner = "tool"
+scope = "component"
+description = """
+At bundle generation, after the signature is produced, the tool
+derives the public key from the signing key in use and compares it
+against `cert/signing.pub`. Mismatch is a refuse-to-emit failure
+emitting SIGN_PUBKEY_ANCHOR_MISMATCH; the bundle is not finalized to
+the success envelope. This is the silent-re-key defense: an operator
+who replaced their local signing.key without going through `keygen
+--rotate` triggers the check on their next `generate`. When the
+anchor file is absent (a project that has not yet bootstrapped its
+keypair), the check is a no-op.
+"""
+verification_methods = ["test"]
+traces_to = ["d469f0fa-0816-47a8-9452-b73e65f4cfd7"]
+surfaces = ["generate"]

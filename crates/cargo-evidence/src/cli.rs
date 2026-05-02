@@ -18,6 +18,7 @@ pub mod doctor;
 pub mod floors;
 pub mod generate;
 pub mod init;
+pub mod keygen;
 pub mod output;
 pub mod rules;
 pub mod schema;

@@ -525,6 +525,27 @@
     "terminal": false
   },
   {
+    "code": "KEYGEN_FAIL",
+    "severity": "error",
+    "domain": "keygen",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "KEYGEN_KEY_EXISTS",
+    "severity": "error",
+    "domain": "keygen",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "KEYGEN_OK",
+    "severity": "info",
+    "domain": "keygen",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
     "code": "MCP_CARGO_NOT_FOUND",
     "severity": "error",
     "domain": "mcp",
@@ -645,6 +666,13 @@
   },
   {
     "code": "SIGN_INVALID_SIGNATURE_HEX",
+    "severity": "error",
+    "domain": "sign",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "SIGN_PUBKEY_ANCHOR_MISMATCH",
     "severity": "error",
     "domain": "sign",
     "has_fix_hint": false,

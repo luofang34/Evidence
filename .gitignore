@@ -33,3 +33,19 @@ Thumbs.db
 # they are GC roots into /nix/store, not artifacts worth tracking.
 /result
 /result-**.actual
+
+# Project ed25519 signing private key. Generated via
+# `cargo evidence keygen` (or `keygen --rotate --reason <text>` for
+# rotation). Pair counterpart `cert/signing.pub` IS committed —
+# it's the project's public-key anchor. Never commit the private
+# key. CI stores its own private-key bytes as a repository secret
+# and writes them to a temp path the workflow passes via
+# `--signing-key`.
+/cert/signing.key
+
+# Local rotation log. The committed file `cert/KEY-ROTATION-LOG`
+# becomes the audit trail once a first rotation occurs; before
+# that, the absence of this file is itself the signal "no rotation
+# has happened yet." Treat as gitignored until the first rotation
+# commit lands the file deliberately.
+/cert/KEY-ROTATION-LOG

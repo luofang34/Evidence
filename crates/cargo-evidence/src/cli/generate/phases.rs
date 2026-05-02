@@ -6,13 +6,13 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use evidence_core::{
     BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
     Profile,
     git::{check_shallow_clone, git_ls_files, is_dirty_or_unknown},
-    load_trace_roots, parse_cargo_test_output_detailed, sign_bundle,
+    load_trace_roots, parse_cargo_test_output_detailed,
     trace::{generate_traceability_matrix, read_all_trace_files},
 };
 
@@ -387,29 +387,10 @@ pub(super) fn write_compliance_reports(
 }
 
 // Phase 9 — finalize bundle + optional ed25519 signing
+// (key resolution + anchor consistency live in the sibling
+// `finalize.rs` to keep this file under the workspace size cap).
 
-/// Finalize the bundle (writes `SHA256SUMS`, `index.json`, closes the
-/// builder) and, if `sign_key` is set, sign the envelope with the
-/// supplier's ed25519 signing (private) key and drop `BUNDLE.sig` next
-/// to it. Returns the bundle directory path.
-pub(super) fn finalize_and_sign(
-    builder: EvidenceBuilder,
-    trace_outputs: Vec<PathBuf>,
-    sign_key: Option<PathBuf>,
-    quiet: bool,
-    json_output: bool,
-) -> Result<PathBuf> {
-    let bundle_path = builder.finalize(trace_outputs)?;
-    if let Some(key_path) = sign_key {
-        let signing_key = evidence_core::read_signing_key(&key_path)
-            .with_context(|| format!("reading signing key from {:?}", key_path))?;
-        sign_bundle(&bundle_path, &signing_key)?;
-        if !quiet && !json_output {
-            println!("evidence: ed25519 signature written to BUNDLE.sig");
-        }
-    }
-    Ok(bundle_path)
-}
+pub(super) use super::finalize::finalize_and_sign;
 
 // Phase 10 — emit the success envelope
 
