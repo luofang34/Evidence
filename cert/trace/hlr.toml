@@ -99,8 +99,24 @@ Generate captures the git SHA, branch, and dirty status once at the
 start of the run and re-checks the SHA at finalize. Downstream steps
 read from the captured snapshot, not from fresh git queries, so a
 HEAD move mid-run cannot create a bundle that mixes two commits.
+
+**Analysis claim** (DO-178C §6.3.4 verification by analysis): test
+alone covers the capture-and-recheck behavior in isolation against a
+mock `GitProvider`, but cannot prove that *every* git query in the
+generate pipeline flows through the captured `GitSnapshot` rather
+than spawning `git` directly. That call-site invariant is verified
+by code analysis: `crates/evidence-core/src/git.rs` and
+`crates/cargo-evidence/src/cli/generate/phases.rs` are the only
+modules permitted to invoke `Command::new("git")` (or equivalent),
+and downstream phases read the SHA from the `EvidenceBuilder`'s
+captured field. The analysis is recorded in the SDD-equivalent
+section of `cert/trace/README.md` and re-confirmed at every PR
+review; a future PR introducing a clippy `disallowed_types`
+restriction on `Command::new` outside the git module would convert
+this from manual analysis to mechanical, but the soft analysis
+suffices for the current dev-profile shipping bar.
 """
-verification_methods = ["test"]
+verification_methods = ["test", "analysis"]
 traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
 surfaces = ["generate"]
 
@@ -131,8 +147,24 @@ The content-layer file (SHA256SUMS) lists every hashed bundle file
 with its SHA-256 digest, sorted by path with forward-slash separators
 regardless of host. BTreeMap collection enforces deterministic key
 order; no HashMap-driven nondeterminism is allowed.
+
+**Analysis claim** (DO-178C §6.3.4 verification by analysis): test
+proves byte-identical SHA256SUMS across two consecutive serialize
+calls in isolation. Cross-host equivalence is asserted in CI by the
+`Cross-host determinism` job (Linux × macOS × Windows on every
+push). What test does not prove is the negative claim — that no
+HashMap-typed collection sits anywhere in the path-ordering code
+path. That static-structure invariant is verified by analysis: the
+relevant modules (`evidence_core::hash::sha256_dir`,
+`evidence_core::bundle::manifest`, `evidence_core::bundle::builder`)
+declare BTreeMap-backed types at construction time; iteration order
+follows from the type. Code review at PR time enforces the rule
+("if you reach for HashMap in any deterministic-output module,
+justify in the diff"). DERIVED-001 captures the BTreeMap-only
+choice as a derived design requirement so the obligation is visible
+in the trace store rather than implicit in code review.
 """
-verification_methods = ["test"]
+verification_methods = ["test", "analysis"]
 traces_to = ["e16aabff-6655-4405-a1eb-b32f3def85f6"]
 surfaces = ["generate"]
 
@@ -147,8 +179,28 @@ deterministic-manifest.json is a host-independent projection of
 env.json covering only toolchain + source identity. Its SHA-256 is
 recorded in index.json.deterministic_hash; cross-host parity is
 asserted in CI via determinism-compare.
+
+**Analysis claim** (DO-178C §6.3.4 verification by analysis): tests
+cover (a) the projection function's behavior on representative
+env.json inputs and (b) cross-host parity at run-time via the
+five-flavor `determinism-compare` CI job. What tests cannot prove
+is *projection completeness* — that every host-dependent field in
+`env.json`'s source struct is either included in the projection
+deterministically or excluded by design. That coverage is verified
+by analysis: the projection's source code
+(`evidence_core::env::manifest::project_for_determinism`) is read
+against the `EnvironmentMetadata` struct definition, and each field
+is classified host-dependent (excluded), host-stable (included), or
+intentionally-host-dependent-but-projected (e.g., toolchain version
+strings, retained because they are part of the determinism-bearing
+identity). The analysis is documented in the same module's
+crate-level rustdoc and re-validated at PR review when either
+struct gains a field. A future PR introducing a struct-level
+attribute (e.g., `#[deterministic_manifest(included|excluded)]`)
+would mechanize the obligation; the manual analysis suffices for
+the current shipping bar.
 """
-verification_methods = ["test"]
+verification_methods = ["test", "analysis"]
 traces_to = ["ee75dd4a-972d-44e1-96dd-1bc08c8f8726"]
 surfaces = ["generate"]
 
