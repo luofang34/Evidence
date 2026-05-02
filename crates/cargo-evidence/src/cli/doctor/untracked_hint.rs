@@ -84,6 +84,20 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
+    /// `git` is an optional dependency for these tests — the helper
+    /// itself degrades gracefully when git is missing, but exercising
+    /// the happy paths requires `git init` / `git ls-files` to work.
+    /// The Nix `buildRustPackage` sandbox doesn't include `git` on
+    /// PATH; same pattern as the project's `MCP_RUN_LONG_CHECK`-gated
+    /// tests, returns early instead of failing.
+    fn git_available() -> bool {
+        Command::new("git")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+
     fn init_git_repo(dir: &Path) {
         let out = Command::new("git")
             .args(["init", "--quiet"])
@@ -95,6 +109,9 @@ mod tests {
 
     #[test]
     fn untracked_rs_files_finds_untracked() {
+        if !git_available() {
+            return;
+        }
         let tmp = TempDir::new().unwrap();
         init_git_repo(tmp.path());
         fs::write(tmp.path().join("orphan.rs"), "// untracked\n").unwrap();
@@ -118,6 +135,9 @@ mod tests {
 
     #[test]
     fn slack_message_passes_through_when_no_test_count_dimension() {
+        if !git_available() {
+            return;
+        }
         let tmp = TempDir::new().unwrap();
         init_git_repo(tmp.path());
         fs::write(tmp.path().join("orphan.rs"), "// untracked\n").unwrap();
@@ -132,6 +152,9 @@ mod tests {
 
     #[test]
     fn slack_message_appends_hint_on_test_count_with_untracked() {
+        if !git_available() {
+            return;
+        }
         let tmp = TempDir::new().unwrap();
         init_git_repo(tmp.path());
         fs::write(tmp.path().join("orphan.rs"), "// untracked\n").unwrap();
@@ -147,6 +170,9 @@ mod tests {
 
     #[test]
     fn slack_message_no_hint_when_test_count_but_no_untracked() {
+        if !git_available() {
+            return;
+        }
         let tmp = TempDir::new().unwrap();
         init_git_repo(tmp.path());
         // No untracked .rs files in this tree.
@@ -158,6 +184,9 @@ mod tests {
 
     #[test]
     fn slack_message_truncates_preview_above_five_files() {
+        if !git_available() {
+            return;
+        }
         let tmp = TempDir::new().unwrap();
         init_git_repo(tmp.path());
         for i in 0..7 {
