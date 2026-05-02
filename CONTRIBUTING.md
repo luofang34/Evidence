@@ -49,10 +49,27 @@ self-cert regressions before they reach CI. Don't skip them.
 ## Trace-first convention
 
 Default: every PR seeds its SYS/HLR/LLR/TEST entries in the first
-commit on the branch, before any implementation. UUIDs are
-generated at seed time (`python3 -c "import uuid; print(uuid.uuid4())"`).
-Each trace entry's `traces_to` array points at the parent UID one
-layer up.
+commit on the branch, before any implementation. UUIDs are **never
+hand-crafted** (even with valid v4 syntax) and **never generated
+externally** (e.g., a one-liner Python script): the tool's own
+`cargo evidence trace --backfill-uuids` is the single authoritative
+generator. The full rationale lives in `cert/trace/README.md`'s
+"UUID policy" section.
+
+Workflow for a new entry:
+
+1. Append the entry to the appropriate trace file
+   (`cert/trace/sys.toml` / `hlr.toml` / `llr.toml` / `tests.toml`)
+   **without** a `uid` field. Set `traces_to` to point at the
+   parent layer's UID — those already exist in the file.
+2. Run `cargo evidence trace --backfill-uuids` from the workspace
+   root. Discovery picks `cert/trace/` automatically; no
+   `--trace-roots` flag needed.
+3. Commit the populated TOML.
+
+Re-runs are no-ops; the `trace-self-validate` CI job asserts
+backfill reports "all entries already have UUIDs", catching an
+uncommitted backfill step before it reaches main.
 
 Each trace seed bumps the matching counter in `cert/floors.toml`
 (`trace_sys`, `trace_hlr`, `trace_llr`, `trace_test`). After the

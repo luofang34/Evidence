@@ -1696,3 +1696,4 @@ default state is zero exemptions.
 """
 verification_methods = ["test"]
 traces_to = ["4b63a601-9770-4c3a-bfe4-e1d70e050c65"]
+surfaces = ["editor-duplicate gate"]

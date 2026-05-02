@@ -149,14 +149,27 @@ fn fires_on_synthetic_duplicate() {
     );
 }
 
-/// Negative dogfood: a filename whose digits do NOT follow a leading
-/// space is legitimate and must not fire the gate.
+/// Negative dogfood: filenames whose digits do NOT follow a leading
+/// space are legitimate and must not fire the gate. Two distinct
+/// fixtures cover two regression classes independently:
+///
+///  - `mcdc_2024.rs` — digits run beyond the regex's 2-digit cap,
+///    so a regression that drops the leading-space anchor would
+///    still pass on this filename via the digit-count guard alone.
+///  - `mcdc_24.rs` — digits fit within the 2-digit cap, so this
+///    fixture isolates the leading-space anchor: the gate must
+///    fire only when there's a literal space before the digits.
+///
+/// Both must pass for the regex to be sound on independent
+/// regression vectors.
 #[test]
 fn passes_on_legitimate_digits_filename() {
     let tmp = tempfile::TempDir::new().expect("tempdir");
     let src = tmp.path().join("crates").join("fake").join("src");
     std::fs::create_dir_all(&src).expect("mkdir");
-    std::fs::write(src.join("mcdc_2024.rs"), "// legitimate filename\n").expect("write fixture");
+    std::fs::write(src.join("mcdc_2024.rs"), "// 4-digit filename\n").expect("write fixture");
+    std::fs::write(src.join("mcdc_24.rs"), "// 2-digit, no leading space\n")
+        .expect("write fixture");
     std::fs::write(src.join("v1_data.toml"), "[meta]\n").expect("write fixture");
     let hits = scan_for_duplicates(tmp.path());
     assert!(
