@@ -134,6 +134,32 @@ high-impact rules:
 - **No editor-duplicate filenames** (`* 2.rs`, `* 2.toml`, …).
   Mechanically enforced by `editor_duplicates_locked`.
 
+## Dogfooding doctor / hint / MCP behavior changes
+
+When a PR touches the user-facing output of `cargo evidence doctor`,
+the JSONL diagnostic stream, or the `evidence-mcp` server, the
+installed binary on `$PATH` is the wrong thing to test against — it
+was built from an earlier release. Two routes:
+
+- **Direct CLI**: `cargo run -q --bin cargo-evidence -- evidence doctor`
+  rebuilds and runs the workspace tip. Bypasses `cargo install` and the
+  MCP wrapper entirely. Fastest for iterating on `doctor` text.
+- **Local install**: when the path under test is the MCP wrapper, the
+  installed `cargo-evidence` binary is what the server spawns. Refresh
+  it before each round:
+
+  ```bash
+  cargo install --path crates/cargo-evidence --path crates/evidence-mcp --force
+  ```
+
+  Then re-run the MCP verb (`evidence_doctor`, etc.) from your agent.
+
+The `MCP_VERSION_SKEW` warning compares the **installed** MCP binary
+against the **installed** `cargo-evidence` — it does not detect
+workspace-vs-binary drift. A reviewer running the MCP verb against
+this repo without refreshing both binaries gets stale output that
+matches the last release, not the branch under review.
+
 ## Reporting
 
 Open an issue at <https://github.com/luofang34/Evidence/issues>.

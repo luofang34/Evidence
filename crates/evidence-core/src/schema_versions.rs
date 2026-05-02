@@ -22,6 +22,25 @@
 //! The on-disk format is not covered by semver today (see README's
 //! Project Status section — pre-1.0). A future release will tie
 //! these constants to `cargo semver-checks` or an equivalent gate.
+//!
+//! # Pre-1.0 informational-only contract
+//!
+//! Until the project ships 1.0, every constant in this module is
+//! pinned at `"0.0.1"` (enforced by `schema_constants_pinned_at_001`
+//! in `tests/schema_versions_locked.rs`) and the on-disk
+//! `schema_version` field is **informational, not contractual**:
+//! breaking shape changes rewrite the schema in place without
+//! bumping the literal. Two bundles produced by different
+//! `cargo-evidence` releases can both report `schema_version: "0.0.1"`
+//! while being structurally incompatible.
+//!
+//! Consumers that need to gate on shape compatibility should pin a
+//! `cargo-evidence` workspace version (`engine_crate_version` in
+//! `index.json`) instead of pattern-matching on `schema_version`.
+//! The `schema_version` field becomes load-bearing at 1.0; today
+//! its only enforced role is anti-tampering — a verifier rejects
+//! bundles whose `schema_version` does not match the version this
+//! tool would currently emit.
 
 /// Schema version for `index.json`. Covers the EvidenceIndex shape.
 pub const INDEX: &str = "0.0.1";

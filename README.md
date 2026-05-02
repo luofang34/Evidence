@@ -30,6 +30,13 @@ anything below as an implementation sketch, not a contract:
   the tool. The "For Auditors" section below documents the intended design,
   not a qualification claim.
 - **Schema versions (`0.0.x`) signal pre-1.0 instability.** Treat them as such.
+- **The on-disk `schema_version` field is informational, not contractual.**
+  All schemas are pinned at `"0.0.1"` until 1.0; breaking shape changes
+  rewrite the format in place without bumping the literal. Two bundles
+  produced by different `cargo-evidence` releases can both report
+  `schema_version: "0.0.1"` while being structurally incompatible. Pin a
+  `cargo-evidence` version (and read `index.json`'s `engine_crate_version`)
+  instead of pattern-matching on `schema_version`.
 
 If you are considering this tool on a real program, the honest answer today is:
 fork it, read every line, and plan to own the delta.
