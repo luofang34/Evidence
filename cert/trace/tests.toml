@@ -323,10 +323,10 @@ test_selector = "trace_decomposition::test_selectors_deserializes_both_shapes"
 [[tests]]
 uid = "442b55a6-b374-4f6a-aabf-1ee6c7f89df1"
 id = "TEST-040"
-title = "derived==true without rationale fires TRACE_DERIVED_MISSING_RATIONALE"
+title = "DerivedEntry without rationale fires TRACE_DERIVED_MISSING_RATIONALE"
 owner = "tool"
 traces_to = ["9968bdb9-3e20-40c9-ad84-3310621bd102"]
-test_selector = "trace_decomposition::derived_missing_rationale_fires_with_typed_code"
+test_selector = "derived_trace_validation::derived_missing_rationale_fires_at_dal_a"
 
 [[tests]]
 uid = "f1b8ebca-d919-4810-b0ca-81f3c39b3095"

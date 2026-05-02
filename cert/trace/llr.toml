@@ -833,16 +833,24 @@ id = "LLR-040"
 title = "validate_derived_has_rationale Link-phase rule"
 owner = "tool"
 traces_to = ["a9b74c2e-0644-4f77-a709-63fe66f53cf8"]
-modules = ["evidence_core::trace::validation::validate_derived_has_rationale"]
+modules = ["evidence_core::trace::validation"]
 description = """
-A Link-phase rule that iterates every LLR with `derived == true`
-and asserts `rationale.is_some()` and non-empty. Surfaces under
-the current `TRACE_LINK_FAILED` envelope; per-sub-rule codes land
-when the Link bag is refactored into typed sub-errors (C6
-follow-up). Unconditional — DO-178C §5.2.2 requires the
-distinction to be explicit; no policy flag to disable.
+A Link-phase rule that iterates every `DerivedEntry` row in
+`cert/trace/derived.toml` and asserts `rationale.is_some()` and
+non-empty. Fires `TRACE_DERIVED_MISSING_RATIONALE` (typed
+`LinkError::DerivedMissingRationale`) on violation. Gated by
+`policy.require_derived_rationale` (DAL-C+); per DO-178C §5.2.4
+derived requirements must carry rationale flowing to the system
+safety assessment process.
+
+Note: an earlier version of this rule iterated `LlrEntry` rows
+with `derived = true`. That legacy LLR-side `derived: bool`
+channel was retired in favor of the dedicated `DerivedFile`
+schema (DO-178C §5.2.4 treats derived requirements as a distinct
+category, not a flag on LLR).
 """
 verification_methods = ["test"]
+emits = ["TRACE_DERIVED_MISSING_RATIONALE"]
 
 [[requirements]]
 uid = "297a6b28-9a54-4581-abeb-6b8ff33bb9c7"
