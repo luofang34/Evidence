@@ -866,7 +866,6 @@ on `self` to return the variant's stable code string.
 """
 verification_methods = ["test"]
 emits = [
-    "TRACE_CONTRADICTORY_DERIVED",
     "TRACE_DANGLING_LINK",
     "TRACE_DERIVED_MISSING_RATIONALE",
     "TRACE_DUPLICATE_TRACE_LINK",
