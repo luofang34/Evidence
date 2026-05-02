@@ -56,9 +56,7 @@ fn llr(id: &str, uid: &str, traces_to: Vec<String>) -> LlrEntry {
         traces_to,
         source: None,
         modules: vec![],
-        derived: false,
         description: None,
-        rationale: None,
         verification_methods: vec!["test".into()],
         emits: vec![],
     }
@@ -251,49 +249,9 @@ test_selectors = ["foo::single", "foo::extra"]
     );
 }
 
-/// Derived LLR without rationale fires
-/// TRACE_DERIVED_MISSING_RATIONALE. Unconditional rule — no
-/// `policy.require_derived_rationale` flag needed.
-#[test]
-fn derived_missing_rationale_fires_with_typed_code() {
-    // Build a tree where the derived LLR has no traces_to and no
-    // rationale. Also need enough surrounding structure to trip the
-    // surface bijection into silence — easiest: zero HLRs, zero
-    // tests, one derived LLR.
-    let l = LlrEntry {
-        uid: Some("bbbbbbbb-0000-4000-8000-000000000001".into()),
-        ns: None,
-        id: "LLR-1".into(),
-        title: "derived without rationale".into(),
-        owner: Some("tool".into()),
-        sort_key: None,
-        traces_to: vec![],
-        source: None,
-        modules: vec![],
-        derived: true,
-        description: None,
-        rationale: None,
-        verification_methods: vec!["test".into()],
-        emits: vec![],
-    };
-
-    let err = validate_trace_links_with_policy(&[], &[], &[l], &[], &[], &TracePolicy::default())
-        .expect_err("expected derived-rationale failure");
-
-    let TraceValidationError::Link { errors } = err else {
-        panic!("expected Link variant, got {:?}", err);
-    };
-    let codes: Vec<&str> = errors.iter().map(|e| e.code()).collect();
-    assert!(
-        codes.contains(&"TRACE_DERIVED_MISSING_RATIONALE"),
-        "expected TRACE_DERIVED_MISSING_RATIONALE; got codes:\n{:?}",
-        codes
-    );
-    // Payload preservation: agents pulling the variant get the
-    // offending LLR id directly, no prose parsing.
-    let payload = errors.iter().find_map(|e| match e {
-        LinkError::DerivedMissingRationale { llr_id } => Some(llr_id.clone()),
-        _ => None,
-    });
-    assert_eq!(payload, Some("LLR-1".into()));
-}
+// The legacy `LlrEntry.derived = true` + missing-rationale pathway
+// was retired; the DO-178C §5.2.4 derived-requirement carve-out now
+// lives exclusively in `cert/trace/derived.toml` (`DerivedEntry`).
+// Equivalent end-to-end coverage of the DerivedEntry pathway lives
+// in `crates/cargo-evidence/tests/derived_trace_validation.rs`
+// (TEST-055).

@@ -700,13 +700,6 @@
     "terminal": false
   },
   {
-    "code": "TRACE_CONTRADICTORY_DERIVED",
-    "severity": "error",
-    "domain": "trace",
-    "has_fix_hint": false,
-    "terminal": false
-  },
-  {
     "code": "TRACE_DANGLING_LINK",
     "severity": "error",
     "domain": "trace",

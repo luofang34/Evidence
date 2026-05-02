@@ -385,10 +385,7 @@ fn link_error_codes_in_rules_and_claimed() {
             llr_id: "LLR-1".into(),
         },
         LinkError::DerivedMissingRationale {
-            llr_id: "LLR-1".into(),
-        },
-        LinkError::ContradictoryDerived {
-            llr_id: "LLR-1".into(),
+            llr_id: "DERIVED-1".into(),
         },
         LinkError::Other {
             message: "anything".into(),

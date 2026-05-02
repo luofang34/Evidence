@@ -129,25 +129,24 @@ pub enum LinkError {
         link: String,
     },
 
-    /// LLR with empty `traces_to` that isn't marked `derived = true`.
-    #[error("LLR {llr_id} has no parent links. Must be marked 'derived = true'")]
+    /// LLR with empty `traces_to`. The DO-178C §5.2.4 "derived" carve-
+    /// out lives in `cert/trace/derived.toml` (`DerivedEntry`); LLRs
+    /// must always trace upward.
+    #[error("LLR {llr_id} has no parent links. Add traces_to entries or move to derived.toml")]
     LlrMissingParentLinks {
         /// LLR's human ID.
         llr_id: String,
     },
 
-    /// Derived LLR without a non-empty `rationale`.
-    #[error("derived LLR {llr_id} missing non-empty rationale")]
+    /// Derived requirement without a non-empty `rationale`. Fires on
+    /// `DerivedEntry` rows in `cert/trace/derived.toml` per DO-178C
+    /// §5.2.4. The `id` field name is kept as `llr_id` for
+    /// compatibility with the existing `Display` impl and JSONL
+    /// emission, even though the variant now sources from
+    /// `DerivedEntry` exclusively.
+    #[error("derived requirement {llr_id} missing non-empty rationale")]
     DerivedMissingRationale {
-        /// LLR's human ID.
-        llr_id: String,
-    },
-
-    /// LLR simultaneously `derived = true` and carrying non-empty
-    /// `traces_to` — contradictory.
-    #[error("LLR {llr_id} is marked derived but has trace links. Contradiction.")]
-    ContradictoryDerived {
-        /// LLR's human ID.
+        /// Derived entry's human ID.
         llr_id: String,
     },
 
@@ -177,7 +176,6 @@ impl DiagnosticCode for LinkError {
             LinkError::DuplicateTraceLink { .. } => "TRACE_DUPLICATE_TRACE_LINK",
             LinkError::LlrMissingParentLinks { .. } => "TRACE_LLR_MISSING_PARENT_LINKS",
             LinkError::DerivedMissingRationale { .. } => "TRACE_DERIVED_MISSING_RATIONALE",
-            LinkError::ContradictoryDerived { .. } => "TRACE_CONTRADICTORY_DERIVED",
             LinkError::Other { .. } => "TRACE_LINK_OTHER",
         }
     }
@@ -254,10 +252,7 @@ mod tests {
                 llr_id: "LLR-1".into(),
             },
             LinkError::DerivedMissingRationale {
-                llr_id: "LLR-1".into(),
-            },
-            LinkError::ContradictoryDerived {
-                llr_id: "LLR-1".into(),
+                llr_id: "DERIVED-1".into(),
             },
             LinkError::Other {
                 message: "anything".into(),
