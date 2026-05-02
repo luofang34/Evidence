@@ -9,7 +9,7 @@ All three workspace crates (`evidence-core`, `cargo-evidence`,
 `evidence-mcp`) share a single version; release entries cover all
 three unless noted.
 
-## [Unreleased] — 0.1.4 hygiene track
+## [0.1.4] — 2026-05-01
 
 ### Added
 
