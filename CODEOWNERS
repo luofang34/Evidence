@@ -1,0 +1,25 @@
+# CODEOWNERS for cargo-evidence.
+#
+# Single-maintainer project today. Default owner gets review
+# requests on every PR. As the contributor base grows, narrow
+# this file to per-directory ownership rather than expanding the
+# global wildcard.
+#
+# Cert-track files (boundary, floors, trace) are called out
+# separately so a future split between code review and
+# certification review is mechanical: these paths own the
+# DO-178C/DO-330 evidence shape, and a change there warrants a
+# cert-aware reviewer regardless of how the codebase grows.
+
+*                       @luofang34
+
+# Cert-track configuration
+/cert/                  @luofang34
+/cert/boundary.toml     @luofang34
+/cert/floors.toml       @luofang34
+/cert/trace/            @luofang34
+
+# Workflow + repo-stewardship files
+/.github/               @luofang34
+/CODEOWNERS             @luofang34
+/CONTRIBUTING.md        @luofang34

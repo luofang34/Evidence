@@ -2409,3 +2409,46 @@ The intercept lives at the top of `main()` (before the
 errors out.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "f634ed35-6c3e-4d71-90a2-dbaee1d086ab"
+id = "LLR-076"
+title = "editor_duplicates_locked walks the repo and fires on ` N.<ext>` filenames"
+owner = "tool"
+traces_to = ["202c2281-f2d7-4e43-8a6e-93da96f92add"]
+modules = ["evidence_core::tests::editor_duplicates_locked"]
+derived = false
+description = """
+Integration test under `crates/evidence-core/tests/`. Walks the
+workspace from `CARGO_MANIFEST_DIR`'s grandparent (the repo root)
+using `walkdir::WalkDir::new(root).follow_links(false)`, prunes
+the conventional skip directories
+(`target`, `.git`, `node_modules`, `fixtures`), and emits a
+collected list of every basename matching the pinned regex:
+
+  ```text
+  ^.+ ([0-9]{1,2})\\.(rs|toml|yml|yaml|md|json|lock)$
+  ```
+
+The leading-space-then-digit anchor matters: it specifically
+catches the `cp old.rs 'old 2.rs'` artifact pattern without
+flagging legitimate filenames that happen to contain a number
+(e.g. `mcdc_2024.rs` is fine because there's no space before
+the digits).
+
+Test fails via `assert!` with a complete file:line listing for
+every offending entry. Mirrors the failure shape of
+`rot_prone_markers_locked` — the test's failure message is the
+diagnostic; no `Diagnostic` wire shape, no `RULES` entry.
+
+Exemption escape hatch: `RESERVED_DUPLICATE_PATHS` const in the
+test module names workspace-relative paths (no glob; suffix
+match) where the editor-duplicate-shaped name is actually
+intentional. Initially empty. Each entry requires written
+justification beside the const.
+
+Cross-platform note: walks paths via `walkdir` and normalizes
+separators to `/` before suffix-matching the reserved list, per
+the `project_path_separator_on_windows` memory.
+"""
+verification_methods = ["test"]

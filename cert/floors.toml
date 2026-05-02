@@ -50,20 +50,20 @@ diagnostic_codes = 151
 terminal_codes = 13
 
 # cert/trace/sys.toml — System Requirements.
-trace_sys = 28
+trace_sys = 29
 # cert/trace/hlr.toml — High-Level Requirements.
-trace_hlr = 68
+trace_hlr = 69
 # cert/trace/llr.toml — Low-Level Requirements.
-trace_llr = 75
+trace_llr = 76
 # cert/trace/tests.toml — Test Cases.
-trace_test = 80
+trace_test = 81
 
 # evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
 # coverage is enforced by `require_hlr_surface_bijection`; this floor
 # guards against silently shrinking the catalog itself (which would
 # relax the bijection without firing the check).
-known_surfaces = 21
+known_surfaces = 22
 
 # --------------------------------------------------------------------
 # Per-crate-true dimensions: one table per in-scope crate.
@@ -78,7 +78,7 @@ known_surfaces = 21
 
 [per_crate.evidence-core]
 # `#[test]` attribute count inside crates/evidence-core/**/*.rs.
-test_count = 358
+test_count = 361
 
 [per_crate.cargo-evidence]
 test_count = 136

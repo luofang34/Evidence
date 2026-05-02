@@ -50,6 +50,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     "comment hygiene gate",
     "coverage measurement",
     "diagnostic code namespace (regex + reserved suffixes)",
+    "editor-duplicate gate",
     "jsonl stream per Schema Rule 2",
     "per-test outcome capture",
     "per-test ↔ LLR back-link",

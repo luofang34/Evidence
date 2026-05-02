@@ -1654,3 +1654,46 @@ The intercept should reuse that render tree, not paper over it.
 verification_methods = ["test"]
 traces_to = ["385c2c4c-748c-4486-bd8c-7622b12c9273"]
 surfaces = ["agent MCP surface"]
+
+[[requirements]]
+uid = "202c2281-f2d7-4e43-8a6e-93da96f92add"
+id = "HLR-069"
+title = "Repository contains no editor-duplicate artifacts (` N.<ext>` filenames)"
+owner = "tool"
+scope = "component"
+description = """
+A mechanical gate refuses any path under the repository whose
+basename matches the editor-duplicate pattern: stem + ` ` (single
+ASCII space) + small-integer suffix + extension, for any of the
+extensions the project recognizes as cert-relevant
+(`.rs`, `.toml`, `.yml`, `.yaml`, `.md`, `.json`, `.lock`).
+
+Concrete pattern, fixed in the test:
+
+  - Regex (basename, anchored): `^.+ ([0-9]{1,2})\\.(rs|toml|yml|yaml|md|json|lock)$`.
+  - Walks `crates/**`, `cert/**`, `tool/**`, `.github/**`, plus
+    repo-root `*.md` / `*.toml`. Excludes `target/`, `.git/`,
+    `node_modules/`, `fixtures/`, `cert/trace/` (audit journal).
+  - Also walks `.git/refs/` for branch-name duplicates (the
+    `main 2` ref artifact a misbehaving git client occasionally
+    leaves behind).
+
+Failure mode the gate prevents: a file like
+`crates/cargo-evidence/tests/cli 2.rs` lands silently, compiles
+into the test binary, inflates `#[test]` counts seen by the
+floors gate, and survives in-tree until a manual sweep catches
+it. The user's auto-memory captures the same trap
+(`project_stray_2rs_artifacts.md`) — promoting it to a project-
+level mechanical gate makes the rule observable in CI rather
+than relying on memory recall.
+
+Reserved-text-style escape hatch: the test exposes a
+`RESERVED_DUPLICATE_PATHS` const, initially empty. An editor
+artifact that is genuinely load-bearing (say, a third-party
+file the project consumes whose name happens to match the
+pattern) gets an entry here with written justification. The
+default state is zero exemptions.
+"""
+verification_methods = ["test"]
+traces_to = ["4b63a601-9770-4c3a-bfe4-e1d70e050c65"]
+surfaces = ["editor-duplicate gate"]

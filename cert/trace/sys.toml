@@ -711,3 +711,44 @@ noticed. The observable is now structured.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "4b63a601-9770-4c3a-bfe4-e1d70e050c65"
+id = "SYS-029"
+title = "Tool's source tree shall be free of editor-duplicate artifacts"
+owner = "soi"
+scope = "soi"
+description = """
+Editors and shell tools occasionally produce duplicate-named
+files when interactive operations like `cp old new` go wrong, or
+when a save-as dialog defaults to the original name. The
+resulting filenames carry a numeric suffix on the basename
+(e.g. `helpers 2.rs`, `audit 2.yml`, `sys 2.toml`,
+`main 2` git ref). These artifacts compile, run, and are hashed
+just like first-class files — but they:
+
+  - Inflate `#[test]` counts (the floor gate ratchets to a
+    measurement that includes phantom tests),
+  - Pollute the trace-link bijection (a sibling `tests 2.toml`
+    silently doubles every entry in the regular `tests.toml`),
+  - Pollute SHA256SUMS (every editor-duplicate landing in a
+    cert bundle becomes a hashed audit artifact),
+  - Survive in-tree until a manual `find -name '* 2.*'` sweep
+    catches them.
+
+The system-level claim: the tool's own source tree, the bundle-
+output paths it walks, and the trace store under `cert/trace/`
+shall be mechanically free of these artifacts. A pre-commit /
+CI gate fires on any path matching the editor-duplicate naming
+pattern across the repository, refusing to land changes that
+introduce one.
+
+Out of scope: artifacts a downstream project under audit may
+have in their own source tree are theirs to manage; this rule
+applies only to the tool's repo. The mechanical guard's
+filename pattern is fixed (regex pinned in the test) so an
+editor that uses a different suffix shape (e.g. `~`, `.bak`)
+gets a separate exemption story rather than silent acceptance.
+"""
+verification_methods = ["test"]
+traces_to = []

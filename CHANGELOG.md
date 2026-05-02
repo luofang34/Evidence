@@ -9,6 +9,93 @@ All three workspace crates (`evidence-core`, `cargo-evidence`,
 `evidence-mcp`) share a single version; release entries cover all
 three unless noted.
 
+## [Unreleased] — 0.1.4 hygiene track
+
+### Added
+
+- **`success: bool` field on every MCP wire shape**
+  (`JsonlToolResponse`, `RulesToolResponse`, `DiffToolResponse`).
+  Derived deterministically from `exit_code` + `terminal`/`error`
+  so MCP hosts have one canonical pass/fail field rather than
+  pattern-matching the colliding `exit_code = 2` against the
+  `_OK`-suffix string. Existing fields are unchanged; older
+  agents ignore the addition. (HLR-067 / LLR-074 / TEST-081)
+- **`cargo-evidence --help` now lists every subcommand** when the
+  binary is invoked directly (`cargo-evidence --help`, not
+  `cargo evidence --help`). Reuses clap's render tree on
+  `EvidenceArgs`, so new subcommands appear automatically. The
+  redirect-stub form is retired. An `EXPECTED_SUBCOMMANDS` list
+  in the test guards drift. (HLR-068 / LLR-075 / TEST-082)
+- **`editor_duplicates_locked` integration test** — mechanical
+  guard against ` N.<ext>` editor-duplicate filenames
+  (`helpers 2.rs`, `tests 2.toml`, `audit 2.yml`, etc.) anywhere
+  in the workspace tree. Three fixtures: clean-tree regression,
+  positive dogfood (synthetic `helpers 2.rs`), negative dogfood
+  with two distinct classes (`mcdc_2024.rs` four digits +
+  `mcdc_24.rs` two digits, no leading space) so a regression in
+  either the digit-count cap or the leading-space anchor fails
+  independently. (SYS-029 / HLR-069 / LLR-076 / TEST-083)
+- **DAL-A MC/DC fail-loud** at cert / record profile. When any
+  in-scope crate is at DAL-A and `cert/boundary.toml` lacks a
+  `[dal.auxiliary_mcdc_tool]` table, generate emits
+  `BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC` and refuses to assemble
+  a bundle. Dev profile keeps the warn-and-continue behavior so
+  iterative work isn't blocked. Closes the silent-underclaim
+  sharp-edge an auditor would catch but a careless DER could
+  miss. (HLR-066 / LLR-073 / TEST-080)
+- **`AuxiliaryMcdcTool` schema hook** under
+  `[dal.auxiliary_mcdc_tool]` carrying `name` (required),
+  optional `qualification_id`, optional bundle-relative
+  `report` path. Lets a DAL-A project declare LDRA TBvision /
+  VectorCAST / Rapita RVS evidence by reference today, without
+  waiting for stable Rust MC/DC support.
+- **`CONTRIBUTING.md`** — PR loop, trace-first convention, local
+  CI gates, floors-only-up rule, style snapshots. Points at
+  `cert/trace/README.md` for the canonical UUID-generation
+  workflow.
+- **`CODEOWNERS`** — single-maintainer default with cert-track
+  paths called out separately so future role splits are
+  mechanical.
+- **`crates/cargo-evidence/src/cli/README.md`** — lifecycle
+  taxonomy of the 24 CLI files (bundle-producing /
+  bundle-consuming / source-tree-inspection / self-describing)
+  with an adding-a-new-verb checklist.
+- **`editor-duplicate gate` surface** in `KNOWN_SURFACES`,
+  claimed by HLR-069.
+
+### Changed
+
+- **Trace discovery is now a single-source-of-truth function**:
+  `evidence_core::trace::default_trace_roots(workspace_root)` is
+  the only path consulted by `cargo evidence trace --validate`,
+  `cargo evidence check`, `cargo evidence floors`, and
+  `evidence_core::floors::count_trace_per_layer`. Replaces three
+  separate callsites that each implemented discovery
+  inconsistently and would silently under-count when the project
+  used a non-canonical trace location. Discovery order: `cert/
+  trace/` (canonical) → `cert/boundary.toml`'s `scope.trace_roots`.
+  No `tool/trace/` fallback; the project's self-trace lives at
+  `cert/trace/` to match the convention.
+- **README content_hash section** explicitly distinguishes
+  "integrity re-check" from "DO-178C verification independence",
+  and forward-references the existing **Tool Qualification
+  Level** honesty section so a casual reader can't conflate the
+  two.
+
+### Floors
+
+| Dimension                            | 0.1.3 → unreleased |
+|---|---|
+| trace_sys                            | 28 → 29   |
+| trace_hlr                            | 65 → 69   |
+| trace_llr                            | 72 → 76   |
+| trace_test                           | 77 → 81   |
+| diagnostic_codes                     | 150 → 151 |
+| known_surfaces                       | 21 → 22   |
+| per_crate.evidence-core.test_count   | 351 → 361 |
+| per_crate.evidence-mcp.test_count    | 37 → 45   |
+| per_crate.cargo-evidence.test_count  | 133 → 136 |
+
 ## [0.1.3] — 2026-04-30
 
 ### Added
