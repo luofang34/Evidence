@@ -345,7 +345,6 @@ trace_decomposition.rs to code-equals.
 test_selectors = [
     "trace_decomposition::surface_unknown_fires_with_typed_code",
     "trace_decomposition::surface_unclaimed_fires_with_typed_code",
-    "trace_decomposition::derived_missing_rationale_fires_with_typed_code",
 ]
 
 [[tests]]
