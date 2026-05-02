@@ -1,0 +1,152 @@
+[schema]
+version = "0.0.1"
+
+[meta]
+document_id = "TOOL-DERIVED"
+revision = "1.0"
+
+[[requirements]]
+uid = "347cc115-d2a1-4f56-b687-fea89046c2f1"
+id = "DERIVED-001"
+title = "BTreeMap throughout deterministic-output collection paths"
+owner = "tool"
+source = "design"
+description = """
+Every collection that contributes to bundle output content
+(SHA256SUMS path → digest map, env.json field map, index.json
+metadata maps, deterministic-manifest.json projection) shall be a
+`std::collections::BTreeMap` (or equivalent sorted container), not
+`HashMap` or any iteration-order-unspecified container.
+
+Touch points: `evidence_core::hash::sha256_dir`,
+`evidence_core::bundle::manifest::*`,
+`evidence_core::env::manifest::*`,
+`evidence_core::bundle::builder`. New code paths landing in any of
+these modules must follow the same rule.
+"""
+rationale = """
+HashMap iteration order in Rust is intentionally randomized
+(SipHash with a per-process seed) to defeat hash-flooding attacks.
+That randomization breaks the byte-identical-output property the
+tool needs for `content_hash` and `deterministic_hash`: two runs
+on the same host with the same inputs would produce SHA256SUMS
+files differing only in path order, hashing to different digests.
+The `Cross-host determinism` CI job would catch a HashMap leak
+across hosts, but a same-host nondeterministic regression could
+ship undetected if the leak only manifests for specific inputs.
+
+BTreeMap's ordered-by-key iteration is the cheapest fix: it
+guarantees deterministic order, has the same insertion API surface
+as HashMap, and is already a workspace dependency. The cost is
+O(log n) lookup vs HashMap's amortized O(1) — negligible at the
+sizes the tool handles (bundles rarely exceed 10⁴ files).
+
+This is a derived choice supporting HLR-008 ("Write SHA256SUMS
+with deterministic ordering"). HLR-008 mandates the *property*;
+the BTreeMap-vs-other-sorted-container *mechanism* is a derived
+design choice, not directly required by any HLR. The choice could
+be a sorted Vec or a custom B-tree without violating HLR-008;
+BTreeMap was selected for ergonomics + zero new dep cost.
+"""
+safety_impact = "medium"
+
+[[requirements]]
+uid = "99a3a9bf-83c4-418d-8686-bc68fed9e0c7"
+id = "DERIVED-002"
+title = "walkdir with explicit follow_links(false), not fs::read_dir recursion"
+owner = "tool"
+source = "implementation"
+description = """
+Every recursive filesystem walk in the tool's `.rs` / `.md` /
+`.toml` source uses `walkdir::WalkDir::new(root).follow_links(false)`
+as the primitive. Hand-rolled `fs::read_dir`-based recursion is
+banned project-wide and is mechanically caught by the
+`walker_usage_locked` integration test.
+
+`follow_links(false)` is pinned explicitly at every callsite (not
+relying on a default), again mechanically asserted by
+`walker_usage_locked`.
+"""
+rationale = """
+Three independent reasons drive the choice; any one alone would
+justify it:
+
+  1. **Cert correctness**: the tool produces SHA256SUMS audit
+     bundles. A walker that follows symlinks could include
+     out-of-tree content (a symlink to `/etc/passwd`, a target
+     pointing at a user's home directory) in the bundle's hashed
+     manifest. `fs::read_dir`'s default-no-follow is the
+     cert-correct behavior; walkdir's default is to *follow*
+     symlinks, inverting it. Pinning `follow_links(false)`
+     explicitly closes the gap.
+
+  2. **Determinism**: symlink targets can differ across checkouts
+     of the same git state (different filesystem layouts, missing
+     vendored sources, etc.), breaking
+     `deterministic_hash` parity. Same-git-state implies
+     same-bundle is the cross-host gate's contract.
+
+  3. **Loop safety**: symlink cycles (`a → b → a`) consume
+     resources even with walkdir's loop detection.
+
+Hand-rolled `fs::read_dir` recursion is banned because: (a) it
+defeats the explicit `follow_links(false)` audit, (b) it adds
+maintenance surface (every callsite reinvents skip-target/.git
+filtering), (c) historical CVEs in similar tools have come from
+recursive walkers missing edge cases (broken symlinks, race
+conditions on dir → file changes mid-walk). The
+`walker_usage_locked` test enforces the rule mechanically.
+
+This is a derived choice supporting SYS-015 ("The tool shall
+mechanically prevent hand-rolled recursive `fs::read_dir`
+walkers"). SYS-015 mandates the *prohibition*; the
+`walkdir`-with-`follow_links(false)` *replacement primitive* is a
+derived design choice. A future SYS-015 could in principle be
+satisfied by a custom walker; walkdir was chosen for ergonomics
++ being an existing workspace dep.
+"""
+safety_impact = "high"
+
+[[requirements]]
+uid = "fe7560a4-101d-4fcb-9bd1-6c1e410ee954"
+id = "DERIVED-003"
+title = "evidence-mcp probes cargo-evidence --version with a 5-second timeout, cached at startup"
+owner = "tool"
+source = "design"
+description = """
+`evidence_mcp::Server::new()` spawns `cargo evidence --version`
+exactly once at startup, with a 5-second timeout, and caches the
+parsed `VersionSkew` outcome in `Arc<VersionSkew>`. Per-call
+probing on every MCP tool invocation would pay a ~100 ms
+subprocess spawn each time; per-startup caching brings the cost
+to once per server lifetime.
+
+The 5-second timeout is the specific number; the alternatives
+considered were 1s, 10s, and "no timeout (block)". 5s was chosen
+as the balance.
+"""
+rationale = """
+The 5-second number is empirical, not derived from any HLR or
+external requirement:
+
+  - Lower bound: the operation is `cargo evidence --version`,
+    which is a ~50–200 ms task on a warm system. 1 second would
+    work for the warm path but might prematurely fail on a cold
+    `cargo` (filesystem cache miss, antivirus scan on Windows)
+    where ~1.5–2 s is plausible.
+  - Upper bound: agents calling `Server::new()` block on the
+    probe. Beyond 5 s the perceived latency becomes a UX
+    regression — the MCP server appears stuck. 10 s was rejected
+    on this basis.
+  - "No timeout" was rejected because a stuck `cargo` invocation
+    (deadlocked filesystem op, broken `cargo` install) would
+    deadlock the MCP server forever, requiring SIGKILL recovery.
+
+This is a derived choice supporting HLR-060 ("evidence-mcp
+probes cargo evidence --version at startup"). HLR-060 mandates
+the *probe*; the *5-second specific timeout value* is a design
+choice not directly required by any HLR. A future change to 3s
+or 10s would not violate HLR-060 — it would land here as a
+DERIVED-003 revision with an updated rationale.
+"""
+safety_impact = "low"
