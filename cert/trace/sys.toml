@@ -12,10 +12,24 @@ title = "Verifiable evidence bundle"
 owner = "soi"
 scope = "soi"
 description = """
-The tool shall produce an evidence bundle whose integrity can be
-independently verified without re-invoking the tool: a sibling party
-with SHA-256 + HMAC implementations and the public signing key must be
-able to confirm every hashed file and the bundle envelope.
+The tool shall produce an evidence bundle whose integrity is
+independently verifiable without re-invoking the tool, in three
+layers each requiring strictly less trusted material than the next:
+
+1. Content layer — any party with a SHA-256 implementation confirms
+   every hashed file via `sha256sum -c SHA256SUMS`. No key required.
+2. Metadata layer — any party additionally holding the supplier's
+   ed25519 public verifying key (32 bytes) confirms `BUNDLE.sig`
+   (a 64-byte detached signature, hex-encoded) against the
+   length-prefixed `(SHA256SUMS, index.json)` envelope. This catches
+   tampering of metadata-layer fields excluded from `SHA256SUMS`
+   (`git_sha`, `dal_map`, `test_summary`, `trace_outputs` paths,
+   schema versions, timestamps, etc.).
+3. Provenance layer — successful metadata-layer verification implies
+   non-repudiation: only the holder of the corresponding 32-byte
+   private signing key could have produced the matching signature.
+   The supplier publishes the public key alongside the bundle
+   release, in the source repository, or in a transparency log.
 """
 verification_methods = [
     "test",

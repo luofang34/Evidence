@@ -9,7 +9,7 @@ impl std::fmt::Display for VerifyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             VerifyError::UnexpectedFile(file) => write!(f, "unexpected file: {}", file),
-            VerifyError::HmacFailure => write!(f, "HMAC signature verification failed"),
+            VerifyError::SignatureInvalid => write!(f, "ed25519 signature verification failed"),
             VerifyError::HashMismatch {
                 file,
                 expected,

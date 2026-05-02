@@ -13,8 +13,9 @@ use crate::diagnostic::{DiagnosticCode, Location, Severity};
 pub enum VerifyError {
     /// A file exists in the bundle but is not listed in SHA256SUMS
     UnexpectedFile(String),
-    /// HMAC signature verification failed
-    HmacFailure,
+    /// Ed25519 signature verification failed (or `BUNDLE.sig` was
+    /// missing when a verifying key was supplied).
+    SignatureInvalid,
     /// A hash in SHA256SUMS does not match the actual file hash
     HashMismatch {
         /// Bundle-relative path whose hash disagreed.
@@ -218,7 +219,7 @@ impl DiagnosticCode for VerifyError {
         // a stable code here fails compilation — Schema Rule 3.
         match self {
             VerifyError::UnexpectedFile(_)                  => "VERIFY_UNEXPECTED_FILE",
-            VerifyError::HmacFailure                        => "VERIFY_HMAC_FAILURE",
+            VerifyError::SignatureInvalid                        => "VERIFY_SIGNATURE_INVALID",
             VerifyError::HashMismatch { .. }                => "VERIFY_HASH_MISMATCH",
             VerifyError::MissingHashedFile(_)               => "VERIFY_MISSING_HASHED_FILE",
             VerifyError::ContentHashMismatch { .. }         => "VERIFY_CONTENT_HASH_MISMATCH",
@@ -273,7 +274,7 @@ impl DiagnosticCode for VerifyError {
             }
             // The remaining variants are bundle-wide invariants; no
             // single file "owns" the failure.
-            VerifyError::HmacFailure
+            VerifyError::SignatureInvalid
             | VerifyError::ContentHashMismatch { .. }
             | VerifyError::FormatError { .. }
             | VerifyError::CrossFileInconsistency { .. }
@@ -347,8 +348,8 @@ mod tests {
         assert!(VerifyResult::Pass.is_pass());
         assert!(!VerifyResult::Pass.is_fail());
 
-        assert!(VerifyResult::Fail(vec![VerifyError::HmacFailure]).is_fail());
-        assert!(!VerifyResult::Fail(vec![VerifyError::HmacFailure]).is_pass());
+        assert!(VerifyResult::Fail(vec![VerifyError::SignatureInvalid]).is_fail());
+        assert!(!VerifyResult::Fail(vec![VerifyError::SignatureInvalid]).is_pass());
 
         assert!(!VerifyResult::Skipped("reason".to_string()).is_pass());
         assert!(!VerifyResult::Skipped("reason".to_string()).is_fail());

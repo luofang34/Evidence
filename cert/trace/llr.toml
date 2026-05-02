@@ -317,7 +317,7 @@ emits = ["VERIFY_TRACE_OUTPUT_NOT_HASHED"]
 [[requirements]]
 uid = "bb176fd9-7859-4ec1-bbc0-088d2518dc54"
 id = "LLR-015"
-title = "cmd_verify_jsonl strict-mode signature guard"
+title = "cmd_verify_jsonl strict-mode ed25519 signature guard"
 owner = "tool"
 traces_to = ["904ad11d-7b76-4707-8a08-cab8224b64c9"]
 modules = ["cargo_evidence::cli::verify::cmd_verify_jsonl"]
@@ -325,11 +325,18 @@ description = """
 When strict is true and neither BUNDLE.sig nor --verify-key is
 present, cmd_verify_jsonl emits VERIFY_STRICT_SIGNATURE_MISSING as a
 finding followed by VERIFY_FAIL terminal, returning
-EXIT_VERIFICATION_FAILURE (2).
+EXIT_VERIFICATION_FAILURE (2). When --verify-key is supplied but the
+key file is unreadable (I/O fault) or has invalid content (bad hex,
+wrong length, invalid ed25519 point) the run terminates with
+VERIFY_ERROR (exit 1) carrying the structured cause:
+VERIFY_RUNTIME_READ_VERIFY_KEY for I/O, SIGN_INVALID_KEY /
+SIGN_INVALID_SIGNATURE_HEX for parse. Successful key load with a
+present BUNDLE.sig that fails ed25519 verification surfaces
+VERIFY_SIGNATURE_INVALID + VERIFY_FAIL.
 """
 verification_methods = ["test"]
 emits = [
-    "VERIFY_HMAC_FAILURE",
+    "VERIFY_SIGNATURE_INVALID",
     "SIGN_INVALID_KEY",
     "SIGN_INVALID_SIGNATURE_HEX",
     "SIGN_READ_FAILED",

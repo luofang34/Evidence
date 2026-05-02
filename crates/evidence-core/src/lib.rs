@@ -72,8 +72,10 @@ pub use boundary_check::{
     check_no_proc_macros,
 };
 pub use bundle::{
-    EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, TestSummary, ToolCommandFailure,
-    parse_cargo_test_output_detailed, sign_bundle, verify_bundle_signature,
+    EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, SigningError, TestSummary,
+    ToolCommandFailure, generate_signing_key, parse_cargo_test_output_detailed, read_signing_key,
+    read_verifying_key, sign_bundle, verify_bundle_signature, write_signing_key,
+    write_verifying_key,
 };
 pub use compliance::{
     Applicability, ComplianceReport, ComplianceSummary, CrateEvidence, OBJECTIVES, ObjectiveStatus,
@@ -84,6 +86,7 @@ pub use coverage::{
     parse_llvm_cov_export,
 };
 pub use diagnostic::{Diagnostic, DiagnosticCode, Location, Severity, TERMINAL_CODES};
+pub use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 pub use env::{EnvFingerprint, Host};
 pub use floors::{FloorsConfig, current_measurements};
 pub use git::{GitSnapshot, RealGitProvider};

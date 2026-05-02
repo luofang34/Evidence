@@ -199,7 +199,7 @@ pub fn write_sha256sums(root: &Path, out_path: &Path) -> Result<(), HashError> {
                 continue; // index.json (contains timestamps)
             }
             if entry.path() == sig_path {
-                continue; // BUNDLE.sig (HMAC signature, written after finalization)
+                continue; // BUNDLE.sig (ed25519 signature, written after finalization)
             }
             files.push(entry.path().to_path_buf());
         }

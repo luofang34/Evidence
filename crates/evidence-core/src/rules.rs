@@ -336,7 +336,6 @@ pub const RULES: &[RuleEntry] = &[
     terminal("VERIFY_ERROR", Severity::Error),
     terminal("VERIFY_FAIL", Severity::Error),
     r("VERIFY_HASH_MISMATCH", Severity::Error, Domain::Verify),
-    r("VERIFY_HMAC_FAILURE", Severity::Error, Domain::Verify),
     r("VERIFY_INVALID_FORMAT", Severity::Error, Domain::Verify),
     r(
         "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
@@ -379,6 +378,7 @@ pub const RULES: &[RuleEntry] = &[
     ),
     r("VERIFY_RUNTIME_SIGNING", Severity::Error, Domain::Verify),
     r("VERIFY_RUNTIME_WALK", Severity::Error, Domain::Verify),
+    r("VERIFY_SIGNATURE_INVALID", Severity::Error, Domain::Verify),
     r(
         "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
         Severity::Error,

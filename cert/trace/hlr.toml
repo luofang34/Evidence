@@ -288,12 +288,13 @@ surfaces = ["verify"]
 [[requirements]]
 uid = "904ad11d-7b76-4707-8a08-cab8224b64c9"
 id = "HLR-015"
-title = "Strict-mode verify requires BUNDLE.sig"
+title = "Strict-mode verify requires an ed25519 signature"
 owner = "tool"
 scope = "component"
 description = """
-Under --strict verify, a bundle without BUNDLE.sig and no --verify-key
-is a verification failure. The JSONL path emits
+Under --strict verify, a bundle without `BUNDLE.sig` (the detached
+ed25519 signature over the `(SHA256SUMS, index.json)` envelope) and
+no `--verify-key` is a verification failure. The JSONL path emits
 VERIFY_STRICT_SIGNATURE_MISSING + VERIFY_FAIL terminal, exit 2.
 """
 verification_methods = ["test"]

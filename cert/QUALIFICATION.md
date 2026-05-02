@@ -11,6 +11,50 @@ check looks for this file. Severity is Warning at DAL-D (advisory) and
 Error at DAL ≥ C. Cert / record profile generation refuses to proceed
 at DAL ≥ C without this file present.
 
+## Integrity layers (SYS-001)
+
+A bundle's integrity is verifiable along three layers, each requiring
+strictly less trusted material than the next. DO-178C §7 (Software
+Configuration Management) requires "protection against unauthorized
+changes" but does not mandate any specific cryptographic primitive;
+this tool's choice is documented here so an auditor can map the
+artifact set onto the SCM expectation.
+
+1. **Content layer.** `SHA256SUMS` lists every content-bearing file
+   with its SHA-256 digest. Any party with `sha256sum` confirms every
+   file. No key required. This is the layer most directly aligned
+   with traditional CC1 baseline integrity (DO-178C §7.2.5).
+2. **Metadata layer.** `BUNDLE.sig` is a 64-byte ed25519 detached
+   signature, hex-encoded, over the length-prefixed
+   `(SHA256SUMS, index.json)` envelope. `index.json` is excluded from
+   `SHA256SUMS` because `index.json` records the SHA-256 of
+   `SHA256SUMS` (a self-referential cycle); the signature covers it
+   instead. The verifier needs the supplier's 32-byte public ed25519
+   verifying key.
+3. **Provenance layer.** A successful Layer-2 verification implies
+   non-repudiation: only the holder of the corresponding private
+   signing key could have produced a signature that the public key
+   accepts. This satisfies cross-organizational provenance requirements
+   that an HMAC-based integrity check cannot — HMAC is symmetric and
+   the verifier would need the same secret as the signer (FIPS 198-1).
+
+**Pre-0.1.5 history:** earlier releases used HMAC-SHA256 over the same
+envelope and called it a "signature." That was a terminology error;
+HMAC is a Message Authentication Code, not a signature. The mechanism
+was correct for in-organization integrity but inadequate for cross-
+organizational provenance. The 0.1.5 transition replaces the primitive
+with ed25519 and keeps the same envelope shape and the same
+`BUNDLE.sig` filename (now legitimate).
+
+**Out of scope of this layer:**
+
+- SLSA L2/L3 build-provenance attestations (in-toto / DSSE / sigstore)
+  — a planned follow-up; the current signature is metadata-layer only.
+- X.509 / PKI / institutional cert chains — the public key is raw and
+  distributed by the supplier however they choose.
+- Time-of-signing attestation — the signature is computed at bundle
+  finalize, on the same host, and bound to that bundle only.
+
 ## A-7 Obj-7 (MC/DC) — capability gap
 
 The most visible automation gap is DO-178C Annex A Table A-7 Objective 7

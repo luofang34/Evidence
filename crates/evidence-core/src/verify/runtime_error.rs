@@ -59,9 +59,9 @@ pub enum VerifyRuntimeError {
     /// A file hash couldn't be computed.
     #[error(transparent)]
     Hash(#[from] HashError),
-    /// HMAC signature verification had an I/O or envelope error
-    /// (distinct from the signature being invalid, which is a
-    /// [`crate::verify::VerifyError::HmacFailure`]).
+    /// Ed25519 signature verification or key handling raised an I/O or
+    /// envelope error (distinct from the signature being mathematically
+    /// invalid, which is a [`crate::verify::VerifyError::SignatureInvalid`]).
     #[error(transparent)]
     Signing(#[from] SigningError),
 }

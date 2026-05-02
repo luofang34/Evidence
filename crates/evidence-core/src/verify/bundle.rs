@@ -30,15 +30,18 @@ use super::runtime_error::VerifyRuntimeError;
 /// 5. All SHA256SUMS entries match actual file hashes
 /// 6. content_hash matches actual SHA256SUMS hash
 /// 7. No unexpected files exist outside SHA256SUMS and known metadata
-/// 8. If `verify_key` is provided, verify BUNDLE.sig HMAC
+/// 8. If a verifying key is provided, verify the ed25519 detached
+///    signature in `BUNDLE.sig` against the `(SHA256SUMS, index.json)`
+///    envelope.
 pub fn verify_bundle(bundle: &Path) -> Result<VerifyResult, VerifyRuntimeError> {
     verify_bundle_with_key(bundle, None)
 }
 
-/// Verify an evidence bundle, optionally checking HMAC signature.
+/// Verify an evidence bundle, optionally checking the ed25519 detached
+/// signature in `BUNDLE.sig` against the supplied verifying (public) key.
 pub fn verify_bundle_with_key(
     bundle: &Path,
-    verify_key: Option<&[u8]>,
+    verify_key: Option<&ed25519_dalek::VerifyingKey>,
 ) -> Result<VerifyResult, VerifyRuntimeError> {
     tracing::info!("verify: checking bundle at {:?}", bundle);
 
@@ -168,22 +171,22 @@ pub fn verify_bundle_with_key(
         verify_errors.push(VerifyError::UnexpectedFile(rel));
     }
 
-    // 8. HMAC signature verification (if key provided)
+    // 8. Ed25519 signature verification (if a verifying key was supplied).
     let sig_path = bundle.join("BUNDLE.sig");
     if let Some(key) = verify_key {
         if !sig_path.exists() {
-            verify_errors.push(VerifyError::HmacFailure);
+            verify_errors.push(VerifyError::SignatureInvalid);
         } else {
             let valid = crate::bundle::verify_bundle_signature(bundle, key)?;
             if !valid {
-                verify_errors.push(VerifyError::HmacFailure);
+                verify_errors.push(VerifyError::SignatureInvalid);
             } else {
-                tracing::info!("verify: HMAC signature OK");
+                tracing::info!("verify: ed25519 signature OK");
             }
         }
     } else if sig_path.exists() {
         tracing::info!(
-            "verify: BUNDLE.sig present but no --verify-key provided, skipping HMAC check"
+            "verify: BUNDLE.sig present but no --verify-key provided, skipping signature check"
         );
     }
 
