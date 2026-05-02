@@ -1,9 +1,9 @@
 //! Cross-layer consistency checks — step 6c/6d/6e of `verify_bundle`.
 //!
 //! Each check here catches tampering that can't be detected by the
-//! HMAC envelope alone (e.g. an insider-with-key attack) by requiring
-//! index.json fields to agree with independently-derivable data in
-//! the signed content layer:
+//! ed25519 signature envelope alone (e.g. an insider-with-private-key
+//! attack) by requiring index.json fields to agree with independently-
+//! derivable data in the signed content layer:
 //!
 //! - `check_trace_outputs_hashed` — every `trace_outputs[i]` appears in SHA256SUMS
 //! - `check_test_summary` — `index.test_summary` equals a re-parse of captured stdout
@@ -100,8 +100,8 @@ pub(super) fn check_test_summary(
 /// in `index.json.dal_map` must have a matching compliance report
 /// whose `dal` field agrees; extra `compliance/*.json` files (or
 /// missing `dal_map` entries) are flagged as orphans. Without this,
-/// a holder with the HMAC key could demote a crate's DAL in
-/// index.json while leaving the qualifying compliance artifact
+/// a holder of the ed25519 signing private key could demote a crate's
+/// DAL in index.json while leaving the qualifying compliance artifact
 /// untouched.
 pub(super) fn check_dal_map(bundle: &Path, index: &EvidenceIndex, errors: &mut Vec<VerifyError>) {
     let compliance_dir = bundle.join("compliance");

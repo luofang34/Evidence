@@ -386,11 +386,12 @@ pub(super) fn write_compliance_reports(
     Ok(())
 }
 
-// Phase 9 — finalize bundle + optional HMAC signing
+// Phase 9 — finalize bundle + optional ed25519 signing
 
 /// Finalize the bundle (writes `SHA256SUMS`, `index.json`, closes the
-/// builder) and, if `sign_key` is set, sign the envelope and drop
-/// `BUNDLE.sig` next to it. Returns the bundle directory path.
+/// builder) and, if `sign_key` is set, sign the envelope with the
+/// supplier's ed25519 signing (private) key and drop `BUNDLE.sig` next
+/// to it. Returns the bundle directory path.
 pub(super) fn finalize_and_sign(
     builder: EvidenceBuilder,
     trace_outputs: Vec<PathBuf>,
@@ -400,11 +401,11 @@ pub(super) fn finalize_and_sign(
 ) -> Result<PathBuf> {
     let bundle_path = builder.finalize(trace_outputs)?;
     if let Some(key_path) = sign_key {
-        let key_bytes = fs::read(&key_path)
+        let signing_key = evidence_core::read_signing_key(&key_path)
             .with_context(|| format!("reading signing key from {:?}", key_path))?;
-        sign_bundle(&bundle_path, &key_bytes)?;
+        sign_bundle(&bundle_path, &signing_key)?;
         if !quiet && !json_output {
-            println!("evidence: HMAC signature written to BUNDLE.sig");
+            println!("evidence: ed25519 signature written to BUNDLE.sig");
         }
     }
     Ok(bundle_path)

@@ -903,13 +903,6 @@
     "terminal": false
   },
   {
-    "code": "VERIFY_HMAC_FAILURE",
-    "severity": "error",
-    "domain": "verify",
-    "has_fix_hint": false,
-    "terminal": false
-  },
-  {
     "code": "VERIFY_INVALID_FORMAT",
     "severity": "error",
     "domain": "verify",
@@ -1002,6 +995,13 @@
   },
   {
     "code": "VERIFY_RUNTIME_WALK",
+    "severity": "error",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "VERIFY_SIGNATURE_INVALID",
     "severity": "error",
     "domain": "verify",
     "has_fix_hint": false,

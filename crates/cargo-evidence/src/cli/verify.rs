@@ -1,14 +1,14 @@
 //! `cargo evidence verify`.
 
-use std::fs;
 use std::path::PathBuf;
 
 use anyhow::Result;
 use serde::Serialize;
 
+use evidence_core::SigningError;
 use evidence_core::diagnostic::{Diagnostic, DiagnosticCode, Severity};
 use evidence_core::verify::VerifyRuntimeError;
-use evidence_core::{VerifyResult, verify_bundle_with_key};
+use evidence_core::{VerifyResult, read_verifying_key, verify_bundle_with_key};
 
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFormat};
 use super::output::{emit_json, emit_jsonl};
@@ -146,20 +146,11 @@ pub fn cmd_verify(
         );
     }
 
-    // Load verify key if provided. An I/O failure here is a runtime
-    // fault (key file missing / unreadable) — mirror the
-    // bundle-not-found shape above so all three formats stay
-    // HLR-016-consistent: human prints `error: ...`, json wraps the
-    // failure in `VerifyOutput { success: false, ... }`, both exit 1.
-    let key_bytes = match &verify_key {
-        Some(path) => match fs::read(path) {
-            Ok(bytes) => Some(bytes),
-            Err(source) => {
-                let err = VerifyRuntimeError::ReadVerifyKey {
-                    path: path.clone(),
-                    source,
-                };
-                let msg = err.to_string();
+    let verify_key_obj = match &verify_key {
+        Some(path) => match read_verifying_key(path) {
+            Ok(key) => Some(key),
+            Err(err) => {
+                let msg = classify_key_load_diagnostic(path, err).message;
                 return fail_verify(
                     json_output,
                     &bundle_path,
@@ -178,7 +169,7 @@ pub fn cmd_verify(
     };
 
     // Run verification
-    match verify_bundle_with_key(&bundle_path, key_bytes.as_deref()) {
+    match verify_bundle_with_key(&bundle_path, verify_key_obj.as_ref()) {
         Ok(VerifyResult::Pass) => {
             checks.push(VerifyCheck {
                 name: "bundle_integrity".to_string(),
@@ -258,7 +249,7 @@ pub fn cmd_verify(
                 #[rustfmt::skip]
                 let name = match err {
                     VE::UnexpectedFile(_)               => "unexpected_file",
-                    VE::HmacFailure                     => "hmac_signature",
+                    VE::SignatureInvalid                => "signature_invalid",
                     VE::HashMismatch { .. }             => "hash_mismatch",
                     VE::MissingHashedFile(_)            => "missing_file",
                     VE::ContentHashMismatch { .. }      => "content_hash",
@@ -382,23 +373,13 @@ fn cmd_verify_jsonl(
         return Ok(EXIT_VERIFICATION_FAILURE);
     }
 
-    // Load verify key. An I/O failure (missing / unreadable key
-    // file) is a runtime fault but must still emit the JSONL
-    // terminal pair — Schema Rule 1 mandates exactly one terminal
-    // per --format=jsonl run, and the user-visible verify pipeline
-    // already started. Mirror the BundleNotFound shape above:
-    // emit the structured `VERIFY_RUNTIME_READ_VERIFY_KEY` finding,
-    // then the `VERIFY_ERROR` terminal, then exit 1.
-    let key_bytes = match &verify_key {
-        Some(path) => match fs::read(path) {
-            Ok(bytes) => Some(bytes),
-            Err(source) => {
-                let err = VerifyRuntimeError::ReadVerifyKey {
-                    path: path.clone(),
-                    source,
-                };
-                let msg = err.to_string();
-                emit_jsonl(&err.to_diagnostic())?;
+    let verify_key_obj = match &verify_key {
+        Some(path) => match read_verifying_key(path) {
+            Ok(key) => Some(key),
+            Err(err) => {
+                let diag = classify_key_load_diagnostic(path, err);
+                let msg = diag.message.clone();
+                emit_jsonl(&diag)?;
                 emit_jsonl(&terminal_error(&msg))?;
                 return Ok(EXIT_ERROR);
             }
@@ -406,7 +387,7 @@ fn cmd_verify_jsonl(
         None => None,
     };
 
-    match verify_bundle_with_key(&bundle_path, key_bytes.as_deref()) {
+    match verify_bundle_with_key(&bundle_path, verify_key_obj.as_ref()) {
         Ok(VerifyResult::Pass) => {
             // A dev-profile bundle can legitimately land in
             // Pass with `bundle_complete: false` + recorded
@@ -486,5 +467,22 @@ fn cmd_verify_jsonl(
             emit_jsonl(&terminal_error(&runtime_msg))?;
             Ok(EXIT_ERROR)
         }
+    }
+}
+
+/// Classify a verify-key load failure: I/O failures route through
+/// `VerifyRuntimeError::ReadVerifyKey` (preserving the documented
+/// `VERIFY_RUNTIME_READ_VERIFY_KEY` surface); parse failures keep the
+/// underlying `SigningError` (`SIGN_INVALID_KEY` etc.). Returns the
+/// structured `Diagnostic` for the JSONL stream; callers needing the
+/// human-readable text read it off `diagnostic.message`.
+fn classify_key_load_diagnostic(path: &std::path::Path, err: SigningError) -> Diagnostic {
+    match err {
+        SigningError::Read { source, .. } => VerifyRuntimeError::ReadVerifyKey {
+            path: path.to_path_buf(),
+            source,
+        }
+        .to_diagnostic(),
+        other => other.to_diagnostic(),
     }
 }

@@ -287,6 +287,56 @@ overrides. A committed historical-anchor baseline — pinning
 `{git_sha → deterministic_hash}` for a curated set of milestone
 commits — would close that gap and is tracked as a follow-up.
 
+### Bundle integrity layers
+
+A bundle's integrity is verifiable along three layers, each requiring
+strictly less trusted material than the next:
+
+| Layer | What it covers | Key required to verify | Tool needed |
+|-------|----------------|------------------------|-------------|
+| **1. Content** | Every hashed file in `SHA256SUMS` (env.json, deterministic-manifest.json, inputs/outputs hashes, commands.json, trace outputs, captured stdout/stderr, compliance reports) | None | `sha256sum -c SHA256SUMS` |
+| **2. Metadata** | `index.json` fields excluded from `SHA256SUMS` (`git_sha`, `dal_map`, `test_summary`, `trace_outputs` paths, schema versions, timestamps) | The supplier's **public** ed25519 verifying key (32 bytes, hex) | `cargo evidence verify --verify-key <pubkey>` |
+| **3. Provenance** | Non-repudiation: only the holder of the corresponding **private** signing key could have produced the matching `BUNDLE.sig` | Same public key as Layer 2; the chain of trust is "did this public key sign this?" | Same `verify` invocation |
+
+**Why two cryptographic objects (`SHA256SUMS` and `BUNDLE.sig`) instead
+of one?** `index.json` is deliberately excluded from `SHA256SUMS`
+because `index.json` records `content_hash`, which is `SHA-256
+(SHA256SUMS)` — a self-referential cycle. The detached `BUNDLE.sig`
+covers a length-prefixed `(SHA256SUMS, index.json)` envelope, closing
+the metadata-layer tampering gap.
+
+**What `BUNDLE.sig` is not:**
+
+- *Not an HMAC.* The verifier needs only the public key, not a shared
+  secret. (Pre-0.1.5 versions used HMAC-SHA256 and called it a
+  "signature" — that was a misnomer; it's now a real signature.)
+- *Not an X.509 / PKI signature.* The 32-byte public key is raw —
+  distribute it however you like (commit to repo, attach to release,
+  publish to a transparency log).
+- *Not a SLSA L3 attestation.* SLSA build-provenance integration is a
+  separate roadmap item; the current signature covers integrity and
+  non-repudiation only.
+
+**Generating and verifying:**
+
+```bash
+# One-time: generate an ed25519 keypair (any tool that produces 32-byte
+# raw private + 32-byte raw public works; openssl shown here).
+# A native `cargo evidence keygen` subcommand is planned.
+openssl genpkey -algorithm ed25519 -outform raw -out signing.key.raw
+xxd -p -c 64 signing.key.raw > cert/signing.key
+openssl pkey -in signing.key.raw -inform raw -pubout -outform raw -out signing.pub.raw
+xxd -p -c 64 signing.pub.raw > cert/signing.pub
+chmod 600 cert/signing.key   # private — never commit
+# Commit cert/signing.pub; gitignore cert/signing.key.
+
+# Sign during generate
+cargo evidence generate --signing-key cert/signing.key --out-dir /tmp/evidence
+
+# Verify with public key
+cargo evidence verify /tmp/evidence/<bundle> --verify-key cert/signing.pub
+```
+
 ### Captured Output Normalization
 
 Every file written by `cargo evidence generate` under the capture directory
@@ -632,7 +682,11 @@ Previously tracked items now resolved:
   (captures panic/assertion text from `---- <test> stdout ----`
   failure blocks). A-7 Obj-3/Obj-4 upgrade from Partial → Met
   when present + aggregate `tests_passed == true`.
-- ~~No cryptographic signing~~ → HMAC-SHA256 via `sign_bundle()` + `BUNDLE.sig`
+- ~~No cryptographic signing~~ → ed25519 detached signature over
+  the `(SHA256SUMS, index.json)` envelope, hex-encoded as `BUNDLE.sig`.
+  The verifying party needs only the supplier's 32-byte public key —
+  no shared secret. See "Bundle integrity layers" below for the
+  three-layer model (SHA-256 content / ed25519 metadata / non-repudiation).
 - ~~No extra-file detection~~ → `verify.rs` walks bundle and flags unexpected files
 - ~~Incomplete SCI/SECI~~ → `Cargo.lock` hash, `RUSTFLAGS`, `rust-toolchain.toml` captured
 - ~~`engine_git_sha` conflation / `"unknown"` fallback~~ → `build.rs` captures the engine's own

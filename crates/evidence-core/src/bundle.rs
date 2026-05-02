@@ -8,7 +8,7 @@
 //! | `test_summary`   | `TestSummary` + `parse_cargo_test_output`                 |
 //! | `outcome_record` | `TestOutcomeRecord` — rows in `tests/test_outcomes.jsonl` |
 //! | `capture`        | `normalize_captured_text` — LF-normalize stdout/stderr    |
-//! | `signing`        | `sign_bundle` / `verify_bundle_signature` (HMAC envelope) |
+//! | `signing`        | `sign_bundle` / `verify_bundle_signature` (ed25519 over the SHA256SUMS+index.json envelope) |
 //! | `index`          | `EvidenceIndex` — struct mirror of `index.json`           |
 //! | `builder`        | `EvidenceBuildConfig`, `EvidenceBuilder` (assembly state) |
 //! | `time`           | `utc_now_rfc3339` + `utc_compact_stamp`                   |
@@ -36,7 +36,10 @@ pub use command_failure::{STDERR_TAIL_LINES, ToolCommandFailure, tail_stderr};
 pub use error::BuilderError;
 pub use index::EvidenceIndex;
 pub use outcome_record::{TestOutcomeRecord, TestsError};
-pub use signing::{SigningError, sign_bundle, verify_bundle_signature};
+pub use signing::{
+    SigningError, generate_signing_key, read_signing_key, read_verifying_key, sign_bundle,
+    verify_bundle_signature, write_signing_key, write_verifying_key,
+};
 pub use test_summary::{
     TestOutcome, TestSummary, parse_cargo_test_output, parse_cargo_test_output_detailed,
     parse_cargo_test_output_with_outcomes,
