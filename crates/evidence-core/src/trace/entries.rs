@@ -138,15 +138,9 @@ pub struct LlrEntry {
     /// Implementation modules (DO-178C Table A-4 traceability).
     #[serde(default)]
     pub modules: Vec<String>,
-    /// Whether this is a derived requirement.
-    #[serde(default)]
-    pub derived: bool,
     /// Requirement description.
     #[serde(default)]
     pub description: Option<String>,
-    /// Rationale for derived requirements.
-    #[serde(default)]
-    pub rationale: Option<String>,
     /// Verification methods.
     #[serde(default)]
     pub verification_methods: Vec<String>,
@@ -356,14 +350,11 @@ mod tests {
             traces_to: vec!["parent-uuid".to_string()],
             source: None,
             modules: vec![],
-            derived: false,
             description: Some("An LLR description".to_string()),
-            rationale: None,
             verification_methods: vec!["test".to_string()],
             emits: vec!["VERIFY_HASH_MISMATCH".to_string()],
         };
         assert_eq!(llr.id, "LLR-001");
-        assert!(!llr.derived);
         assert_eq!(llr.description.as_deref(), Some("An LLR description"));
         assert_eq!(llr.emits, vec!["VERIFY_HASH_MISMATCH".to_string()]);
     }

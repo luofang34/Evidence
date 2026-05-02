@@ -259,11 +259,6 @@ pub const RULES: &[RuleEntry] = &[
         Severity::Error,
         Domain::Trace,
     ),
-    r(
-        "TRACE_CONTRADICTORY_DERIVED",
-        Severity::Error,
-        Domain::Trace,
-    ),
     r("TRACE_DANGLING_LINK", Severity::Error, Domain::Trace),
     r(
         "TRACE_DERIVED_MISSING_RATIONALE",

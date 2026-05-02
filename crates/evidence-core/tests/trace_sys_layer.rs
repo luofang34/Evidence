@@ -50,9 +50,7 @@ fn stub_llr(uid: &str, id: &str, owner: &str, traces_to: Vec<String>) -> LlrEntr
         traces_to,
         source: None,
         modules: vec![],
-        derived: false,
         description: None,
-        rationale: None,
         verification_methods: vec!["test".to_string()],
         emits: vec![],
     }

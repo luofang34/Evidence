@@ -346,22 +346,16 @@ pub fn validate_trace_links_with_policy(
     }
 
     for r in llrs {
-        // LLR policy: derived vs traced.
+        // LLR upward traceability: every LlrEntry must trace to one or
+        // more HLRs. The DO-178C §5.2.4 "derived" carve-out lives in
+        // its own document (`cert/trace/derived.toml`); LLRs that
+        // would have been "derived" in DO-178C semantics are recorded
+        // there as `DerivedEntry`, not as LlrEntry with a `derived`
+        // bool. The legacy `LlrEntry.derived` / `LlrEntry.rationale`
+        // fields were retired so the LLR stream is unambiguous:
+        // every LLR traces upward.
         if r.traces_to.is_empty() {
-            if !r.derived {
-                errors.push(LinkError::LlrMissingParentLinks {
-                    llr_id: r.id.clone(),
-                });
-            } else if r.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
-                // DO-178C §5.2.2 — derived requirements must carry a
-                // non-empty rationale. Unconditional rule (no policy
-                // gate); HLR-040.
-                errors.push(LinkError::DerivedMissingRationale {
-                    llr_id: r.id.clone(),
-                });
-            }
-        } else if r.derived {
-            errors.push(LinkError::ContradictoryDerived {
+            errors.push(LinkError::LlrMissingParentLinks {
                 llr_id: r.id.clone(),
             });
         }

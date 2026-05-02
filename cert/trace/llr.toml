@@ -12,7 +12,6 @@ title = "cmd_verify_jsonl emits a terminal on every exit path"
 owner = "tool"
 traces_to = ["f6d35f65-4a38-4ad9-ba2a-b5c4e3d7da41"]
 modules = ["cargo_evidence::cli::verify::cmd_verify_jsonl"]
-derived = false
 description = """
 Each arm of cmd_verify_jsonl (pass, fail, skipped, runtime error,
 strict-signature-missing) emits exactly one hand-built terminal
@@ -33,7 +32,6 @@ title = "emit_jsonl flushes stdout per event"
 owner = "tool"
 traces_to = ["da30287c-8223-448b-ad94-7a09cc981347"]
 modules = ["cargo_evidence::cli::output::emit_jsonl"]
-derived = false
 description = '''
 The emit_jsonl helper locks stdout, writes one compact JSON line +
 '\n', and calls handle.flush() before returning. This is the only
@@ -53,7 +51,6 @@ modules = [
     "evidence_core::verify::errors::VerifyError",
     "evidence_core::hash::HashError",
 ]
-derived = false
 description = """
 Each DiagnosticCode::code impl matches self exhaustively so adding a
 new variant without a code fails at compile time. The
@@ -69,7 +66,6 @@ title = "TERMINAL_CODES is the source of truth for terminals"
 owner = "tool"
 traces_to = ["3181e08a-934f-4031-99ec-d55e609399c7"]
 modules = ["evidence_core::diagnostic::TERMINAL_CODES"]
-derived = false
 description = """
 pub const TERMINAL_CODES: &[&str] enumerates every hand-emitted
 terminal. diagnostic_codes_locked asserts (a) internal uniqueness,
@@ -87,7 +83,6 @@ title = "FixHint::Other catches unknown kind via #[serde(other)]"
 owner = "tool"
 traces_to = ["ba4d711e-f3e9-4af5-951c-682755799f18"]
 modules = ["evidence_core::diagnostic::FixHint"]
-derived = false
 description = """
 FixHint is a tagged enum with #[serde(tag = "kind")]. An unknown
 kind string deserializes to FixHint::Other (the #[serde(other)]
@@ -104,7 +99,6 @@ title = "GitSnapshot::capture queries git once at builder construction"
 owner = "tool"
 traces_to = ["78a03d07-7314-46bc-8b63-776104d99c35"]
 modules = ["evidence_core::git::GitSnapshot::capture"]
-derived = false
 description = """
 GitSnapshot::capture reads HEAD SHA, branch, and dirty status in one
 atomic set. Subsequent pipeline steps read the snapshot; they do not
@@ -129,7 +123,6 @@ title = "env_fingerprint records toolchain + host identity"
 owner = "tool"
 traces_to = ["2e3840ff-7803-4ba0-b88d-9cc6ec8b6062"]
 modules = ["evidence_core::env::capture::env_fingerprint"]
-derived = false
 description = """
 env_fingerprint runs rustc --version, cargo --version, reads
 Cargo.lock and rust-toolchain.toml, captures RUSTFLAGS and NAV_*
@@ -154,7 +147,6 @@ title = "write_sha256sums sorts and normalizes paths"
 owner = "tool"
 traces_to = ["48f569e5-6671-4fb6-b36f-b04b446bd6c1"]
 modules = ["evidence_core::hash::write_sha256sums"]
-derived = false
 description = """
 write_sha256sums walks the bundle root, collects file paths, sorts
 them, normalizes backslashes to forward slashes, and writes
@@ -178,7 +170,6 @@ title = "DeterministicManifest projects host-independent fields"
 owner = "tool"
 traces_to = ["6947e635-4f6b-4833-a101-f896b8ae59c9"]
 modules = ["evidence_core::env::fingerprint::DeterministicManifest"]
-derived = false
 description = """
 DeterministicManifest is derived from EnvFingerprint by selecting
 only fields that shall be byte-equal across hosts for the same
@@ -199,7 +190,6 @@ title = "EvidenceBuilder::finalize re-reads git SHA"
 owner = "tool"
 traces_to = ["f08c9da9-627c-471e-90af-0c286332a41f"]
 modules = ["evidence_core::bundle::EvidenceBuilder::finalize"]
-derived = false
 description = """
 finalize() calls GitProvider::head_sha() a second time and compares
 against the snapshot. On mismatch it returns BuilderError::Toctou
@@ -236,7 +226,6 @@ modules = [
     "evidence_core::verify::bundle::verify_bundle_with_key",
     "evidence_core::verify::completeness::check_bundle_completeness",
 ]
-derived = false
 description = """
 verify_bundle_with_key parses SHA256SUMS, recomputes the SHA-256 of
 each listed file with streaming io::copy, and pushes VerifyError
@@ -282,7 +271,6 @@ title = "check_env_vs_index cross-checks duplicated fields"
 owner = "tool"
 traces_to = ["2e7d1836-c8b0-461f-8704-45ddefce31a5"]
 modules = ["evidence_core::verify::cross_file::check_env_vs_index"]
-derived = false
 description = """
 check_env_vs_index reads env.json (tolerating tamper-failure via
 if let Ok), compares profile / git_sha / git_branch / git_dirty
@@ -299,7 +287,6 @@ title = "check_dal_map cross-checks index.json ↔ compliance/"
 owner = "tool"
 traces_to = ["214ab4da-5328-4ace-9626-326dd95894a6"]
 modules = ["evidence_core::verify::consistency::check_dal_map"]
-derived = false
 description = """
 check_dal_map iterates index.json.dal_map, reads each
 compliance/<crate>.json, and asserts the dal string matches.
@@ -319,7 +306,6 @@ title = "check_trace_outputs_hashed enforces trace-file hashing"
 owner = "tool"
 traces_to = ["fd304d26-ba40-4beb-9ab8-18f2185abbf3"]
 modules = ["evidence_core::verify::consistency::check_trace_outputs_hashed"]
-derived = false
 description = """
 check_trace_outputs_hashed iterates index.json.trace_outputs and
 asserts each path is present in the SHA256SUMS key set. Missing
@@ -335,7 +321,6 @@ title = "cmd_verify_jsonl strict-mode signature guard"
 owner = "tool"
 traces_to = ["904ad11d-7b76-4707-8a08-cab8224b64c9"]
 modules = ["cargo_evidence::cli::verify::cmd_verify_jsonl"]
-derived = false
 description = """
 When strict is true and neither BUNDLE.sig nor --verify-key is
 present, cmd_verify_jsonl emits VERIFY_STRICT_SIGNATURE_MISSING as a
@@ -362,7 +347,6 @@ modules = [
     "cargo_evidence::cli::verify::terminal_fail",
     "cargo_evidence::cli::verify::terminal_error",
 ]
-derived = false
 description = """
 The three terminal-builder helpers in cli/verify.rs hand-construct
 Diagnostic { code = VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR, severity,
@@ -379,7 +363,6 @@ title = "OutputFormat::resolve folds --json + --format precedence"
 owner = "tool"
 traces_to = ["cb2b1464-3b2b-43a2-bffe-a41c16efefe6"]
 modules = ["cargo_evidence::cli::args::OutputFormat::resolve"]
-derived = false
 description = """
 resolve returns format_flag unchanged if it is not Human; otherwise
 it returns Json when json_flag is true, else Human. Explicit
@@ -398,7 +381,6 @@ modules = [
     "cargo_evidence::cli::schema::cmd_schema_show",
     "evidence_core::schema::Schema::source",
 ]
-derived = false
 description = """
 cmd_schema_show maps the CLI SchemaName to evidence_core::schema::Schema
 and prints the include_str!()'d source verbatim. Schema::for_filename
@@ -419,7 +401,6 @@ title = "validate_trace_links_with_policy is two-phase"
 owner = "tool"
 traces_to = ["bfa93e37-0469-468b-b89a-d8b165b42168"]
 modules = ["evidence_core::trace::validation::validate_trace_links_with_policy"]
-derived = false
 description = """
 validate_trace_links_with_policy first registers every SYS / HLR /
 LLR / TEST / DERIVED entry into a uid_index + item_index,
@@ -446,7 +427,6 @@ title = "dispatch guard emits CLI_SUBCOMMAND_ERROR terminal"
 owner = "tool"
 traces_to = ["62498de7-e6b9-4805-8b6c-afead78b33ac"]
 modules = ["cargo_evidence::main::emit_unsupported_jsonl_terminal"]
-derived = false
 description = """
 When --format=jsonl is passed to any non-verify subcommand,
 dispatch calls emit_unsupported_jsonl_terminal, which streams
@@ -467,7 +447,6 @@ modules = [
     "evidence_core::policy::TracePolicy",
     "evidence_core::trace::validation::validate_trace_links_with_policy",
 ]
-derived = false
 description = """
 TracePolicy gains a `require_hlr_sys_trace: bool` (serde default false).
 When true, the HLR loop in validate_trace_links_with_policy emits a
@@ -486,7 +465,6 @@ modules = [
     "evidence_core::trace::selector_check::resolve_test_selectors",
     "evidence_core::trace::validation::TraceValidationError::SelectorUnresolved",
 ]
-derived = false
 description = """
 resolve_test_selectors takes &[TestEntry] + workspace root, scans each
 non-empty test_selector against .rs files, returns unresolvable list.
@@ -503,7 +481,6 @@ title = "default_trace_roots picks cert/trace or cert/trace"
 owner = "tool"
 traces_to = ["911fe168-04d7-49ee-99f4-d7a5a7a6fb1c"]
 modules = ["cargo_evidence::cli::trace::default_trace_roots"]
-derived = false
 description = """
 default_trace_roots returns Option<Vec<String>> by probing for
 ./cert/trace/ then ./cert/trace/. cmd_trace calls it only when
@@ -519,7 +496,6 @@ title = "ci_self_check greps committed ci.yml for both flags"
 owner = "tool"
 traces_to = ["a86e0c73-4ffd-4f46-8733-ce5cd0abba76"]
 modules = ["evidence_core::tests::ci_self_check"]
-derived = false
 description = """
 An integration test reads .github/workflows/ci.yml verbatim, locates
 the trace-self-validate job's run: block, asserts both
@@ -538,7 +514,6 @@ modules = [
     "cargo_evidence::cli::args::CheckMode",
     "cargo_evidence::cli::check::cmd_check",
 ]
-derived = false
 description = """
 cmd_check reads --mode (Auto/Source/Bundle, default Auto) and the
 optional path arg (default "."). Auto precedence: SHA256SUMS at
@@ -562,7 +537,6 @@ modules = [
     "evidence_core::trace::requirement_report::build_requirement_report",
     "evidence_core::trace::requirement_report::RequirementStatus",
 ]
-derived = false
 description = """
 build_requirement_report walks sys/hlr/llr/tests, looks each entry's
 test_selector up in the outcome map, and emits REQ_PASS / REQ_GAP /
@@ -584,7 +558,6 @@ title = "fix_hint_for_gap picks the right FixHint variant per sub-case"
 owner = "tool"
 traces_to = ["7c6672c3-5a20-42b6-bf73-04aa6c00a914"]
 modules = ["evidence_core::trace::requirement_report::fix_hint_for_gap"]
-derived = false
 description = """
 Internal helper returning Option<FixHint> for a given GAP sub-case:
 missing-uid → AssignUuid; empty traces_to under policy → AddTomlKey
@@ -605,7 +578,6 @@ modules = [
     "evidence_core::bundle::testing::parse_cargo_test_output",
     "evidence_core::bundle::testing::TestOutcome",
 ]
-derived = false
 description = """
 Extends the counters-only parser to also produce BTreeMap<String,
 TestOutcome>. Tracks the `Running target/debug/deps/<binary>-<hash>`
@@ -630,7 +602,6 @@ modules = [
     "evidence_core::rules::rules_json",
     "cargo_evidence::cli::rules::cmd_rules",
 ]
-derived = false
 description = """
 `evidence_core::rules` defines `RuleEntry { code, severity, domain,
 has_fix_hint, terminal }`, the `Domain` enum (closed over code
@@ -653,7 +624,6 @@ modules = [
     "diagnostic_codes_locked::rules_contains_every_code",
     "diagnostic_codes_locked::every_rules_entry_is_implemented",
 ]
-derived = false
 description = """
 Two new invariants in the existing `diagnostic_codes_locked` test
 module: (a) the set of source-walked `DiagnosticCode::code()`
@@ -674,7 +644,6 @@ modules = [
     "evidence_core::trace::entries::LlrEntry::emits",
     "diagnostic_codes_locked::every_code_is_claimed_by_an_llr",
 ]
-derived = false
 description = """
 `LlrEntry` gains `emits: Vec<String>` with `#[serde(default,
 skip_serializing_if = "Vec::is_empty")]`. A locked-codes invariant
@@ -694,7 +663,6 @@ title = "Locked-codes invariant: RULES.terminal matches TERMINAL_CODES"
 owner = "tool"
 traces_to = ["163796eb-0063-4b24-8012-96b167e54e20"]
 modules = ["diagnostic_codes_locked::rules_terminal_set_matches_terminal_codes"]
-derived = false
 description = """
 New invariant asserts `{ r.code | r in RULES where r.terminal }`
 equals `TERMINAL_CODES` as a set. A new terminal added to
@@ -714,7 +682,6 @@ modules = [
     "golden_fixtures::verify_golden_matches",
     "golden_fixtures::check_source_golden_matches",
 ]
-derived = false
 description = """
 Two integration tests under `crates/cargo-evidence/tests/` run
 `verify --format=jsonl` on a committed golden bundle and `check .`
@@ -733,7 +700,6 @@ title = "Self-compliance baseline diff test"
 owner = "tool"
 traces_to = ["a3593224-76e3-4928-a67f-833f7961e10d"]
 modules = ["self_compliance_baseline::baseline_matches_current_generation"]
-derived = false
 description = """
 Integration test runs `cargo evidence generate` against the tool's
 own workspace into a tempdir, parses every `compliance/*.json`
@@ -760,7 +726,6 @@ modules = [
     "evidence_core::floors::count_library_panics",
     "evidence_core::floors::FloorsConfig",
 ]
-derived = false
 description = """
 A `floors` module in the evidence library exports per-dimension
 measurement helpers and a `FloorsConfig` TOML deserializer. Each
@@ -779,7 +744,6 @@ title = "cmd_floors runs the gate + JSONL support"
 owner = "tool"
 traces_to = ["a3073b5a-ee61-4bdd-bdfe-c3154274e5ea"]
 modules = ["cargo_evidence::cli::floors::cmd_floors"]
-derived = false
 description = """
 `cargo evidence floors [--format={human,jsonl}] [--json] [--base <ref>]`
 reads cert/floors.toml, computes current measurements via
@@ -808,7 +772,6 @@ title = "floors-lower-lint refuses silent decreases via a PR-body grep"
 owner = "tool"
 traces_to = ["410a3c64-c5d5-4619-832e-5415c1fdc090"]
 modules = ["scripts/floors-lower-lint.sh"]
-derived = false
 description = """
 A CI script compares `cert/floors.toml` at base vs HEAD, extracts
 numeric decreases in the [floors] table, and asserts the PR body
@@ -832,7 +795,6 @@ modules = [
     "evidence_core::trace::surfaces::KNOWN_SURFACES",
     "evidence_core::trace::validation::validate_hlr_surfaces",
 ]
-derived = false
 description = """
 `HlrEntry.surfaces: Vec<String>` declares user-visible CLI verbs
 and observable contracts. A hand-curated `KNOWN_SURFACES: &[&str]`
@@ -856,7 +818,6 @@ modules = [
     "evidence_core::trace::entries::TestEntry::test_selectors",
     "evidence_core::trace::entries::deserialize_string_or_vec",
 ]
-derived = false
 description = """
 Custom `StringOrVec` serde deserializer accepts both shorthand
 (`"X"`) and array (`["X", "Y"]`) TOML forms for `test_selectors`.
@@ -873,7 +834,6 @@ title = "validate_derived_has_rationale Link-phase rule"
 owner = "tool"
 traces_to = ["a9b74c2e-0644-4f77-a709-63fe66f53cf8"]
 modules = ["evidence_core::trace::validation::validate_derived_has_rationale"]
-derived = false
 description = """
 A Link-phase rule that iterates every LLR with `derived == true`
 and asserts `rationale.is_some()` and non-empty. Surfaces under
@@ -894,7 +854,6 @@ modules = [
     "evidence_core::trace::validation::link_errors::LinkError",
     "evidence_core::trace::validation::TraceValidationError",
 ]
-derived = false
 description = """
 `pub enum LinkError` lives in a sibling
 `crates/evidence-core/src/trace/validation/link_errors.rs` file (pulled
@@ -929,7 +888,6 @@ title = "cmd_trace stream-emits one Diagnostic per LinkError"
 owner = "tool"
 traces_to = ["b7265ced-3c5b-4558-92d1-5c54cba8657f"]
 modules = ["cargo_evidence::cli::trace::cmd_trace"]
-derived = false
 description = """
 When `trace --validate --format=jsonl` hits
 `Err(TraceValidationError::Link { errors })`, the CLI handler
@@ -957,7 +915,6 @@ title = "RULES registers every LinkError variant code; bijection closed"
 owner = "tool"
 traces_to = ["5280cbfc-ea87-4a6d-a2ed-172e9cb48c37"]
 modules = ["evidence_core::rules::RULES"]
-derived = false
 description = """
 Every `LinkError::code()` return has a matching entry in the
 `RULES` manifest, and LLR-041's `emits` list claims all of them.
@@ -979,7 +936,6 @@ title = "rot_prone_markers_locked integration test"
 owner = "tool"
 traces_to = ["0800ac23-b3d6-4e1e-b2d1-50a0349bd586"]
 modules = ["evidence_core::rot_prone_markers_locked"]
-derived = false
 description = '''
 A Rust `#[test] fn` in
 `crates/evidence-core/tests/rot_prone_markers_locked.rs` walks every
@@ -1007,7 +963,6 @@ modules = [
     "scripts::cross_time_determinism",
     "scripts::deterministic_baseline_override_lint",
 ]
-derived = false
 description = """
 New CI job `cross-time-determinism` in `.github/workflows/ci.yml`:
 on `pull_request` events downloads the last successful
@@ -1035,7 +990,6 @@ title = "trace_id_refs_locked integration test"
 owner = "tool"
 traces_to = ["1be9fb07-2492-4e2a-b9c6-b089b7eac20d"]
 modules = ["evidence_core::trace_id_refs_locked"]
-derived = false
 description = '''
 A Rust `#[test] fn` in
 `crates/evidence-core/tests/trace_id_refs_locked.rs` walks `.rs` under
@@ -1057,7 +1011,6 @@ title = "walker_usage_locked integration test"
 owner = "tool"
 traces_to = ["29ea38c7-c1d6-4130-a44e-696a1b10802d"]
 modules = ["evidence_core::walker_usage_locked"]
-derived = false
 description = """
 A Rust `#[test] fn` in
 `crates/evidence-core/tests/walker_usage_locked.rs` walks
@@ -1079,7 +1032,6 @@ title = "cmd_doctor subcommand implementation"
 owner = "tool"
 traces_to = ["57992e98-fb1e-4248-b340-6dd454db95c1"]
 modules = ["cargo_evidence::cli::doctor"]
-derived = false
 description = """
 `cmd_doctor(args) -> Result<()>` in
 `crates/cargo-evidence/src/cli/doctor.rs` runs each rigor check
@@ -1136,7 +1088,6 @@ modules = [
     "cargo_evidence::cli::verify",
     "cargo_evidence::cli::generate::phases",
 ]
-derived = false
 description = """
 Four coupled sites:
 
@@ -1185,7 +1136,6 @@ modules = [
     "evidence_mcp::lib",
     "evidence_mcp::subprocess",
 ]
-derived = false
 description = """
 New workspace crate `crates/evidence-mcp`. Shape:
 
@@ -1255,7 +1205,6 @@ modules = [
     "evidence_core::tests::outcome_record",
     "evidence_core::bundle::builder",
 ]
-derived = false
 description = """
 Three coupled sites:
 
@@ -1308,7 +1257,6 @@ modules = [
     "evidence_core::verify::llr_selectors::check_llr_test_selectors",
     "cargo_evidence::cli::generate::test_outcomes::enrich_and_write_test_outcomes",
 ]
-derived = false
 description = """
 `evidence_core::trace::test_backlinks::resolve_llr_backlinks`
 mutates a slice of `TestOutcomeRecord` in place, filling each
@@ -1358,7 +1306,6 @@ modules = [
     "evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export",
     "cargo_evidence::cli::generate::coverage_phase::run_coverage_phase",
 ]
-derived = false
 description = """
 `evidence_core::coverage::report::CoverageReport` models the
 typed wire shape of `coverage/coverage_summary.json`. Top-level
@@ -1423,7 +1370,6 @@ modules = [
     "evidence_mcp::resolve_workspace",
     "evidence_mcp::emit_workspace_fallback_diagnostic",
 ]
-derived = false
 description = """
 Each of the three MCP tool input structs gains
 `#[serde(deny_unknown_fields)]` so a typo'd field name produces
@@ -1460,7 +1406,6 @@ modules = [
     "cargo_evidence::cli::trace::cmd_trace",
     "cargo_evidence::cli::generate::phases::validate_trace_links_phase",
 ]
-derived = false
 description = """
 At `cli/trace.rs:120` and `cli/generate/phases.rs:313`, replace
 the `&[]` placeholder in the `validate_trace_links_with_policy`
@@ -1483,7 +1428,6 @@ title = "parse_llvm_cov_export populates FileMeasurement.branches structurally"
 owner = "tool"
 traces_to = ["468a6894-7121-4936-8432-94163e35d4a1"]
 modules = ["evidence_core::coverage::report::BranchCoverage"]
-derived = false
 description = """
 `evidence_core::coverage::report::BranchCoverage {covered: u64,
 total: u64}` is a sibling of `LineCoverage` on
@@ -1523,7 +1467,6 @@ modules = [
     "cargo_evidence::cli::generate::coverage_phase::aggregate_lines_percent",
     "evidence_core::bundle::builder_coverage::aggregate_lines",
 ]
-derived = false
 description = """
 `aggregate_lines_percent(m: &Measurement) -> f64` computes
 `sum(per_file[].lines.covered) / sum(per_file[].lines.total)
@@ -1564,7 +1507,6 @@ modules = [
     "cargo_evidence::cli::generate::coverage_phase::aggregate_branches_percent",
     "evidence_core::bundle::builder_coverage::aggregate_branches",
 ]
-derived = false
 description = """
 `aggregate_branches_percent(m: &Measurement) -> f64` computes
 `sum(per_file[].branches.map_or(0, |b| b.covered)) /
@@ -1601,7 +1543,6 @@ title = "threshold_violations dispatches to level-appropriate aggregator; strict
 owner = "tool"
 traces_to = ["bebe9227-5f47-4eb8-89a7-f2157fb96e6c"]
 modules = ["cargo_evidence::cli::generate::coverage_phase::threshold_violations"]
-derived = false
 description = """
 `threshold_violations(report: &CoverageReport, thresholds:
 DalCoverageThresholds) -> Vec<ThresholdViolation>` iterates
@@ -1644,7 +1585,6 @@ title = "load_max_dal: max over dal_map values, fall back to default_dal on empt
 owner = "tool"
 traces_to = ["79afc7a1-22dd-450e-8f0c-c29c93b48905"]
 modules = ["cargo_evidence::cli::doctor::checks::load_max_dal"]
-derived = false
 description = """
 `load_max_dal(workspace: &Path) -> (Dal, bool)`:
 
@@ -1691,7 +1631,6 @@ modules = [
     "cargo_evidence::cli::generate::phases::trace_validation::validate_trace_links_phase",
     "cargo_evidence::cli::generate::phases::write_compliance_reports",
 ]
-derived = false
 description = """
 `TraceValidationResult { passed: bool, short_circuit:
 Option<i32> }` is the return type of
@@ -1734,7 +1673,6 @@ modules = [
     "evidence_mcp::server::Server",
     "evidence_mcp::workspace::resolve_workspace",
 ]
-derived = false
 description = """
 `#[tool_handler(router = self.tool_router, name = "evidence-mcp")]`
 on `impl ServerHandler for Server` in `server.rs` is the
@@ -1784,7 +1722,6 @@ modules = [
     "evidence_mcp::version_probe::probe_cli_version",
     "evidence_mcp::version_probe::skew_diagnostic",
 ]
-derived = false
 description = '''
 `VersionSkew { Matched(String) | Skewed{mcp,cli} |
 ProbeFailed(String) }` is the three-state outcome of the
@@ -1854,7 +1791,6 @@ modules = [
     "evidence_mcp::server",
     "evidence_mcp::schema",
 ]
-derived = false
 description = """
 Every `RunError` variant plus the two parse-layer synthesized
 terminals map to a typed `MCP_*` code declared in `RULES`
@@ -1942,7 +1878,6 @@ title = "EVIDENCE_MCP_TIMEOUT_SECS tunes the per-spawn subprocess cap"
 owner = "tool"
 traces_to = ["20b4b691-f89f-4453-85f3-9eba5299935e"]
 modules = ["evidence_mcp::subprocess"]
-derived = false
 description = """
 `evidence_mcp::subprocess::spawn_timeout()` reads
 `EVIDENCE_MCP_TIMEOUT_SECS` on every call. Parse failures and
@@ -1976,7 +1911,6 @@ modules = [
     "evidence_mcp::server",
     "evidence_mcp::schema",
 ]
-derived = false
 description = """
 Fourth `#[tool]` on `Server`, alongside `evidence_rules`,
 `evidence_doctor`, `evidence_check`. Takes no arguments
@@ -2024,7 +1958,6 @@ modules = [
     "evidence_mcp::server",
     "evidence_mcp::schema",
 ]
-derived = false
 description = """
 Fifth `#[tool]` on `Server`, alongside `evidence_rules`,
 `evidence_doctor`, `evidence_check`, `evidence_ping`. Takes
@@ -2068,7 +2001,6 @@ modules = [
     "evidence_mcp::server",
     "evidence_mcp::schema",
 ]
-derived = false
 description = """
 Sixth `#[tool]` on `Server`, alongside `evidence_rules`,
 `evidence_doctor`, `evidence_check`, `evidence_ping`,
@@ -2114,7 +2046,6 @@ modules = [
     "evidence_core::verify::bundle",
     "cargo_evidence::cli::verify",
 ]
-derived = false
 description = """
 `cmd_verify_jsonl` and `cmd_verify` both load the
 `--verify-key` file before calling `verify_bundle_with_key`.
@@ -2155,7 +2086,6 @@ traces_to = ["beae070b-5998-48f4-8fd9-235ed14c93d5"]
 modules = [
     "evidence_core::boundary_check::check_no_build_rs",
 ]
-derived = false
 description = """
 `check_no_build_rs(in_scope: &[String], workspace_root: &Path)
 -> Result<(), BoundaryCheckError>` parses `cargo metadata
@@ -2190,7 +2120,6 @@ traces_to = ["49d5c8b2-5c51-4046-a08d-ffde61f6c846"]
 modules = [
     "evidence_core::boundary_check::check_no_proc_macros",
 ]
-derived = false
 description = """
 `check_no_proc_macros(in_scope: &[String], workspace_root:
 &Path) -> Result<(), BoundaryCheckError>` parses `cargo
@@ -2224,7 +2153,6 @@ modules = [
     "evidence_core::bundle::builder::EvidenceBuilder::finalize",
     "evidence_core::verify::bundle::verify_bundle_with_key",
 ]
-derived = false
 description = """
 The bundle includes a deterministic projection of `cargo
 metadata --format-version 1` as `cargo_metadata.json` whenever
@@ -2284,7 +2212,6 @@ modules = [
     "evidence_core::policy::dal::AuxiliaryMcdcTool",
     "cargo_evidence::cli::generate::policy::enforce_dal_qualification",
 ]
-derived = false
 description = """
 Library side: `evidence_core::check_dal_a_mcdc_evidence(dal_map,
 auxiliary_mcdc_tool)` returns `Ok(())` when no in-scope crate is
@@ -2329,7 +2256,6 @@ modules = [
     "evidence_mcp::schema::RulesToolResponse",
     "evidence_mcp::schema::DiffToolResponse",
 ]
-derived = false
 description = """
 `JsonlToolResponse`, `RulesToolResponse`, and `DiffToolResponse` each
 carry a top-level `success: bool` field. The boolean is computed by
@@ -2379,7 +2305,6 @@ title = "main.rs --help intercept reuses clap's render tree"
 owner = "tool"
 traces_to = ["34234f8b-9f0b-47d4-829e-aed0ac96d51c"]
 modules = ["cargo_evidence::main"]
-derived = false
 description = """
 `crates/cargo-evidence/src/main.rs`'s `-h` / `--help` intercept builds
 a `clap::Command` for the `EvidenceArgs` parser and renders its
@@ -2417,7 +2342,6 @@ title = "editor_duplicates_locked walks the repo and fires on ` N.<ext>` filenam
 owner = "tool"
 traces_to = ["202c2281-f2d7-4e43-8a6e-93da96f92add"]
 modules = ["evidence_core::tests::editor_duplicates_locked"]
-derived = false
 description = """
 Integration test under `crates/evidence-core/tests/`. Walks the
 workspace from `CARGO_MANIFEST_DIR`'s grandparent (the repo root)
