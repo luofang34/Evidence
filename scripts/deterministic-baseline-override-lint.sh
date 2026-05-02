@@ -2,7 +2,10 @@
 # Cross-time-determinism lint (LLR-045). Compares the toolchain-
 # sensitive fields of two `deterministic-manifest.json` bundles
 # and, on mismatch, requires the PR body / commit message to
-# contain a line matching `^Override-Deterministic-Baseline: .+`.
+# contain a line matching
+# `^[[:space:]>*-]*Override-Deterministic-Baseline: .+` — the
+# directive itself is anchored, but common markdown decorations
+# (leading whitespace, blockquote, bullet markers) are tolerated.
 #
 # Why compare fields, not `deterministic_hash`? The hash includes
 # `git_sha` / `git_branch` / `git_dirty`, which always differ
@@ -111,7 +114,16 @@ if [ -n "$(printf '%s' "$override_haystack" | tr -d '[:space:]')" ]; then
     tmp=$(mktemp)
     trap 'rm -f "$tmp"' EXIT
     printf '%s\n' "$override_haystack" >"$tmp"
-    if grep -qE '^Override-Deterministic-Baseline: .+' "$tmp"; then
+    # Allow common markdown line-prefix decorations: bullet markers
+    # (`-` / `*`), blockquote (`>`), and leading whitespace. Backticks
+    # are intentionally NOT allowed — `\`Override-...\`` is "talking
+    # about the directive", not invoking it. Matches:
+    #   Override-Deterministic-Baseline: …
+    #     Override-Deterministic-Baseline: …
+    #   - Override-Deterministic-Baseline: …
+    #   * Override-Deterministic-Baseline: …
+    #   > Override-Deterministic-Baseline: …
+    if grep -qE '^[[:space:]>*-]*Override-Deterministic-Baseline: .+' "$tmp"; then
         printf 'cross-time-determinism: toolchain fingerprint differs vs prior main but `Override-Deterministic-Baseline:` line is present; accepting.\n' >&2
         # Log the diff anyway so the PR reviewer can see what
         # changed without hunting through two JSON files.
