@@ -43,6 +43,7 @@ use super::output::emit_jsonl;
 
 mod checks;
 mod qualification;
+mod untracked_hint;
 use checks::{
     check_boundary, check_ci_integration, check_floors, check_merge_style, check_override_protocol,
     check_trace,

@@ -196,13 +196,7 @@ pub(super) fn check_floors(workspace: &Path) -> CheckResult {
     if !slack.is_empty() {
         return CheckResult::Fail(
             "DOCTOR_FLOORS_SLACK",
-            format!(
-                "current measurement > committed floor on {} dimension(s). The project's \
-                 internal `floors_equal_current_no_slack` test enforces strict equality; \
-                 downstream adopters should mirror it. Raise the floor to close the gap: {}",
-                slack.len(),
-                slack.join("; ")
-            ),
+            super::untracked_hint::slack_message_with_hint(workspace, &slack),
         );
     }
     CheckResult::Pass
