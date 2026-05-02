@@ -4,6 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
+    # Default `pull_request` trigger types are [opened, synchronize,
+    # reopened]. Adding `edited` so a PR-body edit retriggers CI;
+    # without it, an author who fixes the body via `gh pr edit` (e.g.
+    # to add an `Override-Deterministic-Baseline:` line the cross-
+    # time gate requires) has to push an empty commit to trigger a
+    # rerun. The marginal cost is a full CI cycle on each body edit;
+    # body edits are rare enough that this is acceptable.
+    types: [opened, synchronize, reopened, edited]
 
 env:
   CARGO_TERM_COLOR: always
