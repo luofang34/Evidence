@@ -67,13 +67,13 @@ fn resolve_signing_key_path(explicit: Option<PathBuf>) -> Option<PathBuf> {
 pub(super) fn finalize_and_sign(
     builder: EvidenceBuilder,
     trace_outputs: Vec<PathBuf>,
-    sign_key: Option<PathBuf>,
+    signing_key: Option<PathBuf>,
     profile: Profile,
     quiet: bool,
     json_output: bool,
 ) -> Result<PathBuf> {
     let bundle_path = builder.finalize(trace_outputs)?;
-    let resolved = resolve_signing_key_path(sign_key);
+    let resolved = resolve_signing_key_path(signing_key);
 
     match (resolved, profile) {
         (None, Profile::Cert | Profile::Record) => {

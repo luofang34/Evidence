@@ -183,7 +183,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
 
     match args.command {
         Some(Commands::Generate {
-            sign_key,
+            signing_key,
             skip_tests,
             coverage,
         }) => cmd_generate(GenerateArgs {
@@ -192,7 +192,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             write_workspace: args.write_workspace,
             boundary: args.boundary,
             trace_roots_arg: args.trace_roots,
-            sign_key,
+            signing_key,
             skip_tests,
             coverage,
             quiet: args.quiet,
@@ -282,7 +282,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             write_workspace: args.write_workspace,
             boundary: args.boundary,
             trace_roots_arg: args.trace_roots,
-            sign_key: None,
+            signing_key: None,
             skip_tests: false,
             coverage: None,
             quiet: args.quiet,

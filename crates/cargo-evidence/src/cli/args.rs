@@ -202,7 +202,7 @@ pub enum Commands {
         /// `cert/signing.key` and `$EVIDENCE_SIGNING_KEY_PATH` in
         /// that order; cert/record profiles fail if no key resolves.
         #[arg(long)]
-        sign_key: Option<PathBuf>,
+        signing_key: Option<PathBuf>,
 
         /// Skip running cargo test during evidence generation
         #[arg(long)]
