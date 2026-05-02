@@ -32,6 +32,7 @@ use cli::doctor::cmd_doctor;
 use cli::floors::cmd_floors;
 use cli::generate::{GenerateArgs, cmd_generate};
 use cli::init::cmd_init;
+use cli::keygen::cmd_keygen;
 use cli::output::emit_jsonl;
 use cli::rules::cmd_rules;
 use cli::schema::{cmd_schema_show, cmd_schema_validate};
@@ -159,6 +160,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
         Some(Commands::Trace { .. }) => "trace",
         Some(Commands::Rules { .. }) => "rules",
         Some(Commands::Floors { .. }) => "floors",
+        Some(Commands::Keygen { .. }) => "keygen",
     };
 
     // Guard rail for subcommands that don't yet stream JSONL natively.
@@ -173,7 +175,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
     if args.format == OutputFormat::Jsonl
         && !matches!(
             subcommand_name,
-            "verify" | "check" | "trace" | "doctor" | "init" | "floors" | "generate"
+            "verify" | "check" | "trace" | "doctor" | "init" | "floors" | "generate" | "keygen"
         )
     {
         return emit_unsupported_jsonl_terminal(subcommand_name);
@@ -181,7 +183,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
 
     match args.command {
         Some(Commands::Generate {
-            sign_key,
+            signing_key,
             skip_tests,
             coverage,
         }) => cmd_generate(GenerateArgs {
@@ -190,7 +192,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             write_workspace: args.write_workspace,
             boundary: args.boundary,
             trace_roots_arg: args.trace_roots,
-            sign_key,
+            signing_key,
             skip_tests,
             coverage,
             quiet: args.quiet,
@@ -227,6 +229,15 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             json,
         }) => cmd_diff(bundle_a, bundle_b, json),
         Some(Commands::Init { force }) => cmd_init(force, args.format),
+        Some(Commands::Keygen {
+            rotate,
+            reason,
+            out_dir,
+        }) => {
+            // `keygen` honors --json and --format=jsonl; default is human.
+            let format = OutputFormat::resolve(args.format, args.json);
+            cmd_keygen(rotate, reason, out_dir, format)
+        }
         Some(Commands::Schema { command }) => match command {
             SchemaCommands::Show { schema } => cmd_schema_show(schema),
             SchemaCommands::Validate { file } => cmd_schema_validate(file),
@@ -271,7 +282,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             write_workspace: args.write_workspace,
             boundary: args.boundary,
             trace_roots_arg: args.trace_roots,
-            sign_key: None,
+            signing_key: None,
             skip_tests: false,
             coverage: None,
             quiet: args.quiet,

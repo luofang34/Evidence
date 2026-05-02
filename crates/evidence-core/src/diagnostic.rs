@@ -87,6 +87,8 @@ pub const TERMINAL_CODES: &[&str] = &[
     "TESTS_OK",
     "INIT_OK",
     "INIT_FAIL",
+    "KEYGEN_OK",
+    "KEYGEN_FAIL",
     "FLOORS_OK",
     "FLOORS_FAIL",
     "GENERATE_OK",

@@ -11,6 +11,7 @@
 
 mod coverage_phase;
 mod envelope;
+mod finalize;
 mod phases;
 mod policy;
 mod test_outcomes;
@@ -96,8 +97,10 @@ pub struct GenerateArgs {
     pub boundary: Option<PathBuf>,
     /// Comma-separated trace root list (overrides boundary.toml).
     pub trace_roots_arg: Option<String>,
-    /// Path to the HMAC signing key (raw bytes). `None` means do not sign.
-    pub sign_key: Option<PathBuf>,
+    /// Path to the ed25519 signing (private) key as 64 hex chars.
+    /// `None` means fall back to `$EVIDENCE_SIGNING_KEY_PATH`, then
+    /// `cert/signing.key`; cert/record profiles fail if none resolve.
+    pub signing_key: Option<PathBuf>,
     /// Skip the `cargo test` invocation during generation.
     pub skip_tests: bool,
     /// Structural-coverage level to capture (or `None` to apply
@@ -170,7 +173,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         write_workspace,
         boundary,
         trace_roots_arg,
-        sign_key,
+        signing_key,
         skip_tests,
         coverage,
         quiet,
@@ -322,8 +325,14 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     // produces an inspectable bundle.
     let recorded_failures = builder.tool_command_failures().len();
 
-    let bundle_path =
-        phases::finalize_and_sign(builder, trace_outputs, sign_key, quiet, json_output)?;
+    let bundle_path = phases::finalize_and_sign(
+        builder,
+        trace_outputs,
+        signing_key,
+        profile,
+        quiet,
+        json_output,
+    )?;
     if !jsonl_output {
         phases::emit_success_envelope(
             json_output,

@@ -39,6 +39,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     "doctor",
     "floors",
     "generate",
+    "keygen",
     "rules",
     "trace",
     "verify",
@@ -67,7 +68,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
 /// Used by the group-scoped sort test to validate within-group order
 /// without imposing cross-group ordering.
 #[cfg(test)]
-const CONTRACTS_START: usize = 7;
+const CONTRACTS_START: usize = 8;
 
 #[cfg(test)]
 mod tests {
@@ -125,6 +126,7 @@ mod tests {
             "doctor",
             "floors",
             "generate",
+            "keygen",
             "rules",
             "trace",
             "verify",

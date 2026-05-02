@@ -37,6 +37,7 @@ impl Domain {
             b"GENERATE" => Some(Self::Generate),
             b"GIT" => Some(Self::Git),
             b"INIT" => Some(Self::Init),
+            b"KEYGEN" => Some(Self::Keygen),
             b"HASH" => Some(Self::Hash),
             b"MCP" => Some(Self::Mcp),
             b"POLICY" => Some(Self::Policy),

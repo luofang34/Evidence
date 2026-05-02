@@ -297,7 +297,7 @@ fn test_generate_help() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("sign-key"));
+        .stdout(predicate::str::contains("signing-key"));
 }
 
 // ============================================================================

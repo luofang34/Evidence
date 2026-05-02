@@ -766,3 +766,26 @@ gets a separate exemption story rather than silent acceptance.
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "d469f0fa-0816-47a8-9452-b73e65f4cfd7"
+id = "SYS-030"
+title = "Project signing keypair lifecycle"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall manage the project's ed25519 signing keypair through an
+explicit lifecycle command (`cargo evidence keygen`) that refuses
+silent regeneration. First-time use writes the private key (gitignored)
+and the public key (committed) under `cert/`. Replacement requires
+`--rotate --reason <text>`, which appends a reviewable line to
+`cert/KEY-ROTATION-LOG`. The `generate` command refuses to emit a
+bundle when the public key derived from the signing key in use does
+not match the project's committed `cert/signing.pub` anchor —
+defending against silent re-key forks of the chain of custody.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

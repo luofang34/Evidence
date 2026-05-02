@@ -160,6 +160,55 @@ workspace-vs-binary drift. A reviewer running the MCP verb against
 this repo without refreshing both binaries gets stale output that
 matches the last release, not the branch under review.
 
+## Signing keys
+
+The project's bundle signature is an ed25519 detached signature; the
+keypair lifecycle is managed by `cargo evidence keygen` (never
+hand-rolled). See README "Bundle integrity layers" for the user-
+facing semantics. Reviewer-side notes:
+
+- **`cert/signing.pub` is committed.** It's the project's public
+  anchor — every bundle that verifies against it carries the same
+  supplier identity. Treat changes to this file as load-bearing
+  (they imply a key rotation was approved).
+- **`cert/signing.key` is gitignored.** The maintainer holds the
+  private key; the path is local-only by convention, but the value
+  is what matters. Do not paste the contents anywhere.
+- **Rotations go through `keygen --rotate --reason <text>`.** The
+  rotation log lands in `cert/KEY-ROTATION-LOG`; commit it with the
+  new `signing.pub` in the same PR. Reviewers should verify the
+  reason field is informative (incident, expiry, role-change) and
+  not a placeholder.
+- **Anchor mismatch is a refuse-to-emit failure.** If `generate`
+  fires `SIGN_PUBKEY_ANCHOR_MISMATCH`, the reviewer's first
+  question is "did this PR intend to rotate the signing key?" If
+  yes → expect a `keygen --rotate` commit. If no → the contributor
+  has a stale or replaced `cert/signing.key`; they should restore
+  the canonical key, not edit the anchor.
+
+### CI signing
+
+CI signs bundles produced by the `Evidence (self)` and Nix-flavor
+self-cert workflows. The signing key lives as a GitHub Actions
+repository secret named `EVIDENCE_SIGNING_KEY_HEX` (64 hex chars,
+no newline). The workflow writes it to `$RUNNER_TEMP/signing.key`
+and passes that path via `--signing-key`. The path is a tempfile
+on a runner-scoped filesystem; cleanup happens with the runner.
+
+Rotation procedure for the CI key:
+
+1. Locally: `cargo evidence keygen --rotate --reason "<text>"`.
+2. Commit the new `cert/signing.pub` and `cert/KEY-ROTATION-LOG`
+   line on a PR.
+3. Update the `EVIDENCE_SIGNING_KEY_HEX` repo secret with the new
+   private key bytes (`xxd -p -c 64 cert/signing.key`).
+4. Merge the PR. The next CI run signs against the rotated key
+   and the anchor check passes against the new committed pubkey.
+
+Skipping any step (e.g. updating the secret without committing the
+pubkey) leaves the next CI run failing on
+`SIGN_PUBKEY_ANCHOR_MISMATCH` — by design.
+
 ## Reporting
 
 Open an issue at <https://github.com/luofang34/Evidence/issues>.
