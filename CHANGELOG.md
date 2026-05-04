@@ -9,6 +9,188 @@ All three workspace crates (`evidence-core`, `cargo-evidence`,
 `evidence-mcp`) share a single version; release entries cover all
 three unless noted.
 
+## [0.1.5] — 2026-05-04
+
+The signing-and-honesty release: HMAC-mislabeled-as-signature is
+gone, ed25519 detached signatures replace the envelope primitive,
+and an explicit keypair lifecycle (`cargo evidence keygen` +
+`signing.pub` anchor consistency) makes silent re-key forks
+mechanically impossible. Three companion tracks land alongside:
+the trace data model gains `derived.toml` and retires the
+`LlrEntry.derived` legacy channel; `evidence-core`'s public API
+surface ships a `#[doc(hidden)]` sweep so 1.0 has a stable
+shape to graduate; doctor + CI ergonomics close out a handful of
+small papercuts.
+
+### Added
+
+- **`cargo evidence keygen` subcommand** — explicit ed25519
+  keypair lifecycle (HLR-070 / LLR-077 / TEST-084). First run
+  writes `cert/signing.{key,pub}` and refuses if either exists;
+  replacement requires `--rotate --reason <text>` which appends
+  one line to `cert/KEY-ROTATION-LOG`. Best-effort `chmod 600`
+  on `signing.key` on Unix. New diagnostic codes: `KEYGEN_OK`,
+  `KEYGEN_FAIL` (terminals), `KEYGEN_KEY_EXISTS` (refuse-overwrite
+  finding). Refuses silent regeneration by design — the chain
+  of custody depends on it.
+- **Default key path resolution.** `generate --signing-key`
+  resolves via flag → `$EVIDENCE_SIGNING_KEY_PATH` →
+  `cert/signing.key`; cert/record profiles fail-loud if no key
+  resolves, dev profile skips signing silently. `verify
+  --verify-key` mirrors the chain ending at `cert/signing.pub`,
+  but only consults the default anchor when the bundle actually
+  carries a `BUNDLE.sig` (so a project with a committed pubkey
+  doesn't turn every dev-profile bundle into a verify failure).
+- **`signing.pub` anchor consistency check** at generate
+  (HLR-071 / LLR-078 / TEST-085). After signing, the public key
+  derived from the signing key in use must match
+  `cert/signing.pub` byte-for-byte; mismatch refuses with
+  `SIGN_PUBKEY_ANCHOR_MISMATCH`. The silent-re-key defense.
+  Overridable via `$EVIDENCE_PUBKEY_ANCHOR` for CI ephemeral-
+  signing flows.
+- **Three-layer integrity model documented in SYS-001** (was
+  `HMAC + public signing key`, an internal contradiction): (1)
+  content layer — `sha256sum -c SHA256SUMS`, no key required;
+  (2) metadata layer — ed25519 public-key verifier confirms
+  `BUNDLE.sig` over the `(SHA256SUMS, index.json)` envelope;
+  (3) provenance layer — non-repudiation via the asymmetric
+  primitive. README "Bundle integrity layers" + `cert/
+  QUALIFICATION.md` "Integrity layers" cite DO-178C §7 SCM and
+  FIPS 198-1 to justify the choice over HMAC.
+- **Project signing keypair bootstrapped.** `cert/signing.pub`
+  is committed; `cert/signing.key` is gitignored. First
+  rotation will create `cert/KEY-ROTATION-LOG` deliberately.
+- **`cert/trace/derived.toml`** — explicit channel for derived
+  requirements (HLR-N supplied by analysis from architectural
+  HLRs / SYS rather than direct decomposition). Retires the
+  `LlrEntry.derived` legacy field. Architectural HLRs gain
+  analysis methods declaration.
+- **`DOCTOR_FLOORS_SLACK` hint** points at untracked `.rs`
+  files when `test_count` slack appears (HLR-069's natural
+  follow-up). Editor duplicates / `cp` artifacts / save-as
+  accidents are the most common cause of `test_count` slack
+  that doesn't reproduce on a clean checkout; the hint short-
+  circuits the investigation. Skip-when-`git`-not-on-PATH
+  guard added to the dependent tests.
+- **CI `Override-Deterministic-Baseline:` line tolerates
+  markdown decoration.** Square-bracket / asterisk decoration
+  on the override line no longer breaks the lint match.
+- **`EVIDENCE_PUBKEY_ANCHOR` / `EVIDENCE_SIGNING_KEY_PATH` /
+  `EVIDENCE_VERIFY_KEY_PATH`** environment variables — the
+  documented signing-secret injection points for CI. The first
+  is the documented escape hatch for ephemeral-keypair CI
+  flows; silent re-key forks remain impossible because the
+  override is explicit at the workflow level.
+
+### Changed
+
+- **HMAC-SHA256 envelope replaced by ed25519 detached
+  signature.** Same envelope shape (length-prefixed
+  `(SHA256SUMS, index.json)`); the verifying party now needs
+  only the supplier's 32-byte public key, not a shared secret.
+  `BUNDLE.sig` filename, `sign_bundle` /
+  `verify_bundle_signature` API, and the `SIGN_*` diagnostic
+  codes are unchanged — they were misnomers under HMAC and are
+  now legitimate. Pre-0.1.5 history documented in `cert/
+  QUALIFICATION.md` "Integrity layers". Workspace deps gain
+  `ed25519-dalek` + `rand_core`, drop `hmac`. (HLR / LLR for
+  layered integrity, signing module rewrite.)
+- **`--signing-key` / `--verify-key` flags** now expect 32-byte
+  ed25519 hex (64 ASCII chars + optional trailing newline)
+  rather than raw HMAC-secret bytes. Breaking format change;
+  pre-1.0 schema policy permits this in place. Default
+  resolution path replaces the previous "no default" behavior
+  (above).
+- **`evidence-core` public API curated**. Crate-root re-exports
+  split into a stable surface (~36 items grouped by
+  external use case: verify, build, compliance, trace, rules,
+  coverage thresholds) and a `#[doc(hidden)]` implementation-
+  detail block (~38 leaf items: `BoundaryViolation`,
+  `BranchCoverage`, `FixHint`, `sha256`, `rules_json`,
+  `TraceMeta`, etc.). Hidden items remain reachable via their
+  owning module path for workspace internals and contract
+  tests; they drop off rustdoc.
+- **`schema_version` documented as informational** during
+  pre-1.0. The on-disk field is pinned at `"0.0.1"` across
+  breaking shape changes; consumers should pin a `cargo-
+  evidence` workspace version (read `engine_crate_version` in
+  `index.json`) rather than pattern-match the literal. Spelled
+  out in `crates/evidence-core/src/schema_versions.rs` and the
+  README "Project Status" section.
+- **`VERIFY_HMAC_FAILURE` → `VERIFY_SIGNATURE_INVALID`** —
+  only diagnostic-code rename in this release. Total code
+  count net change: −1 (`TRACE_CONTRADICTORY_DERIVED`
+  retired) + 0 (rename) + 4 (`KEYGEN_OK`, `KEYGEN_FAIL`,
+  `KEYGEN_KEY_EXISTS`, `SIGN_PUBKEY_ANCHOR_MISMATCH`) = +3.
+- **`--sign-key` flag renamed to `--signing-key`** to match
+  README + CONTRIBUTING + the new `keygen`/`generate` docs;
+  the field rename also updates `tests/cli.rs` help string
+  pin.
+- **`LlrEntry.derived` legacy channel retired.** The
+  derived-requirement story flows exclusively through
+  `derived.toml`; LLR-040 + TEST-040 + TEST-041 repointed at
+  the `DerivedEntry` pathway. `TRACE_CONTRADICTORY_DERIVED`
+  diagnostic code removed.
+- **Trace TEST-085 selector** matches the renamed
+  `resolve_signing_key_path_returns_none_when_neither_explicit_nor_env`
+  test (post-fmt unsafe-block trim).
+
+### Fixed
+
+- **Stray editor-duplicate `untracked_hint 2.rs`** removed
+  from the workspace tip. Belated companion to the 0.1.4
+  `editor_duplicates_locked` gate; the gate fired locally but
+  the artifact's first life was on the same branch that
+  introduced the new hint feature, so CI checkout never saw
+  it. The `current_tree_is_clean` regression test caught it
+  the moment the cleanup branch checked out a clean tree.
+- **Doctor git-dependent tests skip when `git` is not on
+  PATH.** Nix sandbox flake builds without git in scope no
+  longer fail the doctor smoke tests on principle.
+- **Windows `KeygenError::Chmod` variant gated `#[cfg(unix)]`**
+  — `chmod_private` is a no-op on non-Unix, so the variant
+  was dead code and clippy `unused_variants` / `dead_code`
+  failed the Windows build.
+- **CI Override-Deterministic-Baseline lint tolerates markdown
+  decoration** on the override line.
+- **CI `pull_request: types: [edited]` retrigger** fires the
+  cross-time determinism re-check when a PR body edit adds the
+  override line, so reviewers don't have to push an empty
+  commit.
+
+### Floors
+
+| Dimension                            | 0.1.4 → 0.1.5 |
+|---|---|
+| trace_sys                            | 29 → 30   |
+| trace_hlr                            | 69 → 71   |
+| trace_llr                            | 76 → 78   |
+| trace_test                           | 81 → 83   |
+| diagnostic_codes                     | 151 → 154 |
+| terminal_codes                       | 13 → 15   |
+| known_surfaces                       | 22 → 23   |
+| per_crate.evidence-core.test_count   | 361 → 367 |
+| per_crate.evidence-mcp.test_count    | 45 → 45   |
+| per_crate.cargo-evidence.test_count  | 136 → 154 |
+
+### Migration notes for 0.1.4 consumers
+
+- **Bundle signature format change.** A 0.1.4 `BUNDLE.sig`
+  (HMAC-SHA256, 64 hex chars) is byte-incompatible with a
+  0.1.5 `BUNDLE.sig` (ed25519, 128 hex chars). 0.1.5 verify
+  rejects 0.1.4 bundles (parse error → `SIGN_INVALID_KEY`)
+  and vice versa. Re-sign with `cargo evidence keygen` +
+  `cargo evidence generate --signing-key` against any 0.1.4
+  bundle that needs to flow through 0.1.5 verify.
+- **Key file format change.** 0.1.4 took raw HMAC-secret
+  bytes; 0.1.5 takes 32-byte hex (64 ASCII chars + optional
+  newline). `xxd -p -c 64` of an old key file is **not**
+  the right migration — generate a fresh keypair via
+  `cargo evidence keygen` and treat any in-flight signed
+  bundles as needing a re-sign at 0.1.5.
+- **`--sign-key` flag renamed.** Update CI scripts, vendor
+  integrations, and shell aliases to `--signing-key`.
+
 ## [0.1.4] — 2026-05-01
 
 ### Added
