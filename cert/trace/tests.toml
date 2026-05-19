@@ -1311,3 +1311,18 @@ test_selectors = [
     "cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
     "cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env",
 ]
+
+[[tests]]
+uid = "15234eb6-8e95-4779-b963-5829d18261a8"
+id = "TEST-086"
+title = "every workspace crate ships a lean-layered CLAUDE.md"
+owner = "tool"
+traces_to = ["288c920a-c667-4f84-9d0b-f4e8419ac141"]
+test_selector = "layered_claude_md_doctrine::every_workspace_crate_has_lean_layered_claude_md"
+description = """
+Walks crates/* and accumulates per-crate violations: missing
+CLAUDE.md, fewer than 10 non-blank lines, more than 80 lines, or
+missing the literal `cargo test -p <crate-name>` scoped command.
+Asserts the accumulated failure list is empty. Failure message
+joins every offending crate so a single run names them all.
+"""

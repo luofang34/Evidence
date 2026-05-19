@@ -789,3 +789,30 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "d8d1f204-3909-418d-b62a-1e28edd088ed"
+id = "SYS-031"
+title = "Per-module agent context surface"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall expose a per-module, trace-anchored context surface
+that coding agents (and humans) can call before editing a source
+file. Given a selector — file path, workspace crate, or Rust module
+path — the surface shall return the requirements governing that
+scope, their parent HLR / SYS roots, the tests that verify them, the
+diagnostic codes the module owns, the floors that apply to its
+crate, and the boundary policy. The surface shall be reachable
+through (a) a CLI verb for humans and non-MCP agents, and (b) an
+MCP tool method for agents whose harness speaks Model Context
+Protocol. Downstream projects that adopt the tool via
+`cargo evidence init` shall receive opt-in scaffolding (a starter
+root `CLAUDE.md` + an `.claude/settings.json` snippet) that wires
+the same surface for their own agents. The repository itself shall
+demonstrate the canonical pattern via lean, layered `CLAUDE.md`
+files (root for big picture; one per workspace crate for local
+conventions and scoped test commands).
+"""
+verification_methods = ["test"]
+traces_to = []

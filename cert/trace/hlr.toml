@@ -1800,3 +1800,25 @@ keypair), the check is a no-op.
 verification_methods = ["test"]
 traces_to = ["d469f0fa-0816-47a8-9452-b73e65f4cfd7"]
 surfaces = ["generate"]
+
+[[requirements]]
+uid = "d33a1a39-c57a-48cc-9138-c4f8ff61f77d"
+id = "HLR-072"
+title = "Repo demonstrates lean-layered CLAUDE.md doctrine"
+owner = "tool"
+scope = "component"
+description = """
+Each workspace crate under `crates/` ships a `CLAUDE.md` file that
+(a) carries local conventions only — not a re-statement of root
+rules; (b) documents its own scoped test command
+(`cargo test -p <crate-name>`) so agents and humans avoid running
+the full workspace suite for a single-crate change; (c) stays under
+an 80-line cap so the file remains skimmable. The root `CLAUDE.md`
+holds project-wide rules + a pointer to the per-module agent-context
+surface; it must not absorb per-crate detail. The doctrine is
+enforced mechanically by an integration test so adding a new
+workspace crate without a `CLAUDE.md` fails CI.
+"""
+verification_methods = ["test"]
+traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
+surfaces = ["layered CLAUDE.md (root + crates/*/CLAUDE.md)"]

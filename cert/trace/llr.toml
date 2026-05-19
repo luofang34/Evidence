@@ -2431,3 +2431,23 @@ the real cert/signing.pub.
 """
 verification_methods = ["test"]
 emits = ["SIGN_PUBKEY_ANCHOR_MISMATCH"]
+
+[[requirements]]
+uid = "288c920a-c667-4f84-9d0b-f4e8419ac141"
+id = "LLR-079"
+title = "layered_claude_md_doctrine enforces per-crate CLAUDE.md cap + scope"
+owner = "tool"
+traces_to = ["d33a1a39-c57a-48cc-9138-c4f8ff61f77d"]
+modules = ["layered_claude_md_doctrine::every_workspace_crate_has_lean_layered_claude_md"]
+description = """
+Integration test walks `crates/*/` (max_depth = 1, follow_links =
+false) and asserts for every workspace crate: (a) `CLAUDE.md`
+exists, (b) the file has at least 10 non-blank lines (no stub
+files), (c) the file is under 80 lines (so root-vs-subdir scope
+stays distinct — article's "lean, layered" doctrine), and (d) the
+file contains the literal `cargo test -p <crate-name>` so the
+scoped test command is discoverable for agents working only in
+that crate. Failures are accumulated and reported together so one
+run shows every crate that needs fixing, not just the first.
+"""
+verification_methods = ["test"]
