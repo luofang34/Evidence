@@ -196,6 +196,55 @@
     "terminal": false
   },
   {
+    "code": "CONTEXT_AMBIGUOUS_SELECTOR",
+    "severity": "warning",
+    "domain": "context",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "CONTEXT_ERROR",
+    "severity": "error",
+    "domain": "context",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "CONTEXT_FAIL",
+    "severity": "error",
+    "domain": "context",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR",
+    "severity": "warning",
+    "domain": "context",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "CONTEXT_NO_TRACE_CONFIGURED",
+    "severity": "info",
+    "domain": "context",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "CONTEXT_OK",
+    "severity": "info",
+    "domain": "context",
+    "has_fix_hint": false,
+    "terminal": true
+  },
+  {
+    "code": "CONTEXT_SELECTOR_OUT_OF_SCOPE",
+    "severity": "error",
+    "domain": "context",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "COVERAGE_BELOW_THRESHOLD",
     "severity": "error",
     "domain": "coverage",

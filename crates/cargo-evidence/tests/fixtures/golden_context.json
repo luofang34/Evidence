@@ -1,0 +1,1445 @@
+{
+  "selector": {
+    "kind": "crate",
+    "input": "cargo-evidence",
+    "resolved": "cargo-evidence"
+  },
+  "crate": "cargo-evidence",
+  "dal": "D",
+  "requirements": [
+    {
+      "id": "LLR-001",
+      "uid": "ef688fd5-21e0-4cf7-9ed5-b1819b5ae50d",
+      "layer": "llr",
+      "title": "cmd_verify_jsonl emits a terminal on every exit path",
+      "description": "Each arm of cmd_verify_jsonl (pass, fail, skipped, runtime error,\nstrict-signature-missing) emits exactly one hand-built terminal\n(VERIFY_OK, VERIFY_FAIL, or VERIFY_ERROR) as its last stdout line\nbefore returning the matching exit code.\n",
+      "modules": [
+        "cargo_evidence::cli::verify::cmd_verify_jsonl"
+      ],
+      "emits": [
+        "VERIFY_OK",
+        "VERIFY_FAIL",
+        "VERIFY_ERROR"
+      ],
+      "traces_to": [
+        "f6d35f65-4a38-4ad9-ba2a-b5c4e3d7da41"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-002",
+      "uid": "36491f32-293f-4f39-a2f5-cdb7e746330c",
+      "layer": "llr",
+      "title": "emit_jsonl flushes stdout per event",
+      "description": "The emit_jsonl helper locks stdout, writes one compact JSON line +\n'\\n', and calls handle.flush() before returning. This is the only\npath that writes JSONL to stdout; tracing is routed to stderr by\ninit_tracing.\n",
+      "modules": [
+        "cargo_evidence::cli::output::emit_jsonl"
+      ],
+      "emits": [],
+      "traces_to": [
+        "da30287c-8223-448b-ad94-7a09cc981347"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-015",
+      "uid": "bb176fd9-7859-4ec1-bbc0-088d2518dc54",
+      "layer": "llr",
+      "title": "cmd_verify_jsonl strict-mode ed25519 signature guard",
+      "description": "When strict is true and neither BUNDLE.sig nor --verify-key is\npresent, cmd_verify_jsonl emits VERIFY_STRICT_SIGNATURE_MISSING as a\nfinding followed by VERIFY_FAIL terminal, returning\nEXIT_VERIFICATION_FAILURE (2). When --verify-key is supplied but the\nkey file is unreadable (I/O fault) or has invalid content (bad hex,\nwrong length, invalid ed25519 point) the run terminates with\nVERIFY_ERROR (exit 1) carrying the structured cause:\nVERIFY_RUNTIME_READ_VERIFY_KEY for I/O, SIGN_INVALID_KEY /\nSIGN_INVALID_SIGNATURE_HEX for parse. Successful key load with a\npresent BUNDLE.sig that fails ed25519 verification surfaces\nVERIFY_SIGNATURE_INVALID + VERIFY_FAIL.\n",
+      "modules": [
+        "cargo_evidence::cli::verify::cmd_verify_jsonl"
+      ],
+      "emits": [
+        "VERIFY_SIGNATURE_INVALID",
+        "SIGN_INVALID_KEY",
+        "SIGN_INVALID_SIGNATURE_HEX",
+        "SIGN_READ_FAILED",
+        "SIGN_WRITE_FAILED"
+      ],
+      "traces_to": [
+        "904ad11d-7b76-4707-8a08-cab8224b64c9"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-016",
+      "uid": "77b0a3dc-2b31-4d25-a375-2bc51f5f6497",
+      "layer": "llr",
+      "title": "terminal_{ok,fail,error} construct fixed-code diagnostics",
+      "description": "The three terminal-builder helpers in cli/verify.rs hand-construct\nDiagnostic { code = VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR, severity,\nmessage, location: None, fix_hint: None, subcommand: None }. The\ncode strings correspond 1:1 to the exit-code mapping in Schema\nRule 1.\n",
+      "modules": [
+        "cargo_evidence::cli::verify::terminal_ok",
+        "cargo_evidence::cli::verify::terminal_fail",
+        "cargo_evidence::cli::verify::terminal_error"
+      ],
+      "emits": [],
+      "traces_to": [
+        "f11c7b59-7dea-490f-a355-bb07459bb49b"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-017",
+      "uid": "c5f2b95b-5555-4261-a92c-76ce3ec2e5cf",
+      "layer": "llr",
+      "title": "OutputFormat::resolve folds --json + --format precedence",
+      "description": "resolve returns format_flag unchanged if it is not Human; otherwise\nit returns Json when json_flag is true, else Human. Explicit\n--format always wins over the legacy --json bool.\n",
+      "modules": [
+        "cargo_evidence::cli::args::OutputFormat::resolve"
+      ],
+      "emits": [
+        "VERIFY_INVALID_FORMAT"
+      ],
+      "traces_to": [
+        "cb2b1464-3b2b-43a2-bffe-a41c16efefe6"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-018",
+      "uid": "dfc19912-4b1f-4a0c-8e18-a66d6e0738c3",
+      "layer": "llr",
+      "title": "cmd_schema_show writes embedded schema source to stdout",
+      "description": "cmd_schema_show maps the CLI SchemaName to evidence_core::schema::Schema\nand prints the include_str!()'d source verbatim. Schema::for_filename\ndeliberately returns None for diagnostic.schema.json so schema\nvalidate never matches it by filename.\n",
+      "modules": [
+        "cargo_evidence::cli::schema::cmd_schema_show",
+        "evidence_core::schema::Schema::source"
+      ],
+      "emits": [
+        "SCHEMA_COMPILE_FAILED",
+        "SCHEMA_INSTANCE_INVALID",
+        "SCHEMA_PARSE_FAILED"
+      ],
+      "traces_to": [
+        "9ea226b0-852f-4047-a953-2ab0f4778da1"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-020",
+      "uid": "00578a4a-d6fe-420a-92c3-3cf4cb3387d6",
+      "layer": "llr",
+      "title": "dispatch guard emits CLI_SUBCOMMAND_ERROR terminal",
+      "description": "When --format=jsonl is passed to any non-verify subcommand,\ndispatch calls emit_unsupported_jsonl_terminal, which streams\nCLI_UNSUPPORTED_FORMAT (finding) then CLI_SUBCOMMAND_ERROR\n(terminal, with subcommand field set), returning EXIT_ERROR. Stderr\nstays silent.\n",
+      "modules": [
+        "cargo_evidence::main::emit_unsupported_jsonl_terminal"
+      ],
+      "emits": [
+        "CLI_UNSUPPORTED_FORMAT"
+      ],
+      "traces_to": [
+        "62498de7-e6b9-4805-8b6c-afead78b33ac"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-023",
+      "uid": "6be1b61b-0aeb-4c05-b2ef-f82fc7c00e55",
+      "layer": "llr",
+      "title": "default_trace_roots picks cert/trace or cert/trace",
+      "description": "default_trace_roots returns Option<Vec<String>> by probing for\n./cert/trace/ then ./cert/trace/. cmd_trace calls it only when\n--trace-roots is absent; explicit flag always wins. Logs chosen root\nvia tracing::info!.\n",
+      "modules": [
+        "cargo_evidence::cli::trace::default_trace_roots"
+      ],
+      "emits": [],
+      "traces_to": [
+        "911fe168-04d7-49ee-99f4-d7a5a7a6fb1c"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-025",
+      "uid": "7df3b426-c9ea-426b-8fb9-64ce247312a0",
+      "layer": "llr",
+      "title": "cmd_check dispatches on --mode and argument shape",
+      "description": "cmd_check reads --mode (Auto/Source/Bundle, default Auto) and the\noptional path arg (default \".\"). Auto precedence: SHA256SUMS at\nPATH → bundle mode; else Cargo.toml at PATH → source mode; else\nCLI_INVALID_ARGUMENT + VERIFY_FAIL terminal. Explicit mode always\nwins; mismatch between mode and shape also errors cleanly.\n",
+      "modules": [
+        "cargo_evidence::cli::args::CheckMode",
+        "cargo_evidence::cli::check::cmd_check"
+      ],
+      "emits": [
+        "CHECK_TEST_RUNTIME_FAILURE",
+        "CLI_INVALID_ARGUMENT"
+      ],
+      "traces_to": [
+        "6c6eeac3-d491-42da-940f-97714e78e351"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-029",
+      "uid": "0835d2e8-3a84-4a4a-97e0-46985be02892",
+      "layer": "llr",
+      "title": "RULES const + rules subcommand + rules_json()",
+      "description": "`evidence_core::rules` defines `RuleEntry { code, severity, domain,\nhas_fix_hint, terminal }`, the `Domain` enum (closed over code\nprefixes), and `pub const RULES: &[RuleEntry]` exhaustively listing\nevery emittable code. `rules_json()` returns a deterministic\nserialized form sorted by code. `cargo_evidence::cli::rules::cmd_rules`\nrenders either the JSON array (`--json`) or a human-readable table.\n`--format=jsonl` is not supported (single JSON blob, not a stream)\nand falls through to the existing `CLI_UNSUPPORTED_FORMAT` guard.\n",
+      "modules": [
+        "evidence_core::rules::RULES",
+        "evidence_core::rules::RuleEntry",
+        "evidence_core::rules::Domain",
+        "evidence_core::rules::rules_json",
+        "cargo_evidence::cli::rules::cmd_rules"
+      ],
+      "emits": [],
+      "traces_to": [
+        "17cd860a-cf97-4eba-b54f-1f7d2563e74b"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-036",
+      "uid": "74f50e68-3a78-4557-a7c3-13340e52543a",
+      "layer": "llr",
+      "title": "cmd_floors runs the gate + JSONL support",
+      "description": "`cargo evidence floors [--format={human,jsonl}] [--json] [--base <ref>]`\nreads cert/floors.toml, computes current measurements via\n`evidence_core::floors`, compares each entry against its floor / ceiling,\nand prints a per-dimension table in human mode, a deterministic\nJSON array in `--json` mode, or one JSONL diagnostic per dimension in\n`--format=jsonl` mode. Human + JSONL paths terminate with `FLOORS_OK`\nor `FLOORS_FAIL`; any below-floor / above-ceiling emits\n`FLOORS_BELOW_MIN` naming the dimension, current value, and committed\nthreshold; exit 2 if any failure. Non-failure dimensions emit\n`FLOORS_DIMENSION_OK` in the JSONL stream. A `--base` flag scopes the\n`[delta_ceilings]` check to the PR diff.\n",
+      "modules": [
+        "cargo_evidence::cli::floors::cmd_floors"
+      ],
+      "emits": [
+        "FLOORS_BELOW_MIN",
+        "FLOORS_DIMENSION_OK",
+        "FLOORS_OK",
+        "FLOORS_FAIL"
+      ],
+      "traces_to": [
+        "a3073b5a-ee61-4bdd-bdfe-c3154274e5ea"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-042",
+      "uid": "61f2c36a-0d47-4485-acca-f2d4403ec339",
+      "layer": "llr",
+      "title": "cmd_trace stream-emits one Diagnostic per LinkError",
+      "description": "When `trace --validate --format=jsonl` hits\n`Err(TraceValidationError::Link { errors })`, the CLI handler\niterates `errors` and calls `emit_jsonl` once per variant with\n`code = link_error.code()`, `severity = Error`, `message =\nlink_error.to_string()`, and a variant-specific `Location`.\nLegacy `--json` mode keeps the prior aggregate shape (single\nresult object with a concatenated `message`) so shell consumers\nthat piped through `jq .message` aren't broken. Test-selector\nresolution failures surface as `TRACE_SELECTOR_UNRESOLVED`\nalongside Link-phase variants.\n",
+      "modules": [
+        "cargo_evidence::cli::trace::cmd_trace"
+      ],
+      "emits": [
+        "TRACE_REGISTER_FAILED",
+        "TRACE_SELECTOR_UNRESOLVED",
+        "VERIFY_FAIL",
+        "VERIFY_OK"
+      ],
+      "traces_to": [
+        "b7265ced-3c5b-4558-92d1-5c54cba8657f"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-048",
+      "uid": "ec50f98b-9a1d-4f7b-bc33-df56c7faab2a",
+      "layer": "llr",
+      "title": "cmd_doctor subcommand implementation",
+      "description": "`cmd_doctor(args) -> Result<()>` in\n`crates/cargo-evidence/src/cli/doctor.rs` runs each rigor check\nin a fixed deterministic order, emitting one `Diagnostic` per\ncheck via `evidence_core::diagnostic::emit_jsonl` with a `DOCTOR_*`\ncode. Severity is derived per check: trace / floors / boundary\nfailures are `error`; CI / merge-style / override-doc gaps are\n`warning`. A check that passes emits an `info`-severity\n`DOCTOR_*_OK` diagnostic so the stream shape stays \"one line\nper check\" and downstream tooling can detect truncation.\n\nStream terminates with exactly one terminal diagnostic:\n- `DOCTOR_OK` + exit 0 when no `error`-severity diagnostic fired\n- `DOCTOR_FAIL` + exit 2 when at least one `error` fired\nPer Schema Rule 1 + the existing `TERMINAL_CODES` contract.\n\n`generate` wires doctor via a `precheck_doctor(&config)` call in\nthe `Profile::Cert | Profile::Record` branch; the call returns\n`Err(BuilderError::DoctorFailed { codes: Vec<&'static str> })`\nwhen the audit fails, and the main dispatch translates the error\ninto a `GENERATE_ERROR` terminal whose diagnostic enumerates the\nper-check codes so the auditor gets full detail without re-\nrunning doctor.\n",
+      "modules": [
+        "cargo_evidence::cli::doctor"
+      ],
+      "emits": [
+        "DOCTOR_OK",
+        "DOCTOR_FAIL",
+        "DOCTOR_CHECK_PASSED",
+        "DOCTOR_TRACE_INVALID",
+        "DOCTOR_TRACE_EMPTY",
+        "DOCTOR_FLOORS_MISSING",
+        "DOCTOR_FLOORS_VIOLATED",
+        "DOCTOR_FLOORS_SLACK",
+        "DOCTOR_FLOORS_BOUNDARY_MISMATCH",
+        "DOCTOR_BOUNDARY_MISSING",
+        "DOCTOR_CI_INTEGRATION_MISSING",
+        "DOCTOR_MERGE_STYLE_RISK",
+        "DOCTOR_MERGE_STYLE_UNKNOWN",
+        "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
+        "DOCTOR_QUALIFICATION_MISSING"
+      ],
+      "traces_to": [
+        "57992e98-fb1e-4248-b340-6dd454db95c1"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-049",
+      "uid": "548b7b36-1d03-487d-a6a1-f2b37bdee2a1",
+      "layer": "llr",
+      "title": "Pre-release detection at build time + verify-side refusal",
+      "description": "Four coupled sites:\n\n- `crates/evidence-core/src/env/capture.rs` adds a module-scope\n  `TOOL_IS_PRERELEASE: bool` computed from\n  `env!(\"CARGO_PKG_VERSION\")` by byte-scanning for `-` in\n  const context. `env_fingerprint` appends `tool_prerelease:\n  TOOL_IS_PRERELEASE` to the returned `EnvFingerprint`.\n- `crates/evidence-core/src/env/fingerprint.rs` grows\n  `tool_prerelease: bool` with `#[serde(default)]` so\n  pre-PR-#60 bundles deserialize as `false`.\n- `crates/evidence-core/src/verify/errors.rs` adds\n  `VerifyError::PrereleaseToolDetected { profile,\n  engine_crate_version }` with `DiagnosticCode` returning\n  `\"VERIFY_PRERELEASE_TOOL\"`.\n- `crates/evidence-core/src/verify/bundle.rs` reads\n  `env.tool_prerelease` after `check_env_vs_index` and pushes\n  the error on every profile — library stays policy-free.\n- `crates/cargo-evidence/src/cli/verify.rs::cmd_verify_jsonl`\n  partitions the error bag: `VERIFY_PRERELEASE_TOOL` on\n  `Profile::Dev` → Warning stream + `VERIFY_OK` terminal +\n  exit 0; same code on Cert/Record → Error + `VERIFY_FAIL` +\n  exit 2. Every other VerifyError stays error-severity.\n- `crates/cargo-evidence/src/cli/generate/phases.rs::init_builder`\n  emits a warning-severity `VERIFY_PRERELEASE_TOOL` in\n  cert/record profile when `TOOL_IS_PRERELEASE` is true. Same\n  init_builder path emits `ENV_ENGINE_RELEASE_PROVENANCE`\n  (Warning) on cert/record when `TOOL_BUILD_SOURCE_IS_RELEASE`\n  is true — a `release-v<version>` engine_git_sha fallback\n  carries weaker provenance than a git-source SHA and a\n  cert-grade run should prefer `cargo install --git`.\n",
+      "modules": [
+        "evidence_core::env::capture",
+        "evidence_core::verify::bundle",
+        "evidence_core::verify::errors",
+        "cargo_evidence::cli::verify",
+        "cargo_evidence::cli::generate::phases"
+      ],
+      "emits": [
+        "VERIFY_PRERELEASE_TOOL",
+        "ENV_ENGINE_RELEASE_PROVENANCE"
+      ],
+      "traces_to": [
+        "014adc4d-c545-403c-b4f2-d702a49dff30"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-052",
+      "uid": "4bd86c6c-1743-4a78-9d17-c284b3ad8e04",
+      "layer": "llr",
+      "title": "resolve_llr_backlinks enriches TestOutcomeRecord + check_llr_test_selectors asserts reverse",
+      "description": "`evidence_core::trace::test_backlinks::resolve_llr_backlinks`\nmutates a slice of `TestOutcomeRecord` in place, filling each\nrecord's `requirement_uids` with the deduplicated union of\n`TestEntry.traces_to` across every TestEntry whose\n`all_selectors()` matches `{module_path}::{name}` (exact or\n`::`-boundary prefix, sibling-module-no-match pinned by test).\n\n`cargo_evidence::cli::generate::test_outcomes::enrich_and_write_test_outcomes`\naccumulates `TestEntry` across every configured trace root,\ncalls `EvidenceBuilder::enrich_test_outcomes_with_llrs`, then\nwrites `tests/test_outcomes.jsonl` with the populated records.\nRuns in Phase 6b after trace validation.\n\n`evidence_core::verify::llr_selectors::check_llr_test_selectors`\nreads `bundle/trace/llr.toml` + `tests/test_outcomes.jsonl`\ninside `verify_bundle_with_key`, accumulates the set of\n`requirement_uids` across all records, then for every LLR with\n`verification_methods.contains(\"test\")` AND a non-None `uid`,\nasserts the uid is present in the set. Missing → push\n`VerifyError::LlrTestSelectorUnresolved { llr_uid, llr_id }`.\nSkip silently when the JSONL file is absent (older bundles).\nEmpty-string uids are treated the same as `None` for\ndefense-in-depth against corrupt trace data.\n\n`cargo_evidence::cli::verify::skipped_notices::maybe_emit_llr_check_skipped_no_outcomes`\nemits `VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES` (Info) on the\n`VerifyResult::Pass` path when `tests/test_outcomes.jsonl` is\nabsent — the library-side check silently returned; this notice\nsurfaces that skip so an auditor can distinguish \"check ran and\npassed\" from \"check didn't run.\"\n",
+      "modules": [
+        "evidence_core::trace::test_backlinks::resolve_llr_backlinks",
+        "evidence_core::bundle::outcome_record::TestOutcomeRecord",
+        "evidence_core::verify::llr_selectors::check_llr_test_selectors",
+        "cargo_evidence::cli::generate::test_outcomes::enrich_and_write_test_outcomes"
+      ],
+      "emits": [
+        "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
+        "VERIFY_LLR_TEST_SELECTOR_UNRESOLVED"
+      ],
+      "traces_to": [
+        "e4f127fb-38c5-4f77-971f-143f774716f8"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-053",
+      "uid": "ed4284df-5a2e-4241-bbd9-e744edd43f79",
+      "layer": "llr",
+      "title": "coverage subprocess + llvm-cov JSON parser + bundle write",
+      "description": "`evidence_core::coverage::report::CoverageReport` models the\ntyped wire shape of `coverage/coverage_summary.json`. Top-level\nfields: `schema_version: String` (pinned to\n`schema_versions::COVERAGE`), `measurements: Vec<Measurement>`.\nEach `Measurement` carries a `level: CoverageLevel` enum with\nfour variants (`statement`, `branch`, `pattern_decision`,\n`mcdc` — the latter two reserved, not emitted), plus\n`engine: String`, `engine_version: String`, and\n`per_file: Vec<FileMeasurement>`. Each `FileMeasurement` has a\nworkspace-relative `path: String`, `lines: LineCoverage\n{covered, total}`, `branches: Option<BranchCoverage {covered,\ntotal}>`, `decisions: Vec<DecisionCoverage>`, and\n`conditions: Vec<ConditionCoverage>`. `branches` is `Some` at\n`CoverageLevel::Branch` and `None` at `Statement` —\naggregation over a Branch measurement reads the `branches`\nfield, never `lines`. `decisions` / `conditions` stay reserved\nfor v2 pattern-decision / MC/DC; both are empty today\nregardless of level.\n\n`evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export`\nconsumes `cargo-llvm-cov`'s JSON export format (documented\nshape: `{data: [{files: [...], functions: [...], totals: {...}}],\nversion, cargo_llvm_cov: {version}}`), normalizes absolute file\npaths to workspace-relative, and returns a `CoverageReport` with\none measurement per requested level. Filename normalization\nstrips the workspace root prefix deterministically so hashes are\ncross-host stable.\n\n`cargo_evidence::cli::generate::coverage_phase::run_coverage_phase`\nis the new Phase 5b of `cmd_generate`. It is invoked after the\nplain `cargo test` phase when `CoverageChoice != None`. The\nfunction spawns `cargo llvm-cov --workspace --json --output-path\n<tmp.json> --lcov --output-path <tmp.lcov>` (via\n`std::process::Command`), parses the JSON, and stages both files\ninto the builder via `EvidenceBuilder::set_coverage_report` and\n`EvidenceBuilder::stage_coverage_lcov`. On ENOENT (binary\nmissing) the phase emits a `COVERAGE_LLVMCOV_MISSING`\ndiagnostic whose severity is Warning for `Profile::Dev` and\nError for `Profile::Cert` / `Profile::Record`; on JSON parse\nfailure it emits `COVERAGE_PARSE_FAILED` (always Error).\nSuccessful completion emits `COVERAGE_OK` (Info non-terminal)\nnaming the engine version and per-level line counts.\n",
+      "modules": [
+        "evidence_core::coverage::report::CoverageReport",
+        "evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export",
+        "cargo_evidence::cli::generate::coverage_phase::run_coverage_phase"
+      ],
+      "emits": [
+        "COVERAGE_LLVMCOV_MISSING",
+        "COVERAGE_OK",
+        "COVERAGE_PARSE_FAILED"
+      ],
+      "traces_to": [
+        "468a6894-7121-4936-8432-94163e35d4a1"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-055",
+      "uid": "4e98e1d9-6017-425e-b613-52853e97c2f3",
+      "layer": "llr",
+      "title": "Wire derived entries at cli/trace.rs + cli/generate/phases.rs",
+      "description": "At `cli/trace.rs:120` and `cli/generate/phases.rs:313`, replace\nthe `&[]` placeholder in the `validate_trace_links_with_policy`\ncall with `derived.as_ref().map(|d| d.requirements.as_slice()).unwrap_or(&[])`\n(pulling `derived` from the `TraceFiles` destructure in\nboth places). The doctor's `check_trace` at\n`cli/doctor/checks.rs:43-45` already does the correct thing\n(accumulates `files.derived.map(|d| d.requirements)` across\nevery root); this LLR brings the other two callsites to\nparity. No new diagnostic codes — existing Link-phase errors\n(`TRACE_DANGLING_LINK`, etc.) already fire correctly once the\nderived slice is present.\n",
+      "modules": [
+        "cargo_evidence::cli::trace::cmd_trace",
+        "cargo_evidence::cli::generate::phases::validate_trace_links_phase"
+      ],
+      "emits": [],
+      "traces_to": [
+        "fb07d8c2-5d21-4989-b21e-09b62caa0299"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-057",
+      "uid": "a95ed852-94ba-499b-bd17-76d26b75ebe5",
+      "layer": "llr",
+      "title": "aggregate_lines_percent sums per_file[].lines over a Statement-level Measurement",
+      "description": "`aggregate_lines_percent(m: &Measurement) -> f64` computes\n`sum(per_file[].lines.covered) / sum(per_file[].lines.total)\n* 100.0`. Used by the Statement-level arm of\n`threshold_violations` (enforcement side) and by\n`EvidenceBuilder::coverage_statement_percent` (compliance-\nreport side). The two callsites are textually similar but\nnon-shared because the enforcement arm lives in\n`cargo-evidence` (needs the CLI-side policy context) and the\ncompliance arm lives in `evidence-core` (populates the wire\n`CoverageSummary`). Both are asserted by the same test\ntriplet to prevent drift.\n\nZero denominator (no executable lines across all files)\nreturns `0.0`. Without this guard, `u64::sum() / u64::sum()`\nwould panic on division-by-zero in release mode and return\nNaN in f64 — either one breaks the `< threshold` comparison\nsilently (NaN comparisons always return false, so a NaN\n\"current\" would never trigger a violation, hiding the gap).\n\nThe function has no parameter for the measurement level\nbecause the level is implicit in the caller's dispatch —\npassing a Branch-level `Measurement` here would sum that\nmeasurement's `lines` field, which is populated but\nsemantically secondary at Branch level. The dispatch in\n`threshold_violations` is what binds \"Statement level uses\nlines\" to the policy.\n",
+      "modules": [
+        "cargo_evidence::cli::generate::coverage_phase::aggregate_lines_percent",
+        "evidence_core::bundle::builder_coverage::aggregate_lines"
+      ],
+      "emits": [],
+      "traces_to": [
+        "bebe9227-5f47-4eb8-89a7-f2157fb96e6c"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-058",
+      "uid": "84c30007-3c84-4d23-bdf8-f540339b507a",
+      "layer": "llr",
+      "title": "aggregate_branches_percent sums per_file[].branches over a Branch-level Measurement",
+      "description": "`aggregate_branches_percent(m: &Measurement) -> f64` computes\n`sum(per_file[].branches.map_or(0, |b| b.covered)) /\nsum(per_file[].branches.map_or(0, |b| b.total)) * 100.0`.\nFiles where `branches` is `None` contribute `0/0` (no\ncontribution) rather than `0/total` (which would pull the\naggregate toward zero). This distinction matters when a\nBranch-level measurement is assembled from a mixed parser\nrun where some files legitimately lacked branch data.\n\n**This function is the core of the bugfix.** Pre-fix, the\nBranch-level arm of `threshold_violations` called a shared\n`aggregate_percent` that always summed `lines.*`. A file at\n95% lines / 50% branches looked like 95% branch coverage —\nDAL-B's 85% branch minimum passed spuriously, and the tool\ncertified a bundle whose claim it could not mechanically\ndefend.\n\nThe symmetry with `aggregate_lines_percent` is deliberate but\nnot DRY: collapsing them into a generic `aggregate_percent(m,\n|f| &f.lines)` would re-introduce the risk of a caller\npassing the wrong field-accessor at call site. Two\nsingle-purpose functions make the Branch vs Statement\ndistinction unmissable at every callsite.\n\nZero denominator → `0.0`, same rationale as LLR-057.\n",
+      "modules": [
+        "cargo_evidence::cli::generate::coverage_phase::aggregate_branches_percent",
+        "evidence_core::bundle::builder_coverage::aggregate_branches"
+      ],
+      "emits": [],
+      "traces_to": [
+        "bebe9227-5f47-4eb8-89a7-f2157fb96e6c"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-059",
+      "uid": "b1377fb5-f879-4edc-9c50-46c5e67c71ad",
+      "layer": "llr",
+      "title": "threshold_violations dispatches to level-appropriate aggregator; strict < comparison",
+      "description": "`threshold_violations(report: &CoverageReport, thresholds:\nDalCoverageThresholds) -> Vec<ThresholdViolation>` iterates\nover each `(level, Option<u8>)` threshold entry:\n\n  1. Skip if `thresholds.<level>_percent` is `None` (DAL-D or\n     dev). No violation recorded.\n  2. Skip if no `Measurement` of that level exists in the\n     report. No violation recorded — \"measurement absent\" is\n     a config-layer issue, not a coverage-layer failure.\n     Treating absence as 0% would mask the true problem\n     (auditor gets COVERAGE_BELOW_THRESHOLD when they\n     should have gotten a \"configure your coverage=branch\n     flag\" signal).\n  3. Compute `current = aggregate_<level>_percent(m)`.\n  4. If `current < f64::from(threshold)`, append a\n     `ThresholdViolation { dimension, current_percent,\n     threshold_percent }`.\n\nComparison is strict `<`, not `<=`. DO-178C A-7 minima are\nstated inclusively (\"statement coverage shall be ≥ 90% at\nDAL-C\"), so equality is compliant. This is a BVA case the\ntest triplet pins — `current == threshold` must not fire.\n\nThe two-level dispatch (statement uses\n`aggregate_lines_percent`, branch uses\n`aggregate_branches_percent`) is what enforces the level/\nfield binding at the policy layer. The dispatcher is the\nonly place in the threshold-enforcement chain where that\nbinding is decided; changing it to use a shared aggregator\nwould be the regression path.\n",
+      "modules": [
+        "cargo_evidence::cli::generate::coverage_phase::threshold_violations"
+      ],
+      "emits": [
+        "COVERAGE_BELOW_THRESHOLD"
+      ],
+      "traces_to": [
+        "bebe9227-5f47-4eb8-89a7-f2157fb96e6c"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-060",
+      "uid": "a88f2efa-7aa7-4bfc-9554-610a906f2e2e",
+      "layer": "llr",
+      "title": "load_max_dal: max over dal_map values, fall back to default_dal on empty in_scope, D on load failure",
+      "description": "`load_max_dal(workspace: &Path) -> (Dal, bool)`:\n\n  1. Load `<workspace>/cert/boundary.toml` via\n     `BoundaryConfig::load`. On any load error (missing file,\n     parse failure), return `(Dal::D, false)`. The `false`\n     sentinel feeds the caller's fallback-note string; the\n     matching `check_boundary` diagnostic names the root cause\n     so this code stays silent on the load-fail path.\n  2. Compute `cfg.dal_map().values().copied().max()` — the\n     highest DAL across every in-scope crate (each in_scope\n     entry mapped to its per-crate override or `default_dal`\n     when no override is set; see `BoundaryConfig::dal_map`).\n  3. If `max()` returns `None` (empty `in_scope`), fall back to\n     `cfg.dal.default_dal`. This preserves user intent in the\n     pre-scoping state — a boundary.toml with `in_scope = []`\n     and `default_dal = \"A\"` is legitimate (project hasn't\n     scoped crates yet); silently downgrading to `Dal::D` would\n     surprise the auditor.\n  4. Return `(dal, true)`.\n\nThe `unwrap_or(cfg.dal.default_dal)` is **not** a second bug-\nopportunity — `default_dal` is already visited by every\ndal_map entry that lacks an override, so the fallback affects\nonly the truly-empty-in_scope edge case.\n\nDesign note: the `Dal::D` hard floor on load failure is\nstricter than `cfg.dal.default_dal` fallback on empty in_scope.\nThis asymmetry is deliberate — a missing/corrupt boundary.toml\nmeans configuration intent is unknown, so the safest floor is\nD. An empty `in_scope` with a loaded config means intent is\nknown; honoring it is the right behavior.\n",
+      "modules": [
+        "cargo_evidence::cli::doctor::checks::load_max_dal"
+      ],
+      "emits": [],
+      "traces_to": [
+        "79afc7a1-22dd-450e-8f0c-c29c93b48905"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-061",
+      "uid": "d67f45bf-c9d0-4f2a-87d1-0dfbf14d9262",
+      "layer": "llr",
+      "title": "validate_trace_links_phase returns TraceValidationResult; write_compliance_reports takes trace_validation_passed: bool",
+      "description": "`TraceValidationResult { passed: bool, short_circuit:\nOption<i32> }` is the return type of\n`validate_trace_links_phase`. Three-state encoding:\n\n  - `Passed = { passed: true, short_circuit: None }` — every\n    root validated; A3-6 claim \"Met\" is defensible.\n  - `WarnedContinuing = { passed: false, short_circuit: None }`\n    — non-strict profile saw a failure; caller threads\n    `passed: false` to compliance; A3-6 claim becomes\n    \"Partial\" per `determine_objective_status`.\n  - `StrictFailed = { passed: false, short_circuit: Some(code)\n    }` — strict profile short-circuited; caller returns\n    `code` before running any later phase, so compliance JSON\n    is not written for this run.\n\n`write_compliance_reports` signature adds a required\n`trace_validation_passed: bool` parameter forwarded into\n`CrateEvidence.trace_validation_passed`. The signature change\nis load-bearing: removing the parameter to re-introduce a\nhardcoded literal would be a visible PR diff, not a silent\nin-function change.\n\n`read_all_trace_files` read-failure path (missing or\ncorrupt trace TOML) also flips `passed = false` under\nnon-strict profile — the pre-fix contract was\nnon-observable (returned `Ok(None)` either way); post-fix the\nwarned-continue semantics cover both validation failures and\nread failures symmetrically.\n",
+      "modules": [
+        "cargo_evidence::cli::generate::phases::trace_validation::TraceValidationResult",
+        "cargo_evidence::cli::generate::phases::trace_validation::validate_trace_links_phase",
+        "cargo_evidence::cli::generate::phases::write_compliance_reports"
+      ],
+      "emits": [],
+      "traces_to": [
+        "2087d91a-12ba-4b3a-ab43-632f670bad49"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-069",
+      "uid": "4abf426c-da46-4307-ba7d-9d7dbfd86f63",
+      "layer": "llr",
+      "title": "verify --verify-key I/O failure emits VERIFY_RUNTIME_READ_VERIFY_KEY + VERIFY_ERROR terminal",
+      "description": "`cmd_verify_jsonl` and `cmd_verify` both load the\n`--verify-key` file before calling `verify_bundle_with_key`.\nWhen `fs::read(path)` fails (missing or unreadable key), the\nverify pipeline has already started its user-visible run, so\nSchema Rule 1 (HLR-001) requires exactly one terminal on the\n`--format=jsonl` stream. The handler emits a structured\n`VERIFY_RUNTIME_READ_VERIFY_KEY` finding (path + os-error\nmessage), then the `VERIFY_ERROR` terminal, then exits 1.\n\nThe code is distinct from `VERIFY_RUNTIME_READ_FILE` because\nthe failure precedes any bundle-file access — the path\ncarried in the diagnostic is the user-supplied key path, not\na bundle-relative path. The bijection between\n`VerifyRuntimeError` variants and `VERIFY_RUNTIME_*` codes\nstays one-to-one.\n\nFor `--format=human` and `--format=json` the same shape\napplies via `fail_verify(&bundle_path, \"verify_key\", ...,\nEXIT_ERROR)` so all three formats agree (HLR-016): the\nrun records a `verify_key` check at status `fail` with the\nos-error message, prints `error: reading verify key from\n<path>` to stderr (human) or wraps the failure in\n`VerifyOutput { success: false, error: Some(msg) }` (json),\nand exits 1.\n",
+      "modules": [
+        "evidence_core::verify::bundle",
+        "cargo_evidence::cli::verify"
+      ],
+      "emits": [
+        "VERIFY_RUNTIME_READ_VERIFY_KEY"
+      ],
+      "traces_to": [
+        "f6d35f65-4a38-4ad9-ba2a-b5c4e3d7da41"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-073",
+      "uid": "08152f7f-56c4-47f7-ae99-f03d0e114a67",
+      "layer": "llr",
+      "title": "check_dal_a_mcdc_evidence + enforce_dal_qualification gate",
+      "description": "Library side: `evidence_core::check_dal_a_mcdc_evidence(dal_map,\nauxiliary_mcdc_tool)` returns `Ok(())` when no in-scope crate is\nat DAL-A OR an `AuxiliaryMcdcTool` reference is present.\nReturns `BoundaryCheckError::DalAMissingAuxiliaryMcdc { dal_a_crates,\ncount }` (code `BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC`)\notherwise. Library is policy-free — the dev/cert severity split\nlives at the CLI layer.\n\nCLI side: `enforce_dal_qualification(derived, profile,\njson_output)` is called from `cmd_generate` immediately after\n`enforce_boundary_policy`. On `Profile::Dev` a violation emits\na one-line Warning to stderr and the run proceeds. On\n`Profile::Cert` / `Profile::Record` the violation triggers the\nstandard failure envelope (`fail` helper) and returns\n`Ok(Some(EXIT_ERROR))` so the orchestrator short-circuits\nbefore bundle assembly.\n\nThe message names every offender crate, points at the three\nremediation paths (record auxiliary tool, lower DAL, wait for\nupstream rustc), and cites rust-lang/rust#144999 +\nrust-lang/rust#124144 so the auditor can verify the upstream\nstate independently.\n\n`AuxiliaryMcdcTool` is a public type in\n`evidence_core::policy::dal` carrying `name`, optional\n`qualification_id`, and optional `report` (bundle-relative\npath). `boundary.toml` reads it under `[dal.auxiliary_mcdc_tool]`\nvia serde.\n",
+      "modules": [
+        "evidence_core::boundary_check::check_dal_a_mcdc_evidence",
+        "evidence_core::policy::dal::AuxiliaryMcdcTool",
+        "cargo_evidence::cli::generate::policy::enforce_dal_qualification"
+      ],
+      "emits": [
+        "BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC"
+      ],
+      "traces_to": [
+        "c222804b-4d4f-4dfd-8765-2fd51a730ecc"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-075",
+      "uid": "76f2567f-3d6d-4633-9d2c-00d03cc2b529",
+      "layer": "llr",
+      "title": "main.rs --help intercept reuses clap's render tree",
+      "description": "`crates/cargo-evidence/src/main.rs`'s `-h` / `--help` intercept builds\na `clap::Command` for the `EvidenceArgs` parser and renders its\nlong-help directly, instead of printing a hand-typed redirect stub.\n\nConcretely: the intercept calls `EvidenceArgs::command()` (the\nclap-generated `CommandFactory` impl), prepends a one-line banner\nnaming the binary version and the dual invocation form\n(`cargo evidence` + direct), then writes the long-form help via\n`cmd.write_long_help(&mut stdout)`. The result includes clap's auto-\ngenerated `Commands:` block — every variant of the `Commands` enum\nin `cli::args` appears with its `#[command(about = …)]` description.\n\nOutput stays under 80-column wrap-friendly when terminal width is\nfixed (clap's default render); this is a UX courtesy, not a\ntestable contract — the test pins only that each subcommand name\nappears at least once in the rendered output.\n\nExit code: `0` on success, matching clap's auto-help convention.\n\nThe intercept lives at the top of `main()` (before the\n`CargoCli::parse()` call) because the cargo subcommand dispatch form\n(`cargo-evidence evidence …`) and the direct form\n(`cargo-evidence --help`) take different argv shapes — clap's\n`CargoCli::parse()` accepts only the dispatch form. The intercept's\n`std::env::args().nth(1)` peek catches the direct form before clap\nerrors out.\n",
+      "modules": [
+        "cargo_evidence::main"
+      ],
+      "emits": [],
+      "traces_to": [
+        "34234f8b-9f0b-47d4-829e-aed0ac96d51c"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-077",
+      "uid": "2edcdfa5-d7e7-4115-a3fa-8ed36354aa1b",
+      "layer": "llr",
+      "title": "cmd_keygen create + rotate dispatch",
+      "description": "cmd_keygen branches on the `rotate` flag. The create branch refuses if\neither signing.key or signing.pub already exists (Outcome::RefusedExists\n→ KEYGEN_KEY_EXISTS finding + KEYGEN_FAIL terminal, exit 1). The rotate\nbranch refuses if either file is missing (Outcome::RefusedRotateMissing\n→ same code pair) and refuses up-front if --reason is missing (top-level\nanyhow error). On success, both branches generate a fresh keypair via\nevidence_core::{generate_signing_key, write_signing_key,\nwrite_verifying_key}, best-effort chmod 600 on signing.key (Unix only),\nand emit KEYGEN_OK; the rotate branch additionally appends a single\nline to KEY-ROTATION-LOG carrying timestamp + new pubkey hex + reason.\n",
+      "modules": [
+        "cargo_evidence::cli::keygen::cmd_keygen"
+      ],
+      "emits": [
+        "KEYGEN_OK",
+        "KEYGEN_FAIL",
+        "KEYGEN_KEY_EXISTS"
+      ],
+      "traces_to": [
+        "b874c97f-dbcd-424f-a1fe-15b16cf36876"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-078",
+      "uid": "3f015ac7-8a76-405b-a180-a2f0183a4b85",
+      "layer": "llr",
+      "title": "finalize::check_pubkey_anchor refuses on mismatch",
+      "description": "After writing BUNDLE.sig, the finalize phase calls check_pubkey_anchor\nwith the just-used signing key. When `cert/signing.pub` exists the\nfunction reads it via evidence_core::read_verifying_key and compares\nits 32-byte representation to signing_key.verifying_key().to_bytes().\nMismatch returns an anyhow error carrying SIGN_PUBKEY_ANCHOR_MISMATCH\nand the two paths involved; missing anchor file is a no-op (Ok(())).\nThe inner check_pubkey_anchor_at takes the anchor path explicitly so\nunit tests can drive comparisons against tempdir fixtures rather than\nthe real cert/signing.pub.\n",
+      "modules": [
+        "cargo_evidence::cli::generate::finalize::check_pubkey_anchor"
+      ],
+      "emits": [
+        "SIGN_PUBKEY_ANCHOR_MISMATCH"
+      ],
+      "traces_to": [
+        "14e47afb-0e80-45e3-b795-c263671a221a"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-082",
+      "uid": "dde74fce-62f8-4f33-b161-e21ee8b4627d",
+      "layer": "llr",
+      "title": "cli::context wires CLI verb to context_for + emits CONTEXT_* terminals",
+      "description": "`cmd_context(positional, --crate, --module, format)` parses the\nselector inputs (positional wins; otherwise `--crate` then\n`--module`), calls `evidence_core::context::resolve_selector`, then\n`context_for`, and renders the result. Human mode prints a compact\ntable; `--json` emits the report as a single pretty-printed blob;\n`--format=jsonl` emits one compact report-line on stdout, one\n`Diagnostic` per `ContextWarning` (severity = warning), and a\nhand-built `CONTEXT_OK` / `CONTEXT_FAIL` / `CONTEXT_ERROR` terminal\non the last line. Exit codes: 0 for `CONTEXT_OK` (also the\n`CONTEXT_NO_TRACE_CONFIGURED` graceful path), 1 for `CONTEXT_ERROR`,\n2 for `CONTEXT_FAIL`. The three terminals are registered in\n`evidence_core::TERMINAL_CODES`.\n",
+      "modules": [
+        "cargo_evidence::cli::context",
+        "cargo_evidence::cli::context::cmd_context"
+      ],
+      "emits": [
+        "CONTEXT_OK",
+        "CONTEXT_FAIL",
+        "CONTEXT_ERROR"
+      ],
+      "traces_to": [
+        "5ccff935-87c2-4b57-a78b-459d1eb81ad2"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-083",
+      "uid": "ca6f202f-8957-4ba3-adb5-fbc7054e9197",
+      "layer": "llr",
+      "title": "context content codes register in RULES and gate the golden wire shape",
+      "description": "The four content-level `CONTEXT_*` codes are registered in\n`evidence_core::RULES` under the `Context` domain. The CLI's\n`cmd_context` emits each at the right point: `CONTEXT_AMBIGUOUS_SELECTOR`\n(warning) when the resolver records skipped alternates;\n`CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR` (warning) when a non-workspace\nselector matches zero LLRs; `CONTEXT_SELECTOR_OUT_OF_SCOPE` (error)\nwhen the resolver rejects an unrecognized input;\n`CONTEXT_NO_TRACE_CONFIGURED` (info) when `cert/trace/` is missing.\nA golden fixture at\n`crates/cargo-evidence/tests/fixtures/golden_context.json` is byte-\ndiffed by the integration test, regenerated via\n`tools/regen-golden-fixtures.sh`. Drift in the wire shape fires the\nfixture diff with a line-numbered error.\n",
+      "modules": [
+        "evidence_core::context::lookup",
+        "evidence_core::context::error",
+        "cargo_evidence::cli::context"
+      ],
+      "emits": [
+        "CONTEXT_AMBIGUOUS_SELECTOR",
+        "CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR",
+        "CONTEXT_NO_TRACE_CONFIGURED",
+        "CONTEXT_SELECTOR_OUT_OF_SCOPE"
+      ],
+      "traces_to": [
+        "5ccff935-87c2-4b57-a78b-459d1eb81ad2"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    }
+  ],
+  "parents": [
+    {
+      "id": "HLR-001",
+      "uid": "f6d35f65-4a38-4ad9-ba2a-b5c4e3d7da41",
+      "layer": "hlr",
+      "title": "Every --format=jsonl run emits exactly one terminal event",
+      "traces_to": [
+        "0e42b90f-88d7-408f-8843-0a3335279360"
+      ]
+    },
+    {
+      "id": "HLR-002",
+      "uid": "da30287c-8223-448b-ad94-7a09cc981347",
+      "layer": "hlr",
+      "title": "stdout under --format=jsonl is strict JSONL",
+      "traces_to": [
+        "0e42b90f-88d7-408f-8843-0a3335279360"
+      ]
+    },
+    {
+      "id": "HLR-015",
+      "uid": "904ad11d-7b76-4707-8a08-cab8224b64c9",
+      "layer": "hlr",
+      "title": "Strict-mode verify requires an ed25519 signature",
+      "traces_to": [
+        "31ad3334-3d64-4fff-9f7a-fe7d5c709288"
+      ]
+    },
+    {
+      "id": "HLR-016",
+      "uid": "f11c7b59-7dea-490f-a355-bb07459bb49b",
+      "layer": "hlr",
+      "title": "Exit codes map to terminal events",
+      "traces_to": [
+        "0e42b90f-88d7-408f-8843-0a3335279360"
+      ]
+    },
+    {
+      "id": "HLR-017",
+      "uid": "cb2b1464-3b2b-43a2-bffe-a41c16efefe6",
+      "layer": "hlr",
+      "title": "--format resolution folds legacy --json",
+      "traces_to": [
+        "0e42b90f-88d7-408f-8843-0a3335279360"
+      ]
+    },
+    {
+      "id": "HLR-018",
+      "uid": "9ea226b0-852f-4047-a953-2ab0f4778da1",
+      "layer": "hlr",
+      "title": "schema show diagnostic prints the embedded source",
+      "traces_to": [
+        "0e42b90f-88d7-408f-8843-0a3335279360"
+      ]
+    },
+    {
+      "id": "HLR-020",
+      "uid": "62498de7-e6b9-4805-8b6c-afead78b33ac",
+      "layer": "hlr",
+      "title": "Dispatch guards unwired --format=jsonl subcommands",
+      "traces_to": [
+        "0e42b90f-88d7-408f-8843-0a3335279360"
+      ]
+    },
+    {
+      "id": "HLR-023",
+      "uid": "911fe168-04d7-49ee-99f4-d7a5a7a6fb1c",
+      "layer": "hlr",
+      "title": "Default --trace-roots discovery",
+      "traces_to": [
+        "daf04641-ce24-4426-9c39-9f02b6c511cf"
+      ]
+    },
+    {
+      "id": "HLR-025",
+      "uid": "6c6eeac3-d491-42da-940f-97714e78e351",
+      "layer": "hlr",
+      "title": "check auto-detects argument shape",
+      "traces_to": [
+        "aa13d9a6-042e-4bc9-9d9e-c191128fb857"
+      ]
+    },
+    {
+      "id": "HLR-029",
+      "uid": "17cd860a-cf97-4eba-b54f-1f7d2563e74b",
+      "layer": "hlr",
+      "title": "RULES is the single source of truth for the diagnostic vocabulary",
+      "traces_to": [
+        "589a4478-b9b6-4eb3-99aa-5e5e0c631242"
+      ]
+    },
+    {
+      "id": "HLR-036",
+      "uid": "a3073b5a-ee61-4bdd-bdfe-c3154274e5ea",
+      "layer": "hlr",
+      "title": "CI enforces floors and ceilings on every push",
+      "traces_to": [
+        "a289fe83-d842-4708-b920-39cbcebd1aa1"
+      ]
+    },
+    {
+      "id": "HLR-042",
+      "uid": "b7265ced-3c5b-4558-92d1-5c54cba8657f",
+      "layer": "hlr",
+      "title": "`trace --validate` emits one JSONL event per Link-phase sub-error",
+      "traces_to": [
+        "5e9988ce-1351-4e39-98af-835e96e5fc17"
+      ]
+    },
+    {
+      "id": "HLR-048",
+      "uid": "57992e98-fb1e-4248-b340-6dd454db95c1",
+      "layer": "hlr",
+      "title": "cargo evidence doctor audits downstream rigor via a checklist of typed diagnostic codes",
+      "traces_to": [
+        "abba0183-f506-4fe5-81d1-afdc3bcac1ca"
+      ]
+    },
+    {
+      "id": "HLR-049",
+      "uid": "014adc4d-c545-403c-b4f2-d702a49dff30",
+      "layer": "hlr",
+      "title": "Pre-release builds embed a tool_prerelease flag in env.json and verify refuses such bundles under cert/record",
+      "traces_to": [
+        "2758e039-4943-4a9a-ad3d-9e0b0d0da7d8"
+      ]
+    },
+    {
+      "id": "HLR-052",
+      "uid": "e4f127fb-38c5-4f77-971f-143f774716f8",
+      "layer": "hlr",
+      "title": "Bundle records per-test requirement_uids; verify asserts every LLR is test-verified",
+      "traces_to": [
+        "5478751b-b547-49b7-b2fc-ae3963668a81"
+      ]
+    },
+    {
+      "id": "HLR-053",
+      "uid": "468a6894-7121-4936-8432-94163e35d4a1",
+      "layer": "hlr",
+      "title": "generate --coverage flag invokes cargo-llvm-cov and writes a typed coverage report into the bundle",
+      "traces_to": [
+        "5c6e07f1-da4a-4aec-9647-426304deadb5"
+      ]
+    },
+    {
+      "id": "HLR-055",
+      "uid": "fb07d8c2-5d21-4989-b21e-09b62caa0299",
+      "layer": "hlr",
+      "title": "cmd_trace + cmd_generate pass derived.toml requirements into Link-phase validation",
+      "traces_to": [
+        "f5aac59f-9dbd-48f7-80d1-2e1cc1a2fdd1"
+      ]
+    },
+    {
+      "id": "HLR-056",
+      "uid": "bebe9227-5f47-4eb8-89a7-f2157fb96e6c",
+      "layer": "hlr",
+      "title": "generate compares per-level coverage aggregate against Dal::coverage_thresholds",
+      "traces_to": [
+        "895097b2-6d08-4ef7-9305-143a87424684"
+      ]
+    },
+    {
+      "id": "HLR-057",
+      "uid": "79afc7a1-22dd-450e-8f0c-c29c93b48905",
+      "layer": "hlr",
+      "title": "cli::doctor derives its trace DAL via load_max_dal, not default_dal",
+      "traces_to": [
+        "71c07b24-9d90-4ad5-ae9a-a7c2fe55c93c"
+      ]
+    },
+    {
+      "id": "HLR-058",
+      "uid": "2087d91a-12ba-4b3a-ab43-632f670bad49",
+      "layer": "hlr",
+      "title": "generate threads trace_validation_passed bool from Phase 6 to write_compliance_reports",
+      "traces_to": [
+        "1eaaa60c-e8e0-4209-8ca5-51108495df61"
+      ]
+    },
+    {
+      "id": "HLR-066",
+      "uid": "c222804b-4d4f-4dfd-8765-2fd51a730ecc",
+      "layer": "hlr",
+      "title": "DAL-A in-scope crate without auxiliary MC/DC tool reference fails cert/record generate",
+      "traces_to": [
+        "5af6e706-6aef-411d-811d-747633876695"
+      ]
+    },
+    {
+      "id": "HLR-068",
+      "uid": "34234f8b-9f0b-47d4-829e-aed0ac96d51c",
+      "layer": "hlr",
+      "title": "Direct cargo-evidence --help invocation lists subcommands, not a redirect stub",
+      "traces_to": [
+        "385c2c4c-748c-4486-bd8c-7622b12c9273"
+      ]
+    },
+    {
+      "id": "HLR-070",
+      "uid": "b874c97f-dbcd-424f-a1fe-15b16cf36876",
+      "layer": "hlr",
+      "title": "cargo evidence keygen: explicit create + rotate",
+      "traces_to": [
+        "d469f0fa-0816-47a8-9452-b73e65f4cfd7"
+      ]
+    },
+    {
+      "id": "HLR-071",
+      "uid": "14e47afb-0e80-45e3-b795-c263671a221a",
+      "layer": "hlr",
+      "title": "Generate refuses on signing.pub anchor mismatch",
+      "traces_to": [
+        "d469f0fa-0816-47a8-9452-b73e65f4cfd7"
+      ]
+    },
+    {
+      "id": "HLR-073",
+      "uid": "5ccff935-87c2-4b57-a78b-459d1eb81ad2",
+      "layer": "hlr",
+      "title": "cargo evidence context CLI verb returns per-module trace slice",
+      "traces_to": [
+        "d8d1f204-3909-418d-b62a-1e28edd088ed"
+      ]
+    },
+    {
+      "id": "SYS-002",
+      "uid": "0e42b90f-88d7-408f-8843-0a3335279360",
+      "layer": "sys",
+      "title": "Machine-readable diagnostic stream",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-004",
+      "uid": "5af6e706-6aef-411d-811d-747633876695",
+      "layer": "sys",
+      "title": "Policy-gated evidence emission",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-005",
+      "uid": "31ad3334-3d64-4fff-9f7a-fe7d5c709288",
+      "layer": "sys",
+      "title": "Refusal on integrity guarantees unmet",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-006",
+      "uid": "daf04641-ce24-4426-9c39-9f02b6c511cf",
+      "layer": "sys",
+      "title": "Self-enforcement of the trace contract",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-007",
+      "uid": "aa13d9a6-042e-4bc9-9d9e-c191128fb857",
+      "layer": "sys",
+      "title": "Single agent-facing command reports pass/gap coverage",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-008",
+      "uid": "589a4478-b9b6-4eb3-99aa-5e5e0c631242",
+      "layer": "sys",
+      "title": "Tool self-describes its diagnostic vocabulary and refuses contract drift",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-009",
+      "uid": "a289fe83-d842-4708-b920-39cbcebd1aa1",
+      "layer": "sys",
+      "title": "Tool ratchets its own rigor floors — no silent regression",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-011",
+      "uid": "5e9988ce-1351-4e39-98af-835e96e5fc17",
+      "layer": "sys",
+      "title": "Diagnostic stream shall expose structured codes per Link-phase failure, not an opaque prose envelope",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-016",
+      "uid": "abba0183-f506-4fe5-81d1-afdc3bcac1ca",
+      "layer": "sys",
+      "title": "The tool shall provide a mechanical rigor-audit subcommand that blocks cert-profile bundle generation on any FAIL finding",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-017",
+      "uid": "2758e039-4943-4a9a-ad3d-9e0b0d0da7d8",
+      "layer": "sys",
+      "title": "Bundles produced by a pre-release build of the tool shall be mechanically rejected as cert/record evidence",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-018",
+      "uid": "385c2c4c-748c-4486-bd8c-7622b12c9273",
+      "layer": "sys",
+      "title": "Agent-facing verbs shall be callable over the Model Context Protocol without shelling out",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-020",
+      "uid": "5478751b-b547-49b7-b2fc-ae3963668a81",
+      "layer": "sys",
+      "title": "Bundle shall carry bidirectional requirement ↔ test traceability at atom level",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-021",
+      "uid": "5c6e07f1-da4a-4aec-9647-426304deadb5",
+      "layer": "sys",
+      "title": "Bundle shall carry structural coverage evidence when cert profile is used",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-023",
+      "uid": "f5aac59f-9dbd-48f7-80d1-2e1cc1a2fdd1",
+      "layer": "sys",
+      "title": "Trace validation shall resolve references to every configured requirement layer, not a subset",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-024",
+      "uid": "895097b2-6d08-4ef7-9305-143a87424684",
+      "layer": "sys",
+      "title": "Tool shall enforce DO-178C A-7 minimum coverage percentages per DAL",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-025",
+      "uid": "71c07b24-9d90-4ad5-ae9a-a7c2fe55c93c",
+      "layer": "sys",
+      "title": "Tool's downstream-audit surfaces shall derive trace policy from the max DAL across per-crate overrides",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-026",
+      "uid": "1eaaa60c-e8e0-4209-8ca5-51108495df61",
+      "layer": "sys",
+      "title": "Compliance claims shall reflect the actual outcome of the supporting check, not a hardcoded assumption",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-030",
+      "uid": "d469f0fa-0816-47a8-9452-b73e65f4cfd7",
+      "layer": "sys",
+      "title": "Project signing keypair lifecycle",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-031",
+      "uid": "d8d1f204-3909-418d-b62a-1e28edd088ed",
+      "layer": "sys",
+      "title": "Per-module agent context surface",
+      "traces_to": []
+    }
+  ],
+  "tests": [
+    {
+      "id": "TEST-080",
+      "uid": "313c6de1-f7a2-43cb-8e9f-887dc09f87c7",
+      "name": "DAL-A MC/DC fail-loud at cert/record; warn-only at dev; bypass when auxiliary tool set",
+      "selectors": [
+        "dal_qualification_gate::test_generate_dev_profile_warns_on_dal_a_without_mcdc_tool_but_continues",
+        "evidence_core::boundary_check::tests::dal_a_mcdc_check_fires_on_dal_a_without_tool",
+        "evidence_core::boundary_check::tests::dal_a_mcdc_check_passes_when_auxiliary_tool_set",
+        "evidence_core::boundary_check::tests::dal_a_mcdc_check_passes_when_no_dal_a_in_scope"
+      ],
+      "traces_to": [
+        "08152f7f-56c4-47f7-ae99-f03d0e114a67"
+      ]
+    },
+    {
+      "id": "TEST-052",
+      "uid": "da6f4884-9fdc-45bc-b6f7-21f115103ee2",
+      "name": "Dangling LLR (test-verified, no matching test record) fires VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
+      "selectors": [
+        "verify::llr_selectors::tests::llr_present_in_requirement_uids_passes",
+        "verify::llr_selectors::tests::llr_with_no_matching_test_outcome_fires_unresolved"
+      ],
+      "traces_to": [
+        "4bd86c6c-1743-4a78-9d17-c284b3ad8e04"
+      ]
+    },
+    {
+      "id": "TEST-055",
+      "uid": "03576b1a-f72e-4ab9-a8f8-f5d1110f85c2",
+      "name": "Derived-requirement traces_to references resolve in cmd_trace validation",
+      "selectors": [
+        "derived_trace_validation::derived_uids_resolve_in_trace_validation"
+      ],
+      "traces_to": [
+        "4e98e1d9-6017-425e-b613-52853e97c2f3"
+      ]
+    },
+    {
+      "id": "TEST-016",
+      "uid": "a8bc1428-d088-40b5-8b9f-84c33667fc4c",
+      "name": "Finding path ends with VERIFY_FAIL terminal on exit 2",
+      "selectors": [
+        "verify_jsonl::verify_finding_emits_terminal_fail_and_exit_two"
+      ],
+      "traces_to": [
+        "77b0a3dc-2b31-4d25-a375-2bc51f5f6497"
+      ]
+    },
+    {
+      "id": "TEST-049",
+      "uid": "2856e53c-8c90-42e8-ad9b-3da6f3a14a25",
+      "name": "Pre-release tool flag propagates into env.json, blocks verify under cert/record, passes dev",
+      "selectors": [
+        "evidence_core::env::capture::prerelease_tests::classifies_semver_shapes",
+        "evidence_core::env::fingerprint::tests::tool_prerelease_explicit_true_roundtrips",
+        "verify_prerelease::cert_profile_blocks_with_verify_fail",
+        "verify_prerelease::dev_profile_warning_passes"
+      ],
+      "traces_to": [
+        "548b7b36-1d03-487d-a6a1-f2b37bdee2a1"
+      ]
+    },
+    {
+      "id": "TEST-023",
+      "uid": "f9278d5b-373f-4493-a607-0e105ac84a0a",
+      "name": "Trace defaults to cert/trace when --trace-roots is absent",
+      "selectors": [
+        "trace_discovery::trace_defaults_to_tool_trace_when_flag_absent"
+      ],
+      "traces_to": [
+        "6be1b61b-0aeb-4c05-b2ef-f82fc7c00e55"
+      ]
+    },
+    {
+      "id": "TEST-020",
+      "uid": "ba80f1d3-65a0-44b7-afc7-85ca0fd1bc3c",
+      "name": "Unwired --format=jsonl on an unwired subcommand hard-errors with terminal",
+      "selectors": [
+        "verify_jsonl::unwired_diff_jsonl_is_rejected"
+      ],
+      "traces_to": [
+        "00578a4a-d6fe-420a-92c3-3cf4cb3387d6"
+      ]
+    },
+    {
+      "id": "TEST-017",
+      "uid": "383598b3-4a32-470c-a73e-c4645e22fe6c",
+      "name": "Verify with --json on nonexistent bundle returns JSON",
+      "selectors": [
+        "cli::test_verify_json_nonexistent"
+      ],
+      "traces_to": [
+        "c5f2b95b-5555-4261-a92c-76ce3ec2e5cf"
+      ]
+    },
+    {
+      "id": "TEST-058",
+      "uid": "78b4217f-700b-4058-959b-5f8c1e7170f4",
+      "name": "aggregate_branches_percent normal + robustness + BVA (incl. bug-fix anchor)",
+      "selectors": [
+        "evidence_core::bundle::builder_coverage::tests::aggregate_branches_bva_zero_zero_single_file_returns_zero",
+        "evidence_core::bundle::builder_coverage::tests::aggregate_branches_reads_branches_not_lines",
+        "evidence_core::bundle::builder_coverage::tests::aggregate_branches_robustness_all_none_returns_zero",
+        "evidence_core::coverage::thresholds::tests::aggregate_branches_bva_all_covered_is_hundred",
+        "evidence_core::coverage::thresholds::tests::aggregate_branches_bva_zero_zero_single_file_returns_zero",
+        "evidence_core::coverage::thresholds::tests::aggregate_branches_ignores_line_counts_at_branch_level",
+        "evidence_core::coverage::thresholds::tests::aggregate_branches_normal_two_files_sum_to_half",
+        "evidence_core::coverage::thresholds::tests::aggregate_branches_robustness_all_none_returns_zero",
+        "evidence_core::coverage::thresholds::tests::aggregate_branches_robustness_empty_per_file_returns_zero",
+        "evidence_core::coverage::thresholds::tests::aggregate_branches_robustness_none_file_contributes_nothing"
+      ],
+      "traces_to": [
+        "84c30007-3c84-4d23-bdf8-f540339b507a"
+      ]
+    },
+    {
+      "id": "TEST-057",
+      "uid": "33d5f462-f1b6-4176-8fe5-47de0cacb083",
+      "name": "aggregate_lines_percent normal + robustness + BVA",
+      "selectors": [
+        "evidence_core::bundle::builder_coverage::tests::aggregate_lines_sums_line_field_only",
+        "evidence_core::coverage::thresholds::tests::aggregate_lines_bva_forty_two_over_hundred_is_exact",
+        "evidence_core::coverage::thresholds::tests::aggregate_lines_bva_one_over_one_is_hundred",
+        "evidence_core::coverage::thresholds::tests::aggregate_lines_bva_zero_over_one_is_zero",
+        "evidence_core::coverage::thresholds::tests::aggregate_lines_normal_three_files_weighted_average",
+        "evidence_core::coverage::thresholds::tests::aggregate_lines_robustness_empty_per_file_returns_zero",
+        "evidence_core::coverage::thresholds::tests::aggregate_lines_robustness_single_file_zero_total_returns_zero"
+      ],
+      "traces_to": [
+        "a95ed852-94ba-499b-bd17-76d26b75ebe5"
+      ]
+    },
+    {
+      "id": "TEST-085",
+      "uid": "eb395589-4eb1-4052-b215-2d424085e694",
+      "name": "anchor consistency: missing / match / mismatch",
+      "selectors": [
+        "cli::generate::finalize::tests::anchor_absent_is_ok",
+        "cli::generate::finalize::tests::anchor_match_is_ok",
+        "cli::generate::finalize::tests::anchor_mismatch_refuses",
+        "cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
+        "cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env"
+      ],
+      "traces_to": [
+        "3f015ac7-8a76-405b-a180-a2f0183a4b85"
+      ]
+    },
+    {
+      "id": "TEST-090",
+      "uid": "e92cf358-fdbb-4213-8362-a66c89331653",
+      "name": "cargo evidence context CLI is byte-locked against the golden fixture",
+      "selectors": [
+        "cli_context::context_jsonl_invalid_selector_emits_fail_terminal",
+        "cli_context::context_jsonl_non_adopter_graceful_path",
+        "cli_context::golden_context_json_byte_diff"
+      ],
+      "traces_to": [
+        "ca6f202f-8957-4ba3-adb5-fbc7054e9197"
+      ]
+    },
+    {
+      "id": "TEST-048",
+      "uid": "11c798f0-62c9-4669-9cc5-2f596544cfb9",
+      "name": "cargo evidence doctor passes on rigorous fixture, fails on sloppy fixture, blocks cert generate",
+      "selectors": [
+        "doctor_cmd::cert_generate_blocks_on_doctor_fail",
+        "doctor_cmd::current_workspace_passes_doctor",
+        "doctor_cmd::rigorous_fixture_passes",
+        "doctor_cmd::sloppy_fixture_fails_with_named_codes"
+      ],
+      "traces_to": [
+        "ec50f98b-9a1d-4f7b-bc33-df56c7faab2a"
+      ]
+    },
+    {
+      "id": "TEST-036",
+      "uid": "e5ec5aab-828f-4540-8bc6-20c586adf45f",
+      "name": "cargo evidence floors fires FLOORS_BELOW_MIN on a tampered floor",
+      "selectors": [
+        "floors_gate::floors_gate_fires_on_below_min_floor"
+      ],
+      "traces_to": [
+        "74f50e68-3a78-4557-a7c3-13340e52543a"
+      ]
+    },
+    {
+      "id": "TEST-053",
+      "uid": "1a56e1f7-4d7b-42a6-b242-16d4df9d74b9",
+      "name": "cargo llvm-cov export parser + graceful degradation on missing binary",
+      "selectors": [
+        "coverage_e2e::coverage_line_on_dev_degrades_gracefully_when_llvmcov_missing",
+        "coverage_e2e::coverage_none_does_not_invoke_llvmcov",
+        "evidence_core::coverage::llvm_cov_json::tests::normalizes_absolute_paths_to_workspace_relative",
+        "evidence_core::coverage::llvm_cov_json::tests::parses_trivial_export",
+        "evidence_core::coverage::report::tests::coverage_report_roundtrips_json"
+      ],
+      "traces_to": [
+        "ed4284df-5a2e-4241-bbd9-e744edd43f79"
+      ]
+    },
+    {
+      "id": "TEST-082",
+      "uid": "281db1d7-43e7-4b4e-8cf8-be6d12133dd9",
+      "name": "cargo-evidence --help direct invocation lists every subcommand",
+      "selectors": [
+        "help_listing::test_cargo_evidence_dash_h_exits_zero",
+        "help_listing::test_cargo_evidence_help_lists_subcommands"
+      ],
+      "traces_to": [
+        "76f2567f-3d6d-4633-9d2c-00d03cc2b529"
+      ]
+    },
+    {
+      "id": "TEST-028",
+      "uid": "4650b356-6c50-4ea8-b548-e650ce923973",
+      "name": "check bundle mode byte-matches verify --format=jsonl",
+      "selectors": [
+        "check_bundle_mode::check_bundle_mode_matches_verify"
+      ],
+      "traces_to": [
+        "7df3b426-c9ea-426b-8fb9-64ce247312a0"
+      ]
+    },
+    {
+      "id": "TEST-025",
+      "uid": "3dc79eb5-3ffc-4b04-ba4c-e2a2e458feeb",
+      "name": "check dispatches source mode on a workspace directory",
+      "selectors": [
+        "check_source_tree::check_source_mode_on_clean_workspace"
+      ],
+      "traces_to": [
+        "7df3b426-c9ea-426b-8fb9-64ce247312a0"
+      ]
+    },
+    {
+      "id": "TEST-089",
+      "uid": "27e2ee62-9591-4353-9ced-2f009ba7de97",
+      "name": "context::error variants map to documented CONTEXT_* codes",
+      "selectors": [
+        "context::tests::missing_trace_root_returns_trace_not_configured",
+        "context::tests::selector_out_of_scope_preserves_raw_input"
+      ],
+      "traces_to": [
+        "ca6f202f-8957-4ba3-adb5-fbc7054e9197"
+      ]
+    },
+    {
+      "id": "TEST-059",
+      "uid": "a1d3ac91-35ed-4171-8646-1e3cce4c3e96",
+      "name": "evaluate_thresholds normal + robustness + BVA (strict <, per-level dispatch)",
+      "selectors": [
+        "evidence_core::coverage::thresholds::tests::threshold_bva_exact_equality_passes",
+        "evidence_core::coverage::thresholds::tests::threshold_bva_just_below_fires",
+        "evidence_core::coverage::thresholds::tests::threshold_integration_high_lines_low_branches_fires_branch_only",
+        "evidence_core::coverage::thresholds::tests::threshold_normal_branch_below_dalb_statement_above",
+        "evidence_core::coverage::thresholds::tests::threshold_robustness_measurement_absent_no_violation",
+        "evidence_core::coverage::thresholds::tests::threshold_robustness_none_threshold_skips_check"
+      ],
+      "traces_to": [
+        "b1377fb5-f879-4edc-9c50-46c5e67c71ad"
+      ]
+    },
+    {
+      "id": "TEST-015",
+      "uid": "c818cd84-8d25-457e-b18e-a613c691964d",
+      "name": "init-scaffolded template does not trip the policy-implementable gate",
+      "selectors": [
+        "cli::test_init_template_does_not_trip_policy_gate"
+      ],
+      "traces_to": [
+        "bb176fd9-7859-4ec1-bbc0-088d2518dc54"
+      ]
+    },
+    {
+      "id": "TEST-084",
+      "uid": "92ca41f0-30ba-4c22-8dd0-0aa0b7d96111",
+      "name": "keygen lifecycle: create / refuse-overwrite / rotate / log",
+      "selectors": [
+        "cli::keygen::tests::first_time_create_writes_both_files",
+        "cli::keygen::tests::refuses_overwrite_without_rotate",
+        "cli::keygen::tests::rotate_appends_each_log_line",
+        "cli::keygen::tests::rotate_overwrites_and_logs",
+        "cli::keygen::tests::rotate_requires_existing_pair",
+        "cli::keygen::tests::rotate_without_reason_is_an_error",
+        "cli::keygen::tests::signing_key_chmod_600_on_unix"
+      ],
+      "traces_to": [
+        "2edcdfa5-d7e7-4115-a3fa-8ed36354aa1b"
+      ]
+    },
+    {
+      "id": "TEST-060",
+      "uid": "64b360d1-a9be-4097-a011-ed6f0625fe1c",
+      "name": "load_max_dal derives trace DAL as max over dal_map; normal + robustness + BVA",
+      "selectors": [
+        "doctor_max_dal::empty_in_scope_falls_back_to_default_dal_not_hard_d",
+        "doctor_max_dal::mixed_overrides_take_highest",
+        "doctor_max_dal::no_override_at_default_d_leaves_gate_skipped",
+        "doctor_max_dal::override_raises_dal_past_qualification_gate",
+        "doctor_max_dal::single_crate_at_dal_c_fires_gate_inclusively"
+      ],
+      "traces_to": [
+        "a88f2efa-7aa7-4bfc-9554-610a906f2e2e"
+      ]
+    },
+    {
+      "id": "TEST-029",
+      "uid": "ad68d844-d00a-4c4d-8963-0bfcb20f4e3b",
+      "name": "rules --json emits stable JSON and --format=jsonl is rejected",
+      "selectors": [
+        "rules_cmd::rules_json_matches_rules_json_helper"
+      ],
+      "traces_to": [
+        "0835d2e8-3a84-4a4a-97e0-46985be02892"
+      ]
+    },
+    {
+      "id": "TEST-018",
+      "uid": "f7cd1dd3-8a82-4442-9c19-93f6729329af",
+      "name": "schema show index prints the embedded schema",
+      "selectors": [
+        "cli::test_schema_show_index"
+      ],
+      "traces_to": [
+        "dfc19912-4b1f-4a0c-8e18-a66d6e0738c3"
+      ]
+    },
+    {
+      "id": "TEST-002",
+      "uid": "3da79a9f-157a-47e5-a6b6-a160c3854b43",
+      "name": "stdout under --format=jsonl is strict JSONL",
+      "selectors": [
+        "verify_jsonl::verify_jsonl_stdout_is_strict_jsonl_only"
+      ],
+      "traces_to": [
+        "36491f32-293f-4f39-a2f5-cdb7e746330c"
+      ]
+    },
+    {
+      "id": "TEST-042",
+      "uid": "453db165-a0b4-45d3-9c12-895537b2f067",
+      "name": "trace --validate --format=jsonl emits one event per LinkError",
+      "selectors": [
+        "trace_cmd_jsonl::trace_validate_jsonl_emits_per_variant"
+      ],
+      "traces_to": [
+        "61f2c36a-0d47-4485-acca-f2d4403ec339"
+      ]
+    },
+    {
+      "id": "TEST-061",
+      "uid": "cff40a9c-4036-4918-99e3-0611bee227c8",
+      "name": "trace_validation_passed honesty — A3-6 / A4-6 Met/Partial/NotMet per (has_trace, passed) matrix",
+      "selectors": [
+        "compliance_trace_honesty::a3_6_bva_no_trace_data_is_notmet_even_when_passed_false",
+        "compliance_trace_honesty::a3_6_bva_no_trace_data_is_notmet_even_when_passed_true",
+        "compliance_trace_honesty::a3_6_normal_passed_and_present_is_met",
+        "compliance_trace_honesty::a3_6_notmet_reason_is_no_trace_data_not_validation_failure",
+        "compliance_trace_honesty::a3_6_partial_carries_reason_naming_the_gap",
+        "compliance_trace_honesty::a3_6_robustness_warned_continuing_is_partial",
+        "compliance_trace_honesty::a4_6_normal_passed_and_present_is_met",
+        "compliance_trace_honesty::a4_6_robustness_warned_continuing_is_partial"
+      ],
+      "traces_to": [
+        "d67f45bf-c9d0-4f2a-87d1-0dfbf14d9262"
+      ]
+    },
+    {
+      "id": "TEST-001",
+      "uid": "c688bd6f-7514-43c4-97c5-d22cadba8e26",
+      "name": "verify --format=jsonl happy path ends with VERIFY_OK",
+      "selectors": [
+        "verify_jsonl::verify_ok_terminates_with_verify_ok_and_exit_zero"
+      ],
+      "traces_to": [
+        "ef688fd5-21e0-4cf7-9ed5-b1819b5ae50d"
+      ]
+    },
+    {
+      "id": "TEST-072",
+      "uid": "33ed3802-036f-443a-b465-b56a500c6428",
+      "name": "verify --verify-key I/O failure emits structured diag + VERIFY_ERROR terminal",
+      "selectors": [
+        "evidence_core::verify::runtime_error::tests::read_verify_key_code_and_location",
+        "verify_e2e::human_prints_error_on_unreadable_verify_key",
+        "verify_e2e::json_wraps_verify_key_io_failure",
+        "verify_e2e::jsonl_emits_terminal_on_unreadable_verify_key"
+      ],
+      "traces_to": [
+        "4abf426c-da46-4307-ba7d-9d7dbfd86f63"
+      ]
+    }
+  ],
+  "diagnostic_codes": [
+    "BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC",
+    "CHECK_TEST_RUNTIME_FAILURE",
+    "CLI_INVALID_ARGUMENT",
+    "CLI_UNSUPPORTED_FORMAT",
+    "CONTEXT_AMBIGUOUS_SELECTOR",
+    "CONTEXT_ERROR",
+    "CONTEXT_FAIL",
+    "CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR",
+    "CONTEXT_NO_TRACE_CONFIGURED",
+    "CONTEXT_OK",
+    "CONTEXT_SELECTOR_OUT_OF_SCOPE",
+    "COVERAGE_BELOW_THRESHOLD",
+    "COVERAGE_LLVMCOV_MISSING",
+    "COVERAGE_OK",
+    "COVERAGE_PARSE_FAILED",
+    "DOCTOR_BOUNDARY_MISSING",
+    "DOCTOR_CHECK_PASSED",
+    "DOCTOR_CI_INTEGRATION_MISSING",
+    "DOCTOR_FAIL",
+    "DOCTOR_FLOORS_BOUNDARY_MISMATCH",
+    "DOCTOR_FLOORS_MISSING",
+    "DOCTOR_FLOORS_SLACK",
+    "DOCTOR_FLOORS_VIOLATED",
+    "DOCTOR_MERGE_STYLE_RISK",
+    "DOCTOR_MERGE_STYLE_UNKNOWN",
+    "DOCTOR_OK",
+    "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
+    "DOCTOR_QUALIFICATION_MISSING",
+    "DOCTOR_TRACE_EMPTY",
+    "DOCTOR_TRACE_INVALID",
+    "ENV_ENGINE_RELEASE_PROVENANCE",
+    "FLOORS_BELOW_MIN",
+    "FLOORS_DIMENSION_OK",
+    "FLOORS_FAIL",
+    "FLOORS_OK",
+    "KEYGEN_FAIL",
+    "KEYGEN_KEY_EXISTS",
+    "KEYGEN_OK",
+    "SCHEMA_COMPILE_FAILED",
+    "SCHEMA_INSTANCE_INVALID",
+    "SCHEMA_PARSE_FAILED",
+    "SIGN_INVALID_KEY",
+    "SIGN_INVALID_SIGNATURE_HEX",
+    "SIGN_PUBKEY_ANCHOR_MISMATCH",
+    "SIGN_READ_FAILED",
+    "SIGN_WRITE_FAILED",
+    "TRACE_REGISTER_FAILED",
+    "TRACE_SELECTOR_UNRESOLVED",
+    "VERIFY_ERROR",
+    "VERIFY_FAIL",
+    "VERIFY_INVALID_FORMAT",
+    "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
+    "VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
+    "VERIFY_OK",
+    "VERIFY_PRERELEASE_TOOL",
+    "VERIFY_RUNTIME_READ_VERIFY_KEY",
+    "VERIFY_SIGNATURE_INVALID"
+  ],
+  "floors": [
+    {
+      "dimension": "library_panics",
+      "kind": "per_crate_ceiling",
+      "current": 0,
+      "floor": 0
+    },
+    {
+      "dimension": "test_count",
+      "kind": "per_crate_floor",
+      "current": 158,
+      "floor": 158
+    }
+  ],
+  "boundary": {
+    "in_scope": true,
+    "forbidden_deps": []
+  },
+  "conventions": {
+    "nearest_claude_md": "crates/cargo-evidence/CLAUDE.md"
+  },
+  "warnings": []
+}

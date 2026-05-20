@@ -21,6 +21,7 @@ pub enum Domain {
     Check,
     Cli,
     Cmd,
+    Context,
     Coverage,
     Doctor,
     Env,
@@ -144,6 +145,13 @@ pub const RULES: &[RuleEntry] = &[
     r("CMD_LAUNCH_FAILED", Severity::Error, Domain::Cmd),
     r("CMD_NON_UTF8_OUTPUT", Severity::Error, Domain::Cmd),
     r("CMD_NON_ZERO_EXIT", Severity::Error, Domain::Cmd),
+    context("CONTEXT_AMBIGUOUS_SELECTOR", Severity::Warning),
+    terminal("CONTEXT_ERROR", Severity::Error),
+    terminal("CONTEXT_FAIL", Severity::Error),
+    context("CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR", Severity::Warning),
+    context("CONTEXT_NO_TRACE_CONFIGURED", Severity::Info),
+    terminal("CONTEXT_OK", Severity::Info),
+    context("CONTEXT_SELECTOR_OUT_OF_SCOPE", Severity::Error),
     r(
         "COVERAGE_BELOW_THRESHOLD",
         Severity::Error,
@@ -408,72 +416,10 @@ pub const RULES: &[RuleEntry] = &[
     r("VERIFY_UNSAFE_PATH", Severity::Error, Domain::Verify),
 ];
 
-// Constructor helpers — kept `const fn` so RULES stays a true const.
-
-const fn r(code: &'static str, severity: Severity, domain: Domain) -> RuleEntry {
-    RuleEntry {
-        code,
-        severity,
-        domain,
-        has_fix_hint: false,
-        terminal: false,
-    }
-}
-
-const fn req(code: &'static str, severity: Severity) -> RuleEntry {
-    RuleEntry {
-        code,
-        severity,
-        domain: Domain::Req,
-        has_fix_hint: false,
-        terminal: false,
-    }
-}
-
-const fn req_gap(code: &'static str) -> RuleEntry {
-    RuleEntry {
-        code,
-        severity: Severity::Error,
-        domain: Domain::Req,
-        has_fix_hint: true,
-        terminal: false,
-    }
-}
-
-const fn cli(code: &'static str, severity: Severity) -> RuleEntry {
-    RuleEntry {
-        code,
-        severity,
-        domain: Domain::Cli,
-        has_fix_hint: false,
-        terminal: false,
-    }
-}
-
-const fn floors(code: &'static str, severity: Severity) -> RuleEntry {
-    RuleEntry {
-        code,
-        severity,
-        domain: Domain::Floors,
-        has_fix_hint: false,
-        terminal: false,
-    }
-}
-
-const fn terminal(code: &'static str, severity: Severity) -> RuleEntry {
-    RuleEntry {
-        code,
-        severity,
-        domain: match Domain::from_code_const(code) {
-            Some(d) => d,
-            None => Domain::Cli,
-        },
-        has_fix_hint: false,
-        terminal: true,
-    }
-}
-
+mod constructors;
 mod domain_map;
+
+use constructors::{cli, context, floors, r, req, req_gap, terminal};
 
 /// Serialize [`RULES`] as a JSON array for `cargo evidence rules
 /// --json`. Deterministic (alphabetical by `code`).

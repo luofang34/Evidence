@@ -21,7 +21,8 @@ crates/evidence-core/tests/fixtures/compliance/** binary
 Cargo.lock            text eol=lf
 rust-toolchain.toml   text eol=lf
 
-# Golden wire-shape fixture for `cargo evidence rules --json`. Keep
-# literal bytes so cross-OS checkouts don't mangle line endings and
-# trip the byte-diff test.
+# Golden wire-shape fixtures byte-diffed against the CLI output —
+# keep literal bytes so cross-OS checkouts don't mangle line endings
+# and trip the byte-diff tests.
 crates/cargo-evidence/tests/fixtures/golden_rules.json binary
+crates/cargo-evidence/tests/fixtures/golden_context.json binary

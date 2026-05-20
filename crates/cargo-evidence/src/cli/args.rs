@@ -364,6 +364,43 @@ pub enum Commands {
         config: Option<PathBuf>,
     },
 
+    /// Return the per-module trace + boundary + floors slice an agent
+    /// needs before editing a source file.
+    ///
+    /// Selector resolution order (priority on ambiguity, first match
+    /// wins): file > crate > module > workspace.
+    ///
+    /// - Positional argument: workspace-relative file path under
+    ///   `crates/<crate>/...`, a workspace crate name, or a Rust
+    ///   module path (`evidence_core::trace`).
+    /// - `--crate <name>` and `--module <path>` are equivalent
+    ///   alternative entry points to disambiguate when a name could
+    ///   match more than one kind.
+    /// - With no arguments, returns the workspace overview (root
+    ///   `CLAUDE.md` pointer + workspace-wide floors).
+    ///
+    /// Output is text (default), `--json` (single blob), or
+    /// `--format=jsonl` (one report line + one diagnostic per warning
+    /// + a `CONTEXT_OK` / `CONTEXT_FAIL` / `CONTEXT_ERROR` terminal).
+    Context {
+        /// File / crate / module selector. Mutually compatible with
+        /// `--crate` / `--module`; positional wins when given.
+        selector: Option<String>,
+
+        /// Disambiguate as a workspace crate name.
+        #[arg(long = "crate")]
+        crate_flag: Option<String>,
+
+        /// Disambiguate as a Rust module path
+        /// (e.g. `evidence_core::trace`).
+        #[arg(long = "module")]
+        module_flag: Option<String>,
+
+        /// Emit a single pretty-printed JSON blob on stdout.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Trace management utilities
     Trace {
         /// Validate trace links between HLR, LLR, and Tests
@@ -410,43 +447,9 @@ pub enum Commands {
     },
 }
 
-#[derive(Subcommand)]
-#[allow(
-    missing_docs,
-    reason = "clap-derive: variant help is carried by `///` doc comments already present on each variant"
-)]
-pub enum SchemaCommands {
-    /// Print schema to stdout
-    Show {
-        /// Schema name (index, env, commands, hashes)
-        schema: SchemaName,
-    },
+mod schema;
 
-    /// Validate a JSON file against its schema
-    Validate {
-        /// Path to the JSON file to validate
-        file: PathBuf,
-    },
-}
-
-#[derive(Clone, Copy, ValueEnum)]
-#[allow(
-    missing_docs,
-    reason = "clap-derive ValueEnum: variant names are themselves the `--schema <name>` surface"
-)]
-pub enum SchemaName {
-    Index,
-    Env,
-    Commands,
-    Hashes,
-    /// Alias for deterministic-manifest.json.
-    #[value(name = "deterministic-manifest", alias = "manifest")]
-    DeterministicManifest,
-    /// Wire-format schema for `--format=jsonl` output. Not a bundle
-    /// file — `schema validate` will not match it by filename; use
-    /// `schema show diagnostic` to read the source.
-    Diagnostic,
-}
+pub use schema::{SchemaCommands, SchemaName};
 
 // ============================================================================
 // Environment Detection

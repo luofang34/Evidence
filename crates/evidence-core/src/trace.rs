@@ -33,7 +33,7 @@ pub use entries::{
     TraceMeta,
 };
 pub use matrix::generate_traceability_matrix;
-pub use read::{TraceFiles, read_all_trace_files, read_toml};
+pub use read::{TraceFiles, TraceReadError, read_all_trace_files, read_toml};
 pub use requirement_report::{RequirementStatus, build_requirement_report};
 pub use selector_check::{UnresolvedSelector, resolve_test_selectors};
 pub use surfaces::KNOWN_SURFACES;

@@ -13,6 +13,7 @@
 
 pub mod args;
 pub mod check;
+pub mod context;
 pub mod diff;
 pub mod doctor;
 pub mod floors;

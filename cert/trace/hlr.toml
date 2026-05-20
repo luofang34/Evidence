@@ -1822,3 +1822,29 @@ workspace crate without a `CLAUDE.md` fails CI.
 verification_methods = ["test"]
 traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
 surfaces = ["layered CLAUDE.md (root + crates/*/CLAUDE.md)"]
+
+[[requirements]]
+uid = "5ccff935-87c2-4b57-a78b-459d1eb81ad2"
+id = "HLR-073"
+title = "cargo evidence context CLI verb returns per-module trace slice"
+owner = "tool"
+scope = "component"
+description = """
+`cargo evidence context [<selector>]` returns a structured per-module
+context blob: the LLR-level requirements governing the selector
+(file path under `crates/<crate>/...`, workspace crate name, or
+Rust module path), their parent HLR / SYS rollup, the tests that
+verify them, the diagnostic codes those LLRs own, the per-crate
+floors / ceilings, the boundary slice, and the nearest layered
+`CLAUDE.md`. Selector resolution prioritises file > crate > module
+on ambiguity. The graceful-degradation path (no `cert/trace/`) maps
+to `CONTEXT_NO_TRACE_CONFIGURED` (info) + `CONTEXT_OK` (exit 0);
+invalid selectors emit `CONTEXT_SELECTOR_OUT_OF_SCOPE` + the
+`CONTEXT_FAIL` terminal (exit 2); runtime / I/O failures emit
+`CONTEXT_ERROR` (exit 1). Output is text (default), `--json` (single
+blob), or `--format=jsonl` (report line + per-warning diag +
+terminal). The wire shape is byte-locked against a golden fixture.
+"""
+verification_methods = ["test"]
+traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
+surfaces = ["context"]

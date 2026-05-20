@@ -93,6 +93,9 @@ pub const TERMINAL_CODES: &[&str] = &[
     "FLOORS_FAIL",
     "GENERATE_OK",
     "GENERATE_FAIL",
+    "CONTEXT_OK",
+    "CONTEXT_FAIL",
+    "CONTEXT_ERROR",
 ];
 
 /// One observation in the diagnostic stream.

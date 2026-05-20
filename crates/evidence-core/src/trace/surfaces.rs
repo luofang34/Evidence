@@ -36,6 +36,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     // Group 1 — CLI verb names (lowercase; match the `Commands::*`
     // variants exactly).
     "check",
+    "context",
     "doctor",
     "floors",
     "generate",
@@ -53,6 +54,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
     "diagnostic code namespace (regex + reserved suffixes)",
     "editor-duplicate gate",
     "jsonl stream per Schema Rule 2",
+    "layered CLAUDE.md (root + crates/*/CLAUDE.md)",
     "per-test outcome capture",
     "per-test ↔ LLR back-link",
     "pre-release safety gate",
@@ -68,7 +70,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
 /// Used by the group-scoped sort test to validate within-group order
 /// without imposing cross-group ordering.
 #[cfg(test)]
-const CONTRACTS_START: usize = 8;
+const CONTRACTS_START: usize = 9;
 
 #[cfg(test)]
 mod tests {
