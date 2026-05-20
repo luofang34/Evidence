@@ -1848,3 +1848,31 @@ terminal). The wire shape is byte-locked against a golden fixture.
 verification_methods = ["test"]
 traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
 surfaces = ["context"]
+
+[[requirements]]
+uid = "f88508e9-eb70-4ee6-bb3e-13f07e4f181b"
+id = "HLR-074"
+title = "evidence_context MCP tool returns per-module trace slice"
+owner = "tool"
+scope = "component"
+description = """
+`evidence_context` is the seventh `#[tool]` on the MCP `Server`. It
+takes a `ContextRequest` with an optional `workspace_path` and at
+most one of `selector` (file/crate/module string), `crate_name`
+(crate disambiguator), or `module` (module-path disambiguator), and
+returns a `ContextToolResponse` carrying the single JSON blob
+emitted by `cargo evidence context [--crate <c> | --module <m> |
+<selector>] --json`. The handler spawns the CLI verb through the
+existing `subprocess::run_evidence` plumbing (no new transport
+machinery), prepends workspace-fallback + version-skew warnings via
+the shared response helpers, and surfaces tool-layer failures
+(subprocess could not spawn / timed out / produced malformed JSON)
+as a well-formed response with `context = None`, `exit_code != 0`,
+and a structured `MCP_*` diagnostic in `error`. Mutual-exclusivity
+of the three selector fields is validated at the handler layer and
+returned as `Err(String)`. No new diagnostic codes — the underlying
+content vocabulary (`CONTEXT_*`) is owned by the CLI verb (HLR-073).
+"""
+verification_methods = ["test"]
+traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
+surfaces = ["context"]

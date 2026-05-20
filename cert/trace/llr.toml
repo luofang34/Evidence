@@ -2568,3 +2568,111 @@ emits = [
     "CONTEXT_NO_TRACE_CONFIGURED",
     "CONTEXT_SELECTOR_OUT_OF_SCOPE",
 ]
+
+[[requirements]]
+uid = "dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"
+id = "LLR-084"
+title = "evidence_context handler wraps cargo evidence context --json"
+owner = "tool"
+traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
+modules = [
+    "evidence_mcp::server",
+    "evidence_mcp::server::Server::evidence_context",
+]
+description = """
+Seventh `#[tool]` on `Server`, alongside `evidence_rules`,
+`evidence_doctor`, `evidence_check`, `evidence_ping`,
+`evidence_floors`, `evidence_diff`. Single-blob shape (like
+`evidence_diff`), not the streaming-verb shape used by `check` /
+`doctor` / `floors`.
+
+Handler body:
+
+  1. Validate the request: at most one of `selector`, `crate_name`,
+     `module` may be `Some`. Multiple set → `Err(String)` with a
+     human message naming the conflicting fields (mirrors
+     `evidence_check`'s `mode` validation).
+  2. Resolve the workspace path via `workspace::resolve_workspace`
+     (HLR-054); a `Fallback` resolution prepends the
+     `MCP_WORKSPACE_FALLBACK` warning on the response.
+  3. Compose the CLI argument list: `["context", "--json"]` plus
+     `--crate <c>` / `--module <m>` / `<selector>` from whichever
+     field was set.
+  4. Spawn `cargo evidence context ... --json` via
+     `subprocess::run_evidence` under the subprocess-timeout cap
+     (LLR-065). On subprocess failure, return a
+     `ContextToolResponse` with `context = None`, `exit_code = 2`,
+     `error = Some(MCP_* diagnostic)` via `context_response_from_run_error`.
+  5. On subprocess success, parse stdout as a single
+     `serde_json::Value`. On parse failure, return
+     `MCP_MALFORMED_JSONL` as the error diagnostic.
+  6. Build `warnings` from `skew_diagnostic(&self.version_skew)`
+     (HLR-060) plus the optional workspace-fallback signal.
+
+No new diagnostic codes — content vocabulary (`CONTEXT_*`) is
+owned by the wrapped CLI verb (LLR-082, LLR-083).
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "9d8d4f30-d591-40fc-beab-5f9eda6c91fa"
+id = "LLR-085"
+title = "ContextRequest / ContextToolResponse define the evidence_context wire shape"
+owner = "tool"
+traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
+modules = [
+    "evidence_mcp::schema",
+]
+description = """
+Two new `schemars::JsonSchema`-derived types in `crates/evidence-
+mcp/src/schema.rs`.
+
+`ContextRequest { workspace_path: Option<String>, selector:
+Option<String>, crate_name: Option<String>, module: Option<String> }`
+with `#[serde(deny_unknown_fields)]` so an agent typo (e.g.
+`crate` instead of `crate_name`) fails loud at deserialization
+rather than falling through to the workspace-overview path.
+Field-level doc comments give agents the schema description for
+each input.
+
+`ContextToolResponse { success: bool, exit_code: i32, context:
+Option<serde_json::Value>, warnings: Vec<serde_json::Value>, error:
+Option<serde_json::Value> }`. Mirrors `DiffToolResponse` (the
+sibling single-blob response shape). `success` is derived: `true`
+exactly when `exit_code == 0` AND `error.is_none()`. Warnings
+(version-skew, workspace-fallback) do not flip the bit. The
+`context` field carries the raw JSON the CLI emitted so agents see
+the exact byte-locked wire shape from the underlying golden
+fixture.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "802701d1-9770-40fa-8a74-d65c3c34c8ca"
+id = "LLR-086"
+title = "context_roundtrip integration test pins the MCP wire shape against the CLI"
+owner = "tool"
+traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
+modules = [
+    "evidence_mcp::server::Server::evidence_context",
+]
+description = """
+`crates/evidence-mcp/tests/context_roundtrip.rs` spawns the built
+`evidence-mcp` binary via `assert_cmd`, drives an MCP `tools/call`
+JSON-RPC conversation for `evidence_context`, and asserts on the
+structured response.
+
+Three cases, mirroring the diff-roundtrip pattern:
+
+- Workspace-overview selector (no selector / crate_name / module):
+  `context` is a non-null JSON object whose `selector.kind` is
+  `"workspace"`. `exit_code == 0`, `success == true`, no transport
+  error.
+- File selector that resolves into a crate with at least one
+  governing LLR: `context.requirements` is a non-empty array (the
+  CLI exercises the live `cert/trace/`). `success == true`.
+- Mutual-exclusivity guard: passing both `selector` and `crate_name`
+  surfaces a tool-layer error (either a JSON-RPC error or an
+  `Err(String)` from the handler).
+"""
+verification_methods = ["test"]

@@ -105,12 +105,17 @@ pub fn session_in_with_path(
     let mut child = spawn_server(cwd, path);
     let mut stdin: ChildStdin = child.stdin.take().expect("stdin");
     let stdout: ChildStdout = child.stdout.take().expect("stdout");
+    let stderr = child.stderr.take();
     let mut reader = BufReader::new(stdout);
 
     for frame in frames {
         writeln!(stdin, "{}", serde_json::to_string(frame).expect("encode")).expect("write");
     }
-    drop(stdin);
+    // Hold stdin open until every expected response has been read.
+    // rmcp's stdio loop hits its drain-timeout the moment stdin
+    // returns EOF, so closing stdin prematurely truncates any
+    // tool-call response whose handler is still running a
+    // subprocess. The drop happens after the read loop below.
 
     let mut responses = Vec::with_capacity(expect_responses);
     for _ in 0..expect_responses {
@@ -125,7 +130,19 @@ pub fn session_in_with_path(
         }
         responses.push(serde_json::from_str::<Value>(trimmed).expect("parse response"));
     }
+    drop(stdin);
 
+    // Drain stderr if collection short-circuited so failing tests
+    // get the server's panic message in their output.
+    if responses.len() < expect_responses {
+        if let Some(mut e) = stderr {
+            let mut buf = Vec::new();
+            std::io::Read::read_to_end(&mut e, &mut buf).ok();
+            if !buf.is_empty() {
+                eprintln!("[mcp stderr] {}", String::from_utf8_lossy(&buf));
+            }
+        }
+    }
     child.wait().ok();
     responses
 }
