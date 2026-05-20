@@ -238,6 +238,13 @@
     "terminal": true
   },
   {
+    "code": "CONTEXT_RUNTIME_ERROR",
+    "severity": "error",
+    "domain": "context",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "CONTEXT_SELECTOR_OUT_OF_SCOPE",
     "severity": "error",
     "domain": "context",

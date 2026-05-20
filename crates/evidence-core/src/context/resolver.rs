@@ -143,7 +143,7 @@ pub fn resolve_selector(
     let crates = discover_workspace_crates(workspace_root)?;
     let mut ambiguities: Vec<String> = Vec::new();
 
-    let file_match = match_file(workspace_root, trimmed, &crates);
+    let file_match = match_file(workspace_root, trimmed, &crates)?;
     let crate_match = match_crate(trimmed, &crates);
     let module_match = match_module(trimmed);
 
@@ -184,14 +184,20 @@ pub fn resolve_selector(
 /// Resolve a candidate file path under the workspace.
 ///
 /// Accepts absolute paths (must live under `workspace_root`) and
-/// workspace-relative paths. Returns `(rel_path, crate_name)` if the
-/// path resolves to a file under `crates/<crate>/...`; `None`
-/// otherwise.
+/// workspace-relative paths. Returns `Ok(Some((rel_path, crate_name)))`
+/// if the path resolves to a file under `crates/<crate>/...`,
+/// `Ok(None)` if the path simply isn't a file (selector didn't match
+/// as a file — caller should try the next kind), or `Err(ContextError::Io)`
+/// if `canonicalize` failed (a real runtime fault — permission denied
+/// on a parent dir, symlink to nonexistent target). Surfacing the I/O
+/// error as `CONTEXT_RUNTIME_ERROR` rather than silent
+/// `CONTEXT_SELECTOR_OUT_OF_SCOPE` keeps the agent from mistaking a
+/// tool-side fault for a user typo.
 fn match_file(
     workspace_root: &Path,
     input: &str,
     crates: &BTreeMap<String, WorkspaceCrate>,
-) -> Option<(String, String)> {
+) -> Result<Option<(String, String)>, ContextError> {
     let candidate = PathBuf::from(input);
     let abs = if candidate.is_absolute() {
         candidate
@@ -199,14 +205,17 @@ fn match_file(
         workspace_root.join(&candidate)
     };
     if !abs.is_file() {
-        return None;
+        return Ok(None);
     }
-    let canon_root = workspace_root.canonicalize().ok()?;
-    let canon_abs = abs.canonicalize().ok()?;
-    let rel = canon_abs.strip_prefix(&canon_root).ok()?;
+    let canon_root = workspace_root.canonicalize()?;
+    let canon_abs = abs.canonicalize()?;
+    let Ok(rel) = canon_abs.strip_prefix(&canon_root) else {
+        // File exists but lives outside the workspace (e.g. absolute
+        // path pointing at /etc/passwd). Not a file-kind match.
+        return Ok(None);
+    };
     let rel_str = rel.to_string_lossy().replace('\\', "/");
-    let crate_name = crate_for_relative_path(&rel_str, crates)?;
-    Some((rel_str, crate_name))
+    Ok(crate_for_relative_path(&rel_str, crates).map(|crate_name| (rel_str, crate_name)))
 }
 
 /// Match a crate-name selector against the discovered crate set.

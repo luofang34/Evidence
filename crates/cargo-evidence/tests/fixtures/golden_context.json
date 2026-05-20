@@ -587,7 +587,7 @@
       "uid": "ca6f202f-8957-4ba3-adb5-fbc7054e9197",
       "layer": "llr",
       "title": "context content codes register in RULES and gate the golden wire shape",
-      "description": "The four content-level `CONTEXT_*` codes are registered in\n`evidence_core::RULES` under the `Context` domain. The CLI's\n`cmd_context` emits each at the right point: `CONTEXT_AMBIGUOUS_SELECTOR`\n(warning) when the resolver records skipped alternates;\n`CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR` (warning) when a non-workspace\nselector matches zero LLRs; `CONTEXT_SELECTOR_OUT_OF_SCOPE` (error)\nwhen the resolver rejects an unrecognized input;\n`CONTEXT_NO_TRACE_CONFIGURED` (info) when `cert/trace/` is missing.\nA golden fixture at\n`crates/cargo-evidence/tests/fixtures/golden_context.json` is byte-\ndiffed by the integration test, regenerated via\n`tools/regen-golden-fixtures.sh`. Drift in the wire shape fires the\nfixture diff with a line-numbered error.\n",
+      "description": "The five content-level `CONTEXT_*` codes are registered in\n`evidence_core::RULES` under the `Context` domain. The CLI's\n`cmd_context` emits each at the right point: `CONTEXT_AMBIGUOUS_SELECTOR`\n(warning) when the resolver records skipped alternates;\n`CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR` (warning) when a non-workspace\nselector matches zero LLRs; `CONTEXT_SELECTOR_OUT_OF_SCOPE` (error)\nwhen the resolver rejects an unrecognized input;\n`CONTEXT_NO_TRACE_CONFIGURED` (info) when `cert/trace/` is missing;\n`CONTEXT_RUNTIME_ERROR` (error) for the runtime / I/O variants of\n`ContextError` (unreadable `Cargo.toml`, `canonicalize` failure on a\nparent dir, underlying trace TOML read error) — distinct from\n`CONTEXT_SELECTOR_OUT_OF_SCOPE` so an agent can tell user-typo from\ntool-fault. A golden fixture at\n`crates/cargo-evidence/tests/fixtures/golden_context.json` is byte-\ndiffed by the integration test, regenerated via\n`tools/regen-golden-fixtures.sh`. Drift in the wire shape fires the\nfixture diff with a line-numbered error.\n",
       "modules": [
         "evidence_core::context::lookup",
         "evidence_core::context::error",
@@ -597,10 +597,29 @@
         "CONTEXT_AMBIGUOUS_SELECTOR",
         "CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR",
         "CONTEXT_NO_TRACE_CONFIGURED",
+        "CONTEXT_RUNTIME_ERROR",
         "CONTEXT_SELECTOR_OUT_OF_SCOPE"
       ],
       "traces_to": [
         "5ccff935-87c2-4b57-a78b-459d1eb81ad2"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-090",
+      "uid": "b402bcc1-f3bb-4fb5-a616-c3e18ffd321a",
+      "layer": "llr",
+      "title": "write_agent_context_files emits root CLAUDE.md + .claude/settings.json",
+      "description": "`cmd_init` accepts an `agent_context: bool` parameter derived from\nthe clap flag pair `--with-agent-context` / `--no-agent-context`\n(mutually exclusive via `conflicts_with`; default on). When true,\nthe parent dispatches to `write_agent_context_files(root, jsonl)`\nwhich:\n  - writes a starter `CLAUDE.md` at the root (lean ≤30 lines,\n    rendered by `render_root_claude_md`) — title naming the\n    project + `evidence_context` / `cargo evidence context`\n    pointer + per-crate-CLAUDE.md guidance, no project rules;\n  - writes `.claude/settings.json` registering `evidence-mcp` as\n    an MCP server and adding a `permissions.deny` entry for\n    `evidence/**` (the default output dir).\nBoth writes are skipped when the target file already exists; the\nexisting file is never clobbered. When `.claude/settings.json`\nalready exists, a single info line on stderr explains the merge\nthe user would do by hand. Each successful write goes through\n`emit_template_written` so JSONL consumers see one\n`INIT_TEMPLATE_WRITTEN` per file in the same stream as the\n`cert/` emissions, terminating with the standard `INIT_OK`.\n",
+      "modules": [
+        "cargo_evidence::cli::init::agent_context::write_agent_context_files",
+        "cargo_evidence::cli::init::cmd_init"
+      ],
+      "emits": [],
+      "traces_to": [
+        "e93c01e2-b5e8-48f4-94ee-e08c139245ae"
       ],
       "verification_methods": [
         "test"
@@ -829,6 +848,15 @@
       "uid": "5ccff935-87c2-4b57-a78b-459d1eb81ad2",
       "layer": "hlr",
       "title": "cargo evidence context CLI verb returns per-module trace slice",
+      "traces_to": [
+        "d8d1f204-3909-418d-b62a-1e28edd088ed"
+      ]
+    },
+    {
+      "id": "HLR-075",
+      "uid": "e93c01e2-b5e8-48f4-94ee-e08c139245ae",
+      "layer": "hlr",
+      "title": "cargo evidence init --with-agent-context scaffolds downstream CLAUDE.md",
       "traces_to": [
         "d8d1f204-3909-418d-b62a-1e28edd088ed"
       ]
@@ -1231,6 +1259,21 @@
       ]
     },
     {
+      "id": "TEST-097",
+      "uid": "f563389d-b209-4258-a482-7508c11f87aa",
+      "name": "init --with-agent-context scaffolds CLAUDE.md + .claude/settings.json",
+      "selectors": [
+        "init_agent_context::init_no_agent_context_skips_scaffold",
+        "init_agent_context::init_rejects_both_flags",
+        "init_agent_context::init_with_agent_context_jsonl_lists_new_files",
+        "init_agent_context::init_with_agent_context_preserves_existing_files",
+        "init_agent_context::init_with_agent_context_writes_root_files"
+      ],
+      "traces_to": [
+        "b402bcc1-f3bb-4fb5-a616-c3e18ffd321a"
+      ]
+    },
+    {
       "id": "TEST-015",
       "uid": "c818cd84-8d25-457e-b18e-a613c691964d",
       "name": "init-scaffolded template does not trip the policy-implementable gate",
@@ -1372,6 +1415,7 @@
     "CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR",
     "CONTEXT_NO_TRACE_CONFIGURED",
     "CONTEXT_OK",
+    "CONTEXT_RUNTIME_ERROR",
     "CONTEXT_SELECTOR_OUT_OF_SCOPE",
     "COVERAGE_BELOW_THRESHOLD",
     "COVERAGE_LLVMCOV_MISSING",
@@ -1430,7 +1474,7 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 158,
+      "current": 166,
       "floor": 158
     }
   ],

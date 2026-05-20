@@ -151,6 +151,7 @@ pub const RULES: &[RuleEntry] = &[
     context("CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR", Severity::Warning),
     context("CONTEXT_NO_TRACE_CONFIGURED", Severity::Info),
     terminal("CONTEXT_OK", Severity::Info),
+    context("CONTEXT_RUNTIME_ERROR", Severity::Error),
     context("CONTEXT_SELECTOR_OUT_OF_SCOPE", Severity::Error),
     r(
         "COVERAGE_BELOW_THRESHOLD",

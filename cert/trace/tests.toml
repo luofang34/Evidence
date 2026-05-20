@@ -1318,7 +1318,9 @@ id = "TEST-086"
 title = "every workspace crate ships a lean-layered CLAUDE.md"
 owner = "tool"
 traces_to = ["288c920a-c667-4f84-9d0b-f4e8419ac141"]
-test_selector = "layered_claude_md_doctrine::every_workspace_crate_has_lean_layered_claude_md"
+test_selectors = [
+    "layered_claude_md_doctrine::every_workspace_crate_has_lean_layered_claude_md",
+]
 description = """
 Walks crates/* and accumulates per-crate violations: missing
 CLAUDE.md, fewer than 10 non-blank lines, more than 80 lines, or

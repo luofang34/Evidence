@@ -2547,15 +2547,19 @@ modules = [
     "cargo_evidence::cli::context",
 ]
 description = """
-The four content-level `CONTEXT_*` codes are registered in
+The five content-level `CONTEXT_*` codes are registered in
 `evidence_core::RULES` under the `Context` domain. The CLI's
 `cmd_context` emits each at the right point: `CONTEXT_AMBIGUOUS_SELECTOR`
 (warning) when the resolver records skipped alternates;
 `CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR` (warning) when a non-workspace
 selector matches zero LLRs; `CONTEXT_SELECTOR_OUT_OF_SCOPE` (error)
 when the resolver rejects an unrecognized input;
-`CONTEXT_NO_TRACE_CONFIGURED` (info) when `cert/trace/` is missing.
-A golden fixture at
+`CONTEXT_NO_TRACE_CONFIGURED` (info) when `cert/trace/` is missing;
+`CONTEXT_RUNTIME_ERROR` (error) for the runtime / I/O variants of
+`ContextError` (unreadable `Cargo.toml`, `canonicalize` failure on a
+parent dir, underlying trace TOML read error) — distinct from
+`CONTEXT_SELECTOR_OUT_OF_SCOPE` so an agent can tell user-typo from
+tool-fault. A golden fixture at
 `crates/cargo-evidence/tests/fixtures/golden_context.json` is byte-
 diffed by the integration test, regenerated via
 `tools/regen-golden-fixtures.sh`. Drift in the wire shape fires the
@@ -2566,6 +2570,7 @@ emits = [
     "CONTEXT_AMBIGUOUS_SELECTOR",
     "CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR",
     "CONTEXT_NO_TRACE_CONFIGURED",
+    "CONTEXT_RUNTIME_ERROR",
     "CONTEXT_SELECTOR_OUT_OF_SCOPE",
 ]
 

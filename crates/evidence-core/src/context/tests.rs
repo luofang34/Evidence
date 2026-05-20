@@ -270,3 +270,33 @@ fn selector_out_of_scope_preserves_raw_input() {
         other => panic!("expected SelectorOutOfScope, got {:?}", other),
     }
 }
+
+/// Runtime / I/O variants of `ContextError` map to
+/// `CONTEXT_RUNTIME_ERROR`, distinct from the user-facing
+/// `CONTEXT_SELECTOR_OUT_OF_SCOPE`. Conflating the two would mislead
+/// the agent: a missing manifest is a tool-side fault, not a typo'd
+/// selector. Pinning the mapping here so a future enum edit can't
+/// silently re-conflate them.
+#[test]
+fn runtime_error_variants_map_to_distinct_content_code() {
+    use std::io;
+    let io_err = ContextError::Io(io::Error::other("disk gone"));
+    assert_eq!(io_err.content_code(), "CONTEXT_RUNTIME_ERROR");
+
+    let manifest_read = ContextError::CargoManifestRead {
+        path: std::path::PathBuf::from("crates/foo/Cargo.toml"),
+        err: io::Error::other("read"),
+    };
+    assert_eq!(manifest_read.content_code(), "CONTEXT_RUNTIME_ERROR");
+
+    let manifest_parse = ContextError::CargoManifestParse {
+        path: std::path::PathBuf::from("crates/foo/Cargo.toml"),
+        err: toml::from_str::<toml::Value>("[unterminated").unwrap_err(),
+    };
+    assert_eq!(manifest_parse.content_code(), "CONTEXT_RUNTIME_ERROR");
+
+    // User-fixable selector errors must not collapse into the runtime
+    // bucket.
+    let oos = ContextError::SelectorOutOfScope("bogus".into());
+    assert_eq!(oos.content_code(), "CONTEXT_SELECTOR_OUT_OF_SCOPE");
+}

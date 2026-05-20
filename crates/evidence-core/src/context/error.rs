@@ -63,19 +63,27 @@ pub enum ContextError {
 impl ContextError {
     /// Pick the `CONTEXT_*` content code the CLI emits for this
     /// variant. Kept outside the [`DiagnosticCode`] trait because the
-    /// IO / manifest variants share a code (`CONTEXT_SELECTOR_OUT_OF_SCOPE`)
-    /// and a trait impl with multiple match arms returning the same
-    /// string would trip the Schema Rule 3 uniqueness check.
+    /// runtime variants (`TraceRead`, `Io`, `CargoManifestRead`,
+    /// `CargoManifestParse`) share a single content code
+    /// (`CONTEXT_RUNTIME_ERROR`); a trait impl with multiple match
+    /// arms returning the same string would trip the Schema Rule 3
+    /// uniqueness check.
+    ///
+    /// Runtime / I/O faults are deliberately distinct from
+    /// `CONTEXT_SELECTOR_OUT_OF_SCOPE` so an agent parsing the JSONL
+    /// stream can tell the difference between a typo'd selector
+    /// (user fixable) and a tool-side failure (e.g. unreadable
+    /// `Cargo.toml`, missing permissions).
     ///
     /// [`DiagnosticCode`]: crate::diagnostic::DiagnosticCode
     pub fn content_code(&self) -> &'static str {
         match self {
             ContextError::SelectorOutOfScope(_) => "CONTEXT_SELECTOR_OUT_OF_SCOPE",
             ContextError::TraceNotConfigured(_) => "CONTEXT_NO_TRACE_CONFIGURED",
-            ContextError::TraceRead(_) => "CONTEXT_SELECTOR_OUT_OF_SCOPE",
-            ContextError::Io(_)
+            ContextError::TraceRead(_)
+            | ContextError::Io(_)
             | ContextError::CargoManifestRead { .. }
-            | ContextError::CargoManifestParse { .. } => "CONTEXT_SELECTOR_OUT_OF_SCOPE",
+            | ContextError::CargoManifestParse { .. } => "CONTEXT_RUNTIME_ERROR",
         }
     }
 }

@@ -315,9 +315,10 @@ least one LLR's `emits` list — per `diagnostic_codes_locked`.
 | `CONTEXT_FAIL`                             | Error    | terminal | Selector invalid or no resolution possible. |
 | `CONTEXT_ERROR`                            | Error    | terminal | Runtime failure (trace files unreadable, etc.). |
 | `CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR`     | Warning  | content  | Selector resolved but matches zero requirements (signal: untraced module). |
-| `CONTEXT_SELECTOR_OUT_OF_SCOPE`            | Error    | content  | Selector resolves outside the workspace. |
+| `CONTEXT_SELECTOR_OUT_OF_SCOPE`            | Error    | content  | Selector resolves outside the workspace (user-fixable typo). |
 | `CONTEXT_NO_TRACE_CONFIGURED`              | Info     | content  | `cert/trace/` missing — non-adopter graceful path. |
 | `CONTEXT_AMBIGUOUS_SELECTOR`               | Warning  | content  | Input matched multiple kinds; resolver picked the highest-priority one. |
+| `CONTEXT_RUNTIME_ERROR`                    | Error    | content  | Tool-side I/O fault (unreadable `Cargo.toml`, `canonicalize` failure, underlying trace TOML read error). Distinct from `CONTEXT_SELECTOR_OUT_OF_SCOPE` so agents can tell user-typo from tool-fault. |
 
 ## 7. Tests
 
