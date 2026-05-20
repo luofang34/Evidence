@@ -18,18 +18,20 @@ use rmcp::{
 };
 
 use crate::schema::{
-    CheckRequest, DoctorRequest, FloorsRequest, JsonlToolResponse, PingRequest, PingResponse,
-    RulesRequest, RulesToolResponse,
+    CheckRequest, ContextRequest, ContextToolResponse, DoctorRequest, FloorsRequest,
+    JsonlToolResponse, PingRequest, PingResponse, RulesRequest, RulesToolResponse,
 };
 use crate::subprocess::{MCP_MALFORMED_JSONL, parse_jsonl, run_evidence};
 use crate::version_probe::{VersionSkew, detect_with_probe, probe_cli_version, skew_diagnostic};
 use crate::workspace::resolve_workspace;
 
+mod context;
 mod responses;
+use context::pick_selector_arg;
 use responses::{
     TOOL_FAILURE_EXIT_CODE, blob_success, jsonl_response_from_run_error, jsonl_success,
     mcp_diagnostic, ping_response_from_skew, prepend_fallback_signal, prepend_skew_signal,
-    rules_response_from_run_error,
+    rules_response_from_run_error, workspace_fallback_warning,
 };
 
 /// MCP server handle. Stateless per-request — each tool call
@@ -380,6 +382,82 @@ impl Server {
                     success: blob_success(TOOL_FAILURE_EXIT_CODE, error.as_ref()),
                     exit_code: TOOL_FAILURE_EXIT_CODE,
                     diff: None,
+                    warnings,
+                    error,
+                }))
+            }
+        }
+    }
+
+    /// `evidence_context` — return the per-module trace +
+    /// boundary + floors slice for any selector (file / crate /
+    /// module / null). Pure inspection — no `cargo test`, no
+    /// disk writes; cheap enough to call on every agent loop
+    /// iteration.
+    ///
+    /// Wraps `cargo evidence context [--crate <c> | --module
+    /// <m> | <selector>] --json` via the existing
+    /// `subprocess::run_evidence` plumbing. The CLI emits a
+    /// single JSON blob (`ContextReport`); the response carries
+    /// it under the `context` field. Mutually-exclusive selector
+    /// fields (`selector`, `crate_name`, `module`) are validated
+    /// at the handler layer — supplying more than one is a
+    /// host-contract error and returns `Err(String)`.
+    #[tool(
+        name = "evidence_context",
+        description = "Per-module trace + boundary + floors slice for a selector \
+                       (file / crate / module / null). Pure inspection — no cargo \
+                       test, no disk writes; cheap enough to call on every agent loop \
+                       iteration. At most one of selector / crate_name / module."
+    )]
+    pub async fn evidence_context(
+        &self,
+        Parameters(req): Parameters<ContextRequest>,
+    ) -> Result<Json<ContextToolResponse>, String> {
+        let cli_arg = pick_selector_arg(&req)?;
+        let (cwd, resolution) = resolve_workspace(req.workspace_path.as_deref())?;
+        let mut warnings = Vec::new();
+        if let Some(d) = workspace_fallback_warning(resolution, &cwd) {
+            warnings.push(d);
+        }
+        if let Some(d) = skew_diagnostic(&self.version_skew) {
+            warnings.push(d);
+        }
+        let mut args: Vec<String> = vec!["context".into(), "--json".into()];
+        if let Some(sa) = cli_arg {
+            sa.extend_args(&mut args);
+        }
+        let args_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let captured = match run_evidence(&args_refs, &cwd).await {
+            Ok(c) => c,
+            Err(e) => {
+                let error = Some(mcp_diagnostic(e.code(), &e.to_string()));
+                return Ok(Json(ContextToolResponse {
+                    success: blob_success(TOOL_FAILURE_EXIT_CODE, error.as_ref()),
+                    exit_code: TOOL_FAILURE_EXIT_CODE,
+                    context: None,
+                    warnings,
+                    error,
+                }));
+            }
+        };
+        match serde_json::from_slice::<serde_json::Value>(&captured.stdout) {
+            Ok(context) => Ok(Json(ContextToolResponse {
+                success: blob_success(captured.exit_code, None),
+                exit_code: captured.exit_code,
+                context: Some(context),
+                warnings,
+                error: None,
+            })),
+            Err(e) => {
+                let error = Some(mcp_diagnostic(
+                    MCP_MALFORMED_JSONL,
+                    &format!("cargo evidence context --json produced invalid JSON: {e}"),
+                ));
+                Ok(Json(ContextToolResponse {
+                    success: blob_success(TOOL_FAILURE_EXIT_CODE, error.as_ref()),
+                    exit_code: TOOL_FAILURE_EXIT_CODE,
+                    context: None,
                     warnings,
                     error,
                 }))

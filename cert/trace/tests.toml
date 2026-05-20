@@ -1425,6 +1425,97 @@ test_selectors = [
 ]
 
 [[tests]]
+uid = "8a81c73c-6e6e-4e61-abb5-4db2c1f3bbce"
+id = "TEST-091"
+title = "evidence_context workspace-overview returns a well-formed ContextReport"
+owner = "tool"
+traces_to = ["dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"]
+description = """
+Spawns the built `evidence-mcp` binary, drives a `tools/call` for
+`evidence_context` with no selector / crate_name / module fields,
+and asserts on the structured response. `context` is a non-null
+JSON object whose `selector.kind` is `"workspace"`. `exit_code ==
+0`, `success == true`, no transport-layer error. Pins the happy-
+path plumbing end-to-end without depending on a specific
+requirements count.
+"""
+test_selectors = [
+    "context_roundtrip::evidence_context_workspace_overview_returns_report",
+]
+
+[[tests]]
+uid = "86f4d5a7-852e-4bdf-96ab-7dd0dcb8474f"
+id = "TEST-092"
+title = "evidence_context file selector resolves to governing requirements"
+owner = "tool"
+traces_to = ["dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"]
+description = """
+Two co-located cases pin the file-selector path:
+
+- `evidence_context_file_selector_pulls_requirements`: passes
+  `crates/evidence-mcp/src/server.rs` and asserts the response's
+  `context.requirements` array is non-empty (the CLI exercises the
+  live `cert/trace/` against the real workspace). `selector.kind`
+  is `"file"`, `success == true`.
+- `evidence_context_unmapped_file_carries_no_requirements_warning`:
+  passes a workspace file (`Cargo.toml`) that no LLR claims via
+  `modules`; asserts the response stays well-formed and surfaces
+  the graceful warning path through the MCP layer.
+"""
+test_selectors = [
+    "context_roundtrip::evidence_context_file_selector_pulls_requirements",
+    "context_roundtrip::evidence_context_unmapped_file_carries_no_requirements_warning",
+]
+
+[[tests]]
+uid = "2d6c95c4-8b28-4b8d-92a4-cbc81e7107d6"
+id = "TEST-093"
+title = "evidence_context mutual-exclusivity guard rejects multiple selector fields"
+owner = "tool"
+traces_to = ["dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"]
+description = """
+Two co-located cases pin the request-validation contract:
+
+- `evidence_context_rejects_multiple_selector_fields`: submits a
+  request with both `selector` and `crate_name` set; asserts the
+  response is either a JSON-RPC error or carries `isError == true`
+  — not a silent success against one of the two values. Defense
+  against agent misuse of the three equivalent entry points.
+- `evidence_context_rejects_unknown_field_typo`: pins the
+  `#[serde(deny_unknown_fields)]` contract on `ContextRequest`
+  (mirrors `evidence_check_rejects_unknown_field_typo`).
+"""
+test_selectors = [
+    "context_roundtrip::evidence_context_rejects_multiple_selector_fields",
+    "context_roundtrip::evidence_context_rejects_unknown_field_typo",
+]
+
+[[tests]]
+uid = "38cb6b28-ddb8-4bd9-b2ef-3fdd3a223db2"
+id = "TEST-094"
+title = "pick_selector_arg lifts ContextRequest into the CLI argument vector"
+owner = "tool"
+traces_to = ["9d8d4f30-d591-40fc-beab-5f9eda6c91fa"]
+description = """
+Unit tests on the request-mapping helper that turns
+`ContextRequest` into the argument vector passed to `cargo
+evidence context`. Five cases cover: workspace overview (all
+unset), positional selector wins when set, `--crate <name>`
+disambiguator, `--module <path>` disambiguator, and the mutual-
+exclusivity rejection path. Together they pin the
+`ContextRequest` ⇄ CLI-arg bijection at the request-shape layer
+so the integration test only has to verify the wire-level
+plumbing.
+"""
+test_selectors = [
+    "evidence_mcp::server::context::tests::pick_selector_arg_none_when_all_unset",
+    "evidence_mcp::server::context::tests::pick_selector_arg_positional_wins_when_selector_set",
+    "evidence_mcp::server::context::tests::pick_selector_arg_crate_flag_emits_crate_arg_pair",
+    "evidence_mcp::server::context::tests::pick_selector_arg_module_flag_emits_module_arg_pair",
+    "evidence_mcp::server::context::tests::pick_selector_arg_rejects_multiple_fields_set",
+]
+
+[[tests]]
 uid = "f563389d-b209-4258-a482-7508c11f87aa"
 id = "TEST-097"
 title = "init --with-agent-context scaffolds CLAUDE.md + .claude/settings.json"

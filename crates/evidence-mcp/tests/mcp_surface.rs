@@ -34,6 +34,7 @@ use helpers::{init_frames, session, session_in};
 fn tools_list_advertises_all_six_verbs() {
     const EXPECTED: &[&str] = &[
         "evidence_check",
+        "evidence_context",
         "evidence_diff",
         "evidence_doctor",
         "evidence_floors",

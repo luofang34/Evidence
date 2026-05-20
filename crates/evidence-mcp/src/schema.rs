@@ -248,6 +248,88 @@ pub struct DiffRequest {
     pub bundle_b_path: String,
 }
 
+/// Input to `evidence_context`. Mirrors the `cargo evidence
+/// context` CLI verb: at most one of `selector`, `crate_name`,
+/// `module` may be supplied; supplying multiple is a host-contract
+/// error and the handler returns `Err(String)` rather than
+/// silently picking one. With all three absent, the response
+/// carries the workspace overview.
+///
+/// `#[serde(deny_unknown_fields)]` matches the convention for
+/// the other MCP tool input shapes — a typo'd field fails loud
+/// at deserialization rather than falling through to the
+/// workspace-overview path.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ContextRequest {
+    /// Absolute or MCP-server-CWD-relative path to the workspace
+    /// whose trace + boundary + floors slice should be queried.
+    /// Defaults to the server's CWD when omitted (triggers an
+    /// `MCP_WORKSPACE_FALLBACK` warning on the response).
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+
+    /// Free-form selector — a workspace-relative file path under
+    /// `crates/<crate>/...`, a workspace crate name, or a Rust
+    /// module path. Resolution priority on ambiguity:
+    /// file > crate > module. Mutually exclusive with
+    /// `crate_name` and `module`.
+    #[serde(default)]
+    pub selector: Option<String>,
+
+    /// Disambiguate the selector as a workspace crate name
+    /// (matches `[package].name` in `crates/*/Cargo.toml`).
+    /// Mutually exclusive with `selector` and `module`.
+    #[serde(default)]
+    pub crate_name: Option<String>,
+
+    /// Disambiguate the selector as a Rust module path
+    /// (e.g. `evidence_core::trace`). Mutually exclusive with
+    /// `selector` and `crate_name`.
+    #[serde(default)]
+    pub module: Option<String>,
+}
+
+/// Response shape for `evidence_context` — a one-shot blob-style
+/// per-module context report.
+///
+/// The CLI's context output is a single JSON document (the
+/// `ContextReport` defined in `evidence_core::context`), not a
+/// JSONL stream, so the response shape mirrors
+/// [`DiffToolResponse`] rather than [`JsonlToolResponse`].
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct ContextToolResponse {
+    /// Canonical machine signal: `true` exactly when
+    /// `exit_code == 0` AND `error.is_none()`. Server-layer
+    /// `warnings` (version-skew, workspace-fallback) are
+    /// informational and do not flip the bit.
+    pub success: bool,
+
+    /// Exit code advertised back to the host. `0` on success;
+    /// `2` on tool-layer failure (see `error`). Documentation
+    /// field — see [`Self::success`] for the canonical pass/fail
+    /// dispatch.
+    pub exit_code: i32,
+
+    /// The full `ContextReport` blob as emitted by `cargo evidence
+    /// context --json` on success. `None` on tool-layer failure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<serde_json::Value>,
+
+    /// Server-layer warnings — version-skew signals from the
+    /// startup probe (HLR-060) and workspace-fallback signals
+    /// (HLR-054). Empty in the happy path.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<serde_json::Value>,
+
+    /// Tool-layer failure diagnostic when the subprocess could
+    /// not run or its stdout was not valid JSON. `None` on
+    /// success. Carries an `MCP_*` code from
+    /// `evidence_core::HAND_EMITTED_MCP_CODES`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<serde_json::Value>,
+}
+
 /// Response shape for `evidence_diff` — a one-shot blob-style
 /// comparison between two on-disk bundles.
 ///
