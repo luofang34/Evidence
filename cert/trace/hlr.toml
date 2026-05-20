@@ -1822,3 +1822,29 @@ workspace crate without a `CLAUDE.md` fails CI.
 verification_methods = ["test"]
 traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
 surfaces = ["layered CLAUDE.md (root + crates/*/CLAUDE.md)"]
+
+[[requirements]]
+uid = "e93c01e2-b5e8-48f4-94ee-e08c139245ae"
+id = "HLR-075"
+title = "cargo evidence init --with-agent-context scaffolds downstream CLAUDE.md"
+owner = "tool"
+scope = "component"
+description = """
+`cargo evidence init` accepts `--with-agent-context` (default on)
+and `--no-agent-context` (mutually exclusive). When on, the
+command emits a starter root `CLAUDE.md` (≤30 lines, lean: title
++ project-description placeholder + pointer to `evidence_context`
+/ `cargo evidence context` + per-crate-CLAUDE.md guidance — no
+project rules) and a `.claude/settings.json` snippet registering
+`evidence-mcp` as an MCP server with a `permissions.deny` entry
+for the default `evidence/**` output dir. Existing files are
+preserved unconditionally (matches `init`'s pre-existing
+no-overwrite behavior); when `.claude/settings.json` already
+exists, the command prints one stderr info line explaining what
+the user would merge in by hand and continues. New emissions log
+via the same JSONL `INIT_TEMPLATE_WRITTEN` channel as the
+`cert/` tree so machine consumers see one stream.
+"""
+verification_methods = ["test"]
+traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
+surfaces = ["init"]

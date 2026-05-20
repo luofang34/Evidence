@@ -2451,3 +2451,36 @@ that crate. Failures are accumulated and reported together so one
 run shows every crate that needs fixing, not just the first.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "b402bcc1-f3bb-4fb5-a616-c3e18ffd321a"
+id = "LLR-090"
+title = "write_agent_context_files emits root CLAUDE.md + .claude/settings.json"
+owner = "tool"
+traces_to = ["e93c01e2-b5e8-48f4-94ee-e08c139245ae"]
+modules = [
+    "cargo_evidence::cli::init::agent_context::write_agent_context_files",
+    "cargo_evidence::cli::init::cmd_init",
+]
+description = """
+`cmd_init` accepts an `agent_context: bool` parameter derived from
+the clap flag pair `--with-agent-context` / `--no-agent-context`
+(mutually exclusive via `conflicts_with`; default on). When true,
+the parent dispatches to `write_agent_context_files(root, jsonl)`
+which:
+  - writes a starter `CLAUDE.md` at the root (lean ≤30 lines,
+    rendered by `render_root_claude_md`) — title naming the
+    project + `evidence_context` / `cargo evidence context`
+    pointer + per-crate-CLAUDE.md guidance, no project rules;
+  - writes `.claude/settings.json` registering `evidence-mcp` as
+    an MCP server and adding a `permissions.deny` entry for
+    `evidence/**` (the default output dir).
+Both writes are skipped when the target file already exists; the
+existing file is never clobbered. When `.claude/settings.json`
+already exists, a single info line on stderr explains the merge
+the user would do by hand. Each successful write goes through
+`emit_template_written` so JSONL consumers see one
+`INIT_TEMPLATE_WRITTEN` per file in the same stream as the
+`cert/` emissions, terminating with the standard `INIT_OK`.
+"""
+verification_methods = ["test"]

@@ -228,7 +228,17 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             bundle_b,
             json,
         }) => cmd_diff(bundle_a, bundle_b, json),
-        Some(Commands::Init { force }) => cmd_init(force, args.format),
+        Some(Commands::Init {
+            force,
+            with_agent_context,
+            no_agent_context,
+        }) => {
+            // Default-on: the user gets the agent-context scaffold
+            // unless they opt out via --no-agent-context. clap's
+            // `conflicts_with` already rejects passing both at once.
+            let agent_context = !no_agent_context || with_agent_context;
+            cmd_init(force, agent_context, args.format)
+        }
         Some(Commands::Keygen {
             rotate,
             reason,

@@ -23,7 +23,7 @@
 )]
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
@@ -36,7 +36,7 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn crate_dirs(root: &PathBuf) -> Vec<(String, PathBuf)> {
+fn crate_dirs(root: &Path) -> Vec<(String, PathBuf)> {
     let crates_root = root.join("crates");
     WalkDir::new(&crates_root)
         .follow_links(false)

@@ -260,6 +260,19 @@ pub enum Commands {
         /// Overwrite existing files
         #[arg(long)]
         force: bool,
+
+        /// Emit agent-context scaffold (root `CLAUDE.md` +
+        /// `.claude/settings.json`) alongside the `cert/` tree.
+        /// Defaults to enabled; pass `--no-agent-context` to skip.
+        /// Existing files are preserved either way.
+        #[arg(long, conflicts_with = "no_agent_context")]
+        with_agent_context: bool,
+
+        /// Skip the agent-context scaffold; only the `cert/`
+        /// tree is written. Mutually exclusive with
+        /// `--with-agent-context`.
+        #[arg(long, conflicts_with = "with_agent_context")]
+        no_agent_context: bool,
     },
 
     /// Manage the project's ed25519 signing keypair (lifecycle: create / rotate).
