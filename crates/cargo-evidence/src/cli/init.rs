@@ -1,5 +1,7 @@
 //! `cargo evidence init`.
 
+mod agent_context;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -8,6 +10,7 @@ use anyhow::Result;
 use evidence_core::diagnostic::{Diagnostic, Severity};
 use evidence_core::schema_versions::{BOUNDARY, TRACE};
 
+use self::agent_context::write_agent_context_files;
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, OutputFormat};
 use super::output::emit_jsonl;
 
@@ -132,7 +135,13 @@ fail_on_dirty = true
 /// `cargo evidence init` handler: scaffold a `cert/` layout
 /// (boundary.toml + per-profile stubs) for a fresh project. Refuses
 /// to overwrite an existing `cert/` tree unless `force` is set.
-pub fn cmd_init(force: bool, format: OutputFormat) -> Result<i32> {
+///
+/// When `agent_context` is true, also writes a starter root
+/// `CLAUDE.md` and `.claude/settings.json` snippet (see
+/// `write_agent_context_files`). Existing files are preserved
+/// either way — the agent-context emitter never clobbers
+/// downstream-authored conventions.
+pub fn cmd_init(force: bool, agent_context: bool, format: OutputFormat) -> Result<i32> {
     let jsonl = format == OutputFormat::Jsonl;
     let cert_dir = PathBuf::from("cert");
     let profiles_dir = cert_dir.join("profiles");
@@ -364,11 +373,15 @@ verification_methods = ["review"]
         }
     }
 
+    if agent_context {
+        written += write_agent_context_files(Path::new("."), jsonl)?;
+    }
+
     if jsonl {
         emit_jsonl(&init_terminal(
             "INIT_OK",
             Severity::Info,
-            &format!("init wrote {} template file(s) under cert/", written),
+            &format!("init wrote {} template file(s)", written),
         ))?;
     } else {
         println!("\nInitialized evidence tracking in cert/");
@@ -381,7 +394,7 @@ verification_methods = ["review"]
     Ok(EXIT_SUCCESS)
 }
 
-fn emit_template_written(jsonl: bool, path: &Path) -> Result<()> {
+pub(crate) fn emit_template_written(jsonl: bool, path: &Path) -> Result<()> {
     if jsonl {
         emit_jsonl(&Diagnostic {
             code: "INIT_TEMPLATE_WRITTEN".to_string(),

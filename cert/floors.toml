@@ -64,7 +64,7 @@ trace_test = 88
 # coverage is enforced by `require_hlr_surface_bijection`; this floor
 # guards against silently shrinking the catalog itself (which would
 # relax the bijection without firing the check).
-known_surfaces = 25
+known_surfaces = 26
 
 # --------------------------------------------------------------------
 # Per-crate-true dimensions: one table per in-scope crate.

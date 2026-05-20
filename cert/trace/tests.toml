@@ -1421,3 +1421,36 @@ test_selectors = [
     "cli_context::context_jsonl_non_adopter_graceful_path",
     "cli_context::context_jsonl_invalid_selector_emits_fail_terminal",
 ]
+
+[[tests]]
+uid = "f563389d-b209-4258-a482-7508c11f87aa"
+id = "TEST-097"
+title = "init --with-agent-context scaffolds CLAUDE.md + .claude/settings.json"
+owner = "tool"
+traces_to = ["b402bcc1-f3bb-4fb5-a616-c3e18ffd321a"]
+description = """
+Integration tests under `crates/cargo-evidence/tests/init_agent_context.rs`
+that spawn the `cargo-evidence` binary against fresh tempdirs:
+  - init_with_agent_context_writes_root_files: the happy path;
+    asserts root CLAUDE.md + .claude/settings.json appear with
+    the lean-template content (title, MCP/CLI pointers, per-crate
+    section) and that settings.json parses as JSON registering
+    `evidence-mcp` + denying `evidence/**`.
+  - init_no_agent_context_skips_scaffold: opt-out leaves no
+    CLAUDE.md and no .claude/ behind while still writing cert/.
+  - init_with_agent_context_preserves_existing_files: pre-existing
+    CLAUDE.md or .claude/settings.json are read back byte-for-byte
+    after `init`.
+  - init_with_agent_context_jsonl_lists_new_files: --format=jsonl
+    emits INIT_TEMPLATE_WRITTEN entries for both new files plus
+    the INIT_OK terminal as last line.
+  - init_rejects_both_flags: clap's conflicts_with rejects the
+    combination of --with-agent-context and --no-agent-context.
+"""
+test_selectors = [
+    "init_agent_context::init_with_agent_context_writes_root_files",
+    "init_agent_context::init_no_agent_context_skips_scaffold",
+    "init_agent_context::init_with_agent_context_preserves_existing_files",
+    "init_agent_context::init_with_agent_context_jsonl_lists_new_files",
+    "init_agent_context::init_rejects_both_flags",
+]
