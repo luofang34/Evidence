@@ -66,6 +66,22 @@ pub(super) fn prepend_fallback_signal(
         .or_insert(0) += 1;
 }
 
+/// Build a `MCP_WORKSPACE_FALLBACK` diagnostic when the caller
+/// fell back to server CWD; returns `None` for `Given`. Used by
+/// the single-blob handlers (`evidence_context`) where the
+/// fallback signal goes into the response's `warnings` array
+/// rather than being prepended onto a streaming `diagnostics`
+/// vec.
+pub(super) fn workspace_fallback_warning(
+    resolution: WorkspaceResolution,
+    cwd: &std::path::Path,
+) -> Option<serde_json::Value> {
+    match resolution {
+        WorkspaceResolution::Fallback => Some(workspace_fallback_diagnostic(cwd)),
+        WorkspaceResolution::Given => None,
+    }
+}
+
 /// Prepend `MCP_VERSION_SKEW` / `MCP_VERSION_PROBE_FAILED` when
 /// the server's cached skew outcome is not `Matched`. No-op on
 /// match. Both the diagnostic vec and the summary map get

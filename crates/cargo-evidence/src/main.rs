@@ -27,6 +27,7 @@ mod cli;
 
 use cli::args::{CargoCli, Commands, EXIT_ERROR, EvidenceArgs, OutputFormat, SchemaCommands};
 use cli::check::cmd_check;
+use cli::context::cmd_context;
 use cli::diff::cmd_diff;
 use cli::doctor::cmd_doctor;
 use cli::floors::cmd_floors;
@@ -153,6 +154,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
         Some(Commands::Generate { .. }) | None => "generate",
         Some(Commands::Verify { .. }) => "verify",
         Some(Commands::Check { .. }) => "check",
+        Some(Commands::Context { .. }) => "context",
         Some(Commands::Diff { .. }) => "diff",
         Some(Commands::Doctor { .. }) => "doctor",
         Some(Commands::Init { .. }) => "init",
@@ -175,7 +177,15 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
     if args.format == OutputFormat::Jsonl
         && !matches!(
             subcommand_name,
-            "verify" | "check" | "trace" | "doctor" | "init" | "floors" | "generate" | "keygen"
+            "verify"
+                | "check"
+                | "trace"
+                | "doctor"
+                | "init"
+                | "floors"
+                | "generate"
+                | "keygen"
+                | "context"
         )
     {
         return emit_unsupported_jsonl_terminal(subcommand_name);
@@ -217,6 +227,15 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             let format = OutputFormat::resolve(args.format, args.json);
             cmd_check(mode, path, format, args.quiet)
         }
+        Some(Commands::Context {
+            selector,
+            crate_flag,
+            module_flag,
+            json,
+        }) => {
+            let format = OutputFormat::resolve(args.format, args.json || json);
+            cmd_context(selector, crate_flag, module_flag, format)
+        }
         Some(Commands::Doctor { json }) => {
             // Global `--format=jsonl` (or `--json`) flips to JSONL
             // mode; default is the human `[✓]/[⚠]/[✗]` summary.
@@ -228,7 +247,17 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             bundle_b,
             json,
         }) => cmd_diff(bundle_a, bundle_b, json),
-        Some(Commands::Init { force }) => cmd_init(force, args.format),
+        Some(Commands::Init {
+            force,
+            with_agent_context,
+            no_agent_context,
+        }) => {
+            // Default-on: the user gets the agent-context scaffold
+            // unless they opt out via --no-agent-context. clap's
+            // `conflicts_with` already rejects passing both at once.
+            let agent_context = !no_agent_context || with_agent_context;
+            cmd_init(force, agent_context, args.format)
+        }
         Some(Commands::Keygen {
             rotate,
             reason,

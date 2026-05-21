@@ -2431,3 +2431,286 @@ the real cert/signing.pub.
 """
 verification_methods = ["test"]
 emits = ["SIGN_PUBKEY_ANCHOR_MISMATCH"]
+
+[[requirements]]
+uid = "288c920a-c667-4f84-9d0b-f4e8419ac141"
+id = "LLR-079"
+title = "layered_claude_md_doctrine enforces per-crate CLAUDE.md cap + scope"
+owner = "tool"
+traces_to = ["d33a1a39-c57a-48cc-9138-c4f8ff61f77d"]
+modules = ["layered_claude_md_doctrine::every_workspace_crate_has_lean_layered_claude_md"]
+description = """
+Integration test walks `crates/*/` (max_depth = 1, follow_links =
+false) and asserts for every workspace crate: (a) `CLAUDE.md`
+exists, (b) the file has at least 10 non-blank lines (no stub
+files), (c) the file is under 80 lines (so root-vs-subdir scope
+stays distinct — article's "lean, layered" doctrine), and (d) the
+file contains the literal `cargo test -p <crate-name>` so the
+scoped test command is discoverable for agents working only in
+that crate. Failures are accumulated and reported together so one
+run shows every crate that needs fixing, not just the first.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "7ad19cf7-98ae-40e0-8fcb-76c3a6077883"
+id = "LLR-080"
+title = "context::resolver classifies selectors with File>Crate>Module priority"
+owner = "tool"
+traces_to = ["5ccff935-87c2-4b57-a78b-459d1eb81ad2"]
+modules = [
+    "evidence_core::context::resolver",
+    "evidence_core::context::resolve_selector",
+]
+description = """
+`resolve_selector(workspace_root, raw)` returns a `ResolvedSelector`
+variant: `Workspace` for `None`/empty input, `File` for a
+workspace-relative or absolute path under `crates/<crate>/...`,
+`Crate` for a string matching a `[package].name` in
+`crates/*/Cargo.toml`, or `Module` for a `::`-separated path of
+valid Rust identifiers. On ambiguity (the same input matches more
+than one kind) the highest-priority match wins and the resolver
+records the skipped alternates in `ambiguities` so the lookup phase
+attaches a `CONTEXT_AMBIGUOUS_SELECTOR` warning. Inputs that match
+no kind return `ContextError::SelectorOutOfScope`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "fd1c2f88-9511-430f-a30b-f9f81a20407e"
+id = "LLR-081"
+title = "context::lookup composes ContextReport from trace/boundary/floors/CLAUDE.md"
+owner = "tool"
+traces_to = ["5ccff935-87c2-4b57-a78b-459d1eb81ad2"]
+modules = [
+    "evidence_core::context::lookup",
+    "evidence_core::context::context_for",
+    "evidence_core::context::report",
+]
+description = """
+`context_for(workspace_root, selector)` builds a `ContextReport` by
+reading `cert/trace/*.toml` once, then for the selector: filtering
+LLRs whose `modules` field overlaps the selector's module-prefix
+space, rolling each LLR's `traces_to` up to HLR + SYS parents,
+collecting verifying tests by traceable LLR UID, aggregating every
+diagnostic code claimed in `LLR.emits`, slicing per-crate floor /
+ceiling rows from `cert/floors.toml`, attaching the boundary
+`in_scope` + `forbidden_deps` slice from `cert/boundary.toml`, and
+emitting the nearest `CLAUDE.md` path (per-crate when the selector
+resolves into a crate, root otherwise). Output is deterministically
+sorted: requirements by `id`, tests by `name`, codes alphabetically.
+The wire shape mirrors design spec §3.1 exactly and is round-tripped
+through serde in unit tests.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "dde74fce-62f8-4f33-b161-e21ee8b4627d"
+id = "LLR-082"
+title = "cli::context wires CLI verb to context_for + emits CONTEXT_* terminals"
+owner = "tool"
+traces_to = ["5ccff935-87c2-4b57-a78b-459d1eb81ad2"]
+modules = [
+    "cargo_evidence::cli::context",
+    "cargo_evidence::cli::context::cmd_context",
+]
+description = """
+`cmd_context(positional, --crate, --module, format)` parses the
+selector inputs (positional wins; otherwise `--crate` then
+`--module`), calls `evidence_core::context::resolve_selector`, then
+`context_for`, and renders the result. Human mode prints a compact
+table; `--json` emits the report as a single pretty-printed blob;
+`--format=jsonl` emits one compact report-line on stdout, one
+`Diagnostic` per `ContextWarning` (severity = warning), and a
+hand-built `CONTEXT_OK` / `CONTEXT_FAIL` / `CONTEXT_ERROR` terminal
+on the last line. Exit codes: 0 for `CONTEXT_OK` (also the
+`CONTEXT_NO_TRACE_CONFIGURED` graceful path), 1 for `CONTEXT_ERROR`,
+2 for `CONTEXT_FAIL`. The three terminals are registered in
+`evidence_core::TERMINAL_CODES`.
+"""
+verification_methods = ["test"]
+emits = [
+    "CONTEXT_OK",
+    "CONTEXT_FAIL",
+    "CONTEXT_ERROR",
+]
+
+[[requirements]]
+uid = "ca6f202f-8957-4ba3-adb5-fbc7054e9197"
+id = "LLR-083"
+title = "context content codes register in RULES and gate the golden wire shape"
+owner = "tool"
+traces_to = ["5ccff935-87c2-4b57-a78b-459d1eb81ad2"]
+modules = [
+    "evidence_core::context::lookup",
+    "evidence_core::context::error",
+    "cargo_evidence::cli::context",
+]
+description = """
+The five content-level `CONTEXT_*` codes are registered in
+`evidence_core::RULES` under the `Context` domain. The CLI's
+`cmd_context` emits each at the right point: `CONTEXT_AMBIGUOUS_SELECTOR`
+(warning) when the resolver records skipped alternates;
+`CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR` (warning) when a non-workspace
+selector matches zero LLRs; `CONTEXT_SELECTOR_OUT_OF_SCOPE` (error)
+when the resolver rejects an unrecognized input;
+`CONTEXT_NO_TRACE_CONFIGURED` (info) when `cert/trace/` is missing;
+`CONTEXT_RUNTIME_ERROR` (error) for the runtime / I/O variants of
+`ContextError` (unreadable `Cargo.toml`, `canonicalize` failure on a
+parent dir, underlying trace TOML read error) — distinct from
+`CONTEXT_SELECTOR_OUT_OF_SCOPE` so an agent can tell user-typo from
+tool-fault. A golden fixture at
+`crates/cargo-evidence/tests/fixtures/golden_context.json` is byte-
+diffed by the integration test, regenerated via
+`tools/regen-golden-fixtures.sh`. Drift in the wire shape fires the
+fixture diff with a line-numbered error.
+"""
+verification_methods = ["test"]
+emits = [
+    "CONTEXT_AMBIGUOUS_SELECTOR",
+    "CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR",
+    "CONTEXT_NO_TRACE_CONFIGURED",
+    "CONTEXT_RUNTIME_ERROR",
+    "CONTEXT_SELECTOR_OUT_OF_SCOPE",
+]
+
+[[requirements]]
+uid = "dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"
+id = "LLR-084"
+title = "evidence_context handler wraps cargo evidence context --json"
+owner = "tool"
+traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
+modules = [
+    "evidence_mcp::server",
+    "evidence_mcp::server::Server::evidence_context",
+]
+description = """
+Seventh `#[tool]` on `Server`, alongside `evidence_rules`,
+`evidence_doctor`, `evidence_check`, `evidence_ping`,
+`evidence_floors`, `evidence_diff`. Single-blob shape (like
+`evidence_diff`), not the streaming-verb shape used by `check` /
+`doctor` / `floors`.
+
+Handler body:
+
+  1. Validate the request: at most one of `selector`, `crate_name`,
+     `module` may be `Some`. Multiple set → `Err(String)` with a
+     human message naming the conflicting fields (mirrors
+     `evidence_check`'s `mode` validation).
+  2. Resolve the workspace path via `workspace::resolve_workspace`
+     (HLR-054); a `Fallback` resolution prepends the
+     `MCP_WORKSPACE_FALLBACK` warning on the response.
+  3. Compose the CLI argument list: `["context", "--json"]` plus
+     `--crate <c>` / `--module <m>` / `<selector>` from whichever
+     field was set.
+  4. Spawn `cargo evidence context ... --json` via
+     `subprocess::run_evidence` under the subprocess-timeout cap
+     (LLR-065). On subprocess failure, return a
+     `ContextToolResponse` with `context = None`, `exit_code = 2`,
+     `error = Some(MCP_* diagnostic)` via `context_response_from_run_error`.
+  5. On subprocess success, parse stdout as a single
+     `serde_json::Value`. On parse failure, return
+     `MCP_MALFORMED_JSONL` as the error diagnostic.
+  6. Build `warnings` from `skew_diagnostic(&self.version_skew)`
+     (HLR-060) plus the optional workspace-fallback signal.
+
+No new diagnostic codes — content vocabulary (`CONTEXT_*`) is
+owned by the wrapped CLI verb (LLR-082, LLR-083).
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "9d8d4f30-d591-40fc-beab-5f9eda6c91fa"
+id = "LLR-085"
+title = "ContextRequest / ContextToolResponse define the evidence_context wire shape"
+owner = "tool"
+traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
+modules = [
+    "evidence_mcp::schema",
+]
+description = """
+Two new `schemars::JsonSchema`-derived types in `crates/evidence-
+mcp/src/schema.rs`.
+
+`ContextRequest { workspace_path: Option<String>, selector:
+Option<String>, crate_name: Option<String>, module: Option<String> }`
+with `#[serde(deny_unknown_fields)]` so an agent typo (e.g.
+`crate` instead of `crate_name`) fails loud at deserialization
+rather than falling through to the workspace-overview path.
+Field-level doc comments give agents the schema description for
+each input.
+
+`ContextToolResponse { success: bool, exit_code: i32, context:
+Option<serde_json::Value>, warnings: Vec<serde_json::Value>, error:
+Option<serde_json::Value> }`. Mirrors `DiffToolResponse` (the
+sibling single-blob response shape). `success` is derived: `true`
+exactly when `exit_code == 0` AND `error.is_none()`. Warnings
+(version-skew, workspace-fallback) do not flip the bit. The
+`context` field carries the raw JSON the CLI emitted so agents see
+the exact byte-locked wire shape from the underlying golden
+fixture.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "802701d1-9770-40fa-8a74-d65c3c34c8ca"
+id = "LLR-086"
+title = "context_roundtrip integration test pins the MCP wire shape against the CLI"
+owner = "tool"
+traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
+modules = [
+    "evidence_mcp::server::Server::evidence_context",
+]
+description = """
+`crates/evidence-mcp/tests/context_roundtrip.rs` spawns the built
+`evidence-mcp` binary via `assert_cmd`, drives an MCP `tools/call`
+JSON-RPC conversation for `evidence_context`, and asserts on the
+structured response.
+
+Three cases, mirroring the diff-roundtrip pattern:
+
+- Workspace-overview selector (no selector / crate_name / module):
+  `context` is a non-null JSON object whose `selector.kind` is
+  `"workspace"`. `exit_code == 0`, `success == true`, no transport
+  error.
+- File selector that resolves into a crate with at least one
+  governing LLR: `context.requirements` is a non-empty array (the
+  CLI exercises the live `cert/trace/`). `success == true`.
+- Mutual-exclusivity guard: passing both `selector` and `crate_name`
+  surfaces a tool-layer error (either a JSON-RPC error or an
+  `Err(String)` from the handler).
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "b402bcc1-f3bb-4fb5-a616-c3e18ffd321a"
+id = "LLR-090"
+title = "write_agent_context_files emits root CLAUDE.md + .claude/settings.json"
+owner = "tool"
+traces_to = ["e93c01e2-b5e8-48f4-94ee-e08c139245ae"]
+modules = [
+    "cargo_evidence::cli::init::agent_context::write_agent_context_files",
+    "cargo_evidence::cli::init::cmd_init",
+]
+description = """
+`cmd_init` accepts an `agent_context: bool` parameter derived from
+the clap flag pair `--with-agent-context` / `--no-agent-context`
+(mutually exclusive via `conflicts_with`; default on). When true,
+the parent dispatches to `write_agent_context_files(root, jsonl)`
+which:
+  - writes a starter `CLAUDE.md` at the root (lean ≤30 lines,
+    rendered by `render_root_claude_md`) — title naming the
+    project + `evidence_context` / `cargo evidence context`
+    pointer + per-crate-CLAUDE.md guidance, no project rules;
+  - writes `.claude/settings.json` registering `evidence-mcp` as
+    an MCP server and adding a `permissions.deny` entry for
+    `evidence/**` (the default output dir).
+Both writes are skipped when the target file already exists; the
+existing file is never clobbered. When `.claude/settings.json`
+already exists, a single info line on stderr explains the merge
+the user would do by hand. Each successful write goes through
+`emit_template_written` so JSONL consumers see one
+`INIT_TEMPLATE_WRITTEN` per file in the same stream as the
+`cert/` emissions, terminating with the standard `INIT_OK`.
+"""
+verification_methods = ["test"]

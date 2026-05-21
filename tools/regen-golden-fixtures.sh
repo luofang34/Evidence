@@ -15,6 +15,12 @@ cd "$(git rev-parse --show-toplevel)"
 cargo build --release -p cargo-evidence --quiet
 ./target/release/cargo-evidence evidence rules --json \
     > crates/cargo-evidence/tests/fixtures/golden_rules.json
+./target/release/cargo-evidence evidence context --crate cargo-evidence --json \
+    > crates/cargo-evidence/tests/fixtures/golden_context.json
 echo "regenerated: crates/cargo-evidence/tests/fixtures/golden_rules.json"
+echo "regenerated: crates/cargo-evidence/tests/fixtures/golden_context.json"
 echo "diff (if any):"
-git --no-pager diff -- crates/cargo-evidence/tests/fixtures/golden_rules.json | head -80 || true
+git --no-pager diff -- \
+    crates/cargo-evidence/tests/fixtures/golden_rules.json \
+    crates/cargo-evidence/tests/fixtures/golden_context.json \
+    | head -120 || true

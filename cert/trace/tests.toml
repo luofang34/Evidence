@@ -1311,3 +1311,239 @@ test_selectors = [
     "cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
     "cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env",
 ]
+
+[[tests]]
+uid = "15234eb6-8e95-4779-b963-5829d18261a8"
+id = "TEST-086"
+title = "every workspace crate ships a lean-layered CLAUDE.md"
+owner = "tool"
+traces_to = ["288c920a-c667-4f84-9d0b-f4e8419ac141"]
+test_selectors = [
+    "layered_claude_md_doctrine::every_workspace_crate_has_lean_layered_claude_md",
+]
+description = """
+Walks crates/* and accumulates per-crate violations: missing
+CLAUDE.md, fewer than 10 non-blank lines, more than 80 lines, or
+missing the literal `cargo test -p <crate-name>` scoped command.
+Asserts the accumulated failure list is empty. Failure message
+joins every offending crate so a single run names them all.
+"""
+
+[[tests]]
+uid = "27d05430-5ccf-4b77-a303-d6c0555c19c9"
+id = "TEST-087"
+title = "context::resolver classifies every selector kind with documented priority"
+owner = "tool"
+traces_to = ["7ad19cf7-98ae-40e0-8fcb-76c3a6077883"]
+description = """
+Six co-located cases pin the resolver invariants in one place:
+`raw = None` → Workspace; empty/whitespace input → Workspace; a
+relative path under `crates/evidence-core/src/...` → File with the
+expected crate_name; a bare `evidence-core` token → Crate; a
+`evidence_core::trace` token → Module; an unrecognized
+`not-a-crate` / `does/not/exist.rs` → SelectorOutOfScope. Each
+case asserts the variant and the carried fields verbatim so a
+priority regression names the failing case.
+"""
+test_selectors = [
+    "context::tests::resolve_none_returns_workspace",
+    "context::tests::resolve_empty_string_returns_workspace",
+    "context::tests::resolve_file_under_crates_dir",
+    "context::tests::resolve_crate_by_package_name",
+    "context::tests::resolve_module_by_dotted_path",
+    "context::tests::resolve_unknown_returns_out_of_scope",
+    "context::tests::selector_out_of_scope_preserves_raw_input",
+]
+
+[[tests]]
+uid = "ff93d679-d83a-4dca-aa29-b6bf389c0f25"
+id = "TEST-088"
+title = "context::lookup composes ContextReport from the live trace + boundary + floors"
+owner = "tool"
+traces_to = ["fd1c2f88-9511-430f-a30b-f9f81a20407e"]
+description = """
+Six co-located cases run `context_for` against the repo's own
+`cert/` data: workspace overview carries the root CLAUDE.md; file
+selector carries the per-crate CLAUDE.md; file selector pulls
+non-empty requirements + a parent rollup; crate selector carries
+per_crate_floor `test_count` and per_crate_ceiling library_panics
+rows; crate selector aggregates a non-empty + alphabetically-sorted
+diagnostic_codes set; boundary slice reports in_scope = true for
+in-tree crates. A seventh case round-trips the ContextReport
+through serde_json so the wire shape stays stable.
+"""
+test_selectors = [
+    "context::tests::workspace_overview_carries_root_claude_md",
+    "context::tests::file_selector_carries_per_crate_claude_md",
+    "context::tests::file_selector_pulls_requirements_and_parents",
+    "context::tests::crate_selector_carries_per_crate_floor_rows",
+    "context::tests::requirements_emit_set_aggregates_diagnostic_codes",
+    "context::tests::boundary_slice_reports_in_scope_for_workspace_crate",
+    "context::tests::context_report_round_trips_via_serde_json",
+]
+
+[[tests]]
+uid = "27e2ee62-9591-4353-9ced-2f009ba7de97"
+id = "TEST-089"
+title = "context::error variants map to documented CONTEXT_* codes"
+owner = "tool"
+traces_to = ["ca6f202f-8957-4ba3-adb5-fbc7054e9197"]
+description = """
+Two cases pin the error path: `missing_trace_root_returns_trace_not_configured`
+asserts the variant + carried path for a tempdir with no
+`cert/trace/`, the graceful path the CLI translates into
+`CONTEXT_NO_TRACE_CONFIGURED` + `CONTEXT_OK` (exit 0).
+`selector_out_of_scope_preserves_raw_input` asserts the variant
+carries the raw selector string verbatim so the CLI can echo it
+back in a fix hint.
+"""
+test_selectors = [
+    "context::tests::missing_trace_root_returns_trace_not_configured",
+    "context::tests::selector_out_of_scope_preserves_raw_input",
+]
+
+[[tests]]
+uid = "e92cf358-fdbb-4213-8362-a66c89331653"
+id = "TEST-090"
+title = "cargo evidence context CLI is byte-locked against the golden fixture"
+owner = "tool"
+traces_to = ["ca6f202f-8957-4ba3-adb5-fbc7054e9197"]
+description = """
+Three co-located cases drive the CLI: a `--json` invocation with a
+known selector is byte-diffed against
+`crates/cargo-evidence/tests/fixtures/golden_context.json` —
+regenerate via `tools/regen-golden-fixtures.sh`; a `--format=jsonl`
+invocation against an empty tempdir asserts the
+`CONTEXT_NO_TRACE_CONFIGURED` + `CONTEXT_OK` terminal pair (exit 0);
+a `--format=jsonl` invocation with a typo'd selector asserts the
+`CONTEXT_SELECTOR_OUT_OF_SCOPE` + `CONTEXT_FAIL` pair (exit 2).
+"""
+test_selectors = [
+    "cli_context::golden_context_json_byte_diff",
+    "cli_context::context_jsonl_non_adopter_graceful_path",
+    "cli_context::context_jsonl_invalid_selector_emits_fail_terminal",
+]
+
+[[tests]]
+uid = "8a81c73c-6e6e-4e61-abb5-4db2c1f3bbce"
+id = "TEST-091"
+title = "evidence_context workspace-overview returns a well-formed ContextReport"
+owner = "tool"
+traces_to = ["dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"]
+description = """
+Spawns the built `evidence-mcp` binary, drives a `tools/call` for
+`evidence_context` with no selector / crate_name / module fields,
+and asserts on the structured response. `context` is a non-null
+JSON object whose `selector.kind` is `"workspace"`. `exit_code ==
+0`, `success == true`, no transport-layer error. Pins the happy-
+path plumbing end-to-end without depending on a specific
+requirements count.
+"""
+test_selectors = [
+    "context_roundtrip::evidence_context_workspace_overview_returns_report",
+]
+
+[[tests]]
+uid = "86f4d5a7-852e-4bdf-96ab-7dd0dcb8474f"
+id = "TEST-092"
+title = "evidence_context file selector resolves to governing requirements"
+owner = "tool"
+traces_to = ["dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"]
+description = """
+Two co-located cases pin the file-selector path:
+
+- `evidence_context_file_selector_pulls_requirements`: passes
+  `crates/evidence-mcp/src/server.rs` and asserts the response's
+  `context.requirements` array is non-empty (the CLI exercises the
+  live `cert/trace/` against the real workspace). `selector.kind`
+  is `"file"`, `success == true`.
+- `evidence_context_unmapped_file_carries_no_requirements_warning`:
+  passes a workspace file (`Cargo.toml`) that no LLR claims via
+  `modules`; asserts the response stays well-formed and surfaces
+  the graceful warning path through the MCP layer.
+"""
+test_selectors = [
+    "context_roundtrip::evidence_context_file_selector_pulls_requirements",
+    "context_roundtrip::evidence_context_unmapped_file_carries_no_requirements_warning",
+]
+
+[[tests]]
+uid = "2d6c95c4-8b28-4b8d-92a4-cbc81e7107d6"
+id = "TEST-093"
+title = "evidence_context mutual-exclusivity guard rejects multiple selector fields"
+owner = "tool"
+traces_to = ["dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"]
+description = """
+Two co-located cases pin the request-validation contract:
+
+- `evidence_context_rejects_multiple_selector_fields`: submits a
+  request with both `selector` and `crate_name` set; asserts the
+  response is either a JSON-RPC error or carries `isError == true`
+  — not a silent success against one of the two values. Defense
+  against agent misuse of the three equivalent entry points.
+- `evidence_context_rejects_unknown_field_typo`: pins the
+  `#[serde(deny_unknown_fields)]` contract on `ContextRequest`
+  (mirrors `evidence_check_rejects_unknown_field_typo`).
+"""
+test_selectors = [
+    "context_roundtrip::evidence_context_rejects_multiple_selector_fields",
+    "context_roundtrip::evidence_context_rejects_unknown_field_typo",
+]
+
+[[tests]]
+uid = "38cb6b28-ddb8-4bd9-b2ef-3fdd3a223db2"
+id = "TEST-094"
+title = "pick_selector_arg lifts ContextRequest into the CLI argument vector"
+owner = "tool"
+traces_to = ["9d8d4f30-d591-40fc-beab-5f9eda6c91fa"]
+description = """
+Unit tests on the request-mapping helper that turns
+`ContextRequest` into the argument vector passed to `cargo
+evidence context`. Five cases cover: workspace overview (all
+unset), positional selector wins when set, `--crate <name>`
+disambiguator, `--module <path>` disambiguator, and the mutual-
+exclusivity rejection path. Together they pin the
+`ContextRequest` ⇄ CLI-arg bijection at the request-shape layer
+so the integration test only has to verify the wire-level
+plumbing.
+"""
+test_selectors = [
+    "evidence_mcp::server::context::tests::pick_selector_arg_none_when_all_unset",
+    "evidence_mcp::server::context::tests::pick_selector_arg_positional_wins_when_selector_set",
+    "evidence_mcp::server::context::tests::pick_selector_arg_crate_flag_emits_crate_arg_pair",
+    "evidence_mcp::server::context::tests::pick_selector_arg_module_flag_emits_module_arg_pair",
+    "evidence_mcp::server::context::tests::pick_selector_arg_rejects_multiple_fields_set",
+]
+
+[[tests]]
+uid = "f563389d-b209-4258-a482-7508c11f87aa"
+id = "TEST-097"
+title = "init --with-agent-context scaffolds CLAUDE.md + .claude/settings.json"
+owner = "tool"
+traces_to = ["b402bcc1-f3bb-4fb5-a616-c3e18ffd321a"]
+description = """
+Integration tests under `crates/cargo-evidence/tests/init_agent_context.rs`
+that spawn the `cargo-evidence` binary against fresh tempdirs:
+  - init_with_agent_context_writes_root_files: the happy path;
+    asserts root CLAUDE.md + .claude/settings.json appear with
+    the lean-template content (title, MCP/CLI pointers, per-crate
+    section) and that settings.json parses as JSON registering
+    `evidence-mcp` + denying `evidence/**`.
+  - init_no_agent_context_skips_scaffold: opt-out leaves no
+    CLAUDE.md and no .claude/ behind while still writing cert/.
+  - init_with_agent_context_preserves_existing_files: pre-existing
+    CLAUDE.md or .claude/settings.json are read back byte-for-byte
+    after `init`.
+  - init_with_agent_context_jsonl_lists_new_files: --format=jsonl
+    emits INIT_TEMPLATE_WRITTEN entries for both new files plus
+    the INIT_OK terminal as last line.
+  - init_rejects_both_flags: clap's conflicts_with rejects the
+    combination of --with-agent-context and --no-agent-context.
+"""
+test_selectors = [
+    "init_agent_context::init_with_agent_context_writes_root_files",
+    "init_agent_context::init_no_agent_context_skips_scaffold",
+    "init_agent_context::init_with_agent_context_preserves_existing_files",
+    "init_agent_context::init_with_agent_context_jsonl_lists_new_files",
+    "init_agent_context::init_rejects_both_flags",
+]

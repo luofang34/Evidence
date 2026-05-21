@@ -1800,3 +1800,105 @@ keypair), the check is a no-op.
 verification_methods = ["test"]
 traces_to = ["d469f0fa-0816-47a8-9452-b73e65f4cfd7"]
 surfaces = ["generate"]
+
+[[requirements]]
+uid = "d33a1a39-c57a-48cc-9138-c4f8ff61f77d"
+id = "HLR-072"
+title = "Repo demonstrates lean-layered CLAUDE.md doctrine"
+owner = "tool"
+scope = "component"
+description = """
+Each workspace crate under `crates/` ships a `CLAUDE.md` file that
+(a) carries local conventions only — not a re-statement of root
+rules; (b) documents its own scoped test command
+(`cargo test -p <crate-name>`) so agents and humans avoid running
+the full workspace suite for a single-crate change; (c) stays under
+an 80-line cap so the file remains skimmable. The root `CLAUDE.md`
+holds project-wide rules + a pointer to the per-module agent-context
+surface; it must not absorb per-crate detail. The doctrine is
+enforced mechanically by an integration test so adding a new
+workspace crate without a `CLAUDE.md` fails CI.
+"""
+verification_methods = ["test"]
+traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
+surfaces = ["layered CLAUDE.md (root + crates/*/CLAUDE.md)"]
+
+[[requirements]]
+uid = "5ccff935-87c2-4b57-a78b-459d1eb81ad2"
+id = "HLR-073"
+title = "cargo evidence context CLI verb returns per-module trace slice"
+owner = "tool"
+scope = "component"
+description = """
+`cargo evidence context [<selector>]` returns a structured per-module
+context blob: the LLR-level requirements governing the selector
+(file path under `crates/<crate>/...`, workspace crate name, or
+Rust module path), their parent HLR / SYS rollup, the tests that
+verify them, the diagnostic codes those LLRs own, the per-crate
+floors / ceilings, the boundary slice, and the nearest layered
+`CLAUDE.md`. Selector resolution prioritises file > crate > module
+on ambiguity. The graceful-degradation path (no `cert/trace/`) maps
+to `CONTEXT_NO_TRACE_CONFIGURED` (info) + `CONTEXT_OK` (exit 0);
+invalid selectors emit `CONTEXT_SELECTOR_OUT_OF_SCOPE` + the
+`CONTEXT_FAIL` terminal (exit 2); runtime / I/O failures emit
+`CONTEXT_ERROR` (exit 1). Output is text (default), `--json` (single
+blob), or `--format=jsonl` (report line + per-warning diag +
+terminal). The wire shape is byte-locked against a golden fixture.
+"""
+verification_methods = ["test"]
+traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
+surfaces = ["context"]
+
+[[requirements]]
+uid = "f88508e9-eb70-4ee6-bb3e-13f07e4f181b"
+id = "HLR-074"
+title = "evidence_context MCP tool returns per-module trace slice"
+owner = "tool"
+scope = "component"
+description = """
+`evidence_context` is the seventh `#[tool]` on the MCP `Server`. It
+takes a `ContextRequest` with an optional `workspace_path` and at
+most one of `selector` (file/crate/module string), `crate_name`
+(crate disambiguator), or `module` (module-path disambiguator), and
+returns a `ContextToolResponse` carrying the single JSON blob
+emitted by `cargo evidence context [--crate <c> | --module <m> |
+<selector>] --json`. The handler spawns the CLI verb through the
+existing `subprocess::run_evidence` plumbing (no new transport
+machinery), prepends workspace-fallback + version-skew warnings via
+the shared response helpers, and surfaces tool-layer failures
+(subprocess could not spawn / timed out / produced malformed JSON)
+as a well-formed response with `context = None`, `exit_code != 0`,
+and a structured `MCP_*` diagnostic in `error`. Mutual-exclusivity
+of the three selector fields is validated at the handler layer and
+returned as `Err(String)`. No new diagnostic codes — the underlying
+content vocabulary (`CONTEXT_*`) is owned by the CLI verb (HLR-073).
+"""
+verification_methods = ["test"]
+traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
+surfaces = ["context"]
+
+[[requirements]]
+uid = "e93c01e2-b5e8-48f4-94ee-e08c139245ae"
+id = "HLR-075"
+title = "cargo evidence init --with-agent-context scaffolds downstream CLAUDE.md"
+owner = "tool"
+scope = "component"
+description = """
+`cargo evidence init` accepts `--with-agent-context` (default on)
+and `--no-agent-context` (mutually exclusive). When on, the
+command emits a starter root `CLAUDE.md` (≤30 lines, lean: title
++ project-description placeholder + pointer to `evidence_context`
+/ `cargo evidence context` + per-crate-CLAUDE.md guidance — no
+project rules) and a `.claude/settings.json` snippet registering
+`evidence-mcp` as an MCP server with a `permissions.deny` entry
+for the default `evidence/**` output dir. Existing files are
+preserved unconditionally (matches `init`'s pre-existing
+no-overwrite behavior); when `.claude/settings.json` already
+exists, the command prints one stderr info line explaining what
+the user would merge in by hand and continues. New emissions log
+via the same JSONL `INIT_TEMPLATE_WRITTEN` channel as the
+`cert/` tree so machine consumers see one stream.
+"""
+verification_methods = ["test"]
+traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
+surfaces = ["init"]

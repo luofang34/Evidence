@@ -28,3 +28,9 @@ Mechanical enforcement: `walker_usage_locked` asserts (a) no unallowlisted `fs::
 Default: every PR seeds its SYS/HLR/LLR/TEST entries in the first commit on the branch, before any implementation. The trace chain is the contract; the code implements it.
 
 **Exception — bidirectional contracts spanning two PRs.** When a single SYS-level claim covers both directions of a contract (e.g., forward-enrichment in one PR + reverse-verification in a follow-up), the *second* PR seeds the chain for both halves. The first PR ships functionality under an implicit trace obligation; the second PR's chain-seed discharges it for both. This is rare — only legitimate when the two halves form one logical deliverable and splitting the chain would force referencing UUIDs that don't yet exist. Do not generalize: if a later PR's scope is independent (new surface, different concern), seed its own chain from commit 1 as normal.
+
+## Module-level context for agents
+
+This repo follows the *lean root + layered subdirectory* `CLAUDE.md` pattern from [Anthropic's large-codebases guide](https://claude.com/blog/how-claude-code-works-in-large-codebases-best-practices-and-where-to-start). Root `CLAUDE.md` (this file) carries project-wide rules; each crate's `crates/<x>/CLAUDE.md` carries local conventions and the scoped test command for that crate.
+
+For per-module trace + boundary + floors context on any source file, call `evidence_context` (MCP) or `cargo evidence context <path>`. Don't grep `cert/trace/*.toml` manually — the query is cheap and returns the requirements governing the file, their parent HLR / SYS roots, the tests that verify them, the diagnostic codes the module owns, and the floors it must respect. Design spec: `docs/superpowers/specs/2026-05-19-agent-context-from-evidence-design.md`.
