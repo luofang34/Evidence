@@ -26,3 +26,12 @@ rust-toolchain.toml   text eol=lf
 # and trip the byte-diff tests.
 crates/cargo-evidence/tests/fixtures/golden_rules.json binary
 crates/cargo-evidence/tests/fixtures/golden_context.json binary
+
+# Certification config (boundary, profiles, floors, trace/*.toml) is
+# read by `cargo evidence context --json` and its multi-line
+# `description = """ ... """` blocks flow through into the JSON
+# response. On Windows with `core.autocrlf=true`, git checks these
+# out with CRLF and the CLI embeds `\r\n` in the JSON string values,
+# breaking the byte-diff against the LF golden fixture. Force LF on
+# checkout so cross-OS contributors see identical bytes.
+cert/**/*.toml text eol=lf
