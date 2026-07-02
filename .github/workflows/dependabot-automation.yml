@@ -1,0 +1,87 @@
+name: Dependabot automation
+
+# Companion to .github/dependabot.yml. Two responsibilities:
+#
+# 1. Append the `Override-Deterministic-Baseline:` line to cargo
+#    update PR bodies. A Cargo.lock bump moves `cargo_lock_hash` in
+#    deterministic-manifest.json, so the cross-time-determinism gate
+#    blocks the PR unless the body carries an explicit
+#    acknowledgment. A dependency bump is exactly the legitimate
+#    case the override protocol exists for, and the appended reason
+#    names the bumped dependencies — the audit trail stays honest.
+#    ci.yml listens for `pull_request: edited`, so the body edit
+#    re-triggers CI and the gate re-evaluates with the line present.
+#
+# 2. Enable GitHub auto-merge for low-risk updates (cargo
+#    semver-patch; github-actions semver-minor/patch). Auto-merge
+#    only fires after all REQUIRED status checks pass, so this step
+#    is inert until the repository enables "Allow auto-merge" and a
+#    ruleset marks the CI jobs as required checks on main. Until
+#    then the step logs a notice and leaves the PR for manual merge
+#    — it never merges directly.
+#
+# Cargo minor/major bumps and github-actions major bumps stay
+# manual-review: this tool ships certification evidence, and a
+# semver-minor of a serialization or hashing dep can legitimately
+# change bundle bytes.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automate:
+    name: Dependabot PR automation
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.repository == 'luofang34/Evidence'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Append Override-Deterministic-Baseline to PR body
+        if: steps.meta.outputs.package-ecosystem == 'cargo'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          DEPS: ${{ steps.meta.outputs.dependency-names }}
+        run: |
+          body_file="$(mktemp)"
+          gh pr view "$PR_URL" --json body --jq .body > "$body_file"
+          # Same tolerant anchor as
+          # scripts/deterministic-baseline-override-lint.sh.
+          if grep -Eq '^[[:space:]>*-]*Override-Deterministic-Baseline: ' "$body_file"; then
+            echo "override line already present; nothing to append"
+            exit 0
+          fi
+          printf '\n\nOverride-Deterministic-Baseline: dependabot bump of %s (Cargo.lock hash moves by construction)\n' \
+            "$DEPS" >> "$body_file"
+          gh pr edit "$PR_URL" --body-file "$body_file"
+
+      - name: Enable auto-merge for low-risk updates
+        if: >-
+          (steps.meta.outputs.package-ecosystem == 'cargo' &&
+           steps.meta.outputs.update-type == 'version-update:semver-patch') ||
+          (startsWith(steps.meta.outputs.package-ecosystem, 'github') &&
+           contains(fromJSON('["version-update:semver-patch","version-update:semver-minor"]'), steps.meta.outputs.update-type))
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          # `gh pr merge --auto` errors (without merging) when the
+          # repo has auto-merge disabled or no required checks — the
+          # fallback notice keeps this job green so a missing repo
+          # setting degrades to manual merge, not a red PR.
+          if gh pr merge --auto --merge "$PR_URL"; then
+            echo "auto-merge enabled; merges when required checks pass"
+          else
+            echo "::notice::auto-merge unavailable (repo setting off or no required checks); leaving PR for manual merge"
+          fi
