@@ -1,0 +1,55 @@
+# Dependabot — automated dependency-update PRs.
+#
+# Two ecosystems:
+#
+#   - cargo: workspace crates (Cargo.toml + Cargo.lock). Updates are
+#     grouped so one Monday run opens at most a patch-group PR, a
+#     minor-group PR, and one PR per major bump — each PR triggers
+#     the full CI matrix (3 native + 2 Nix determinism flavors), so
+#     per-dependency PRs would be needlessly expensive.
+#
+#     Every Cargo.lock bump moves `cargo_lock_hash` in
+#     deterministic-manifest.json, which the cross-time-determinism
+#     gate treats as reproducibility drift requiring an explicit
+#     `Override-Deterministic-Baseline:` acknowledgment in the PR
+#     body. Dependabot cannot write that line itself;
+#     .github/workflows/dependabot-automation.yml appends it.
+#
+#   - github-actions: action pins in .github/workflows/. No
+#     Cargo.lock impact, so no override line needed.
+#
+# Schedule matches audit.yml's Monday 06:00 UTC cron so RustSec
+# advisory findings and the update PRs land in the same review
+# window. Security updates ignore the schedule and open immediately
+# (Dependabot default).
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    groups:
+      cargo-patch:
+        update-types: ["patch"]
+      cargo-minor:
+        update-types: ["minor"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(ci)"
