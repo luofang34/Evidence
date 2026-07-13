@@ -1547,3 +1547,67 @@ test_selectors = [
     "init_agent_context::init_with_agent_context_jsonl_lists_new_files",
     "init_agent_context::init_rejects_both_flags",
 ]
+
+[[tests]]
+uid = "41ccc9a0-1e7f-4b4f-8898-fedd3ece4833"
+id = "TEST-098"
+title = "in-scope package name resolves to its manifest directory"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::resolves_package_name_to_manifest_dir"
+
+[[tests]]
+uid = "2c5551d4-9cd7-46e8-9c3d-9dfad7834a19"
+id = "TEST-099"
+title = "unknown in-scope package fails closed"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::missing_package_fails_closed"
+
+[[tests]]
+uid = "6f21dcf2-2f62-4429-a4a3-a9875b15abbb"
+id = "TEST-100"
+title = "manifest outside workspace root is a path escape"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::manifest_outside_workspace_is_path_escape"
+
+[[tests]]
+uid = "5e8819db-f902-4788-bfce-23b84c740bbe"
+id = "TEST-101"
+title = "in-scope unit with zero tracked files fails closed"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::empty_unit_fails_closed"
+
+[[tests]]
+uid = "811d48cf-51a1-41f2-9db4-b76c84590250"
+id = "TEST-102"
+title = "verify rejects an empty inputs_hashes.json"
+owner = "tool"
+traces_to = ["7d8dc29d-16a4-4415-96cf-0c1df7ec894b"]
+test_selector = "evidence_core::verify::source_baseline::tests::empty_object_is_rejected"
+
+[[tests]]
+uid = "7fe4cbea-84f9-4712-ba5f-c7a5f98490cb"
+id = "TEST-103"
+title = "verify accepts a non-empty source baseline"
+owner = "tool"
+traces_to = ["7d8dc29d-16a4-4415-96cf-0c1df7ec894b"]
+test_selector = "evidence_core::verify::source_baseline::tests::non_empty_object_passes"
+
+[[tests]]
+uid = "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5"
+id = "TEST-104"
+title = "captured source baseline agrees with an independent git enumeration"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "input_baseline::captured_baseline_agrees_with_independent_enumeration"
+
+[[tests]]
+uid = "a62df89e-3e18-42dc-9215-b0c69de20b6f"
+id = "TEST-105"
+title = "declared required controlled input fails closed when absent, passes when present"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::required_input_presence_is_checked"

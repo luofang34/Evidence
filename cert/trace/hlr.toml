@@ -1902,3 +1902,30 @@ via the same JSONL `INIT_TEMPLATE_WRITTEN` channel as the
 verification_methods = ["test"]
 traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
 surfaces = ["init"]
+
+[[requirements]]
+uid = "2f043730-58ae-4528-aec7-6b30eed81fcf"
+id = "HLR-076"
+title = "In-scope package names resolve to manifest directories; workspace-control inputs are captured; empty or unresolved scope fails closed"
+owner = "tool"
+scope = "component"
+description = """
+Generation shall resolve each `boundary.toml` in-scope package
+name to its workspace-relative manifest directory via
+`cargo metadata --format-version 1`, enumerate that directory
+and the workspace-control pathspecs (root `Cargo.toml`,
+`Cargo.lock`, `rust-toolchain[.toml]`, `cert/`) through
+`git ls-files`, deduplicate the result with unit provenance
+winning over control provenance, and hash every entry into
+`inputs_hashes.json`.
+
+Fail-closed obligations: a missing package, a manifest escaping
+the workspace root, an in-scope unit with zero tracked files, or
+a zero-input total shall fail cert/record generation. Bundle
+verification shall independently reject a bundle that declares
+in-scope packages yet records an empty source baseline, so a
+regression that reintroduces the empty baseline is caught at both
+ends of the pipeline.
+"""
+verification_methods = ["test"]
+traces_to = ["3e47dd57-e3d6-4b95-95b3-684601471777"]

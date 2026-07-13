@@ -816,3 +816,35 @@ conventions and scoped test commands).
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "3e47dd57-e3d6-4b95-95b3-684601471777"
+id = "SYS-032"
+title = "Bundle shall record a complete, canonically-identified source-input baseline; certification fails closed on empty or unresolved scope"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall record, in `inputs_hashes.json`, the SHA-256 of
+every controlled source input backing a bundle: the tracked
+sources of each in-scope Cargo package plus the workspace-level
+controlled inputs (root manifest and lockfile, toolchain pin,
+and certification data under `cert/`).
+
+Package identity is not a repository path. An in-scope entry
+names a Cargo package; its sources live at its manifest
+directory, resolved through `cargo metadata`, not by treating
+the bare package name as a `git` pathspec.
+
+The source baseline shall fail closed. Certification or record
+generation shall fail if a declared in-scope package is absent
+from the metadata, resolves to a directory outside the
+workspace root, resolves to zero tracked files, or if the
+assembled baseline is empty. Bundle verification shall reject a
+bundle that declares in-scope packages yet records an empty
+`inputs_hashes.json`, because a declared baseline that captured
+nothing cannot back a source-baseline or reproducibility claim.
+A bundle that declares no scope has no baseline to capture and
+is not rejected on this basis.
+"""
+verification_methods = ["test", "review"]
+traces_to = []
