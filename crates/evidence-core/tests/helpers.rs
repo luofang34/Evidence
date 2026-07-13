@@ -148,12 +148,18 @@ pub fn create_minimal_bundle(profile: evidence_core::Profile) -> (TempDir, std::
     )
     .unwrap();
 
-    let empty_map: BTreeMap<String, String> = BTreeMap::new();
+    // A minimal but non-empty source baseline: verify fails closed on
+    // an empty inputs map, so every real fixture records at least one
+    // input. The hash is a placeholder — verify covers this file's
+    // bytes via SHA256SUMS, not by re-hashing the source tree.
+    let mut inputs_map: BTreeMap<String, String> = BTreeMap::new();
+    inputs_map.insert("Cargo.toml".to_string(), "0".repeat(64));
     fs::write(
         bundle_dir.join("inputs_hashes.json"),
-        serde_json::to_vec_pretty(&empty_map).unwrap(),
+        serde_json::to_vec_pretty(&inputs_map).unwrap(),
     )
     .unwrap();
+    let empty_map: BTreeMap<String, String> = BTreeMap::new();
     fs::write(
         bundle_dir.join("outputs_hashes.json"),
         serde_json::to_vec_pretty(&empty_map).unwrap(),

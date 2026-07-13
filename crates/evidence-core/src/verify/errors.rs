@@ -205,6 +205,12 @@ pub enum VerifyError {
         /// Comma-separated list of offender crate names.
         details: String,
     },
+    /// The bundle's `inputs_hashes.json` is an empty object. Every
+    /// real bundle captures at least its workspace-control inputs, so
+    /// an empty source baseline is a structural defect: a bundle
+    /// cannot support a source-baseline or reproducibility claim with
+    /// zero recorded inputs.
+    SourceBaselineEmpty,
 }
 
 impl DiagnosticCode for VerifyError {
@@ -240,6 +246,7 @@ impl DiagnosticCode for VerifyError {
             VerifyError::BoundaryVerifyMetadataMissing      => "BOUNDARY_VERIFY_METADATA_MISSING",
             VerifyError::BoundaryVerifyForbiddenBuildRs { .. }   => "VERIFY_BOUNDARY_BUILD_RS_DETECTED",
             VerifyError::BoundaryVerifyForbiddenProcMacro { .. } => "VERIFY_BOUNDARY_PROC_MACRO_DETECTED",
+            VerifyError::SourceBaselineEmpty               => "VERIFY_SOURCE_BASELINE_EMPTY",
         }
     }
 
@@ -272,6 +279,7 @@ impl DiagnosticCode for VerifyError {
             VerifyError::BoundaryVerifyMetadataMissing => {
                 Some(PathBuf::from("cargo_metadata.json"))
             }
+            VerifyError::SourceBaselineEmpty => Some(PathBuf::from("inputs_hashes.json")),
             // The remaining variants are bundle-wide invariants; no
             // single file "owns" the failure.
             VerifyError::SignatureInvalid

@@ -10,8 +10,8 @@ use anyhow::Result;
 
 use evidence_core::{
     BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
-    Profile,
-    git::{check_shallow_clone, git_ls_files, is_dirty_or_unknown},
+    Profile, build_input_plan_blocking,
+    git::{check_shallow_clone, is_dirty_or_unknown},
     load_trace_roots, parse_cargo_test_output_detailed,
     trace::{generate_traceability_matrix, read_all_trace_files},
 };
@@ -23,6 +23,10 @@ use crate::cli::output::emit_json;
 /// phases downstream of config construction.
 pub(super) struct BoundaryDerived {
     pub(super) in_scope_crates: Vec<String>,
+    /// Workspace-relative paths of controlled inputs declared required
+    /// in `boundary.toml`'s `[inputs]` section — hashed even when not
+    /// git-tracked (generated code), failing closed if absent.
+    pub(super) required_inputs: Vec<String>,
     pub(super) trace_roots: Vec<String>,
     pub(super) dal_map: BTreeMap<String, Dal>,
     pub(super) max_dal: Dal,
@@ -79,6 +83,7 @@ pub(super) fn build_config(
         .unwrap_or_else(|| load_trace_roots(boundary_path));
     let boundary_config = BoundaryConfig::load_or_default(boundary_path);
     let in_scope_crates = boundary_config.scope.in_scope.clone();
+    let required_inputs = boundary_config.inputs.required.clone();
     let dal_map = boundary_config.dal_map();
     let max_dal = dal_map.values().copied().max().unwrap_or_default();
     let policy = boundary_config.policy.clone();
@@ -98,6 +103,7 @@ pub(super) fn build_config(
         config,
         BoundaryDerived {
             in_scope_crates,
+            required_inputs,
             trace_roots,
             dal_map,
             max_dal,
@@ -174,42 +180,47 @@ pub(super) fn capture_and_write_env(
 
 // Phase 4 — hash in-scope source files
 
-/// Run `git ls-files` over the in-scope crate prefixes and hash each
-/// returned file into the bundle's `inputs_hashes.json`. Strict
-/// (cert/record) mode bails on any failure; non-strict mode logs a
-/// `warning:` line and continues.
+/// Resolve each in-scope Cargo package name to its manifest directory,
+/// enumerate that directory plus the workspace-control inputs via
+/// `git ls-files`, and hash every resolved file into the bundle's
+/// `inputs_hashes.json`. Package identity is resolved through
+/// `cargo metadata` — never treated as a repository path.
+///
+/// Strict (cert/record) mode fails closed on any unresolved package,
+/// path escape, empty in-scope unit, or zero-input total, so a cert
+/// bundle can never record an empty source baseline. Non-strict mode
+/// degrades to a `warning:` line and continues.
 pub(super) fn hash_in_scope_sources(
     builder: &mut EvidenceBuilder,
     prefixes: &[String],
+    required_inputs: &[String],
     strict: bool,
     quiet: bool,
     json_output: bool,
 ) -> Result<()> {
-    if prefixes.is_empty() {
+    if prefixes.is_empty() && required_inputs.is_empty() {
         return Ok(());
     }
-    let refs: Vec<&str> = prefixes.iter().map(|s| s.as_str()).collect();
-    match git_ls_files(&refs) {
-        Ok(files) => {
-            for f in &files {
-                if let Err(e) = builder.hash_input(f) {
+    match build_input_plan_blocking(prefixes, required_inputs) {
+        Ok(plan) => {
+            for entry in &plan {
+                if let Err(e) = builder.hash_input(&entry.path) {
                     if strict {
-                        return Err(
-                            anyhow::Error::new(e).context(format!("hashing source file: {}", f))
-                        );
+                        return Err(anyhow::Error::new(e)
+                            .context(format!("hashing source file: {}", entry.path)));
                     }
-                    eprintln!("warning: could not hash {}: {}", f, e);
+                    eprintln!("warning: could not hash {}: {}", entry.path, e);
                 }
             }
             if !quiet && !json_output {
-                println!("evidence: hashed {} source file(s)", files.len());
+                println!("evidence: hashed {} source input(s)", plan.len());
             }
         }
         Err(e) => {
             if strict {
-                return Err(anyhow::Error::new(e).context("listing in-scope source files"));
+                return Err(anyhow::Error::new(e).context("resolving in-scope source inputs"));
             }
-            eprintln!("warning: could not list source files: {}", e);
+            eprintln!("warning: could not resolve source inputs: {}", e);
         }
     }
     Ok(())

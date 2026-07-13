@@ -82,6 +82,16 @@ pub fn verify_bundle_with_key(
     // have at least one test record claiming its uid.
     super::llr_selectors::check_llr_test_selectors(bundle, &mut verify_errors);
 
+    // 3a''. Fail closed on an empty source baseline — a bundle that
+    // declares in-scope packages but records zero inputs cannot back a
+    // source-baseline claim. `dal_map` is keyed by in-scope crate, so a
+    // non-empty map means the bundle declares a scope.
+    super::source_baseline::check_source_baseline(
+        bundle,
+        !index.dal_map.is_empty(),
+        &mut verify_errors,
+    );
+
     // 3b. Validate index.json field formats (semantic checks beyond serde)
     validate_index_fields(&index, &mut verify_errors);
 
@@ -147,7 +157,7 @@ pub fn verify_bundle_with_key(
 
     // 6f. Verify-time recheck of forbid_build_rs / forbid_proc_macros
     // against the bundle's `cargo_metadata.json` projection — LLR-072.
-    check_boundary_recheck(bundle, &index, &mut verify_errors);
+    boundary_recheck::check_boundary_recheck(bundle, &index, &mut verify_errors);
 
     // 7. Extra-file detection: walk all files in bundle and flag unexpected ones
     for entry in walkdir::WalkDir::new(bundle).follow_links(false) {
@@ -421,76 +431,8 @@ fn check_prerelease_tool(bundle: &Path, index: &EvidenceIndex, errors: &mut Vec<
     }
 }
 
-/// LLR-072: when `index.boundary_policy` claims `forbid_build_rs`
-/// or `forbid_proc_macros` enforcement, replay those rules at
-/// verify time against the bundle’s `cargo_metadata.json`
-/// projection. Closes the window where a build.rs / proc-macro
-/// added between generate and verify would otherwise pass
-/// verification silently.
-///
-/// Scoping uses `index.dal_map.keys()` as the in-scope set
-/// — the same set the dal_map was derived from at generate
-/// time, so the recheck honors per-crate scoping the same way
-/// generate did. A bundle whose `dal_map` is empty (legacy or
-/// pre-DAL bundle) skips the recheck even if the policy claims
-/// it; without scoping data the recheck would either fire on
-/// every workspace member or no one, neither of which is
-/// useful.
-fn check_boundary_recheck(bundle: &Path, index: &EvidenceIndex, errors: &mut Vec<VerifyError>) {
-    let policy = &index.boundary_policy;
-    if !policy.forbid_build_rs && !policy.forbid_proc_macros {
-        return;
-    }
-    if index.dal_map.is_empty() {
-        return;
-    }
-    let metadata_path = bundle.join("cargo_metadata.json");
-    if !metadata_path.is_file() {
-        errors.push(VerifyError::BoundaryVerifyMetadataMissing);
-        return;
-    }
-    let raw = match fs::read_to_string(&metadata_path) {
-        Ok(s) => s,
-        Err(_) => {
-            errors.push(VerifyError::BoundaryVerifyMetadataMissing);
-            return;
-        }
-    };
-    let projection =
-        match crate::cargo_metadata::CargoMetadataProjection::from_projection_json(&raw) {
-            Ok(p) => p,
-            Err(_) => {
-                errors.push(VerifyError::BoundaryVerifyMetadataMissing);
-                return;
-            }
-        };
-    let in_scope: Vec<String> = index.dal_map.keys().cloned().collect();
-    if policy.forbid_build_rs {
-        let v = crate::cargo_metadata::check_build_rs_in_projection(&in_scope, &projection);
-        if !v.is_empty() {
-            let details = v
-                .iter()
-                .map(|x| match &x.links {
-                    Some(l) => format!("{} (links = \"{}\")", x.crate_name, l),
-                    None => x.crate_name.clone(),
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            errors.push(VerifyError::BoundaryVerifyForbiddenBuildRs { details });
-        }
-    }
-    if policy.forbid_proc_macros {
-        let v = crate::cargo_metadata::check_proc_macros_in_projection(&in_scope, &projection);
-        if !v.is_empty() {
-            let details = v
-                .iter()
-                .map(|x| x.crate_name.clone())
-                .collect::<Vec<_>>()
-                .join(", ");
-            errors.push(VerifyError::BoundaryVerifyForbiddenProcMacro { details });
-        }
-    }
-}
+#[path = "bundle/boundary_recheck.rs"]
+mod boundary_recheck;
 
 // Tests live in a sibling file pulled in via `#[path]` so this
 // orchestrator stays under the workspace 500-line limit.

@@ -394,6 +394,11 @@ pub const RULES: &[RuleEntry] = &[
     r("VERIFY_RUNTIME_WALK", Severity::Error, Domain::Verify),
     r("VERIFY_SIGNATURE_INVALID", Severity::Error, Domain::Verify),
     r(
+        "VERIFY_SOURCE_BASELINE_EMPTY",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
         "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
         Severity::Error,
         Domain::Verify,

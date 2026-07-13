@@ -244,6 +244,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     phases::hash_in_scope_sources(
         &mut builder,
         &derived.in_scope_crates,
+        &derived.required_inputs,
         strict,
         quiet,
         json_output,

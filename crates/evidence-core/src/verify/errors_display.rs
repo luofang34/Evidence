@@ -175,6 +175,14 @@ impl std::fmt::Display for VerifyError {
                     "verify-time recheck: in-scope proc-macro found: {details}"
                 )
             }
+            VerifyError::SourceBaselineEmpty => {
+                write!(
+                    f,
+                    "inputs_hashes.json is empty — the bundle records no source \
+                     baseline; a bundle cannot support a source-baseline or \
+                     reproducibility claim with zero recorded inputs"
+                )
+            }
         }
     }
 }

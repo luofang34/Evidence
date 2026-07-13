@@ -11,6 +11,7 @@
 
 use std::collections::BTreeMap;
 
+use super::boundary_recheck::check_boundary_recheck;
 use super::*;
 use crate::policy::{BoundaryPolicy, Profile};
 
