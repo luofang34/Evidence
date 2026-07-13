@@ -1929,3 +1929,28 @@ ends of the pipeline.
 """
 verification_methods = ["test"]
 traces_to = ["3e47dd57-e3d6-4b95-95b3-684601471777"]
+
+[[requirements]]
+uid = "d7fd101f-ff38-4bb1-87c1-4ba486fd3714"
+id = "HLR-077"
+title = "Generate captures tests via nextest libtest-json-plus preserving per-binary identity; verify fails closed on lost identity"
+owner = "tool"
+scope = "component"
+description = """
+Generation shall run `cargo nextest run --workspace
+--no-fail-fast --message-format libtest-json-plus` and parse the
+event stream into per-test outcome records that carry package,
+binary, harness, module path, and test name. `--no-fail-fast`
+ensures every test's outcome is recorded even when some fail.
+Records are keyed `{binary}::{module_path}::{name}` so the
+trace's `test_selector`s resolve and same-named tests in
+different binaries stay distinct. Per-test wall-clock time is
+dropped and records are sorted, keeping the bundle deterministic.
+
+Bundle verification shall reject any outcome record that still
+carries the `__unknown_binary__` sentinel
+(`VERIFY_TEST_IDENTITY_UNKNOWN`), catching a regression to
+identity-losing capture at the far end of the pipeline.
+"""
+verification_methods = ["test"]
+traces_to = ["40b3032d-fc8e-4fc0-b93c-0eba35b1bb3d"]

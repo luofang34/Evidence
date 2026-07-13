@@ -2777,3 +2777,51 @@ generate-side half is LLR-091.
 """
 verification_methods = ["test"]
 emits = ["VERIFY_SOURCE_BASELINE_EMPTY"]
+
+[[requirements]]
+uid = "b7e107fa-7fb0-435d-823c-a786221be3a7"
+id = "LLR-093"
+title = "nextest libtest-json-plus parser preserves per-test identity"
+owner = "tool"
+traces_to = ["d7fd101f-ff38-4bb1-87c1-4ba486fd3714"]
+modules = [
+    "evidence_core::bundle::nextest::parse_nextest_libtest_json",
+    "cargo_evidence::cli::generate::phases::run_tests_and_capture",
+]
+description = """
+`parse_nextest_libtest_json` reads nextest's `libtest-json-plus`
+stream: `test` events (`{crate}::{binary}${module::path::name}`)
+become `TestOutcomeRecord`s with package, binary, harness, and a
+`module_path` reconstructed to begin with the binary, so
+`{module_path}::{name}` equals the trace `test_selector` format;
+`suite` events supply the aggregate `TestSummary`. Per-test
+`exec_time` is deliberately not recorded and records are sorted,
+so `test_outcomes.jsonl` stays byte-deterministic (SYS-003).
+
+`run_tests_and_capture` runs `cargo nextest run --workspace
+--no-fail-fast --message-format libtest-json-plus` through the
+builder's `run_capture` and feeds its stdout to the parser.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "50e04423-81fb-436d-a088-62e4639301a6"
+id = "LLR-094"
+title = "verify fails closed on lost test-execution identity"
+owner = "tool"
+traces_to = ["d7fd101f-ff38-4bb1-87c1-4ba486fd3714"]
+modules = [
+    "evidence_core::verify::test_identity::check_test_identity",
+]
+description = """
+`check_test_identity` scans `tests/test_outcomes.jsonl` inside
+`verify_bundle_with_key` and pushes
+`VerifyError::TestIdentityUnknown` for any record whose
+`module_path` still carries the `__unknown_binary__` sentinel —
+the machine-readable capture never emits it, so its presence
+means identity was lost and LLR selectors would dangle. This is
+the verify-side regression guard for the generate-side capture in
+LLR-093.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_TEST_IDENTITY_UNKNOWN"]
