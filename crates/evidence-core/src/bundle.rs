@@ -25,6 +25,7 @@ mod command_failure;
 mod error;
 mod index;
 mod input_scope;
+mod nextest;
 mod outcome_record;
 mod run_capture;
 mod signing;
@@ -40,6 +41,7 @@ pub use input_scope::{
     InputEntry, InputReason, InputScopeError, ResolvedUnit, WORKSPACE_CONTROL_PATHSPECS,
     assemble_input_plan, build_input_plan_blocking, resolve_in_scope_units,
 };
+pub use nextest::{NextestRun, parse_nextest_libtest_json};
 pub use outcome_record::{TestOutcomeRecord, TestsError};
 pub use signing::{
     SigningError, generate_signing_key, read_signing_key, read_verifying_key, sign_bundle,

@@ -183,6 +183,14 @@ impl std::fmt::Display for VerifyError {
                      reproducibility claim with zero recorded inputs"
                 )
             }
+            VerifyError::TestIdentityUnknown { test } => {
+                write!(
+                    f,
+                    "test outcome '{test}' lost its binary identity \
+                     (__unknown_binary__); LLR test_selectors cannot resolve to a \
+                     test whose executing binary is unknown"
+                )
+            }
         }
     }
 }

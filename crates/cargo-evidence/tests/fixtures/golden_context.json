@@ -644,6 +644,24 @@
       "verification_methods": [
         "test"
       ]
+    },
+    {
+      "id": "LLR-093",
+      "uid": "b7e107fa-7fb0-435d-823c-a786221be3a7",
+      "layer": "llr",
+      "title": "nextest libtest-json-plus parser preserves per-test identity",
+      "description": "`parse_nextest_libtest_json` reads nextest's `libtest-json-plus`\nstream: `test` events (`{crate}::{binary}${module::path::name}`)\nbecome `TestOutcomeRecord`s with package, binary, harness, and a\n`module_path` reconstructed to begin with the binary, so\n`{module_path}::{name}` equals the trace `test_selector` format;\n`suite` events supply the aggregate `TestSummary`. Per-test\n`exec_time` is deliberately not recorded and records are sorted,\nso `test_outcomes.jsonl` stays byte-deterministic (SYS-003).\n\n`run_tests_and_capture` runs `cargo nextest run --workspace\n--no-fail-fast --message-format libtest-json-plus` through the\nbuilder's `run_capture` and feeds its stdout to the parser.\n",
+      "modules": [
+        "evidence_core::bundle::nextest::parse_nextest_libtest_json",
+        "cargo_evidence::cli::generate::phases::run_tests_and_capture"
+      ],
+      "emits": [],
+      "traces_to": [
+        "d7fd101f-ff38-4bb1-87c1-4ba486fd3714"
+      ],
+      "verification_methods": [
+        "test"
+      ]
     }
   ],
   "parents": [
@@ -891,6 +909,15 @@
       ]
     },
     {
+      "id": "HLR-077",
+      "uid": "d7fd101f-ff38-4bb1-87c1-4ba486fd3714",
+      "layer": "hlr",
+      "title": "Generate captures tests via nextest libtest-json-plus preserving per-binary identity; verify fails closed on lost identity",
+      "traces_to": [
+        "40b3032d-fc8e-4fc0-b93c-0eba35b1bb3d"
+      ]
+    },
+    {
       "id": "SYS-002",
       "uid": "0e42b90f-88d7-408f-8843-0a3335279360",
       "layer": "sys",
@@ -1029,6 +1056,13 @@
       "layer": "sys",
       "title": "Bundle shall record a complete, canonically-identified source-input baseline; certification fails closed on empty or unresolved scope",
       "traces_to": []
+    },
+    {
+      "id": "SYS-033",
+      "uid": "40b3032d-fc8e-4fc0-b93c-0eba35b1bb3d",
+      "layer": "sys",
+      "title": "Bundle shall preserve per-test execution identity so every declared test selector resolves to an executed result",
+      "traces_to": []
     }
   ],
   "tests": [
@@ -1051,8 +1085,8 @@
       "uid": "da6f4884-9fdc-45bc-b6f7-21f115103ee2",
       "name": "Dangling LLR (test-verified, no matching test record) fires VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
       "selectors": [
-        "verify::llr_selectors::tests::llr_present_in_requirement_uids_passes",
-        "verify::llr_selectors::tests::llr_with_no_matching_test_outcome_fires_unresolved"
+        "evidence_core::verify::llr_selectors::tests::llr_present_in_requirement_uids_passes",
+        "evidence_core::verify::llr_selectors::tests::llr_with_no_matching_test_outcome_fires_unresolved"
       ],
       "traces_to": [
         "4bd86c6c-1743-4a78-9d17-c284b3ad8e04"
@@ -1169,11 +1203,11 @@
       "uid": "eb395589-4eb1-4052-b215-2d424085e694",
       "name": "anchor consistency: missing / match / mismatch",
       "selectors": [
-        "cli::generate::finalize::tests::anchor_absent_is_ok",
-        "cli::generate::finalize::tests::anchor_match_is_ok",
-        "cli::generate::finalize::tests::anchor_mismatch_refuses",
-        "cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
-        "cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env"
+        "cargo-evidence::cli::generate::finalize::tests::anchor_absent_is_ok",
+        "cargo-evidence::cli::generate::finalize::tests::anchor_match_is_ok",
+        "cargo-evidence::cli::generate::finalize::tests::anchor_mismatch_refuses",
+        "cargo-evidence::cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
+        "cargo-evidence::cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env"
       ],
       "traces_to": [
         "3f015ac7-8a76-405b-a180-a2f0183a4b85"
@@ -1182,9 +1216,9 @@
     {
       "id": "TEST-104",
       "uid": "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5",
-      "name": "captured baseline agrees with an independent enumeration (hermetic temp worktree)",
+      "name": "captured source baseline agrees with an independent git enumeration",
       "selectors": [
-        "evidence_core::bundle::input_scope::tests::plan_agrees_with_independent_git_enumeration_in_a_temp_worktree"
+        "input_baseline::captured_baseline_agrees_with_independent_enumeration"
       ],
       "traces_to": [
         "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
@@ -1278,12 +1312,23 @@
       ]
     },
     {
+      "id": "TEST-107",
+      "uid": "dd5a798f-aa1c-4e67-b88c-1e5832b55dce",
+      "name": "cli context verb emits CONTEXT_* terminals over the wire",
+      "selectors": [
+        "cli_context::context_human_mode_workspace_overview_exits_zero"
+      ],
+      "traces_to": [
+        "dde74fce-62f8-4f33-b161-e21ee8b4627d"
+      ]
+    },
+    {
       "id": "TEST-089",
       "uid": "27e2ee62-9591-4353-9ced-2f009ba7de97",
       "name": "context::error variants map to documented CONTEXT_* codes",
       "selectors": [
-        "context::tests::missing_trace_root_returns_trace_not_configured",
-        "context::tests::selector_out_of_scope_preserves_raw_input"
+        "evidence_core::context::tests::missing_trace_root_returns_trace_not_configured",
+        "evidence_core::context::tests::selector_out_of_scope_preserves_raw_input"
       ],
       "traces_to": [
         "ca6f202f-8957-4ba3-adb5-fbc7054e9197"
@@ -1369,13 +1414,13 @@
       "uid": "92ca41f0-30ba-4c22-8dd0-0aa0b7d96111",
       "name": "keygen lifecycle: create / refuse-overwrite / rotate / log",
       "selectors": [
-        "cli::keygen::tests::first_time_create_writes_both_files",
-        "cli::keygen::tests::refuses_overwrite_without_rotate",
-        "cli::keygen::tests::rotate_appends_each_log_line",
-        "cli::keygen::tests::rotate_overwrites_and_logs",
-        "cli::keygen::tests::rotate_requires_existing_pair",
-        "cli::keygen::tests::rotate_without_reason_is_an_error",
-        "cli::keygen::tests::signing_key_chmod_600_on_unix"
+        "cargo-evidence::cli::keygen::tests::first_time_create_writes_both_files",
+        "cargo-evidence::cli::keygen::tests::refuses_overwrite_without_rotate",
+        "cargo-evidence::cli::keygen::tests::rotate_appends_each_log_line",
+        "cargo-evidence::cli::keygen::tests::rotate_overwrites_and_logs",
+        "cargo-evidence::cli::keygen::tests::rotate_requires_existing_pair",
+        "cargo-evidence::cli::keygen::tests::rotate_without_reason_is_an_error",
+        "cargo-evidence::cli::keygen::tests::signing_key_chmod_600_on_unix"
       ],
       "traces_to": [
         "2edcdfa5-d7e7-4115-a3fa-8ed36354aa1b"
@@ -1405,6 +1450,30 @@
       ],
       "traces_to": [
         "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
+      ]
+    },
+    {
+      "id": "TEST-110",
+      "uid": "db6175ca-a05e-4b78-a5f2-00754a3a86fa",
+      "name": "nextest parser aggregates suite counts and emits deterministic sorted records",
+      "selectors": [
+        "evidence_core::bundle::nextest::tests::records_are_sorted_for_determinism",
+        "evidence_core::bundle::nextest::tests::summary_aggregates_across_suites"
+      ],
+      "traces_to": [
+        "b7e107fa-7fb0-435d-823c-a786221be3a7"
+      ]
+    },
+    {
+      "id": "TEST-109",
+      "uid": "60969bce-5b4a-4997-a442-5659f51151be",
+      "name": "nextest parser reconstructs selector-matching identity for unit and integration tests",
+      "selectors": [
+        "evidence_core::bundle::nextest::tests::integration_test_bare_fn_identity",
+        "evidence_core::bundle::nextest::tests::unit_test_identity_matches_selector_format"
+      ],
+      "traces_to": [
+        "b7e107fa-7fb0-435d-823c-a786221be3a7"
       ]
     },
     {
@@ -1576,8 +1645,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 166,
-      "floor": 166
+      "current": 167,
+      "floor": 167
     }
   ],
   "boundary": {

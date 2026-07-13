@@ -399,6 +399,11 @@ pub const RULES: &[RuleEntry] = &[
         Domain::Verify,
     ),
     r(
+        "VERIFY_TEST_IDENTITY_UNKNOWN",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
         "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
         Severity::Error,
         Domain::Verify,

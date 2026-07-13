@@ -1099,6 +1099,13 @@
     "terminal": false
   },
   {
+    "code": "VERIFY_TEST_IDENTITY_UNKNOWN",
+    "severity": "error",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
     "severity": "error",
     "domain": "verify",
