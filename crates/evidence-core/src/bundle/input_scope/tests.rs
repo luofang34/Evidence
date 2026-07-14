@@ -251,6 +251,33 @@ fn enumerate_walks_only_when_not_a_worktree() {
 }
 
 #[test]
+fn fresh_git_init_with_untracked_sources_stays_in_git_mode() {
+    // A workspace that IS its own repo (`root/.git`) but has staged
+    // nothing must NOT fall back to a filesystem walk — walking would
+    // capture the untracked sources and let a zero-tracked-inputs
+    // workspace succeed. Staying in Git mode yields an empty
+    // enumeration, so the downstream empty-scope guard fails closed.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    run_git(root, &["init", "-q"]);
+    std::fs::create_dir_all(root.join("src")).expect("mkdir");
+    std::fs::write(root.join("src/untracked.rs"), b"// never git-added").expect("w");
+
+    assert_eq!(
+        decide_enumeration(root).expect("decide"),
+        Enumeration::Git,
+        "a repo rooted at the workspace must own enumeration even with nothing tracked"
+    );
+    // Git over an all-untracked tree yields no inputs — a walk would
+    // have returned src/untracked.rs and masked the gap.
+    let files = enumerate_pathspecs(root, &["src"]).expect("enumerate");
+    assert!(
+        files.is_empty(),
+        "git enumeration of untracked-only sources must be empty, got {files:?}"
+    );
+}
+
+#[test]
 fn git_failure_inside_a_worktree_propagates_instead_of_walking() {
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path();
@@ -313,20 +340,30 @@ fn plan_agrees_with_independent_git_enumeration_in_a_temp_worktree() {
     let control = enumerate_pathspecs(root, &["Cargo.toml", "Cargo.lock"]).expect("control files");
     let plan = assemble_input_plan(&[(unit, unit_files)], &[], &control).expect("plan");
 
-    // Write the actual `inputs_hashes.json` artifact (as the builder
-    // does: BTreeMap<path, sha256>), then read it back and inspect its
-    // keys — not just the intermediate plan.
-    let mut inputs: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    // Drive the plan through the PRODUCTION write path — the real
+    // `EvidenceBuilder::hash_input_under` + `write_inputs` — instead of
+    // a hand-rolled BTreeMap + serde, so this test cannot drift from the
+    // on-disk `inputs_hashes.json` format the bundle actually ships.
+    let out = tempfile::tempdir().expect("out");
+    let config = crate::bundle::EvidenceBuildConfig {
+        output_root: out.path().to_path_buf(),
+        profile: crate::Profile::Dev,
+        in_scope_crates: vec![],
+        trace_roots: vec![],
+        require_clean_git: false,
+        fail_on_dirty: false,
+        dal_map: std::collections::BTreeMap::new(),
+        boundary_policy: crate::BoundaryPolicy::default(),
+    };
+    let mut builder =
+        crate::bundle::EvidenceBuilder::new_with_provider(config, MockGit).expect("builder");
     for e in &plan {
-        inputs.insert(
-            e.path.clone(),
-            crate::hash::sha256_file(&root.join(&e.path)).expect("hash"),
-        );
+        builder.hash_input_under(root, &e.path).expect("hash input");
     }
-    let out = dir.path().join("inputs_hashes.json");
-    std::fs::write(&out, serde_json::to_vec_pretty(&inputs).expect("ser")).expect("write");
+    let manifest = builder.write_inputs().expect("write_inputs");
+
     let read_back: std::collections::BTreeMap<String, String> =
-        serde_json::from_slice(&std::fs::read(&out).expect("read")).expect("de");
+        serde_json::from_slice(&std::fs::read(&manifest).expect("read")).expect("de");
     let captured: Vec<String> = read_back.keys().cloned().collect();
 
     let mut expected: Vec<String> = git_stdout(
@@ -346,6 +383,36 @@ fn plan_agrees_with_independent_git_enumeration_in_a_temp_worktree() {
         !captured.iter().any(|p| p.contains("untracked")),
         "untracked file must be excluded"
     );
+    // Each recorded digest must match a direct hash of the file the key
+    // names — the builder didn't just record keys, it hashed content.
+    for (key, digest) in &read_back {
+        assert_eq!(
+            digest,
+            &crate::hash::sha256_file(&root.join(key)).expect("hash"),
+            "recorded hash for {key} must match its file content"
+        );
+    }
+}
+
+/// Minimal clean [`GitProvider`](crate::traits::GitProvider) for the
+/// source-baseline acceptance test: the builder captures git state at
+/// construction, but this test exercises the input-hashing/write path,
+/// not git provenance, so a fixed clean snapshot suffices.
+struct MockGit;
+
+impl crate::traits::GitProvider for MockGit {
+    fn sha(&self) -> Result<String, crate::git::GitError> {
+        Ok("0000000000000000000000000000000000000000".to_string())
+    }
+    fn branch(&self) -> Result<String, crate::git::GitError> {
+        Ok("main".to_string())
+    }
+    fn is_dirty(&self) -> Result<bool, crate::git::GitError> {
+        Ok(false)
+    }
+    fn dirty_files(&self) -> Result<Vec<String>, crate::git::GitError> {
+        Ok(vec![])
+    }
 }
 
 /// The nested-untracked counterexample: a packaged workspace unpacked under a

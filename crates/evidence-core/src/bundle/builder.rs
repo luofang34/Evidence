@@ -22,7 +22,7 @@ use super::run_capture::run_capture as do_run_capture;
 use super::test_summary::TestSummary;
 use super::time::{utc_compact_stamp, utc_now_rfc3339};
 use crate::git::{GitSnapshot, RealGitProvider};
-use crate::hash::{hash_file_into, hash_file_relative_into, write_sha256sums};
+use crate::hash::{hash_file_relative_into, write_sha256sums};
 use crate::policy::Profile;
 use crate::traits::GitProvider;
 
@@ -195,9 +195,19 @@ impl EvidenceBuilder {
         &self.bundle_dir
     }
 
-    /// Hash a file and add to inputs.
+    /// Hash a file into inputs, keyed by `path`. Wrapper over [`Self::hash_input_under`].
     pub fn hash_input(&mut self, path: &str) -> Result<(), BuilderError> {
-        Ok(hash_file_into(&mut self.inputs, path)?)
+        self.hash_input_under(Path::new("."), path)
+    }
+
+    /// Hash `base/rel_path`, keyed by the workspace-relative
+    /// `rel_path`. The source-baseline write seam: production passes the
+    /// CWD; the acceptance test passes a temp workspace so it drives the
+    /// real [`Self::write_inputs`] without chdir.
+    pub fn hash_input_under(&mut self, base: &Path, rel_path: &str) -> Result<(), BuilderError> {
+        let hash = crate::hash::sha256_file(&base.join(rel_path))?;
+        self.inputs.insert(rel_path.to_string(), hash);
+        Ok(())
     }
 
     /// Hash a file with relative path and add to outputs.

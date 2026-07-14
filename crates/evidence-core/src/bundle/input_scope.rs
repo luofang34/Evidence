@@ -183,21 +183,40 @@ enum Enumeration {
     Walk,
 }
 
-/// Decide the enumeration mode once for the workspace. Git owns the
-/// enumeration only when it actually TRACKS files under `root` — a
-/// `.git` ancestor alone is not enough. A packaged workspace unpacked
-/// under a repository's git-ignored `target/` has a `.git` ancestor yet
-/// zero tracked files (`git ls-files` returns empty), and must be
-/// walked. A git command that FAILS while a repository marker is present
+/// Decide the enumeration mode once for the workspace.
+///
+/// Git owns the enumeration when it TRACKS files under `root`, and also
+/// when the repository is rooted *exactly* at `root` (a `root/.git`
+/// entry) even with nothing tracked yet: a workspace that is its own
+/// repo but has staged no sources is a genuine "zero tracked inputs"
+/// case, so it stays in Git mode and lets the empty-scope guard fail
+/// closed rather than masking the gap with a filesystem walk.
+///
+/// The walk is reserved for a workspace with no repository of its own —
+/// a crates.io tarball, a Nix build sandbox, or a packaged workspace
+/// unpacked under *another* repo's git-ignored subtree (a `.git`
+/// ancestor but no `root/.git`, and `git ls-files` empty): there the
+/// sources are legitimately untracked and a walk is the only way to
+/// capture them.
+///
+/// A git command that FAILS while a repository marker is present
 /// (corrupt repo, permissions) propagates rather than silently walking;
 /// a failure with no repository present is "not a repo" and walks.
 fn decide_enumeration(root: &Path) -> Result<Enumeration, InputScopeError> {
     match git_ls_files_in(root, &["."]) {
         Ok(files) if !files.is_empty() => Ok(Enumeration::Git),
+        Ok(_) if git_dir_at_root(root) => Ok(Enumeration::Git),
         Ok(_) => Ok(Enumeration::Walk),
         Err(e) if has_git_marker(root) => Err(InputScopeError::GitLsFiles(e)),
         Err(_) => Ok(Enumeration::Walk),
     }
+}
+
+/// True iff `root` itself carries a `.git` entry (a directory, or the
+/// file form worktrees/submodules use) — i.e. the repository is rooted
+/// exactly here, not merely in an ancestor.
+fn git_dir_at_root(root: &Path) -> bool {
+    root.join(".git").exists()
 }
 
 fn enumerate_with(
