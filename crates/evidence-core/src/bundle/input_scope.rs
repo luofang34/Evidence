@@ -19,6 +19,8 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use thiserror::Error;
 
+use walkdir::WalkDir;
+
 use crate::git::{GitError, git_ls_files_in};
 use crate::util::{CmdError, cmd_stdout};
 
@@ -119,6 +121,15 @@ pub enum InputScopeError {
     /// `git ls-files` failed while enumerating a unit or control set.
     #[error("running `git ls-files` for scope resolution")]
     GitLsFiles(#[source] GitError),
+    /// The no-git filesystem-walk fallback failed to read a directory.
+    #[error("walking '{path}' for scope resolution (no-git fallback)")]
+    Walk {
+        /// The directory being walked when the error occurred.
+        path: String,
+        /// Underlying walk error.
+        #[source]
+        source: walkdir::Error,
+    },
 }
 
 /// Resolve in-scope packages and assemble the full input plan by
@@ -137,14 +148,65 @@ pub fn build_input_plan_blocking(
     let units = resolve_in_scope_units(&json, in_scope)?;
     let mut unit_files: Vec<(ResolvedUnit, Vec<String>)> = Vec::with_capacity(units.len());
     for unit in units {
-        let files = git_ls_files_in(&root, &[unit.rel_dir.as_str()])
-            .map_err(InputScopeError::GitLsFiles)?;
+        let files = enumerate_pathspecs(&root, &[unit.rel_dir.as_str()])?;
         unit_files.push((unit, files));
     }
     check_required_inputs_exist(&root, required_inputs)?;
-    let control =
-        git_ls_files_in(&root, WORKSPACE_CONTROL_PATHSPECS).map_err(InputScopeError::GitLsFiles)?;
+    let control = enumerate_pathspecs(&root, WORKSPACE_CONTROL_PATHSPECS)?;
     assemble_input_plan(&unit_files, required_inputs, &control)
+}
+
+/// Enumerate tracked files under `pathspecs` (relative to `root`). Uses
+/// `git ls-files` in a git working tree; a packaged source with no
+/// `.git` (a Nix build sandbox, a crates.io tarball) falls back to a
+/// filesystem walk so the source baseline is still captured rather than
+/// empty. Git enumeration is preferred because it honors `.gitignore`;
+/// the fallback excludes `target/` and `.git/` explicitly.
+fn enumerate_pathspecs(root: &Path, pathspecs: &[&str]) -> Result<Vec<String>, InputScopeError> {
+    match git_ls_files_in(root, pathspecs) {
+        Ok(files) => Ok(files),
+        // A git failure here means "not a working tree" (packaged
+        // source) far more often than a real fault; walk the filesystem
+        // so the baseline is captured. `follow_links(false)` keeps the
+        // walk cert-correct (no out-of-tree symlink targets).
+        Err(_) => walk_pathspecs(root, pathspecs),
+    }
+}
+
+fn walk_pathspecs(root: &Path, pathspecs: &[&str]) -> Result<Vec<String>, InputScopeError> {
+    let mut files: Vec<String> = Vec::new();
+    for spec in pathspecs {
+        let abs = root.join(spec);
+        if abs.is_file() {
+            files.push(spec.replace('\\', "/"));
+        } else if abs.is_dir() {
+            for entry in WalkDir::new(&abs)
+                .follow_links(false)
+                .into_iter()
+                .filter_entry(|e| !is_excluded(e))
+            {
+                let entry = entry.map_err(|source| InputScopeError::Walk {
+                    path: abs.display().to_string(),
+                    source,
+                })?;
+                if entry.file_type().is_file()
+                    && let Ok(rel) = entry.path().strip_prefix(root)
+                {
+                    files.push(to_forward_slash(rel));
+                }
+            }
+        }
+    }
+    files.sort();
+    files.dedup();
+    Ok(files)
+}
+
+/// Directories the no-git walk never descends into: build output and
+/// the git metadata dir itself.
+fn is_excluded(entry: &walkdir::DirEntry) -> bool {
+    entry.file_type().is_dir()
+        && matches!(entry.file_name().to_str(), Some("target") | Some(".git"))
 }
 
 /// Verify every declared required input exists under `root`. Declared

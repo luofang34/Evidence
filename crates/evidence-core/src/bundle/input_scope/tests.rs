@@ -145,6 +145,33 @@ fn zero_total_inputs_fails_closed() {
 }
 
 #[test]
+fn walk_fallback_captures_files_and_excludes_target_and_git() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("crates/pkg/src")).expect("mkdir");
+    std::fs::write(root.join("crates/pkg/src/lib.rs"), b"// src").expect("w");
+    std::fs::write(root.join("crates/pkg/Cargo.toml"), b"[package]").expect("w");
+    std::fs::write(root.join("Cargo.toml"), b"[workspace]").expect("w");
+    // Must be excluded:
+    std::fs::create_dir_all(root.join("crates/pkg/target/debug")).expect("mkdir");
+    std::fs::write(root.join("crates/pkg/target/debug/pkg"), b"binary").expect("w");
+    std::fs::create_dir_all(root.join(".git")).expect("mkdir");
+    std::fs::write(root.join(".git/HEAD"), b"ref").expect("w");
+
+    // A dir pathspec walks; a file pathspec includes just that file.
+    let files = walk_pathspecs(root, &["crates/pkg", "Cargo.toml"]).expect("walk");
+    assert_eq!(
+        files,
+        vec![
+            "Cargo.toml".to_string(),
+            "crates/pkg/Cargo.toml".to_string(),
+            "crates/pkg/src/lib.rs".to_string(),
+        ],
+        "target/ and .git/ excluded; source captured, sorted"
+    );
+}
+
+#[test]
 fn required_input_presence_is_checked() {
     let dir = tempfile::tempdir().expect("tempdir");
     std::fs::create_dir_all(dir.path().join("gen")).expect("mkdir");
