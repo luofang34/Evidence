@@ -1203,11 +1203,11 @@
       "uid": "eb395589-4eb1-4052-b215-2d424085e694",
       "name": "anchor consistency: missing / match / mismatch",
       "selectors": [
-        "cargo-evidence::cli::generate::finalize::tests::anchor_absent_is_ok",
-        "cargo-evidence::cli::generate::finalize::tests::anchor_match_is_ok",
-        "cargo-evidence::cli::generate::finalize::tests::anchor_mismatch_refuses",
-        "cargo-evidence::cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
-        "cargo-evidence::cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env"
+        "cargo_evidence::cli::generate::finalize::tests::anchor_absent_is_ok",
+        "cargo_evidence::cli::generate::finalize::tests::anchor_match_is_ok",
+        "cargo_evidence::cli::generate::finalize::tests::anchor_mismatch_refuses",
+        "cargo_evidence::cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
+        "cargo_evidence::cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env"
       ],
       "traces_to": [
         "3f015ac7-8a76-405b-a180-a2f0183a4b85"
@@ -1414,13 +1414,13 @@
       "uid": "92ca41f0-30ba-4c22-8dd0-0aa0b7d96111",
       "name": "keygen lifecycle: create / refuse-overwrite / rotate / log",
       "selectors": [
-        "cargo-evidence::cli::keygen::tests::first_time_create_writes_both_files",
-        "cargo-evidence::cli::keygen::tests::refuses_overwrite_without_rotate",
-        "cargo-evidence::cli::keygen::tests::rotate_appends_each_log_line",
-        "cargo-evidence::cli::keygen::tests::rotate_overwrites_and_logs",
-        "cargo-evidence::cli::keygen::tests::rotate_requires_existing_pair",
-        "cargo-evidence::cli::keygen::tests::rotate_without_reason_is_an_error",
-        "cargo-evidence::cli::keygen::tests::signing_key_chmod_600_on_unix"
+        "cargo_evidence::cli::keygen::tests::first_time_create_writes_both_files",
+        "cargo_evidence::cli::keygen::tests::refuses_overwrite_without_rotate",
+        "cargo_evidence::cli::keygen::tests::rotate_appends_each_log_line",
+        "cargo_evidence::cli::keygen::tests::rotate_overwrites_and_logs",
+        "cargo_evidence::cli::keygen::tests::rotate_requires_existing_pair",
+        "cargo_evidence::cli::keygen::tests::rotate_without_reason_is_an_error",
+        "cargo_evidence::cli::keygen::tests::signing_key_chmod_600_on_unix"
       ],
       "traces_to": [
         "2edcdfa5-d7e7-4115-a3fa-8ed36354aa1b"

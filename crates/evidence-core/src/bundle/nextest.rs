@@ -128,11 +128,19 @@ struct Identity {
 /// binary (`{binary}` or `{binary}::{module}`) so `{module_path}::{name}`
 /// equals the `test_selector` format the trace uses, and tests with the
 /// same name in different binaries stay distinguishable.
+///
+/// The binary is normalized to its crate-identifier form (`-` → `_`).
+/// nextest reports a bin target's name verbatim (e.g. `cargo-evidence`),
+/// but the module-path convention and the libtest-text capture path both
+/// use the underscored identifier (`cargo_evidence`, from the
+/// `deps/cargo_evidence-<hash>` filename). Normalizing here keeps one
+/// canonical key so `check` (text) and `verify` (nextest) resolve the
+/// same selectors.
 fn parse_identity(name: &str) -> Identity {
     let (prefix, rest) = name.split_once('$').unwrap_or(("", name));
     let (package, binary) = match prefix.rsplit_once("::") {
-        Some((pkg, bin)) => (pkg.to_string(), bin.to_string()),
-        None => (String::new(), prefix.to_string()),
+        Some((pkg, bin)) => (pkg.to_string(), bin.replace('-', "_")),
+        None => (String::new(), prefix.replace('-', "_")),
     };
     let (module_chain, test_name) = match rest.rsplit_once("::") {
         Some((m, t)) => (m, t),

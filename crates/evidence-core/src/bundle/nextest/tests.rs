@@ -43,6 +43,24 @@ fn unit_test_identity_matches_selector_format() {
 }
 
 #[test]
+fn hyphenated_bin_binary_is_normalized_to_underscore() {
+    // A `cargo-evidence` bin unit test: nextest reports the target name
+    // verbatim, but the key must use the underscored identifier so it
+    // matches the libtest-text capture (`check`) and the module-path
+    // convention.
+    let line = r#"{"type":"test","event":"ok","name":"cargo-evidence::cargo-evidence$cli::keygen::tests::rotate_overwrites_and_logs"}"#;
+    let run = parse_nextest_libtest_json(line);
+    let rec = run.records.first().expect("record");
+    assert_eq!(rec.package, "cargo-evidence");
+    assert_eq!(rec.binary, "cargo_evidence");
+    assert_eq!(rec.module_path, "cargo_evidence::cli::keygen::tests");
+    assert_eq!(
+        format!("{}::{}", rec.module_path, rec.name),
+        "cargo_evidence::cli::keygen::tests::rotate_overwrites_and_logs"
+    );
+}
+
+#[test]
 fn integration_test_bare_fn_identity() {
     let run = parse_nextest_libtest_json(&stream());
     let rec = run
