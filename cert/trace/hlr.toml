@@ -1954,3 +1954,29 @@ identity-losing capture at the far end of the pipeline.
 """
 verification_methods = ["test"]
 traces_to = ["40b3032d-fc8e-4fc0-b93c-0eba35b1bb3d"]
+
+[[requirements]]
+uid = "a4b1c88d-2f16-4086-86d7-1a7a8094055f"
+id = "HLR-078"
+title = "Generate inventories workspace compiler artifacts and hashes each deliverable; verify fails closed on empty outputs when a build ran"
+owner = "tool"
+scope = "component"
+description = """
+After the test phase compiles the workspace, generation shall run
+`cargo build --workspace --message-format=json` and parse the
+`compiler-artifact` messages, keeping the `lib` and `bin`
+deliverables of workspace members (package id under the workspace
+root) and excluding build scripts, proc-macros, and external
+dependencies. Each produced file is hashed into
+`outputs_hashes.json` under its workspace-relative path; results
+are sorted for deterministic ordering. The phase is skipped under
+`--skip-tests`, which compiles nothing.
+
+Fail-closed obligations: strict (cert/record) generation fails
+when a build produced no deliverables or an artifact cannot be
+hashed. Bundle verification rejects an empty `outputs_hashes.json`
+on any bundle that recorded a test summary
+(`VERIFY_OUTPUT_MANIFEST_EMPTY`).
+"""
+verification_methods = ["test"]
+traces_to = ["4ce28d5c-374d-4e96-bcee-e283ff829db9"]
