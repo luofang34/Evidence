@@ -1599,10 +1599,10 @@ test_selector = "evidence_core::verify::source_baseline::tests::non_empty_object
 [[tests]]
 uid = "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5"
 id = "TEST-104"
-title = "in-scope enumeration uses git inside a worktree, walks a packaged (non-git) source"
+title = "captured baseline agrees with an independent enumeration (hermetic temp worktree)"
 owner = "tool"
 traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
-test_selector = "evidence_core::bundle::input_scope::tests::enumerate_uses_git_inside_a_worktree"
+test_selector = "evidence_core::bundle::input_scope::tests::plan_agrees_with_independent_git_enumeration_in_a_temp_worktree"
 
 [[tests]]
 uid = "a62df89e-3e18-42dc-9215-b0c69de20b6f"

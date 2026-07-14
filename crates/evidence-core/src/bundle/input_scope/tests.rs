@@ -191,7 +191,14 @@ fn required_input_presence_is_checked() {
 #[test]
 fn required_input_absolute_or_parent_escape_is_rejected() {
     let dir = tempfile::tempdir().expect("tempdir");
-    for bad in ["/etc/passwd", "../outside.rs", "crates/../../escape.rs"] {
+    // Build the absolute case from the tempdir so it is absolute on
+    // every platform (a leading-slash string is not absolute on Windows).
+    let abs = dir
+        .path()
+        .join("anything.rs")
+        .to_string_lossy()
+        .into_owned();
+    for bad in [abs.as_str(), "../outside.rs", "crates/../../escape.rs"] {
         let err = check_required_inputs_exist(dir.path(), &[bad.to_string()])
             .expect_err("escaping required input must be rejected");
         assert!(
@@ -223,7 +230,7 @@ fn enumerate_uses_git_inside_a_worktree() {
     std::fs::write(root.join("src/untracked.rs"), b"// untracked").expect("w");
     run_git(root, &["add", "src/tracked.rs"]);
 
-    assert!(is_git_worktree(root));
+    assert!(has_git_marker(root));
     // Git path: only the tracked file — a filesystem walk would also
     // return the untracked one.
     let files = enumerate_pathspecs(root, &["src"]).expect("enumerate");
@@ -238,7 +245,7 @@ fn enumerate_walks_only_when_not_a_worktree() {
     std::fs::write(root.join("src/a.rs"), b"a").expect("w");
     std::fs::write(root.join("src/b.rs"), b"b").expect("w");
 
-    assert!(!is_git_worktree(root));
+    assert!(!has_git_marker(root));
     let files = enumerate_pathspecs(root, &["src"]).expect("enumerate");
     assert_eq!(files, vec!["src/a.rs".to_string(), "src/b.rs".to_string()]);
 }
@@ -254,9 +261,74 @@ fn git_failure_inside_a_worktree_propagates_instead_of_walking() {
     // working tree: the error must propagate, not silently fall back.
     std::fs::write(root.join(".git/index"), b"not a valid git index").expect("corrupt");
     assert!(
-        is_git_worktree(root),
+        has_git_marker(root),
         "still a worktree after index corruption"
     );
     let err = enumerate_pathspecs(root, &["."]).expect_err("git failure must propagate");
     assert!(matches!(err, InputScopeError::GitLsFiles(_)), "got {err:?}");
+}
+
+fn git_stdout(dir: &Path, args: &[&str]) -> String {
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .output()
+        .expect("spawn git");
+    assert!(out.status.success(), "git {args:?} failed");
+    String::from_utf8(out.stdout).expect("utf-8")
+}
+
+/// End-to-end guard (#138 AC): the assembled input plan agrees exactly
+/// with an independent `git ls-files` enumeration over the same
+/// pathspecs — hermetic, in a temporary git working tree.
+#[test]
+fn plan_agrees_with_independent_git_enumeration_in_a_temp_worktree() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    run_git(root, &["init", "-q"]);
+    std::fs::create_dir_all(root.join("crates/pkg/src")).expect("mkdir");
+    std::fs::write(root.join("crates/pkg/src/lib.rs"), b"// lib").expect("w");
+    std::fs::write(root.join("crates/pkg/Cargo.toml"), b"[package]").expect("w");
+    std::fs::write(root.join("Cargo.toml"), b"[workspace]").expect("w");
+    std::fs::write(root.join("Cargo.lock"), b"# lock").expect("w");
+    // Untracked: must not be captured (git honors it; a walk would not).
+    std::fs::write(root.join("crates/pkg/src/untracked.rs"), b"// u").expect("w");
+    run_git(
+        root,
+        &[
+            "add",
+            "crates/pkg/src/lib.rs",
+            "crates/pkg/Cargo.toml",
+            "Cargo.toml",
+            "Cargo.lock",
+        ],
+    );
+
+    let unit = ResolvedUnit {
+        name: "pkg".into(),
+        rel_dir: "crates/pkg".into(),
+    };
+    let unit_files = enumerate_pathspecs(root, &[unit.rel_dir.as_str()]).expect("unit files");
+    let control = enumerate_pathspecs(root, &["Cargo.toml", "Cargo.lock"]).expect("control files");
+    let plan = assemble_input_plan(&[(unit, unit_files)], &[], &control).expect("plan");
+    let captured: Vec<String> = plan.iter().map(|e| e.path.clone()).collect();
+
+    let mut expected: Vec<String> = git_stdout(
+        root,
+        &["ls-files", "--", "crates/pkg", "Cargo.toml", "Cargo.lock"],
+    )
+    .lines()
+    .map(str::to_string)
+    .collect();
+    expected.sort();
+
+    assert_eq!(
+        captured, expected,
+        "captured baseline must agree with an independent git enumeration"
+    );
+    assert!(
+        !captured.iter().any(|p| p.contains("untracked")),
+        "untracked file must be excluded"
+    );
 }

@@ -209,7 +209,7 @@ pub(super) fn hash_in_scope_sources(
                         return Err(anyhow::Error::new(e)
                             .context(format!("hashing source file: {}", entry.path)));
                     }
-                    eprintln!("warning: could not hash {}: {}", entry.path, e);
+                    tracing::warn!("could not hash {}: {}", entry.path, e);
                 }
             }
             if !quiet && !json_output {
@@ -220,7 +220,7 @@ pub(super) fn hash_in_scope_sources(
             if strict {
                 return Err(anyhow::Error::new(e).context("resolving in-scope source inputs"));
             }
-            eprintln!("warning: could not resolve source inputs: {}", e);
+            tracing::warn!("could not resolve source inputs: {}", e);
         }
     }
     Ok(())

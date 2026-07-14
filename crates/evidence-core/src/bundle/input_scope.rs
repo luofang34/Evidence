@@ -180,29 +180,32 @@ pub fn build_input_plan_blocking(
 /// empty. Git enumeration is preferred because it honors `.gitignore`;
 /// the fallback excludes `target/` and `.git/` explicitly.
 fn enumerate_pathspecs(root: &Path, pathspecs: &[&str]) -> Result<Vec<String>, InputScopeError> {
-    if is_git_worktree(root) {
-        // Inside a git working tree: trust git (it honors `.gitignore`)
-        // and propagate a real failure — a corrupt repo, a permission
-        // error — rather than masking it by walking the filesystem.
+    if has_git_marker(root) {
+        // Inside a repository: trust git (it honors `.gitignore`) and
+        // propagate a real failure — a corrupt repo, a permission error,
+        // git not installed — rather than masking it by walking the
+        // filesystem (which could capture ignored files).
         git_ls_files_in(root, pathspecs).map_err(InputScopeError::GitLsFiles)
     } else {
-        // Only a packaged source with no working tree (a Nix build
-        // sandbox, a crates.io tarball) falls back to a filesystem walk.
+        // Only the definitive ABSENCE of a repository marker permits the
+        // walk fallback (a Nix build sandbox, a crates.io tarball).
         walk_pathspecs(root, pathspecs)
     }
 }
 
-/// True iff `root` is inside a git working tree. Distinguishes a
-/// packaged source (no `.git` — the walk fallback is correct) from a
-/// git failure that must propagate.
-fn is_git_worktree(root: &Path) -> bool {
-    std::process::Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["rev-parse", "--is-inside-work-tree"])
-        .output()
-        .map(|o| o.status.success() && o.stdout.starts_with(b"true"))
-        .unwrap_or(false)
+/// True iff `root` or any ancestor carries a `.git` marker (a directory,
+/// or the file form used by worktrees/submodules). The decision is a
+/// filesystem check, not a `git` spawn, so an inability to run git can
+/// never be misread as "not a repository" and silently enable the walk.
+fn has_git_marker(root: &Path) -> bool {
+    let mut cur = Some(root);
+    while let Some(dir) = cur {
+        if dir.join(".git").exists() {
+            return true;
+        }
+        cur = dir.parent();
+    }
+    false
 }
 
 fn walk_pathspecs(root: &Path, pathspecs: &[&str]) -> Result<Vec<String>, InputScopeError> {
