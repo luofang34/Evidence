@@ -187,3 +187,76 @@ fn required_input_presence_is_checked() {
         matches!(err, InputScopeError::MissingRequiredInput { path } if path == "gen/missing.rs")
     );
 }
+
+#[test]
+fn required_input_absolute_or_parent_escape_is_rejected() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    for bad in ["/etc/passwd", "../outside.rs", "crates/../../escape.rs"] {
+        let err = check_required_inputs_exist(dir.path(), &[bad.to_string()])
+            .expect_err("escaping required input must be rejected");
+        assert!(
+            matches!(err, InputScopeError::RequiredInputEscape { .. }),
+            "{bad} should be RequiredInputEscape, got {err:?}"
+        );
+    }
+}
+
+fn run_git(dir: &Path, args: &[&str]) {
+    let ok = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .output()
+        .expect("spawn git")
+        .status
+        .success();
+    assert!(ok, "git {args:?} failed");
+}
+
+#[test]
+fn enumerate_uses_git_inside_a_worktree() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    run_git(root, &["init", "-q"]);
+    std::fs::create_dir_all(root.join("src")).expect("mkdir");
+    std::fs::write(root.join("src/tracked.rs"), b"// tracked").expect("w");
+    std::fs::write(root.join("src/untracked.rs"), b"// untracked").expect("w");
+    run_git(root, &["add", "src/tracked.rs"]);
+
+    assert!(is_git_worktree(root));
+    // Git path: only the tracked file — a filesystem walk would also
+    // return the untracked one.
+    let files = enumerate_pathspecs(root, &["src"]).expect("enumerate");
+    assert_eq!(files, vec!["src/tracked.rs".to_string()]);
+}
+
+#[test]
+fn enumerate_walks_only_when_not_a_worktree() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("src")).expect("mkdir");
+    std::fs::write(root.join("src/a.rs"), b"a").expect("w");
+    std::fs::write(root.join("src/b.rs"), b"b").expect("w");
+
+    assert!(!is_git_worktree(root));
+    let files = enumerate_pathspecs(root, &["src"]).expect("enumerate");
+    assert_eq!(files, vec!["src/a.rs".to_string(), "src/b.rs".to_string()]);
+}
+
+#[test]
+fn git_failure_inside_a_worktree_propagates_instead_of_walking() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    run_git(root, &["init", "-q"]);
+    std::fs::write(root.join("f.rs"), b"x").expect("w");
+    run_git(root, &["add", "f.rs"]);
+    // Corrupt the index so `git ls-files` fails while the dir is still a
+    // working tree: the error must propagate, not silently fall back.
+    std::fs::write(root.join(".git/index"), b"not a valid git index").expect("corrupt");
+    assert!(
+        is_git_worktree(root),
+        "still a worktree after index corruption"
+    );
+    let err = enumerate_pathspecs(root, &["."]).expect_err("git failure must propagate");
+    assert!(matches!(err, InputScopeError::GitLsFiles(_)), "got {err:?}");
+}

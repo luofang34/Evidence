@@ -1180,17 +1180,6 @@
       ]
     },
     {
-      "id": "TEST-104",
-      "uid": "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5",
-      "name": "captured source baseline agrees with an independent git enumeration",
-      "selectors": [
-        "input_baseline::captured_baseline_agrees_with_independent_enumeration"
-      ],
-      "traces_to": [
-        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
-      ]
-    },
-    {
       "id": "TEST-090",
       "uid": "e92cf358-fdbb-4213-8362-a66c89331653",
       "name": "cargo evidence context CLI is byte-locked against the golden fixture",
@@ -1314,6 +1303,17 @@
       ],
       "traces_to": [
         "b1377fb5-f879-4edc-9c50-46c5e67c71ad"
+      ]
+    },
+    {
+      "id": "TEST-104",
+      "uid": "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5",
+      "name": "in-scope enumeration uses git inside a worktree, walks a packaged (non-git) source",
+      "selectors": [
+        "evidence_core::bundle::input_scope::tests::enumerate_uses_git_inside_a_worktree"
+      ],
+      "traces_to": [
+        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
       ]
     },
     {
@@ -1576,8 +1576,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 167,
-      "floor": 167
+      "current": 166,
+      "floor": 166
     }
   ],
   "boundary": {

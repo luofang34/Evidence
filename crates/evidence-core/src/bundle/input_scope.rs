@@ -14,7 +14,7 @@
 //! errors — never silent empties.
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde::Deserialize;
 use thiserror::Error;
@@ -115,6 +115,23 @@ pub enum InputScopeError {
         /// The declared workspace-relative path that is missing.
         path: String,
     },
+    /// A declared required input is absolute, contains `..`, or resolves
+    /// (via a symlink) outside the workspace root.
+    #[error("required controlled input '{path}' escapes the workspace root")]
+    RequiredInputEscape {
+        /// The offending declared path.
+        path: String,
+    },
+    /// A declared required input could not be canonicalized for the
+    /// containment check.
+    #[error("canonicalizing required controlled input '{path}'")]
+    RequiredInputIo {
+        /// The path being canonicalized (or the workspace root).
+        path: String,
+        /// Underlying I/O error.
+        #[source]
+        source: std::io::Error,
+    },
     /// `cargo metadata` failed to launch or exited non-zero.
     #[error("running `cargo metadata` for scope resolution")]
     CargoMetadata(#[source] CmdError),
@@ -163,14 +180,29 @@ pub fn build_input_plan_blocking(
 /// empty. Git enumeration is preferred because it honors `.gitignore`;
 /// the fallback excludes `target/` and `.git/` explicitly.
 fn enumerate_pathspecs(root: &Path, pathspecs: &[&str]) -> Result<Vec<String>, InputScopeError> {
-    match git_ls_files_in(root, pathspecs) {
-        Ok(files) => Ok(files),
-        // A git failure here means "not a working tree" (packaged
-        // source) far more often than a real fault; walk the filesystem
-        // so the baseline is captured. `follow_links(false)` keeps the
-        // walk cert-correct (no out-of-tree symlink targets).
-        Err(_) => walk_pathspecs(root, pathspecs),
+    if is_git_worktree(root) {
+        // Inside a git working tree: trust git (it honors `.gitignore`)
+        // and propagate a real failure — a corrupt repo, a permission
+        // error — rather than masking it by walking the filesystem.
+        git_ls_files_in(root, pathspecs).map_err(InputScopeError::GitLsFiles)
+    } else {
+        // Only a packaged source with no working tree (a Nix build
+        // sandbox, a crates.io tarball) falls back to a filesystem walk.
+        walk_pathspecs(root, pathspecs)
     }
+}
+
+/// True iff `root` is inside a git working tree. Distinguishes a
+/// packaged source (no `.git` — the walk fallback is correct) from a
+/// git failure that must propagate.
+fn is_git_worktree(root: &Path) -> bool {
+    std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .map(|o| o.status.success() && o.stdout.starts_with(b"true"))
+        .unwrap_or(false)
 }
 
 fn walk_pathspecs(root: &Path, pathspecs: &[&str]) -> Result<Vec<String>, InputScopeError> {
@@ -214,9 +246,37 @@ fn is_excluded(entry: &walkdir::DirEntry) -> bool {
 /// tracking — is the capture precondition. Fails closed on the first
 /// absent path so a controlled input can never be silently dropped.
 fn check_required_inputs_exist(root: &Path, required: &[String]) -> Result<(), InputScopeError> {
+    if required.is_empty() {
+        return Ok(());
+    }
+    let canon_root = root
+        .canonicalize()
+        .map_err(|source| InputScopeError::RequiredInputIo {
+            path: root.display().to_string(),
+            source,
+        })?;
     for p in required {
-        if !root.join(p).exists() {
+        let rel = Path::new(p);
+        // Reject absolute paths and any parent-dir escape lexically, up
+        // front — a declared controlled input must live inside the
+        // workspace.
+        if rel.is_absolute() || rel.components().any(|c| c == Component::ParentDir) {
+            return Err(InputScopeError::RequiredInputEscape { path: p.clone() });
+        }
+        let full = root.join(rel);
+        if !full.exists() {
             return Err(InputScopeError::MissingRequiredInput { path: p.clone() });
+        }
+        // Canonicalize and confirm containment — defends against a
+        // symlink that survives the lexical check and points out of tree.
+        let canon = full
+            .canonicalize()
+            .map_err(|source| InputScopeError::RequiredInputIo {
+                path: p.clone(),
+                source,
+            })?;
+        if !canon.starts_with(&canon_root) {
+            return Err(InputScopeError::RequiredInputEscape { path: p.clone() });
         }
     }
     Ok(())
