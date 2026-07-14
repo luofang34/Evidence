@@ -214,7 +214,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     // tree", not after. See LLR-048 / cli/doctor.rs::precheck_doctor.
     if matches!(profile, Profile::Cert | Profile::Record) {
         let workspace = std::env::current_dir()?;
-        if let Err(e) = super::doctor::precheck_doctor(&workspace) {
+        if let Err(e) = super::doctor::precheck_doctor(&workspace, skip_tests) {
             return fail_dispatch(profile, e.to_string());
         }
     }

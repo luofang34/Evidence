@@ -77,11 +77,11 @@ impl NextestRun {
         let mut rec_ignored = 0u32;
         for r in &self.records {
             if r.ignored {
-                rec_ignored += 1;
+                rec_ignored = rec_ignored.wrapping_add(1);
             } else if r.passed {
-                rec_passed += 1;
+                rec_passed = rec_passed.wrapping_add(1);
             } else {
-                rec_failed += 1;
+                rec_failed = rec_failed.wrapping_add(1);
             }
         }
         [
