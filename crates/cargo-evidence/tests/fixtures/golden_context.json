@@ -662,6 +662,24 @@
       "verification_methods": [
         "test"
       ]
+    },
+    {
+      "id": "LLR-097",
+      "uid": "89f9de65-c963-4993-ab16-6d153e8c5dd7",
+      "layer": "llr",
+      "title": "generator closure runs the release verifier before emitting GENERATE_OK",
+      "description": "After `finalize_and_sign`, `generator_closure` runs `verify_bundle`\nagainst the just-written bundle. If the verifier rejects it, generate\nemits `GENERATE_FAIL` and returns a non-zero exit instead of\n`GENERATE_OK` — a generated bundle is not complete when the same tool\nrejects the unchanged bundle. `verify_error_blocks_generate` mirrors\n`verify`'s severity partition: a `PrereleaseToolDetected` finding is\nnon-blocking on `dev` only; every other finding, and all findings on\ncert/record, blocks.\n",
+      "modules": [
+        "cargo_evidence::cli::generate::generator_closure",
+        "cargo_evidence::cli::generate::verify_error_blocks_generate"
+      ],
+      "emits": [],
+      "traces_to": [
+        "d7fd101f-ff38-4bb1-87c1-4ba486fd3714"
+      ],
+      "verification_methods": [
+        "test"
+      ]
     }
   ],
   "parents": [
@@ -1214,17 +1232,6 @@
       ]
     },
     {
-      "id": "TEST-104",
-      "uid": "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5",
-      "name": "captured source baseline agrees with an independent git enumeration",
-      "selectors": [
-        "input_baseline::captured_baseline_agrees_with_independent_enumeration"
-      ],
-      "traces_to": [
-        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
-      ]
-    },
-    {
       "id": "TEST-090",
       "uid": "e92cf358-fdbb-4213-8362-a66c89331653",
       "name": "cargo evidence context CLI is byte-locked against the golden fixture",
@@ -1359,6 +1366,29 @@
       ],
       "traces_to": [
         "b1377fb5-f879-4edc-9c50-46c5e67c71ad"
+      ]
+    },
+    {
+      "id": "TEST-115",
+      "uid": "c610d1fc-683d-43b9-b2d4-75f21532f4c8",
+      "name": "generator closure blocks the right verify findings per profile",
+      "selectors": [
+        "cargo_evidence::cli::generate::closure::tests::every_other_finding_blocks_on_every_profile",
+        "cargo_evidence::cli::generate::closure::tests::prerelease_tool_is_non_blocking_only_on_dev"
+      ],
+      "traces_to": [
+        "89f9de65-c963-4993-ab16-6d153e8c5dd7"
+      ]
+    },
+    {
+      "id": "TEST-104",
+      "uid": "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5",
+      "name": "in-scope enumeration uses git inside a worktree, walks a packaged (non-git) source",
+      "selectors": [
+        "evidence_core::bundle::input_scope::tests::enumerate_uses_git_inside_a_worktree"
+      ],
+      "traces_to": [
+        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
       ]
     },
     {
@@ -1645,8 +1675,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 167,
-      "floor": 167
+      "current": 168,
+      "floor": 168
     }
   ],
   "boundary": {

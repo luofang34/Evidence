@@ -1665,3 +1665,14 @@ title = "verify rejects an outcome record that lost its binary identity"
 owner = "tool"
 traces_to = ["50e04423-81fb-436d-a088-62e4639301a6"]
 test_selector = "evidence_core::verify::test_identity::tests::unknown_binary_record_is_rejected"
+
+[[tests]]
+uid = "c610d1fc-683d-43b9-b2d4-75f21532f4c8"
+id = "TEST-115"
+title = "generator closure blocks the right verify findings per profile"
+owner = "tool"
+traces_to = ["89f9de65-c963-4993-ab16-6d153e8c5dd7"]
+test_selectors = [
+    "cargo_evidence::cli::generate::closure::tests::prerelease_tool_is_non_blocking_only_on_dev",
+    "cargo_evidence::cli::generate::closure::tests::every_other_finding_blocks_on_every_profile",
+]

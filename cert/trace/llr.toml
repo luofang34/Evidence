@@ -2825,3 +2825,25 @@ LLR-093.
 """
 verification_methods = ["test"]
 emits = ["VERIFY_TEST_IDENTITY_UNKNOWN"]
+
+[[requirements]]
+uid = "89f9de65-c963-4993-ab16-6d153e8c5dd7"
+id = "LLR-097"
+title = "generator closure runs the release verifier before emitting GENERATE_OK"
+owner = "tool"
+traces_to = ["d7fd101f-ff38-4bb1-87c1-4ba486fd3714"]
+modules = [
+    "cargo_evidence::cli::generate::generator_closure",
+    "cargo_evidence::cli::generate::verify_error_blocks_generate",
+]
+description = """
+After `finalize_and_sign`, `generator_closure` runs `verify_bundle`
+against the just-written bundle. If the verifier rejects it, generate
+emits `GENERATE_FAIL` and returns a non-zero exit instead of
+`GENERATE_OK` — a generated bundle is not complete when the same tool
+rejects the unchanged bundle. `verify_error_blocks_generate` mirrors
+`verify`'s severity partition: a `PrereleaseToolDetected` finding is
+non-blocking on `dev` only; every other finding, and all findings on
+cert/record, blocks.
+"""
+verification_methods = ["test"]
