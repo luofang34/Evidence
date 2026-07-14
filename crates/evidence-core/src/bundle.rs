@@ -41,7 +41,7 @@ pub use input_scope::{
     InputEntry, InputReason, InputScopeError, ResolvedUnit, WORKSPACE_CONTROL_PATHSPECS,
     assemble_input_plan, build_input_plan_blocking, resolve_in_scope_units,
 };
-pub use nextest::{NextestRun, parse_nextest_libtest_json};
+pub use nextest::{NextestRun, SummaryDiscrepancy, parse_nextest_libtest_json};
 pub use outcome_record::{TestOutcomeRecord, TestsError};
 pub use signing::{
     SigningError, generate_signing_key, read_signing_key, read_verifying_key, sign_bundle,

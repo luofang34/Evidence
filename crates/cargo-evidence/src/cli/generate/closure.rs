@@ -23,20 +23,8 @@ pub(super) fn generator_closure(
     jsonl_output: bool,
     json_output: bool,
 ) -> Result<Option<i32>> {
-    let cert_or_record = matches!(profile, Profile::Cert | Profile::Record);
     let blocking: Vec<String> = match verify_bundle(bundle_path) {
-        Ok(VerifyResult::Pass) => return Ok(None),
-        Ok(VerifyResult::Skipped(_)) if !cert_or_record => return Ok(None),
-        Ok(VerifyResult::Skipped(reason)) => {
-            vec![format!(
-                "release verifier was skipped on a {profile} bundle: {reason}"
-            )]
-        }
-        Ok(VerifyResult::Fail(errors)) => errors
-            .iter()
-            .filter(|e| verify_error_blocks_generate(e, profile))
-            .map(ToString::to_string)
-            .collect(),
+        Ok(result) => closure_blocking(&result, profile),
         Err(e) => vec![format!("release verifier could not run: {e}")],
     };
     if blocking.is_empty() {
@@ -53,6 +41,30 @@ pub(super) fn generator_closure(
         fail(json_output, profile, msg)?;
     }
     Ok(Some(EXIT_VERIFICATION_FAILURE))
+}
+
+/// The generator-closure decision for a *completed* verification: the
+/// findings that block `GENERATE_OK` (empty ⇒ proceed). A pass never
+/// blocks; a skipped verification is tolerated on `dev` but blocks
+/// cert/record (a cert bundle whose verification could not run is not
+/// complete); a failure blocks on every profile except the `dev`
+/// pre-release-tool downgrade. The verifier failing to *run at all*
+/// (an I/O error from `verify_bundle`) is handled by the caller, not
+/// here, so this stays a pure function of `(result, profile)`.
+fn closure_blocking(result: &VerifyResult, profile: Profile) -> Vec<String> {
+    let cert_or_record = matches!(profile, Profile::Cert | Profile::Record);
+    match result {
+        VerifyResult::Pass => Vec::new(),
+        VerifyResult::Skipped(_) if !cert_or_record => Vec::new(),
+        VerifyResult::Skipped(reason) => vec![format!(
+            "release verifier was skipped on a {profile} bundle: {reason}"
+        )],
+        VerifyResult::Fail(errors) => errors
+            .iter()
+            .filter(|e| verify_error_blocks_generate(e, profile))
+            .map(ToString::to_string)
+            .collect(),
+    }
 }
 
 /// A pre-release-tool finding is non-blocking on `dev` only; every other
@@ -87,6 +99,40 @@ mod tests {
         let empty_baseline = VerifyError::SourceBaselineEmpty;
         for p in [Profile::Dev, Profile::Cert, Profile::Record] {
             assert!(verify_error_blocks_generate(&empty_baseline, p));
+        }
+    }
+
+    /// Full Pass/Skipped/Fail × Dev/Cert/Record decision matrix. Pass
+    /// never blocks; Skipped blocks only on cert/record; a
+    /// (non-pre-release) Fail blocks on every profile.
+    #[test]
+    fn closure_decision_matrix() {
+        let make_pass = || VerifyResult::Pass;
+        let make_skipped = || VerifyResult::Skipped("no verification key".to_string());
+        let make_fail = || VerifyResult::Fail(vec![VerifyError::SourceBaselineEmpty]);
+
+        // (result factory, profile, should-block). A factory rather
+        // than a value because `VerifyResult` isn't `Copy`.
+        type Case = (fn() -> VerifyResult, Profile, bool);
+        let cases: &[Case] = &[
+            (make_pass, Profile::Dev, false),
+            (make_pass, Profile::Cert, false),
+            (make_pass, Profile::Record, false),
+            (make_skipped, Profile::Dev, false),
+            (make_skipped, Profile::Cert, true),
+            (make_skipped, Profile::Record, true),
+            (make_fail, Profile::Dev, true),
+            (make_fail, Profile::Cert, true),
+            (make_fail, Profile::Record, true),
+        ];
+
+        for (make, profile, expect_block) in cases {
+            let blocking = closure_blocking(&make(), *profile);
+            assert_eq!(
+                !blocking.is_empty(),
+                *expect_block,
+                "profile={profile}: blocking={blocking:?}, expected_block={expect_block}"
+            );
         }
     }
 }

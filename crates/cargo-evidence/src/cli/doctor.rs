@@ -26,6 +26,10 @@
 //!   (`DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED` warning) — grep
 //!   `README.md` + `CONTRIBUTING.md` for the override string so
 //!   contributors know the convention.
+//! - **nextest available** (`DOCTOR_NEXTEST_MISSING` warning) —
+//!   probe `cargo nextest --version`; per-test execution identity
+//!   capture depends on it, so cert/record `generate` blocks on
+//!   this via `precheck_doctor`.
 //!
 //! Every check that passes emits `DOCTOR_CHECK_PASSED` with the
 //! check name in `message`, so the stream shape is exactly one
@@ -42,12 +46,14 @@ use super::args::{EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
 use super::output::emit_jsonl;
 
 mod checks;
+mod nextest_preflight;
 mod qualification;
 mod untracked_hint;
 use checks::{
     check_boundary, check_ci_integration, check_floors, check_merge_style, check_override_protocol,
     check_trace,
 };
+use nextest_preflight::check_nextest;
 use qualification::check_qualification;
 
 const SUBCOMMAND: &str = "doctor";
@@ -71,6 +77,7 @@ const CHECKS: &[&str] = &[
     "merge-style policy",
     "override protocol docs",
     "qualification docs",
+    "nextest available",
 ];
 
 /// Entrypoint for `cargo evidence doctor`.
@@ -160,6 +167,7 @@ fn run_named_check(name: &str, workspace: &Path) -> CheckResult {
         "merge-style policy" => check_merge_style(workspace),
         "override protocol docs" => check_override_protocol(workspace),
         "qualification docs" => check_qualification(workspace),
+        "nextest available" => check_nextest(),
         other => CheckResult::Fail("DOCTOR_FAIL", format!("unknown check name '{}'", other)),
     }
 }

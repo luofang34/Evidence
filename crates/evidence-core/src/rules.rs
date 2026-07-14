@@ -187,6 +187,7 @@ pub const RULES: &[RuleEntry] = &[
         Severity::Warning,
         Domain::Doctor,
     ),
+    r("DOCTOR_NEXTEST_MISSING", Severity::Warning, Domain::Doctor),
     terminal("DOCTOR_OK", Severity::Info),
     r(
         "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",

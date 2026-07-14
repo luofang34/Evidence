@@ -273,6 +273,7 @@
         "DOCTOR_CI_INTEGRATION_MISSING",
         "DOCTOR_MERGE_STYLE_RISK",
         "DOCTOR_MERGE_STYLE_UNKNOWN",
+        "DOCTOR_NEXTEST_MISSING",
         "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
         "DOCTOR_QUALIFICATION_MISSING"
       ],
@@ -1632,6 +1633,7 @@
     "DOCTOR_FLOORS_VIOLATED",
     "DOCTOR_MERGE_STYLE_RISK",
     "DOCTOR_MERGE_STYLE_UNKNOWN",
+    "DOCTOR_NEXTEST_MISSING",
     "DOCTOR_OK",
     "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
     "DOCTOR_QUALIFICATION_MISSING",
@@ -1675,8 +1677,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 168,
-      "floor": 168
+      "current": 170,
+      "floor": 170
     }
   ],
   "boundary": {

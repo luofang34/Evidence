@@ -138,6 +138,41 @@ fn records_are_sorted_for_determinism() {
 }
 
 #[test]
+fn reconcile_passes_on_consistent_stream() {
+    // The fixture's suite counts (2 passed, 1 failed, 1 ignored) match
+    // its four `test` events exactly, so nothing to reconcile.
+    let run = parse_nextest_libtest_json(&stream());
+    assert!(
+        run.reconcile().is_empty(),
+        "a self-consistent stream must reconcile cleanly"
+    );
+}
+
+#[test]
+fn reconcile_detects_summary_record_mismatch() {
+    // Suite claims 5 passed but only one `test` event is present — a
+    // dropped/truncated stream. The `passed` dimension must not
+    // reconcile; `failed` / `ignored` (both zero on each side) do.
+    let stream = [
+        r#"{"type":"test","event":"ok","name":"x::y$m::only_one"}"#,
+        r#"{"type":"suite","event":"ok","passed":5,"failed":0,"ignored":0,"filtered_out":0,"nextest":{"crate":"x","test_binary":"y","kind":"lib"}}"#,
+    ]
+    .join("\n");
+    let run = parse_nextest_libtest_json(&stream);
+    let disc = run.reconcile();
+    assert_eq!(
+        disc.len(),
+        1,
+        "only the `passed` dimension disagrees: {disc:?}"
+    );
+    assert_eq!(disc[0].dimension, "passed");
+    assert_eq!(disc[0].summary, 5);
+    assert_eq!(disc[0].records, 1);
+    // Display renders the discrepancy for the warn/error message.
+    assert_eq!(disc[0].to_string(), "passed: summary=5 records=1");
+}
+
+#[test]
 fn malformed_and_unknown_lines_are_skipped() {
     let stream = [
         "not json at all",

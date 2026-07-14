@@ -16,6 +16,8 @@
 //! by identity; per-test `exec_time` is deliberately dropped (wall-clock
 //! timings vary run to run and would rotate the bundle hash).
 
+use std::fmt;
+
 use serde_json::Value;
 
 use crate::bundle::TestSummary;
@@ -27,6 +29,75 @@ pub struct NextestRun {
     pub records: Vec<TestOutcomeRecord>,
     /// Aggregate counts summed across every suite.
     pub summary: TestSummary,
+}
+
+/// One outcome dimension where the suite-level [`TestSummary`] and the
+/// per-test [`NextestRun::records`] disagree. The two are derived from
+/// independent event families in the stream, so a discrepancy means an
+/// event was dropped or the stream was truncated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SummaryDiscrepancy {
+    /// The outcome dimension (`passed` / `failed` / `ignored`).
+    pub dimension: &'static str,
+    /// Count from the suite-completion summary events.
+    pub summary: u32,
+    /// Count tallied from the per-test records.
+    pub records: u32,
+}
+
+impl fmt::Display for SummaryDiscrepancy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: summary={} records={}",
+            self.dimension, self.summary, self.records
+        )
+    }
+}
+
+impl NextestRun {
+    /// Reconcile the suite-level [`TestSummary`] against the per-test
+    /// [`records`](Self::records). nextest derives the two from
+    /// independent event families — `suite` completion counts vs.
+    /// individual `test` events — so a mismatch means the stream was
+    /// truncated or an event dropped, and the captured test evidence
+    /// cannot be trusted. Returns one [`SummaryDiscrepancy`] per
+    /// disagreeing dimension; an empty vec means the capture is
+    /// internally consistent.
+    ///
+    /// Two categories are deliberately out of scope. `filtered_out`
+    /// tests emit no `test` event, so they have no record to reconcile
+    /// against. Doctests are not run by `cargo nextest` at all, so
+    /// neither tally counts them — the reconciliation is exact over
+    /// nextest's executed-test scope, and doctest evidence, if required,
+    /// is a separate capture rather than a silent inclusion here.
+    pub fn reconcile(&self) -> Vec<SummaryDiscrepancy> {
+        let mut rec_passed = 0u32;
+        let mut rec_failed = 0u32;
+        let mut rec_ignored = 0u32;
+        for r in &self.records {
+            if r.ignored {
+                rec_ignored += 1;
+            } else if r.passed {
+                rec_passed += 1;
+            } else {
+                rec_failed += 1;
+            }
+        }
+        [
+            ("passed", self.summary.passed, rec_passed),
+            ("failed", self.summary.failed, rec_failed),
+            ("ignored", self.summary.ignored, rec_ignored),
+        ]
+        .into_iter()
+        .filter(|(_, summary, records)| summary != records)
+        .map(|(dimension, summary, records)| SummaryDiscrepancy {
+            dimension,
+            summary,
+            records,
+        })
+        .collect()
+    }
 }
 
 /// Parse a nextest `--message-format libtest-json-plus` stream. Lines

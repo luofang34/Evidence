@@ -273,6 +273,26 @@ pub(super) fn run_tests_and_capture(
         Ok((stdout, _stderr)) => {
             let stdout_str = String::from_utf8_lossy(&stdout);
             let run = parse_nextest_libtest_json(&stdout_str);
+            // The suite-level summary and the per-test records are two
+            // independent tallies of the same stream; if they disagree
+            // the capture dropped an event. Fail closed in strict mode
+            // (a cert bundle must not ship inconsistent test evidence);
+            // warn on dev.
+            let discrepancies = run.reconcile();
+            if !discrepancies.is_empty() {
+                let detail = discrepancies
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if strict {
+                    return Err(anyhow::anyhow!(
+                        "nextest summary does not reconcile with per-test records \
+                         ({detail}); captured test evidence is inconsistent"
+                    ));
+                }
+                tracing::warn!("nextest summary/record reconciliation mismatch: {detail}");
+            }
             if !quiet && !json_output {
                 println!(
                     "evidence: tests: {} passed, {} failed, {} ignored",
