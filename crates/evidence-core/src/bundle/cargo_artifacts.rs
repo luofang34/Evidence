@@ -1,30 +1,37 @@
 //! Inventory the workspace's compiled deliverables from
 //! `cargo build --message-format=json` compiler-artifact messages.
 //!
-//! `outputs_hashes.json` records the SHA-256 of every build output an
-//! in-scope crate produces (its `lib` / `bin` artifacts), so a bundle
-//! can attest what the recorded recipe actually built. Cargo emits one
-//! `compiler-artifact` message per built target with the absolute
-//! `filenames` it produced; workspace members carry a
-//! `path+file://<workspace_root>/…` package id, which distinguishes
-//! them from external dependencies. Build-script and proc-macro targets
-//! are not deliverables and are excluded.
+//! `outputs_hashes.json` records the SHA-256 of every deliverable an
+//! in-scope crate's build produces (its `lib` / `bin` artifacts), so a
+//! bundle attests what its recorded recipe actually built. Cargo emits
+//! one `compiler-artifact` message per built target with the absolute
+//! `filenames` it produced; only messages whose `package_id` is an exact
+//! `cargo metadata` `workspace_members` entry are kept (external deps,
+//! path deps outside the workspace, build scripts, and proc-macros are
+//! excluded). Each artifact is keyed by its path relative to cargo's
+//! `target_directory` — never an absolute path.
 //!
-//! Output digests are inherently host/build-specific — they belong to
-//! the content-integrity channel, not the cross-host recipe channel.
+//! The build honors the bundle's recipe: cert/record profiles build
+//! `--release --locked` (the deliverable + a pinned dependency graph),
+//! not an implicit debug build. Output digests are host/build-specific —
+//! they belong to the content-integrity channel, not the cross-host
+//! recipe channel.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 use thiserror::Error;
 
+use crate::policy::Profile;
 use crate::util::{CmdError, cmd_stdout};
 
-/// One inventoried deliverable: a canonical workspace-relative key and
-/// the absolute path to the produced file.
+/// One inventoried deliverable: a canonical key relative to cargo's
+/// `target_directory` and the absolute path to the produced file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputArtifact {
-    /// Workspace-relative, forward-slash path (e.g. `target/release/cargo-evidence`).
+    /// Path relative to cargo's `target_directory`, forward-slash
+    /// (e.g. `release/cargo-evidence`).
     pub key: String,
     /// Absolute path to the artifact file on disk.
     pub path: PathBuf,
@@ -45,29 +52,58 @@ pub enum ArtifactError {
     /// The workspace metadata JSON was not the shape this module reads.
     #[error("parsing cargo metadata for output inventory")]
     ParseMetadata(#[source] serde_json::Error),
+    /// A `cargo build --message-format=json` line was not valid JSON —
+    /// surfaced rather than silently skipped so a format drift is loud.
+    #[error("malformed cargo build message: {line}")]
+    MalformedMessage {
+        /// The offending line (truncated by the caller if needed).
+        line: String,
+        /// Underlying parse error.
+        #[source]
+        source: serde_json::Error,
+    },
+    /// A produced artifact is not under cargo's `target_directory`, so it
+    /// has no canonical relative key — rejected rather than recorded
+    /// under an absolute path.
+    #[error("artifact '{path}' is not under the target directory '{target_dir}'")]
+    ArtifactOutsideTargetDir {
+        /// The offending absolute artifact path.
+        path: String,
+        /// The `target_directory` it was expected under.
+        target_dir: String,
+    },
 }
 
 /// Parse `cargo build --message-format=json` output into the workspace
-/// deliverables under `workspace_root`. Only `compiler-artifact`
-/// messages for workspace members (package id under `workspace_root`)
-/// with a `lib` or `bin` target are kept; every produced filename
-/// becomes an [`OutputArtifact`] keyed by its workspace-relative path.
-/// Determinism: results are sorted by key.
-pub fn parse_workspace_artifacts(build_json: &str, workspace_root: &Path) -> Vec<OutputArtifact> {
-    let root_prefix = format!("path+file://{}", workspace_root.display());
+/// deliverables. Keeps `compiler-artifact` messages whose `package_id`
+/// is an exact `workspace_members` entry and whose target is a `lib` or
+/// `bin`; every produced filename becomes an [`OutputArtifact`] keyed by
+/// its path relative to `target_directory`. Fails closed on a malformed
+/// message or an artifact outside `target_directory`. Sorted for
+/// deterministic output.
+pub fn parse_workspace_artifacts(
+    build_json: &str,
+    workspace_members: &BTreeSet<String>,
+    target_directory: &Path,
+) -> Result<Vec<OutputArtifact>, ArtifactError> {
     let mut out: Vec<OutputArtifact> = Vec::new();
     for line in build_json.lines() {
-        let msg: ArtifactMsg = match serde_json::from_str(line) {
-            Ok(m) => m,
-            Err(_) => continue,
-        };
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let msg: ArtifactMsg =
+            serde_json::from_str(line).map_err(|source| ArtifactError::MalformedMessage {
+                line: line.chars().take(200).collect(),
+                source,
+            })?;
         if msg.reason.as_deref() != Some("compiler-artifact") {
             continue;
         }
         let Some(pkg) = msg.package_id.as_deref() else {
             continue;
         };
-        if !pkg.starts_with(&root_prefix) {
+        if !workspace_members.contains(pkg) {
             continue;
         }
         let kinds = msg
@@ -80,41 +116,49 @@ pub fn parse_workspace_artifacts(build_json: &str, workspace_root: &Path) -> Vec
         }
         for f in msg.filenames.into_iter().flatten() {
             let abs = PathBuf::from(&f);
-            let key = abs
-                .strip_prefix(workspace_root)
-                .ok()
-                .map(to_forward_slash)
-                .unwrap_or_else(|| f.clone());
-            out.push(OutputArtifact { key, path: abs });
+            let rel = abs.strip_prefix(target_directory).map_err(|_| {
+                ArtifactError::ArtifactOutsideTargetDir {
+                    path: f.clone(),
+                    target_dir: target_directory.display().to_string(),
+                }
+            })?;
+            out.push(OutputArtifact {
+                key: to_forward_slash(rel),
+                path: abs,
+            });
         }
     }
     out.sort_by(|a, b| a.key.cmp(&b.key));
     out.dedup();
-    out
+    Ok(out)
 }
 
-/// Build the workspace and inventory its deliverables. Blocks on I/O.
-/// Runs `cargo build --workspace --message-format=json` (fast when the
-/// test phase already compiled the workspace) and resolves the
-/// workspace root from `cargo metadata`.
-pub fn inventory_outputs_blocking() -> Result<Vec<OutputArtifact>, ArtifactError> {
-    let meta = cmd_stdout("cargo", &["metadata", "--format-version", "1", "--no-deps"]).map_err(
-        |source| ArtifactError::Cargo {
+/// Build the workspace with the bundle's recipe and inventory its
+/// deliverables. Blocks on I/O. `cargo metadata` supplies the exact
+/// `workspace_members` set and the `target_directory`; cert/record
+/// profiles build `--release --locked` so the inventory attests the
+/// deliverable and a pinned dependency graph rather than an implicit
+/// debug build.
+pub fn inventory_outputs_blocking(profile: Profile) -> Result<Vec<OutputArtifact>, ArtifactError> {
+    let meta_json = cmd_stdout("cargo", &["metadata", "--format-version", "1", "--no-deps"])
+        .map_err(|source| ArtifactError::Cargo {
             cmd: "cargo metadata",
             source,
-        },
-    )?;
-    let root: RawRoot = serde_json::from_str(&meta).map_err(ArtifactError::ParseMetadata)?;
-    let build = cmd_stdout("cargo", &["build", "--workspace", "--message-format=json"]).map_err(
-        |source| ArtifactError::Cargo {
-            cmd: "cargo build",
-            source,
-        },
-    )?;
-    Ok(parse_workspace_artifacts(
-        &build,
-        Path::new(&root.workspace_root),
-    ))
+        })?;
+    let meta: RawMeta = serde_json::from_str(&meta_json).map_err(ArtifactError::ParseMetadata)?;
+    let members: BTreeSet<String> = meta.workspace_members.into_iter().collect();
+    let target_directory = PathBuf::from(&meta.target_directory);
+
+    let mut args: Vec<&str> = vec!["build", "--workspace", "--message-format=json"];
+    if matches!(profile, Profile::Cert | Profile::Record) {
+        args.push("--release");
+        args.push("--locked");
+    }
+    let build_json = cmd_stdout("cargo", &args).map_err(|source| ArtifactError::Cargo {
+        cmd: "cargo build",
+        source,
+    })?;
+    parse_workspace_artifacts(&build_json, &members, &target_directory)
 }
 
 fn to_forward_slash(p: &Path) -> String {
@@ -140,8 +184,9 @@ struct ArtifactTarget {
 }
 
 #[derive(Debug, Deserialize)]
-struct RawRoot {
-    workspace_root: String,
+struct RawMeta {
+    workspace_members: Vec<String>,
+    target_directory: String,
 }
 
 #[cfg(test)]

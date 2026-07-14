@@ -5,72 +5,91 @@
 
 use super::*;
 
-fn build_json(root: &str) -> String {
+fn members() -> BTreeSet<String> {
     [
-        // Workspace bin deliverable.
-        format!(
-            r#"{{"reason":"compiler-artifact","package_id":"path+file://{root}/crates/cargo-evidence#0.1.5","target":{{"name":"cargo-evidence","kind":["bin"]}},"filenames":["{root}/target/release/cargo-evidence"]}}"#
-        ),
-        // Workspace lib deliverable (rlib + rmeta).
-        format!(
-            r#"{{"reason":"compiler-artifact","package_id":"path+file://{root}/crates/evidence-core#0.1.5","target":{{"name":"evidence_core","kind":["lib"]}},"filenames":["{root}/target/release/libevidence_core.rlib","{root}/target/release/deps/libevidence_core-abc.rmeta"]}}"#
-        ),
-        // A workspace build-script target — NOT a deliverable.
-        format!(
-            r#"{{"reason":"compiler-artifact","package_id":"path+file://{root}/crates/evidence-core#0.1.5","target":{{"name":"build-script-build","kind":["custom-build"]}},"filenames":["{root}/target/release/build/x/build-script-build"]}}"#
-        ),
-        // An external dependency — different package id root, excluded.
-        r#"{"reason":"compiler-artifact","package_id":"registry+https://github.com/rust-lang/crates.io-index#serde@1.0","target":{"name":"serde","kind":["lib"]},"filenames":["/root/.cargo/registry/serde.rlib"]}"#.to_string(),
-        // A non-artifact message line, ignored.
-        r#"{"reason":"build-finished","success":true}"#.to_string(),
+        "path+file:///work/repo/crates/cargo-evidence#0.1.5".to_string(),
+        "path+file:///work/repo/crates/evidence-core#0.1.5".to_string(),
+    ]
+    .into_iter()
+    .collect()
+}
+
+fn build_json() -> String {
+    [
+        // Workspace-member bin deliverable.
+        r#"{"reason":"compiler-artifact","package_id":"path+file:///work/repo/crates/cargo-evidence#0.1.5","target":{"name":"cargo-evidence","kind":["bin"]},"filenames":["/work/repo/target/release/cargo-evidence"]}"#,
+        // Workspace-member lib deliverable (rlib + rmeta).
+        r#"{"reason":"compiler-artifact","package_id":"path+file:///work/repo/crates/evidence-core#0.1.5","target":{"name":"evidence_core","kind":["lib"]},"filenames":["/work/repo/target/release/libevidence_core.rlib","/work/repo/target/release/deps/libevidence_core-abc.rmeta"]}"#,
+        // A workspace-member build script — NOT a deliverable.
+        r#"{"reason":"compiler-artifact","package_id":"path+file:///work/repo/crates/evidence-core#0.1.5","target":{"name":"build-script-build","kind":["custom-build"]},"filenames":["/work/repo/target/release/build/x/build-script-build"]}"#,
+        // An external dependency — package_id is not a workspace member.
+        r#"{"reason":"compiler-artifact","package_id":"registry+https://github.com/rust-lang/crates.io-index#serde@1.0","target":{"name":"serde","kind":["lib"]},"filenames":["/root/.cargo/registry/serde.rlib"]}"#,
+        // A non-artifact message, ignored.
+        r#"{"reason":"build-finished","success":true}"#,
     ]
     .join("\n")
 }
 
 #[test]
-fn keeps_only_workspace_lib_and_bin_deliverables() {
-    let arts = parse_workspace_artifacts(&build_json("/work/repo"), Path::new("/work/repo"));
+fn keeps_only_workspace_member_lib_and_bin_keyed_under_target_dir() {
+    let arts = parse_workspace_artifacts(&build_json(), &members(), Path::new("/work/repo/target"))
+        .expect("parse");
     let keys: Vec<&str> = arts.iter().map(|a| a.key.as_str()).collect();
     assert_eq!(
         keys,
         vec![
-            "target/release/cargo-evidence",
-            "target/release/deps/libevidence_core-abc.rmeta",
-            "target/release/libevidence_core.rlib",
-        ]
+            "release/cargo-evidence",
+            "release/deps/libevidence_core-abc.rmeta",
+            "release/libevidence_core.rlib",
+        ],
+        "keys are relative to target_directory, sorted"
     );
 }
 
 #[test]
-fn excludes_build_scripts_and_external_deps() {
-    let arts = parse_workspace_artifacts(&build_json("/work/repo"), Path::new("/work/repo"));
-    assert!(
-        !arts.iter().any(|a| a.key.contains("build-script-build")),
-        "build scripts are not deliverables"
-    );
+fn excludes_build_scripts_and_non_member_deps() {
+    let arts = parse_workspace_artifacts(&build_json(), &members(), Path::new("/work/repo/target"))
+        .expect("parse");
+    assert!(!arts.iter().any(|a| a.key.contains("build-script")));
     assert!(
         !arts
             .iter()
             .any(|a| a.path.to_string_lossy().contains("registry")),
-        "external deps are excluded"
+        "a package id that is not an exact workspace member is excluded"
     );
 }
 
 #[test]
-fn artifact_path_is_absolute_and_key_is_workspace_relative() {
-    let arts = parse_workspace_artifacts(&build_json("/work/repo"), Path::new("/work/repo"));
-    let bin = arts
-        .iter()
-        .find(|a| a.key == "target/release/cargo-evidence")
-        .expect("bin present");
-    assert_eq!(
-        bin.path,
-        Path::new("/work/repo/target/release/cargo-evidence")
+fn malformed_message_is_a_typed_error() {
+    let err = parse_workspace_artifacts("not json at all", &members(), Path::new("/t"))
+        .expect_err("malformed line must fail, not silently skip");
+    assert!(
+        matches!(err, ArtifactError::MalformedMessage { .. }),
+        "{err:?}"
     );
 }
 
 #[test]
-fn empty_or_junk_input_yields_no_artifacts() {
-    assert!(parse_workspace_artifacts("", Path::new("/x")).is_empty());
-    assert!(parse_workspace_artifacts("not json\n{}", Path::new("/x")).is_empty());
+fn artifact_outside_target_dir_is_rejected() {
+    let line = r#"{"reason":"compiler-artifact","package_id":"path+file:///work/repo/crates/cargo-evidence#0.1.5","target":{"name":"cargo-evidence","kind":["bin"]},"filenames":["/elsewhere/cargo-evidence"]}"#;
+    let err = parse_workspace_artifacts(line, &members(), Path::new("/work/repo/target"))
+        .expect_err("artifact outside target_dir must be rejected, not keyed absolute");
+    assert!(
+        matches!(err, ArtifactError::ArtifactOutsideTargetDir { .. }),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn empty_or_blank_input_yields_no_artifacts() {
+    assert!(
+        parse_workspace_artifacts("", &members(), Path::new("/t"))
+            .expect("ok")
+            .is_empty()
+    );
+    assert!(
+        parse_workspace_artifacts("\n   \n", &members(), Path::new("/t"))
+            .expect("ok")
+            .is_empty()
+    );
 }

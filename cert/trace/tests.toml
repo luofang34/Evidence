@@ -1684,8 +1684,8 @@ title = "compiler-artifact parser keeps only workspace lib/bin deliverables, key
 owner = "tool"
 traces_to = ["0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"]
 test_selectors = [
-    "evidence_core::bundle::cargo_artifacts::tests::keeps_only_workspace_lib_and_bin_deliverables",
-    "evidence_core::bundle::cargo_artifacts::tests::artifact_path_is_absolute_and_key_is_workspace_relative",
+    "evidence_core::bundle::cargo_artifacts::tests::keeps_only_workspace_member_lib_and_bin_keyed_under_target_dir",
+    "evidence_core::bundle::cargo_artifacts::tests::artifact_outside_target_dir_is_rejected",
 ]
 
 [[tests]]
@@ -1694,7 +1694,7 @@ id = "TEST-113"
 title = "compiler-artifact parser excludes build scripts and external deps"
 owner = "tool"
 traces_to = ["0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"]
-test_selector = "evidence_core::bundle::cargo_artifacts::tests::excludes_build_scripts_and_external_deps"
+test_selector = "evidence_core::bundle::cargo_artifacts::tests::excludes_build_scripts_and_non_member_deps"
 
 [[tests]]
 uid = "367ed850-4ad2-4fda-b017-3202634fa6bb"

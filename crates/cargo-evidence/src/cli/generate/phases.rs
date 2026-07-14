@@ -337,6 +337,7 @@ pub(super) fn run_tests_and_capture(
 /// be hashed.
 pub(super) fn inventory_and_hash_outputs(
     builder: &mut EvidenceBuilder,
+    profile: Profile,
     skip_tests: bool,
     strict: bool,
     quiet: bool,
@@ -345,7 +346,7 @@ pub(super) fn inventory_and_hash_outputs(
     if skip_tests {
         return Ok(());
     }
-    match inventory_outputs_blocking() {
+    match inventory_outputs_blocking(profile) {
         Ok(artifacts) => {
             if artifacts.is_empty() && strict {
                 return Err(anyhow::anyhow!(

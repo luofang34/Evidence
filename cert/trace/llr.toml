@@ -2863,14 +2863,21 @@ modules = [
 description = """
 `parse_workspace_artifacts` reads `cargo build
 --message-format=json` output, keeping `compiler-artifact`
-messages whose `package_id` is under the workspace root and whose
-target is a `lib` or `bin`, and maps every produced filename to an
-`OutputArtifact { key, path }` keyed by the workspace-relative
-path; results are sorted and deduplicated for determinism.
-`inventory_outputs_blocking` runs the build (fast after the test
-phase already compiled) and resolves the workspace root from
-`cargo metadata`. `inventory_and_hash_outputs` hashes each
-artifact into `outputs_hashes.json` via `builder.add_output`;
+messages whose `package_id` is an exact `cargo metadata`
+`workspace_members` entry and whose target is a `lib` or `bin`.
+Every produced filename becomes an `OutputArtifact { key, path }`
+keyed by its path relative to cargo's `target_directory` — never
+an absolute path. It fails closed on a malformed build message
+(`MalformedMessage`) or an artifact outside `target_directory`
+(`ArtifactOutsideTargetDir`) rather than silently skipping;
+results are sorted and deduplicated for determinism.
+
+`inventory_outputs_blocking` reads `workspace_members` and
+`target_directory` from `cargo metadata`, then builds with the
+bundle's recipe — cert/record build `--release --locked` so the
+inventory attests the deliverable and a pinned dependency graph,
+not an implicit debug build. `inventory_and_hash_outputs` hashes
+each artifact into `outputs_hashes.json` via `builder.add_output`;
 strict mode fails closed on zero deliverables or an unhashable
 artifact, and the phase is skipped under `--skip-tests`.
 """
