@@ -20,6 +20,7 @@
 mod builder;
 mod builder_coverage;
 mod capture;
+mod cargo_artifacts;
 mod command;
 mod command_failure;
 mod error;
@@ -33,6 +34,9 @@ mod test_summary;
 mod time;
 
 pub use builder::{EvidenceBuildConfig, EvidenceBuilder};
+pub use cargo_artifacts::{
+    ArtifactError, OutputArtifact, inventory_outputs_blocking, parse_workspace_artifacts,
+};
 pub use command::CommandRecord;
 pub use command_failure::{STDERR_TAIL_LINES, ToolCommandFailure, tail_stderr};
 pub use error::BuilderError;

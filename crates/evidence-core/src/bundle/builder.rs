@@ -219,6 +219,16 @@ impl EvidenceBuilder {
         )?)
     }
 
+    /// Hash a build artifact that lives outside the bundle (under
+    /// `target/`) and record it under a canonical `key`. Used by the
+    /// output-inventory phase, where the key is the artifact's
+    /// workspace-relative path and the file is its absolute path.
+    pub fn add_output(&mut self, key: String, file_path: &Path) -> Result<(), BuilderError> {
+        let hash = crate::hash::sha256_file(file_path)?;
+        self.outputs.insert(key, hash);
+        Ok(())
+    }
+
     /// Record a command execution.
     pub fn record_command(&mut self, record: CommandRecord) {
         self.commands.push(record);

@@ -2848,6 +2848,8 @@ non-blocking on `dev` only; every other finding, and all findings on
 cert/record, blocks.
 """
 verification_methods = ["test"]
+
+[[requirements]]
 uid = "0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"
 id = "LLR-095"
 title = "compiler-artifact inventory hashes workspace deliverables into outputs_hashes.json"

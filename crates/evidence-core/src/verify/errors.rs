@@ -218,6 +218,10 @@ pub enum VerifyError {
         /// The affected `{module_path}::{name}`.
         test: String,
     },
+    /// The bundle records a test summary — so it compiled the
+    /// workspace — but `outputs_hashes.json` is empty. A build that
+    /// produced deliverables must attest them.
+    OutputManifestEmpty,
 }
 
 impl DiagnosticCode for VerifyError {
@@ -255,6 +259,7 @@ impl DiagnosticCode for VerifyError {
             VerifyError::BoundaryVerifyForbiddenProcMacro { .. } => "VERIFY_BOUNDARY_PROC_MACRO_DETECTED",
             VerifyError::SourceBaselineEmpty               => "VERIFY_SOURCE_BASELINE_EMPTY",
             VerifyError::TestIdentityUnknown { .. }         => "VERIFY_TEST_IDENTITY_UNKNOWN",
+            VerifyError::OutputManifestEmpty               => "VERIFY_OUTPUT_MANIFEST_EMPTY",
         }
     }
 
@@ -291,6 +296,7 @@ impl DiagnosticCode for VerifyError {
             VerifyError::TestIdentityUnknown { .. } => {
                 Some(PathBuf::from("tests/test_outcomes.jsonl"))
             }
+            VerifyError::OutputManifestEmpty => Some(PathBuf::from("outputs_hashes.json")),
             // The remaining variants are bundle-wide invariants; no
             // single file "owns" the failure.
             VerifyError::SignatureInvalid

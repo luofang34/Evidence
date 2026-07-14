@@ -274,6 +274,7 @@ pub fn cmd_verify(
                     VE::BoundaryVerifyForbiddenProcMacro { .. } => "boundary_verify_proc_macro",
                     VE::SourceBaselineEmpty             => "source_baseline_empty",
                     VE::TestIdentityUnknown { .. }      => "test_identity_unknown",
+                    VE::OutputManifestEmpty             => "output_manifest_empty",
                 };
                 checks.push(VerifyCheck {
                     name: name.to_string(),

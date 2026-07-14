@@ -95,10 +95,13 @@ fn build_bundle(
         serde_json::to_vec_pretty(&inputs_map).unwrap(),
     )
     .unwrap();
-    let empty_map: BTreeMap<String, String> = BTreeMap::new();
+    // Non-empty outputs when a test summary is present: verify fails
+    // closed on an empty output manifest for a bundle that built.
+    let mut outputs_map: BTreeMap<String, String> = BTreeMap::new();
+    outputs_map.insert("target/debug/x".to_string(), "0".repeat(64));
     fs::write(
         bundle_dir.join("outputs_hashes.json"),
-        serde_json::to_vec_pretty(&empty_map).unwrap(),
+        serde_json::to_vec_pretty(&outputs_map).unwrap(),
     )
     .unwrap();
     let empty_cmds: Vec<Value> = vec![];

@@ -1675,6 +1675,9 @@ traces_to = ["89f9de65-c963-4993-ab16-6d153e8c5dd7"]
 test_selectors = [
     "cargo_evidence::cli::generate::closure::tests::prerelease_tool_is_non_blocking_only_on_dev",
     "cargo_evidence::cli::generate::closure::tests::every_other_finding_blocks_on_every_profile",
+]
+
+[[tests]]
 uid = "094f9fee-f5f9-49c7-be4a-d47132eb459b"
 id = "TEST-112"
 title = "compiler-artifact parser keeps only workspace lib/bin deliverables, keyed workspace-relative"

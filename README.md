@@ -185,7 +185,7 @@ evidence/cert-20260207-143022Z-a1b2c3d4/
   env.json                     # Environment fingerprint (rustc, cargo, LLVM, libc, OS, tools, …)
   deterministic-manifest.json  # Cross-host-stable projection of env.json (toolchain + target + source)
   inputs_hashes.json           # SHA-256 of the source baseline: in-scope crate sources + workspace-control inputs
-  outputs_hashes.json          # SHA-256 hashes of all build outputs
+  outputs_hashes.json          # SHA-256 of the build's workspace deliverables (lib/bin artifacts); host-specific
   commands.json                # Recorded command executions with exit codes
   SHA256SUMS                   # Content-layer integrity manifest
   trace/                       # Traceability matrix outputs (Markdown)

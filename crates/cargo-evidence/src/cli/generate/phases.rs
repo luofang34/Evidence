@@ -12,7 +12,7 @@ use evidence_core::{
     BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
     Profile, build_input_plan_blocking,
     git::{check_shallow_clone, is_dirty_or_unknown},
-    load_trace_roots, parse_nextest_libtest_json,
+    inventory_outputs_blocking, load_trace_roots, parse_nextest_libtest_json,
     trace::{generate_traceability_matrix, read_all_trace_files},
 };
 
@@ -321,6 +321,56 @@ pub(super) fn run_tests_and_capture(
                 return Err(anyhow::Error::new(e).context("running cargo nextest"));
             }
             tracing::warn!("cargo nextest could not be spawned: {}", e);
+        }
+    }
+    Ok(())
+}
+
+// Phase 5b — inventory + hash build outputs
+
+/// Inventory the workspace's compiled deliverables via
+/// `cargo build --message-format=json` and hash each into
+/// `outputs_hashes.json`. Skipped when tests are skipped (a
+/// `--skip-tests` bundle compiles nothing, so it has no build outputs
+/// to attest). Strict (cert/record) mode fails closed if the build
+/// produced no in-scope deliverables, or if a captured artifact cannot
+/// be hashed.
+pub(super) fn inventory_and_hash_outputs(
+    builder: &mut EvidenceBuilder,
+    skip_tests: bool,
+    strict: bool,
+    quiet: bool,
+    json_output: bool,
+) -> Result<()> {
+    if skip_tests {
+        return Ok(());
+    }
+    match inventory_outputs_blocking() {
+        Ok(artifacts) => {
+            if artifacts.is_empty() && strict {
+                return Err(anyhow::anyhow!(
+                    "output inventory captured zero deliverables; refusing to record an \
+                     empty output manifest for a cert/record bundle"
+                ));
+            }
+            for art in &artifacts {
+                if let Err(e) = builder.add_output(art.key.clone(), &art.path) {
+                    if strict {
+                        return Err(anyhow::Error::new(e)
+                            .context(format!("hashing output artifact: {}", art.key)));
+                    }
+                    eprintln!("warning: could not hash output {}: {}", art.key, e);
+                }
+            }
+            if !quiet && !json_output {
+                println!("evidence: hashed {} build output(s)", artifacts.len());
+            }
+        }
+        Err(e) => {
+            if strict {
+                return Err(anyhow::Error::new(e).context("inventorying build outputs"));
+            }
+            eprintln!("warning: could not inventory build outputs: {}", e);
         }
     }
     Ok(())
