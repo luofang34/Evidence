@@ -2,8 +2,9 @@
 //!
 //! When a bundle records a test summary it compiled the workspace, so
 //! it must also record the build's deliverables in `outputs_hashes.json`.
-//! An empty output manifest on a bundle that built is the #139 defect —
-//! deliverables produced but never attested. A `--skip-tests` bundle
+//! An empty output manifest on a bundle that built is the defect this
+//! check rejects — deliverables produced but never attested. A
+//! `--skip-tests` bundle
 //! compiles nothing and legitimately has no outputs, so the check keys
 //! on whether a build ran, not on the profile.
 

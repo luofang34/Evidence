@@ -22,11 +22,12 @@ use super::run_capture::run_capture as do_run_capture;
 use super::test_summary::TestSummary;
 use super::time::{utc_compact_stamp, utc_now_rfc3339};
 use crate::git::{GitSnapshot, RealGitProvider};
-use crate::hash::{hash_file_relative_into, write_sha256sums};
+use crate::hash::write_sha256sums;
 use crate::policy::Profile;
 use crate::traits::GitProvider;
 
 mod config;
+mod outputs;
 pub use config::EvidenceBuildConfig;
 
 /// Builder for creating evidence bundles.
@@ -207,25 +208,6 @@ impl EvidenceBuilder {
     pub fn hash_input_under(&mut self, base: &Path, rel_path: &str) -> Result<(), BuilderError> {
         let hash = crate::hash::sha256_file(&base.join(rel_path))?;
         self.inputs.insert(rel_path.to_string(), hash);
-        Ok(())
-    }
-
-    /// Hash a file with relative path and add to outputs.
-    pub fn hash_output(&mut self, path: &Path) -> Result<(), BuilderError> {
-        Ok(hash_file_relative_into(
-            &mut self.outputs,
-            path,
-            &self.bundle_dir,
-        )?)
-    }
-
-    /// Hash a build artifact that lives outside the bundle (under
-    /// `target/`) and record it under a canonical `key`. Used by the
-    /// output-inventory phase, where the key is the artifact's
-    /// workspace-relative path and the file is its absolute path.
-    pub fn add_output(&mut self, key: String, file_path: &Path) -> Result<(), BuilderError> {
-        let hash = crate::hash::sha256_file(file_path)?;
-        self.outputs.insert(key, hash);
         Ok(())
     }
 

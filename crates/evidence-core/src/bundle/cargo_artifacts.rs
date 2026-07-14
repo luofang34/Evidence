@@ -3,19 +3,19 @@
 //!
 //! `outputs_hashes.json` records the SHA-256 of every deliverable an
 //! in-scope crate's build produces (its `lib` / `bin` artifacts), so a
-//! bundle attests what its recorded recipe actually built. Cargo emits
-//! one `compiler-artifact` message per built target with the absolute
-//! `filenames` it produced; only messages whose `package_id` is an exact
-//! `cargo metadata` `workspace_members` entry are kept (external deps,
-//! path deps outside the workspace, build scripts, and proc-macros are
-//! excluded). Each artifact is keyed by its path relative to cargo's
-//! `target_directory` — never an absolute path.
+//! bundle attests the deliverables its build actually produced. Cargo
+//! emits one `compiler-artifact` message per built target with the
+//! absolute `filenames` it produced; only messages whose `package_id`
+//! is an exact `cargo metadata` `workspace_members` entry are kept
+//! (external deps, path deps outside the workspace, build scripts, and
+//! proc-macros are excluded). Each artifact is keyed by its path
+//! relative to cargo's `target_directory` — never an absolute path.
 //!
-//! The build honors the bundle's recipe: cert/record profiles build
+//! The build follows the profile's flags: cert/record profiles build
 //! `--release --locked` (the deliverable + a pinned dependency graph),
 //! not an implicit debug build. Output digests are host/build-specific —
 //! they belong to the content-integrity channel, not the cross-host
-//! recipe channel.
+//! reproducibility channel.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -133,7 +133,7 @@ pub fn parse_workspace_artifacts(
     Ok(out)
 }
 
-/// Build the workspace with the bundle's recipe and inventory its
+/// Build the workspace with the profile's build flags and inventory its
 /// deliverables. Blocks on I/O. `cargo metadata` supplies the exact
 /// `workspace_members` set and the `target_directory`; cert/record
 /// profiles build `--release --locked` so the inventory attests the
@@ -149,16 +149,26 @@ pub fn inventory_outputs_blocking(profile: Profile) -> Result<Vec<OutputArtifact
     let members: BTreeSet<String> = meta.workspace_members.into_iter().collect();
     let target_directory = PathBuf::from(&meta.target_directory);
 
-    let mut args: Vec<&str> = vec!["build", "--workspace", "--message-format=json"];
+    let build_json =
+        cmd_stdout("cargo", &build_args(profile)).map_err(|source| ArtifactError::Cargo {
+            cmd: "cargo build",
+            source,
+        })?;
+    parse_workspace_artifacts(&build_json, &members, &target_directory)
+}
+
+/// The `cargo build` args for a profile's output inventory. Cert/record
+/// append `--release --locked` (release deliverable + a pinned
+/// dependency graph); dev stays on the default debug build for fast
+/// iteration. Split out so the profile→flags mapping is unit-testable
+/// without spawning cargo.
+fn build_args(profile: Profile) -> Vec<&'static str> {
+    let mut args = vec!["build", "--workspace", "--message-format=json"];
     if matches!(profile, Profile::Cert | Profile::Record) {
         args.push("--release");
         args.push("--locked");
     }
-    let build_json = cmd_stdout("cargo", &args).map_err(|source| ArtifactError::Cargo {
-        cmd: "cargo build",
-        source,
-    })?;
-    parse_workspace_artifacts(&build_json, &members, &target_directory)
+    args
 }
 
 fn to_forward_slash(p: &Path) -> String {

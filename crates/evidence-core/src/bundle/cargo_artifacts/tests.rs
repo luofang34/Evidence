@@ -93,3 +93,25 @@ fn empty_or_blank_input_yields_no_artifacts() {
             .is_empty()
     );
 }
+
+#[test]
+fn dev_build_args_are_a_default_debug_build() {
+    // Dev must not pin the dependency graph or force release — fast
+    // iteration is the point; provenance strictness is cert/record's job.
+    let args = build_args(Profile::Dev);
+    assert_eq!(args, vec!["build", "--workspace", "--message-format=json"]);
+    assert!(!args.contains(&"--release"));
+    assert!(!args.contains(&"--locked"));
+}
+
+#[test]
+fn cert_and_record_build_args_are_release_locked() {
+    for p in [Profile::Cert, Profile::Record] {
+        let args = build_args(p);
+        assert!(args.contains(&"--release"), "{p:?} must build --release");
+        assert!(
+            args.contains(&"--locked"),
+            "{p:?} must build --locked (pinned dependency graph)"
+        );
+    }
+}

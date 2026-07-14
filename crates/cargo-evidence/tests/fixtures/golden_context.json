@@ -1735,8 +1735,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 170,
-      "floor": 170
+      "current": 171,
+      "floor": 171
     }
   ],
   "boundary": {
