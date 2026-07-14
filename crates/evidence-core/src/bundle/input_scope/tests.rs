@@ -6,7 +6,7 @@ use super::*;
 
 /// Minimal `cargo metadata --format-version 1` JSON: a package whose
 /// name (`evidence-core`) differs from its directory (`crates/…`),
-/// which is exactly the #138 mismatch.
+/// which is exactly the name-vs-directory mismatch this module resolves.
 fn metadata_json(root: &str) -> String {
     format!(
         r#"{{
@@ -279,7 +279,7 @@ fn git_stdout(dir: &Path, args: &[&str]) -> String {
     String::from_utf8(out.stdout).expect("utf-8")
 }
 
-/// End-to-end guard (#138 AC): the assembled input plan agrees exactly
+/// End-to-end guard (SYS-032 acceptance): the assembled input plan agrees exactly
 /// with an independent `git ls-files` enumeration over the same
 /// pathspecs — hermetic, in a temporary git working tree.
 #[test]
@@ -312,7 +312,22 @@ fn plan_agrees_with_independent_git_enumeration_in_a_temp_worktree() {
     let unit_files = enumerate_pathspecs(root, &[unit.rel_dir.as_str()]).expect("unit files");
     let control = enumerate_pathspecs(root, &["Cargo.toml", "Cargo.lock"]).expect("control files");
     let plan = assemble_input_plan(&[(unit, unit_files)], &[], &control).expect("plan");
-    let captured: Vec<String> = plan.iter().map(|e| e.path.clone()).collect();
+
+    // Write the actual `inputs_hashes.json` artifact (as the builder
+    // does: BTreeMap<path, sha256>), then read it back and inspect its
+    // keys — not just the intermediate plan.
+    let mut inputs: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    for e in &plan {
+        inputs.insert(
+            e.path.clone(),
+            crate::hash::sha256_file(&root.join(&e.path)).expect("hash"),
+        );
+    }
+    let out = dir.path().join("inputs_hashes.json");
+    std::fs::write(&out, serde_json::to_vec_pretty(&inputs).expect("ser")).expect("write");
+    let read_back: std::collections::BTreeMap<String, String> =
+        serde_json::from_slice(&std::fs::read(&out).expect("read")).expect("de");
+    let captured: Vec<String> = read_back.keys().cloned().collect();
 
     let mut expected: Vec<String> = git_stdout(
         root,
@@ -325,10 +340,41 @@ fn plan_agrees_with_independent_git_enumeration_in_a_temp_worktree() {
 
     assert_eq!(
         captured, expected,
-        "captured baseline must agree with an independent git enumeration"
+        "inputs_hashes.json keys must agree with an independent git enumeration"
     );
     assert!(
         !captured.iter().any(|p| p.contains("untracked")),
         "untracked file must be excluded"
+    );
+}
+
+/// The nested-untracked counterexample: a packaged workspace unpacked under a
+/// repository's git-ignored subtree has a `.git` ancestor yet zero
+/// tracked files. It must be WALKED — git enumeration would return
+/// nothing and record an empty baseline.
+#[test]
+fn enumerate_walks_untracked_workspace_nested_in_a_repo() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let outer = dir.path();
+    run_git(outer, &["init", "-q"]);
+    std::fs::write(outer.join(".gitignore"), b"vendor/\n").expect("w");
+    run_git(outer, &["add", ".gitignore"]);
+
+    let nested = outer.join("vendor/pkg");
+    std::fs::create_dir_all(nested.join("src")).expect("mkdir");
+    std::fs::write(nested.join("src/lib.rs"), b"// lib").expect("w");
+    std::fs::write(nested.join("Cargo.toml"), b"[package]").expect("w");
+
+    assert!(has_git_marker(&nested), "outer .git is an ancestor");
+    // git tracks nothing under the ignored subtree → walk, not git.
+    assert_eq!(
+        decide_enumeration(&nested).expect("decide"),
+        Enumeration::Walk
+    );
+    let files = enumerate_pathspecs(&nested, &["src", "Cargo.toml"]).expect("enumerate");
+    assert_eq!(
+        files,
+        vec!["Cargo.toml".to_string(), "src/lib.rs".to_string()],
+        "the nested untracked workspace is captured by the filesystem walk"
     );
 }

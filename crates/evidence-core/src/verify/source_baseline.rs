@@ -3,7 +3,7 @@
 //! A bundle that declares in-scope Cargo packages claims a source
 //! baseline: the tracked sources of those packages plus the workspace-
 //! control inputs. If it declares a scope yet records an empty
-//! `inputs_hashes.json`, that is the #138 defect — a claimed baseline
+//! `inputs_hashes.json`, that is the defect LLR-092 guards — a claimed baseline
 //! that captured nothing. This is the verify-side guard against a
 //! regression that reintroduces it (the generate-side guard lives in
 //! `bundle::input_scope`).

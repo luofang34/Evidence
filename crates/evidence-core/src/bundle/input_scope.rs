@@ -163,40 +163,65 @@ pub fn build_input_plan_blocking(
         .map_err(InputScopeError::CargoMetadata)?;
     let root = workspace_root_from(&json)?;
     let units = resolve_in_scope_units(&json, in_scope)?;
+    let mode = decide_enumeration(&root)?;
     let mut unit_files: Vec<(ResolvedUnit, Vec<String>)> = Vec::with_capacity(units.len());
     for unit in units {
-        let files = enumerate_pathspecs(&root, &[unit.rel_dir.as_str()])?;
+        let files = enumerate_with(mode, &root, &[unit.rel_dir.as_str()])?;
         unit_files.push((unit, files));
     }
     check_required_inputs_exist(&root, required_inputs)?;
-    let control = enumerate_pathspecs(&root, WORKSPACE_CONTROL_PATHSPECS)?;
+    let control = enumerate_with(mode, &root, WORKSPACE_CONTROL_PATHSPECS)?;
     assemble_input_plan(&unit_files, required_inputs, &control)
 }
 
-/// Enumerate tracked files under `pathspecs` (relative to `root`). Uses
-/// `git ls-files` in a git working tree; a packaged source with no
-/// `.git` (a Nix build sandbox, a crates.io tarball) falls back to a
-/// filesystem walk so the source baseline is still captured rather than
-/// empty. Git enumeration is preferred because it honors `.gitignore`;
-/// the fallback excludes `target/` and `.git/` explicitly.
-fn enumerate_pathspecs(root: &Path, pathspecs: &[&str]) -> Result<Vec<String>, InputScopeError> {
-    if has_git_marker(root) {
-        // Inside a repository: trust git (it honors `.gitignore`) and
-        // propagate a real failure — a corrupt repo, a permission error,
-        // git not installed — rather than masking it by walking the
-        // filesystem (which could capture ignored files).
-        git_ls_files_in(root, pathspecs).map_err(InputScopeError::GitLsFiles)
-    } else {
-        // Only the definitive ABSENCE of a repository marker permits the
-        // walk fallback (a Nix build sandbox, a crates.io tarball).
-        walk_pathspecs(root, pathspecs)
+/// Whether the source baseline is enumerated by git or a filesystem walk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Enumeration {
+    /// `git ls-files` (honors `.gitignore`).
+    Git,
+    /// Filesystem walk (a packaged source with no git tracking).
+    Walk,
+}
+
+/// Decide the enumeration mode once for the workspace. Git owns the
+/// enumeration only when it actually TRACKS files under `root` — a
+/// `.git` ancestor alone is not enough. A packaged workspace unpacked
+/// under a repository's git-ignored `target/` has a `.git` ancestor yet
+/// zero tracked files (`git ls-files` returns empty), and must be
+/// walked. A git command that FAILS while a repository marker is present
+/// (corrupt repo, permissions) propagates rather than silently walking;
+/// a failure with no repository present is "not a repo" and walks.
+fn decide_enumeration(root: &Path) -> Result<Enumeration, InputScopeError> {
+    match git_ls_files_in(root, &["."]) {
+        Ok(files) if !files.is_empty() => Ok(Enumeration::Git),
+        Ok(_) => Ok(Enumeration::Walk),
+        Err(e) if has_git_marker(root) => Err(InputScopeError::GitLsFiles(e)),
+        Err(_) => Ok(Enumeration::Walk),
     }
 }
 
-/// True iff `root` or any ancestor carries a `.git` marker (a directory,
-/// or the file form used by worktrees/submodules). The decision is a
-/// filesystem check, not a `git` spawn, so an inability to run git can
-/// never be misread as "not a repository" and silently enable the walk.
+fn enumerate_with(
+    mode: Enumeration,
+    root: &Path,
+    pathspecs: &[&str],
+) -> Result<Vec<String>, InputScopeError> {
+    match mode {
+        Enumeration::Git => git_ls_files_in(root, pathspecs).map_err(InputScopeError::GitLsFiles),
+        Enumeration::Walk => walk_pathspecs(root, pathspecs),
+    }
+}
+
+/// Combined decide-then-enumerate. Test-only: production decides the
+/// mode once per workspace (`build_input_plan_blocking`) and reuses it.
+#[cfg(test)]
+fn enumerate_pathspecs(root: &Path, pathspecs: &[&str]) -> Result<Vec<String>, InputScopeError> {
+    enumerate_with(decide_enumeration(root)?, root, pathspecs)
+}
+
+/// True iff `root` or any ancestor carries a `.git` marker. Used only to
+/// tell a git *failure* inside a repository (propagate) from "not a
+/// repository" (walk) — never as sole proof of git ownership, since a
+/// git-ignored subtree still carries the ancestor marker.
 fn has_git_marker(root: &Path) -> bool {
     let mut cur = Some(root);
     while let Some(dir) = cur {
