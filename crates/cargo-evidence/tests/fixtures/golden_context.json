@@ -1232,6 +1232,17 @@
       ]
     },
     {
+      "id": "TEST-104",
+      "uid": "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5",
+      "name": "captured baseline agrees with an independent enumeration (hermetic temp worktree)",
+      "selectors": [
+        "evidence_core::bundle::input_scope::tests::plan_agrees_with_independent_git_enumeration_in_a_temp_worktree"
+      ],
+      "traces_to": [
+        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
+      ]
+    },
+    {
       "id": "TEST-090",
       "uid": "e92cf358-fdbb-4213-8362-a66c89331653",
       "name": "cargo evidence context CLI is byte-locked against the golden fixture",
@@ -1378,17 +1389,6 @@
       ],
       "traces_to": [
         "89f9de65-c963-4993-ab16-6d153e8c5dd7"
-      ]
-    },
-    {
-      "id": "TEST-104",
-      "uid": "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5",
-      "name": "in-scope enumeration uses git inside a worktree, walks a packaged (non-git) source",
-      "selectors": [
-        "evidence_core::bundle::input_scope::tests::enumerate_uses_git_inside_a_worktree"
-      ],
-      "traces_to": [
-        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
       ]
     },
     {

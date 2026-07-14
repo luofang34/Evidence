@@ -1,8 +1,7 @@
 //! Generator closure — run the release verifier against the just-written
 //! bundle and refuse `GENERATE_OK` if it would reject it. A generated
 //! bundle is not "complete" when the same tool rejects the unchanged
-//! bundle (issue #140 / LLR-097). Pulled out of `generate.rs` so the
-//! orchestrator stays under the 500-line limit.
+//! bundle (LLR-097). A sibling of `generate.rs`.
 
 use anyhow::Result;
 
@@ -13,7 +12,9 @@ use super::{fail, fail_jsonl};
 
 /// Run `verify_bundle` against the freshly written bundle. A
 /// pre-release-tool finding on `dev` is non-blocking (mirrors `verify`'s
-/// dev downgrade); every other finding, and all findings on cert/record,
+/// dev downgrade); a skipped verification is tolerated on `dev` but
+/// blocks cert/record (a cert bundle whose verification could not run is
+/// not complete); every other finding, and all findings on cert/record,
 /// blocks. Emits `GENERATE_FAIL` and returns `Some(exit)` to fail
 /// generation, or `None` to proceed to success.
 pub(super) fn generator_closure(
@@ -22,8 +23,15 @@ pub(super) fn generator_closure(
     jsonl_output: bool,
     json_output: bool,
 ) -> Result<Option<i32>> {
+    let cert_or_record = matches!(profile, Profile::Cert | Profile::Record);
     let blocking: Vec<String> = match verify_bundle(bundle_path) {
-        Ok(VerifyResult::Pass) | Ok(VerifyResult::Skipped(_)) => return Ok(None),
+        Ok(VerifyResult::Pass) => return Ok(None),
+        Ok(VerifyResult::Skipped(_)) if !cert_or_record => return Ok(None),
+        Ok(VerifyResult::Skipped(reason)) => {
+            vec![format!(
+                "release verifier was skipped on a {profile} bundle: {reason}"
+            )]
+        }
         Ok(VerifyResult::Fail(errors)) => errors
             .iter()
             .filter(|e| verify_error_blocks_generate(e, profile))
