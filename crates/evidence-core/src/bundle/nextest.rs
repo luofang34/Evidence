@@ -16,6 +16,7 @@
 //! by identity; per-test `exec_time` is deliberately dropped (wall-clock
 //! timings vary run to run and would rotate the bundle hash).
 
+use std::collections::BTreeMap;
 use std::fmt;
 
 use serde_json::Value;
@@ -104,9 +105,20 @@ impl NextestRun {
 /// that are not JSON, or JSON without the fields this reads, are
 /// skipped — a robustness choice so a future additive event type does
 /// not break capture. Records are sorted for deterministic output.
+///
+/// nextest can emit more than one `suite` "ok"/"failed" summary for the
+/// same test binary when it partitions that binary's tests across
+/// execution groups. `passed`/`failed` are disjoint across a binary's
+/// partitions (their sum is the binary's true count), but `ignored` and
+/// `filtered_out` are whole-binary tallies each partition restates, so
+/// summing them across partitions double-counts — the source of a
+/// spurious `reconcile` mismatch (`ignored: summary=2 records=1`) that
+/// fails a cert bundle closed. Suite counts are therefore reduced per
+/// binary identity before the cross-binary sum (see `SuiteTally`).
 pub fn parse_nextest_libtest_json(stdout: &str) -> NextestRun {
     let mut records: Vec<TestOutcomeRecord> = Vec::new();
-    let (mut passed, mut failed, mut ignored, mut filtered_out) = (0u32, 0u32, 0u32, 0u32);
+    let mut suites: BTreeMap<String, SuiteTally> = BTreeMap::new();
+    let mut noident_seq: u32 = 0;
 
     for line in stdout.lines() {
         let line = line.trim();
@@ -121,10 +133,15 @@ pub fn parse_nextest_libtest_json(stdout: &str) -> NextestRun {
         let event = v.get("event").and_then(Value::as_str).unwrap_or_default();
         match (ty, event) {
             ("suite", "ok" | "failed") => {
-                passed += count(&v, "passed");
-                failed += count(&v, "failed");
-                ignored += count(&v, "ignored");
-                filtered_out += count(&v, "filtered_out");
+                let key = suite_identity(&v).unwrap_or_else(|| {
+                    // A summary without nextest identity cannot be a
+                    // partition of any other — give it a unique key so
+                    // it stands alone (summed, never reduced away).
+                    let k = format!("\0noident\0{noident_seq}");
+                    noident_seq = noident_seq.wrapping_add(1);
+                    k
+                });
+                suites.entry(key).or_default().fold(&v);
             }
             ("test", ev @ ("ok" | "failed" | "ignored")) => {
                 if let Some(name) = v.get("name").and_then(Value::as_str) {
@@ -139,19 +156,72 @@ pub fn parse_nextest_libtest_json(stdout: &str) -> NextestRun {
         (a.module_path.as_str(), a.name.as_str()).cmp(&(b.module_path.as_str(), b.name.as_str()))
     });
 
+    NextestRun {
+        records,
+        summary: summarize_suites(&suites),
+    }
+}
+
+/// Per-binary reduction of nextest `suite` summaries. Within one binary's
+/// (possibly partitioned) summaries, `passed`/`failed` accumulate
+/// (disjoint executions), `ignored` takes the maximum (a whole-binary
+/// tally each partition restates — max is robust if a partition
+/// under-reports it), and `filtered_out` takes the minimum (a partition's
+/// internal execution filter is not the binary's user-facing filtered-out
+/// count; the least-filtered partition ran the most of the binary).
+#[derive(Default)]
+struct SuiteTally {
+    passed: u32,
+    failed: u32,
+    ignored: u32,
+    filtered_out: Option<u32>,
+}
+
+impl SuiteTally {
+    fn fold(&mut self, v: &Value) {
+        self.passed = self.passed.saturating_add(count(v, "passed"));
+        self.failed = self.failed.saturating_add(count(v, "failed"));
+        self.ignored = self.ignored.max(count(v, "ignored"));
+        let fo = count(v, "filtered_out");
+        self.filtered_out = Some(self.filtered_out.map_or(fo, |m| m.min(fo)));
+    }
+}
+
+/// Identity of the binary a `suite` summary belongs to, from the
+/// `nextest` extension object. `None` when absent (plain libtest JSON),
+/// so such a summary is treated as standalone rather than merged.
+fn suite_identity(v: &Value) -> Option<String> {
+    let n = v.get("nextest")?;
+    let field = |k: &str| n.get(k).and_then(Value::as_str);
+    Some(format!(
+        "{}\0{}\0{}",
+        field("crate")?,
+        field("test_binary")?,
+        field("kind")?
+    ))
+}
+
+/// Fold the per-binary tallies into one workspace-wide [`TestSummary`]:
+/// sum every dimension across *distinct* binaries (each already reduced
+/// over its own partitions).
+fn summarize_suites(suites: &BTreeMap<String, SuiteTally>) -> TestSummary {
+    let (mut passed, mut failed, mut ignored, mut filtered_out) = (0u32, 0u32, 0u32, 0u32);
+    for t in suites.values() {
+        passed = passed.saturating_add(t.passed);
+        failed = failed.saturating_add(t.failed);
+        ignored = ignored.saturating_add(t.ignored);
+        filtered_out = filtered_out.saturating_add(t.filtered_out.unwrap_or(0));
+    }
     let total = passed
         .saturating_add(failed)
         .saturating_add(ignored)
         .saturating_add(filtered_out);
-    NextestRun {
-        records,
-        summary: TestSummary {
-            total,
-            passed,
-            failed,
-            ignored,
-            filtered_out,
-        },
+    TestSummary {
+        total,
+        passed,
+        failed,
+        ignored,
+        filtered_out,
     }
 }
 

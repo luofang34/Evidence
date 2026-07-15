@@ -1659,6 +1659,17 @@ test_selectors = [
 ]
 
 [[tests]]
+uid = "4f88de51-55ee-44a6-b29e-b105a2424256"
+id = "TEST-116"
+title = "nextest parser dedupes repeated suite summaries so a partitioned binary reconciles"
+owner = "tool"
+traces_to = ["b7e107fa-7fb0-435d-823c-a786221be3a7"]
+test_selectors = [
+    "evidence_core::bundle::nextest::tests::repeated_suite_summaries_dedupe_whole_binary_dimensions",
+    "evidence_core::bundle::nextest::tests::partitioned_binary_stream_reconciles_clean",
+]
+
+[[tests]]
 uid = "ac19b5e2-212f-47a2-96ae-17a70dc8012b"
 id = "TEST-111"
 title = "verify rejects an outcome record that lost its binary identity"
