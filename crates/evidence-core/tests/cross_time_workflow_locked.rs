@@ -169,9 +169,14 @@ fn failed_comparison_cannot_report_a_match() {
         "the drift-comparison step must carry `id: compare` so the \
          Summary can read its outcome."
     );
+    // The "matched" verdict must be gated on the compare step actually
+    // succeeding — the exact `== 'success'` condition, not merely that
+    // `steps.compare.outcome` is referenced somewhere. A skipped or
+    // errored compare must not read as a match.
     assert!(
-        job.contains("steps.compare.outcome"),
-        "the Summary step must branch on `steps.compare.outcome` so a \
-         failed comparison is never reported as a match."
+        job.contains("steps.compare.outcome }}\" = \"success\""),
+        "the Summary must report a match only under \
+         `steps.compare.outcome == 'success'`; any weaker condition lets \
+         a skipped/errored compare masquerade as a match."
     );
 }

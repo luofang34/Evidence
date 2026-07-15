@@ -1,9 +1,10 @@
 //! `check_merge_style` — can an `Override-Deterministic-Baseline:` line
 //! reach the gate that reads it? (LLR-048.)
 //!
-//! Split from `checks.rs` to stay under the 500-line workspace limit and
-//! to give the override-haystack heuristic a home for its behavior
-//! tests. Emits `DOCTOR_MERGE_STYLE_RISK` / `DOCTOR_MERGE_STYLE_UNKNOWN`.
+//! Emits `DOCTOR_MERGE_STYLE_RISK` when recent `main` history is
+//! merge-commit style and no workflow reads the override from a
+//! merge-style-immune haystack, and `DOCTOR_MERGE_STYLE_UNKNOWN` when the
+//! default-branch history cannot be resolved.
 
 use std::path::Path;
 use std::process::Command;
@@ -143,45 +144,42 @@ fn workflow_plumbs_override_haystack(workspace: &Path) -> bool {
 /// - `github.event.commits[*].message`: a push-event haystack that
 ///   survives any merge style; or
 /// - `github.event.pull_request.body` used *as the override haystack* —
-///   it must co-occur with the `Override-Deterministic-Baseline` marker,
-///   so an unrelated PR-body reference (posting a comment, say) does not
-///   masquerade as override plumbing.
+///   see [`pr_body_feeds_override`].
 fn haystack_in_workflow(text: &str) -> bool {
     if text.contains("github.event.commits") {
         return true;
     }
-    text.contains("github.event.pull_request.body") && text.contains(OVERRIDE_MARKER)
+    pr_body_feeds_override(text)
+}
+
+/// The PR body counts as override plumbing only when the
+/// `Override-Deterministic-Baseline` marker sits *near* a
+/// `github.event.pull_request.body` reference — the same gate reads the
+/// override from the body. Proximity (not mere same-file co-occurrence)
+/// is required so two unrelated jobs — one echoing the body, another
+/// only mentioning the marker in a comment — do not masquerade as
+/// override plumbing.
+fn pr_body_feeds_override(text: &str) -> bool {
+    const BODY: &str = "github.event.pull_request.body";
+    // Bytes between a body reference and the marker within which they
+    // count as the same gate (roughly one step's worth of YAML).
+    const WINDOW: usize = 600;
+    let markers: Vec<usize> = text
+        .match_indices(OVERRIDE_MARKER)
+        .map(|(i, _)| i)
+        .collect();
+    if markers.is_empty() {
+        return false;
+    }
+    text.match_indices(BODY).any(|(body_at, _)| {
+        markers.iter().any(|&marker_at| {
+            let lo = body_at.min(marker_at);
+            let hi = body_at.max(marker_at);
+            hi - lo <= WINDOW
+        })
+    })
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn commits_array_haystack_is_accepted() {
-        let wf = "env:\n  X: ${{ toJSON(github.event.commits.*.message) }}\n";
-        assert!(haystack_in_workflow(wf));
-    }
-
-    #[test]
-    fn pr_body_feeding_the_override_gate_is_accepted() {
-        // PR body plumbed alongside the override marker — the PR-event
-        // gate reads the override straight from the body.
-        let wf = "env:\n  PR_BODY: ${{ github.event.pull_request.body }}\n\
-                  # gate reads Override-Deterministic-Baseline from PR_BODY\n";
-        assert!(haystack_in_workflow(wf));
-    }
-
-    #[test]
-    fn pr_body_used_for_something_else_is_rejected() {
-        // PR body referenced for an unrelated purpose (no override
-        // marker) must NOT count as override-haystack plumbing.
-        let wf = "run: gh pr comment --body \"${{ github.event.pull_request.body }}\"\n";
-        assert!(!haystack_in_workflow(wf));
-    }
-
-    #[test]
-    fn neither_haystack_is_rejected() {
-        assert!(!haystack_in_workflow("run: cargo test --workspace\n"));
-    }
-}
+#[path = "merge_style/tests.rs"]
+mod tests;
