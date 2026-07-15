@@ -12,6 +12,12 @@ on:
     # rerun. The marginal cost is a full CI cycle on each body edit;
     # body edits are rare enough that this is acceptable.
     types: [opened, synchronize, reopened, edited]
+  # Manual trigger to (re)publish the cross-time baseline on the current
+  # `main` tip out-of-band: a dispatch run's `evidence-cross-host` job
+  # uploads the xhost artifact that later PRs compare against. Useful
+  # when a merge advanced `main` without a full green run and left the
+  # baseline stale.
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -272,7 +278,7 @@ jobs:
           # the hood, parses outcomes, emits one REQ_PASS/REQ_GAP/
           # REQ_SKIP per requirement, then the VERIFY_OK terminal.
           # Pass / gap matrix for the tool's own self-trace — the
-          # downstream gate PR #47 (self-compliance) will layer on.
+          # downstream self-compliance gate will layer on.
           ./target/release/cargo-evidence evidence \
             --format=jsonl \
             check .
@@ -343,7 +349,7 @@ jobs:
           fi
           printf '%s\n' "$out"
 
-      - name: Self-compliance baseline gate (PR #47 / LLR-034)
+      - name: Self-compliance baseline gate (LLR-034)
         # Generates a bundle on the tool's own workspace and diffs
         # the produced compliance/*.json against
         # cert/baselines/self_compliance.json. Any (crate, objective)
@@ -352,7 +358,7 @@ jobs:
         # justification in the body.
         run: cargo test --release --test self_compliance_baseline -p cargo-evidence
 
-      - name: Ratcheting floors gate (PR #48 / LLR-036)
+      - name: Ratcheting floors gate (LLR-036)
         # Reads cert/floors.toml and asserts every current
         # measurement is ≥ its committed floor. A regression (dropped
         # code, deleted test, lowered trace entry count) fires here
@@ -361,7 +367,7 @@ jobs:
         # `Lower-Floor:` body line (enforced by the next step).
         run: ./target/release/cargo-evidence evidence floors
 
-      - name: Floors-only-up lint (PR #48 / LLR-037)
+      - name: Floors-only-up lint (LLR-037)
         # Refuses silent lowering of any `cert/floors.toml` floor.
         # A numeric decrease must be accompanied by a
         # `Lower-Floor: <dimension> <reason>` line in the PR body
@@ -1196,25 +1202,37 @@ jobs:
     # across N hosts at one point in time; this job pins parity
     # across time on one host.
     #
-    # Flow: download the last successful main-branch
-    # `evidence-cross-host` Linux artifact, extract its
-    # `deterministic_hash`, build the current PR's bundle, compare.
-    # If equal, pass silently. If different + the PR body (or head
-    # commit message) carries `Override-Deterministic-Baseline:
-    # <reason>`, pass with a logged notice. If different without
-    # override, fail with both hashes + the expected override
-    # syntax.
+    # Pull-request only. Downloads the last successful main-branch
+    # `evidence-cross-host` Linux artifact, extracts its
+    # `deterministic_hash`, builds the PR's bundle, and compares. If
+    # equal, pass silently. If different + the PR body carries
+    # `Override-Deterministic-Baseline: <reason>`, pass with a logged
+    # notice. If different without override, fail with both hashes + the
+    # expected override syntax.
     #
-    # Degradation: if no prior artifact exists (fresh repo, first
-    # workflow run, or the 14-day retention expired before this
-    # PR opened), skip with a warning. Blocking a PR because CI
-    # history is thin would be user-hostile.
+    # Baseline publication is deliberately NOT this job's concern: a
+    # successful push / workflow_dispatch run on `main` uploads the
+    # `evidence-cross-host` xhost-Linux artifact, and that artifact IS
+    # the baseline this job downloads on the next PR. The baseline
+    # therefore follows the current `main` tip; running this compare on
+    # a main event would only risk freezing it at a stale run.
+    #
+    # Fail-closed: if the baseline for the PR's exact base SHA is
+    # missing, unavailable (14-day retention expiry), or malformed, the
+    # fetch script exits non-zero and the job fails. A required check
+    # that skipped on a missing baseline would pass without ever
+    # comparing. Strict up-to-date checks keep the base at the current
+    # `main` tip, whose run publishes the baseline, so a gap is a real
+    # problem — bring the PR up to date or re-run CI on the base commit.
     #
     # Linux-only — `deterministic_hash` is cross-host-stable by
     # design, so one OS is enough to catch drift. Running on three
     # would burn runner minutes for no additional signal.
     name: Cross-time determinism (ubuntu-latest)
     runs-on: ubuntu-latest
+    # The compare belongs on PRs; a `main` run's role is to publish the
+    # baseline artifact (via evidence-cross-host), not to compare.
+    if: github.event_name == 'pull_request'
     # No `needs:` — runs in parallel with check.
 
     steps:
@@ -1255,124 +1273,32 @@ jobs:
           echo "current toolchain projection:"
           jq '{rustc, cargo, llvm_version, cargo_lock_hash, rustflags}' "$RUNNER_TEMP/current-manifest.json"
 
-      - name: Fetch last successful main-branch artifact
+      - name: Fetch baseline artifact for the PR base SHA
         id: fetch-prior
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/prior-main"
-
-          # Find the last successful run of this workflow on main.
-          # If no such run exists, degrade gracefully.
-          last_run=$(gh run list \
-              --branch main \
-              --workflow ci.yml \
-              --status success \
-              --limit 1 \
-              --json databaseId \
-              --jq '.[0].databaseId // empty')
-          if [ -z "$last_run" ]; then
-            echo "::warning::No successful main-branch CI run found; skipping cross-time compare."
-            echo "prior_missing=1" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Download the xhost-Linux artifact from that run. If
-          # retention expired (14 days), the download errors out
-          # and we degrade to skip.
-          if ! gh run download "$last_run" \
-               --name xhost-Linux \
-               --dir "$RUNNER_TEMP/prior-main" 2>/dev/null; then
-            echo "::warning::Prior main-branch artifact xhost-Linux from run $last_run is unavailable (expired?); skipping compare."
-            echo "prior_missing=1" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ ! -f "$RUNNER_TEMP/prior-main/deterministic-manifest.json" ]; then
-            echo "::warning::Prior artifact downloaded but deterministic-manifest.json is missing; skipping."
-            echo "prior_missing=1" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "prior_missing=0" >> "$GITHUB_OUTPUT"
-          echo "prior toolchain projection:"
-          jq '{rustc, cargo, llvm_version, cargo_lock_hash, rustflags}' "$RUNNER_TEMP/prior-main/deterministic-manifest.json"
-
-      - name: Resolve merged-PR body (push events only)
-        # On push events, `github.event.pull_request` is empty even
-        # when the push was produced by merging a PR. Without this
-        # step, an `Override-Deterministic-Baseline:` line written
-        # in a PR body would survive only under squash-merge (where
-        # GitHub copies PR body into the squash commit message) or
-        # when the contributor manually copied the line into a branch
-        # commit. Under plain merge-commits the override is lost.
-        #
-        # Fetch the PR(s) associated with the pushed commit via the
-        # GitHub API. For a merge commit the endpoint returns the PR
-        # that was merged; for a direct-to-main push it returns empty.
-        # The fetched body is handed to the lint step via env, joining
-        # the existing haystack alongside PR_BODY / head_commit /
-        # commits-array. Override lives wherever the author put it;
-        # the gate finds it regardless of merge style.
-        if: steps.fetch-prior.outputs.prior_missing == '0' && github.event_name == 'push'
-        id: merged-pr-body
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          bodies=$(gh api \
-            "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
-            --jq '.[] | .body // ""' 2>/dev/null || echo "")
-          {
-            echo 'pr_bodies<<_END_OF_PR_BODIES_'
-            printf '%s\n' "$bodies"
-            echo '_END_OF_PR_BODIES_'
-          } >> "$GITHUB_OUTPUT"
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # The fail-closed fetch logic lives in
+        # `scripts/cross-time-fetch-baseline.sh` so its exit-code
+        # behavior is unit-tested with a fake `gh` (no successful base
+        # run / download failure / missing manifest → non-zero; valid →
+        # zero + `prior_missing=0`) rather than only asserted to exist in
+        # this file.
+        run: ./scripts/cross-time-fetch-baseline.sh "$RUNNER_TEMP/prior-main"
 
       - name: Lint drift against override
+        # The job is pull_request-only, so the override haystack is just
+        # the PR body — where the author writes an
+        # `Override-Deterministic-Baseline: <reason>` line to accept an
+        # intentional recipe change. `id` is read by the Summary step so
+        # a failed comparison cannot be reported as a match.
+        id: compare
         if: steps.fetch-prior.outputs.prior_missing == '0'
         shell: bash
         env:
-          # The override line can legitimately live in several places
-          # depending on merge style and who authored it:
-          #   - pull_request event: PR body (author writes it there).
-          #   - push event, squash-merge: GitHub squashes PR body into
-          #     head_commit message, so `head_commit.message` carries it.
-          #   - push event, merge-commit: head_commit is a mechanical
-          #     "Merge pull request #N..." with no override. The override
-          #     lives in ONE of the branch commits merged in, or (most
-          #     common) in the merged PR's body — the API-fetched
-          #     `merged-pr-body` step covers the latter.
-          #   - push event, rebase-merge: head_commit is the last branch
-          #     commit, but earlier branch commits also land — same
-          #     commits-array fallback covers this.
-          # Plumbing all four haystacks means the gate works the same
-          # regardless of merge style, removing the "override only
-          # accepted in one specific place" foot-gun.
-          PR_BODY: |
-            ${{ github.event.pull_request.body }}
-            ${{ steps.merged-pr-body.outputs.pr_bodies }}
-          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          PUSH_COMMITS_MESSAGES: ${{ toJSON(github.event.commits.*.message) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          # The script reads PR_BODY + COMMIT_MESSAGE. Concatenate
-          # the push-commits messages array (JSON-encoded strings)
-          # into COMMIT_MESSAGE so the script's existing haystack
-          # scan picks them up without signature change.
-          if [ -n "${PUSH_COMMITS_MESSAGES:-}" ] && [ "${PUSH_COMMITS_MESSAGES}" != "null" ]; then
-            # Preserve newlines: the lint script's grep uses the `^`
-            # line anchor (`^Override-Deterministic-Baseline: .+`).
-            # A commit body typically has `subject\n\nbody` where the
-            # override lives in the body — flattening with `tr` would
-            # put the override mid-line and defeat the anchor. jq -r
-            # already outputs one array element per line; per-element
-            # internal newlines survive.
-            extra=$(printf '%s' "$PUSH_COMMITS_MESSAGES" | jq -r '.[]? // empty' || true)
-            COMMIT_MESSAGE=$(printf '%s\n%s' "$COMMIT_MESSAGE" "$extra")
-          fi
-          export COMMIT_MESSAGE
           ./scripts/deterministic-baseline-override-lint.sh \
             "$RUNNER_TEMP/prior-main/deterministic-manifest.json" \
             "$RUNNER_TEMP/current-manifest.json"
@@ -1381,8 +1307,16 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if [ "${{ steps.fetch-prior.outputs.prior_missing }}" = "1" ]; then
-            echo "_Cross-time determinism: skipped — no prior main-branch artifact available._" >> "$GITHUB_STEP_SUMMARY"
+          # Report "matched" ONLY when the compare step actually ran and
+          # succeeded. Every other state must not read as a match: a
+          # failed comparison is drift; anything else means the baseline
+          # fetch failed closed (missing / expired / malformed) so no
+          # comparison ran — the job has already failed and this is not a
+          # pass.
+          if [ "${{ steps.compare.outcome }}" = "success" ]; then
+            echo "_Cross-time determinism: base-SHA baseline deterministic_hash matched the current build._" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.compare.outcome }}" = "failure" ]; then
+            echo "_Cross-time determinism: **drift detected** — the current bundle's deterministic_hash differs from the base-SHA baseline and no accepted override was found._" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "_Cross-time determinism: prior main-branch deterministic_hash matched current build._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_Cross-time determinism: **failed closed** — no usable baseline for the PR base SHA (missing, expired, or malformed); the comparison did not run._" >> "$GITHUB_STEP_SUMMARY"
           fi
