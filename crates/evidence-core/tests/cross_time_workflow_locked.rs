@@ -43,6 +43,17 @@ fn ci_yml() -> String {
     fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e))
 }
 
+fn fetch_script() -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates/")
+        .parent()
+        .expect("workspace root")
+        .join("scripts")
+        .join("cross-time-fetch-baseline.sh");
+    fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e))
+}
+
 /// Extract the body of the top-level job `name` (a 2-space-indented
 /// key) up to the next top-level job or EOF.
 fn job_block<'a>(yml: &'a str, name: &str) -> &'a str {
@@ -98,23 +109,25 @@ fn cross_time_compares_on_pull_requests_only() {
 }
 
 #[test]
-fn missing_baseline_fails_closed() {
-    // A missing / expired / malformed baseline for the base SHA must
-    // FAIL the job, not skip it — a required cross-time check that
-    // skipped would pass without ever comparing (the exact failure this
-    // gate exists to prevent).
+fn baseline_fetch_uses_the_fail_closed_script() {
+    // The fail-closed baseline fetch lives in a domain script whose
+    // exit-code behavior is unit-tested (see the
+    // `cross_time_fetch_baseline` integration test). Pin that the
+    // workflow actually invokes it and doesn't reintroduce an inline
+    // `prior_missing=1` soft-skip — a required check that skipped would
+    // pass without ever comparing.
     let yml = ci_yml();
     let job = job_block(&yml, "cross-time-determinism");
     assert!(
-        job.contains("fail_closed"),
-        "the baseline fetch must fail closed on a missing/expired/\
-         malformed baseline."
+        job.contains("cross-time-fetch-baseline.sh"),
+        "the cross-time job must fetch the baseline via \
+         `scripts/cross-time-fetch-baseline.sh` (its fail-closed \
+         behavior is unit-tested there)."
     );
     assert!(
         !job.contains("prior_missing=1"),
-        "the baseline fetch must not skip (set prior_missing=1) on a \
-         missing baseline — that lets a required check pass without a \
-         comparison."
+        "the workflow must not reintroduce an inline `prior_missing=1` \
+         soft-skip."
     );
 }
 
@@ -127,30 +140,31 @@ fn baseline_producer_and_consumer_agree_on_artifact() {
         "evidence-cross-host must upload the `xhost-<os>` artifact that \
          is the cross-time baseline."
     );
-    // Consumer: the cross-time job downloads the Linux one.
-    let job = job_block(&yml, "cross-time-determinism");
+    // Consumer: the fetch script downloads the Linux one.
     assert!(
-        job.contains("--name xhost-Linux"),
-        "the cross-time-determinism job must download the `xhost-Linux` \
+        fetch_script().contains("--name xhost-Linux"),
+        "the baseline-fetch script must download the `xhost-Linux` \
          artifact published by a successful main run."
     );
 }
 
 #[test]
 fn baseline_lookup_is_bound_to_pr_base_sha() {
-    // The baseline must be the run for the PR's exact base commit
-    // (`github.event.pull_request.base.sha`), not merely the newest
-    // successful run — otherwise it drifts to a stale historical commit.
+    // The baseline must be the run for the PR's exact base commit, not
+    // merely the newest successful run — otherwise it drifts to a stale
+    // historical commit. The workflow passes the base SHA into the
+    // fetch script, which selects the run by `head_sha=<base sha>`.
     let yml = ci_yml();
     let job = job_block(&yml, "cross-time-determinism");
     assert!(
-        job.contains("github.event.pull_request.base.sha"),
-        "the baseline lookup must bind to `github.event.pull_request.base.sha`."
+        job.contains("BASE_SHA: ${{ github.event.pull_request.base.sha }}"),
+        "the workflow must pass the PR base SHA \
+         (`github.event.pull_request.base.sha`) into the fetch script."
     );
     assert!(
-        job.contains("head_sha="),
-        "the run selection must filter by `head_sha=<base sha>` so it \
-         resolves the baseline for the exact base commit."
+        fetch_script().contains("head_sha=${BASE_SHA}"),
+        "the fetch script must select the run by `head_sha=<base sha>` \
+         so it resolves the baseline for the exact base commit."
     );
 }
 
