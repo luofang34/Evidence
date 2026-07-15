@@ -12,6 +12,10 @@ on:
     # rerun. The marginal cost is a full CI cycle on each body edit;
     # body edits are rare enough that this is acceptable.
     types: [opened, synchronize, reopened, edited]
+  # Manual trigger so the cross-time baseline can be (re)published on the
+  # current `main` tip out-of-band — e.g. after a merge that advanced
+  # `main` without a full green run left the baseline stale (#149).
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -1196,14 +1200,20 @@ jobs:
     # across N hosts at one point in time; this job pins parity
     # across time on one host.
     #
-    # Flow: download the last successful main-branch
-    # `evidence-cross-host` Linux artifact, extract its
-    # `deterministic_hash`, build the current PR's bundle, compare.
-    # If equal, pass silently. If different + the PR body (or head
-    # commit message) carries `Override-Deterministic-Baseline:
-    # <reason>`, pass with a logged notice. If different without
-    # override, fail with both hashes + the expected override
-    # syntax.
+    # Compare on PRs; publish on `main`. On a pull_request event this
+    # downloads the last successful main-branch `evidence-cross-host`
+    # Linux artifact, extracts its `deterministic_hash`, builds the PR's
+    # bundle, and compares. If equal, pass silently. If different + the
+    # PR body (or head commit message) carries
+    # `Override-Deterministic-Baseline: <reason>`, pass with a logged
+    # notice. If different without override, fail with both hashes + the
+    # expected override syntax.
+    #
+    # On a push / workflow_dispatch to `main`, the compare step is
+    # skipped: this run IS the new baseline (the `evidence-cross-host`
+    # job republishes the artifact for the current tip), so the baseline
+    # follows the current `main` tip rather than the last fully-green
+    # historical run (#149).
     #
     # Degradation: if no prior artifact exists (fresh repo, first
     # workflow run, or the 14-day retention expired before this
@@ -1332,7 +1342,14 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Lint drift against override
-        if: steps.fetch-prior.outputs.prior_missing == '0'
+        # Compare-and-fail only on pull_request events. On a push /
+        # workflow_dispatch to `main`, this run IS the new source of
+        # truth: the `evidence-cross-host` job republishes the baseline
+        # artifact for the current tip, so failing here on legitimate
+        # drift (dep bumps that landed on main) would freeze the baseline
+        # at a stale historical run and mis-report every downstream PR
+        # (#149). PRs still compare against the current-main baseline.
+        if: steps.fetch-prior.outputs.prior_missing == '0' && github.event_name == 'pull_request'
         shell: bash
         env:
           # The override line can legitimately live in several places
@@ -1381,7 +1398,9 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if [ "${{ steps.fetch-prior.outputs.prior_missing }}" = "1" ]; then
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "_Cross-time determinism: publish mode — this ${{ github.event_name }} run on \`main\` establishes the baseline for downstream PRs (no compare)._" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.fetch-prior.outputs.prior_missing }}" = "1" ]; then
             echo "_Cross-time determinism: skipped — no prior main-branch artifact available._" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "_Cross-time determinism: prior main-branch deterministic_hash matched current build._" >> "$GITHUB_STEP_SUMMARY"
