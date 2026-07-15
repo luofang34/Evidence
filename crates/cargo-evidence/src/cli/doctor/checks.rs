@@ -5,7 +5,6 @@
 //! outcome without generating stdout noise during bundle assembly.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use evidence_core::FloorsConfig;
 use evidence_core::floors::{LoadOutcome, current_measurements, per_crate_measurements};
@@ -323,128 +322,6 @@ fn workflow_invokes_cargo_evidence(text: &str) -> bool {
         }
     }
     false
-}
-
-pub(super) fn check_merge_style(workspace: &Path) -> CheckResult {
-    // The real question: can an `Override-Deterministic-Baseline:` line
-    // in a PR body actually reach the push-event gate? Two
-    // mitigations suffice:
-    //   (a) workflow plumbs `github.event.commits[*].message` as an
-    //       additional haystack (survives any merge style)
-    //   (b) repo uses squash-merge exclusively (PR body lands in the
-    //       squashed head_commit message)
-    // If EITHER is in place, no warning. If NEITHER, merge-commit
-    // history points at a real gap.
-
-    // (a) Workflow-plumb probe.
-    if workflow_plumbs_commits_array(workspace) {
-        return CheckResult::Pass;
-    }
-
-    // (b) History probe — count merge-commits in recent history
-    //     of the default branch. Try `main` first (modern default),
-    //     fall back to `master` (older repos, GitHub repos created
-    //     before late-2020). If neither resolves, fire UNKNOWN.
-    let stdout = match git_log_default_branch(workspace) {
-        Ok(s) => s,
-        Err(e) => {
-            return CheckResult::Fail("DOCTOR_MERGE_STYLE_UNKNOWN", e);
-        }
-    };
-    let lines: Vec<&str> = stdout.lines().collect();
-    if lines.is_empty() {
-        return CheckResult::Pass;
-    }
-    let merge_commits = lines
-        .iter()
-        .filter(|l| l.starts_with("Merge pull request #"))
-        .count();
-    if merge_commits == 0 {
-        return CheckResult::Pass; // all-squash history.
-    }
-    CheckResult::Fail(
-        "DOCTOR_MERGE_STYLE_RISK",
-        format!(
-            "{}/{} recent main commits are merge-commits (`Merge pull \
-             request #`), AND no workflow file plumbs \
-             `github.event.commits[*].message` as an override haystack. \
-             On push-to-main events the gate reads only \
-             `head_commit.message` by default, which is the mechanical \
-             merge-commit subject — so an Override-Deterministic-\
-             Baseline line in the PR body never surfaces. Mitigations: \
-             (a) switch to squash-merge in repo Settings → General → \
-             Pull Requests; (b) or plumb `github.event.commits[*].message` \
-             as a third haystack (see cargo-evidence's own ci.yml).",
-            merge_commits,
-            lines.len()
-        ),
-    )
-}
-
-/// Run `git log -n 20 --format=%s` against the repo's default
-/// branch. Tries `main` then `master`; if both fail, returns a
-/// descriptive error (surfaced as `DOCTOR_MERGE_STYLE_UNKNOWN`).
-fn git_log_default_branch(workspace: &Path) -> Result<String, String> {
-    let candidates = ["main", "master"];
-    let mut last_err: Option<String> = None;
-    for branch in &candidates {
-        let out = Command::new("git")
-            .args(["log", "-n", "20", "--format=%s", branch])
-            .current_dir(workspace)
-            .output();
-        match out {
-            Ok(o) if o.status.success() => {
-                return Ok(String::from_utf8_lossy(&o.stdout).into_owned());
-            }
-            Ok(o) => {
-                last_err = Some(format!(
-                    "`git log {}` exited non-zero (code {:?})",
-                    branch,
-                    o.status.code()
-                ));
-            }
-            Err(e) => {
-                return Err(format!(
-                    "git unavailable ({}); merge-style policy could not be audited. \
-                     Install git or re-run doctor in a repo clone.",
-                    e
-                ));
-            }
-        }
-    }
-    Err(format!(
-        "neither `main` nor `master` branch is available ({}); merge-style \
-         policy could not be audited. This repo either uses a non-standard \
-         default branch name or has no main-line history yet.",
-        last_err.unwrap_or_else(|| "no git output captured".to_string())
-    ))
-}
-
-/// True iff any workflow file under `.github/workflows` references
-/// `github.event.commits`, indicating the override-haystack plumbing
-/// that neutralizes merge-commit-style risk.
-fn workflow_plumbs_commits_array(workspace: &Path) -> bool {
-    let wf_dir = workspace.join(".github").join("workflows");
-    if !wf_dir.is_dir() {
-        return false;
-    }
-    walkdir::WalkDir::new(&wf_dir)
-        .follow_links(false)
-        .max_depth(2)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| {
-            matches!(
-                e.path().extension().and_then(|x| x.to_str()),
-                Some("yml") | Some("yaml")
-            )
-        })
-        .any(|e| {
-            std::fs::read_to_string(e.path())
-                .map(|t| t.contains("github.event.commits"))
-                .unwrap_or(false)
-        })
 }
 
 pub(super) fn check_override_protocol(workspace: &Path) -> CheckResult {
