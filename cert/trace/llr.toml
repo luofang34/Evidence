@@ -2714,3 +2714,66 @@ the user would do by hand. Each successful write goes through
 `cert/` emissions, terminating with the standard `INIT_OK`.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
+id = "LLR-091"
+title = "package-name -> manifest-dir resolution + control-input planning + generate-time fail-closed"
+owner = "tool"
+traces_to = ["2f043730-58ae-4528-aec7-6b30eed81fcf"]
+modules = [
+    "evidence_core::bundle::input_scope::resolve_in_scope_units",
+    "evidence_core::bundle::input_scope::assemble_input_plan",
+    "evidence_core::bundle::input_scope::build_input_plan_blocking",
+    "cargo_evidence::cli::generate::phases::hash_in_scope_sources",
+]
+description = """
+`resolve_in_scope_units` parses `cargo metadata` and maps each
+in-scope package name to its workspace-relative manifest
+directory via `manifest_path`, failing closed with
+`MissingPackage` (name absent) or `PathEscape` (manifest not
+under `workspace_root`).
+
+`assemble_input_plan` merges the per-unit `git ls-files` results,
+the declared required inputs (`boundary.toml` `[inputs].required`),
+and the `WORKSPACE_CONTROL_PATHSPECS` results into a deduplicated,
+provenance-tagged, sorted set (precedence unit > declared-required
+> control), failing closed with `EmptyScope` (a unit resolved to
+zero files) or `NoInputs` (an empty total). Declared required
+inputs are existence-checked against the workspace root
+(`check_required_inputs_exist`) and fail closed with
+`MissingRequiredInput` — a git-ignored generated input that is
+required but absent cannot be silently dropped.
+
+`build_input_plan_blocking` orchestrates the subprocess calls and
+the pure helpers. `hash_in_scope_sources` consumes the plan,
+hashing each entry into `inputs_hashes.json`; strict (cert/record)
+mode propagates any planning error as a generate failure, so a
+cert bundle can never record an empty or mis-resolved source
+baseline.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "7d8dc29d-16a4-4415-96cf-0c1df7ec894b"
+id = "LLR-092"
+title = "verify fails closed on an empty source baseline"
+owner = "tool"
+traces_to = ["2f043730-58ae-4528-aec7-6b30eed81fcf"]
+modules = [
+    "evidence_core::verify::source_baseline::check_source_baseline",
+]
+description = """
+`check_source_baseline` runs inside `verify_bundle_with_key`
+only when the bundle declares in-scope packages (`index.dal_map`
+non-empty). It reads `inputs_hashes.json`; if the file parses to
+an empty object it pushes `VerifyError::SourceBaselineEmpty`. A
+bundle that declares no scope has no baseline to capture and is
+left alone. A missing or unparseable file stays silent here —
+the required-files and hash-manifest checks upstream own that
+finding — so the empty-baseline signal is not duplicated. This
+is the verify-side half of the fail-closed contract whose
+generate-side half is LLR-091.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_SOURCE_BASELINE_EMPTY"]

@@ -85,14 +85,22 @@ fn build_bundle(
     )
     .unwrap();
 
+    // Non-empty source baseline: verify fails closed on empty inputs.
+    // outputs stays empty (output-manifest population is a separate
+    // concern); only inputs must carry at least one recorded entry.
+    let mut inputs_map: BTreeMap<String, String> = BTreeMap::new();
+    inputs_map.insert("Cargo.toml".to_string(), "0".repeat(64));
+    fs::write(
+        bundle_dir.join("inputs_hashes.json"),
+        serde_json::to_vec_pretty(&inputs_map).unwrap(),
+    )
+    .unwrap();
     let empty_map: BTreeMap<String, String> = BTreeMap::new();
-    for name in ["inputs_hashes.json", "outputs_hashes.json"] {
-        fs::write(
-            bundle_dir.join(name),
-            serde_json::to_vec_pretty(&empty_map).unwrap(),
-        )
-        .unwrap();
-    }
+    fs::write(
+        bundle_dir.join("outputs_hashes.json"),
+        serde_json::to_vec_pretty(&empty_map).unwrap(),
+    )
+    .unwrap();
     let empty_cmds: Vec<Value> = vec![];
     fs::write(
         bundle_dir.join("commands.json"),

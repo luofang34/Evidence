@@ -624,6 +624,26 @@
       "verification_methods": [
         "test"
       ]
+    },
+    {
+      "id": "LLR-091",
+      "uid": "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001",
+      "layer": "llr",
+      "title": "package-name -> manifest-dir resolution + control-input planning + generate-time fail-closed",
+      "description": "`resolve_in_scope_units` parses `cargo metadata` and maps each\nin-scope package name to its workspace-relative manifest\ndirectory via `manifest_path`, failing closed with\n`MissingPackage` (name absent) or `PathEscape` (manifest not\nunder `workspace_root`).\n\n`assemble_input_plan` merges the per-unit `git ls-files` results,\nthe declared required inputs (`boundary.toml` `[inputs].required`),\nand the `WORKSPACE_CONTROL_PATHSPECS` results into a deduplicated,\nprovenance-tagged, sorted set (precedence unit > declared-required\n> control), failing closed with `EmptyScope` (a unit resolved to\nzero files) or `NoInputs` (an empty total). Declared required\ninputs are existence-checked against the workspace root\n(`check_required_inputs_exist`) and fail closed with\n`MissingRequiredInput` — a git-ignored generated input that is\nrequired but absent cannot be silently dropped.\n\n`build_input_plan_blocking` orchestrates the subprocess calls and\nthe pure helpers. `hash_in_scope_sources` consumes the plan,\nhashing each entry into `inputs_hashes.json`; strict (cert/record)\nmode propagates any planning error as a generate failure, so a\ncert bundle can never record an empty or mis-resolved source\nbaseline.\n",
+      "modules": [
+        "evidence_core::bundle::input_scope::resolve_in_scope_units",
+        "evidence_core::bundle::input_scope::assemble_input_plan",
+        "evidence_core::bundle::input_scope::build_input_plan_blocking",
+        "cargo_evidence::cli::generate::phases::hash_in_scope_sources"
+      ],
+      "emits": [],
+      "traces_to": [
+        "2f043730-58ae-4528-aec7-6b30eed81fcf"
+      ],
+      "verification_methods": [
+        "test"
+      ]
     }
   ],
   "parents": [
@@ -862,6 +882,15 @@
       ]
     },
     {
+      "id": "HLR-076",
+      "uid": "2f043730-58ae-4528-aec7-6b30eed81fcf",
+      "layer": "hlr",
+      "title": "In-scope package names resolve to manifest directories; workspace-control inputs are captured; empty or unresolved scope fails closed",
+      "traces_to": [
+        "3e47dd57-e3d6-4b95-95b3-684601471777"
+      ]
+    },
+    {
       "id": "SYS-002",
       "uid": "0e42b90f-88d7-408f-8843-0a3335279360",
       "layer": "sys",
@@ -992,6 +1021,13 @@
       "uid": "d8d1f204-3909-418d-b62a-1e28edd088ed",
       "layer": "sys",
       "title": "Per-module agent context surface",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-032",
+      "uid": "3e47dd57-e3d6-4b95-95b3-684601471777",
+      "layer": "sys",
+      "title": "Bundle shall record a complete, canonically-identified source-input baseline; certification fails closed on empty or unresolved scope",
       "traces_to": []
     }
   ],
@@ -1144,6 +1180,17 @@
       ]
     },
     {
+      "id": "TEST-104",
+      "uid": "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5",
+      "name": "captured baseline agrees with an independent enumeration (hermetic temp worktree)",
+      "selectors": [
+        "evidence_core::bundle::input_scope::tests::plan_agrees_with_independent_git_enumeration_in_a_temp_worktree"
+      ],
+      "traces_to": [
+        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
+      ]
+    },
+    {
       "id": "TEST-090",
       "uid": "e92cf358-fdbb-4213-8362-a66c89331653",
       "name": "cargo evidence context CLI is byte-locked against the golden fixture",
@@ -1243,6 +1290,17 @@
       ]
     },
     {
+      "id": "TEST-105",
+      "uid": "a62df89e-3e18-42dc-9215-b0c69de20b6f",
+      "name": "declared required controlled input fails closed when absent, passes when present",
+      "selectors": [
+        "evidence_core::bundle::input_scope::tests::required_input_presence_is_checked"
+      ],
+      "traces_to": [
+        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
+      ]
+    },
+    {
       "id": "TEST-059",
       "uid": "a1d3ac91-35ed-4171-8646-1e3cce4c3e96",
       "name": "evaluate_thresholds normal + robustness + BVA (strict <, per-level dispatch)",
@@ -1256,6 +1314,28 @@
       ],
       "traces_to": [
         "b1377fb5-f879-4edc-9c50-46c5e67c71ad"
+      ]
+    },
+    {
+      "id": "TEST-098",
+      "uid": "41ccc9a0-1e7f-4b4f-8898-fedd3ece4833",
+      "name": "in-scope package name resolves to its manifest directory",
+      "selectors": [
+        "evidence_core::bundle::input_scope::tests::resolves_package_name_to_manifest_dir"
+      ],
+      "traces_to": [
+        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
+      ]
+    },
+    {
+      "id": "TEST-101",
+      "uid": "5e8819db-f902-4788-bfce-23b84c740bbe",
+      "name": "in-scope unit with zero tracked files fails closed",
+      "selectors": [
+        "evidence_core::bundle::input_scope::tests::empty_unit_fails_closed"
+      ],
+      "traces_to": [
+        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
       ]
     },
     {
@@ -1314,6 +1394,17 @@
       ],
       "traces_to": [
         "a88f2efa-7aa7-4bfc-9554-610a906f2e2e"
+      ]
+    },
+    {
+      "id": "TEST-100",
+      "uid": "6f21dcf2-2f62-4429-a4a3-a9875b15abbb",
+      "name": "manifest outside workspace root is a path escape",
+      "selectors": [
+        "evidence_core::bundle::input_scope::tests::manifest_outside_workspace_is_path_escape"
+      ],
+      "traces_to": [
+        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
       ]
     },
     {
@@ -1376,6 +1467,17 @@
       ],
       "traces_to": [
         "d67f45bf-c9d0-4f2a-87d1-0dfbf14d9262"
+      ]
+    },
+    {
+      "id": "TEST-099",
+      "uid": "2c5551d4-9cd7-46e8-9c3d-9dfad7834a19",
+      "name": "unknown in-scope package fails closed",
+      "selectors": [
+        "evidence_core::bundle::input_scope::tests::missing_package_fails_closed"
+      ],
+      "traces_to": [
+        "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
       ]
     },
     {

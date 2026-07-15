@@ -85,7 +85,7 @@ fn a7_1_2_bva_missing_data_is_notmet_with_no_results_note() {
 // ---- a7_3_4_llr_testing: normal + robustness + BVA ----
 
 /// Normal: per-test outcomes + tests green → Met. The upgrade
-/// from Partial → Met is the core claim of the #73 per-test
+/// from Partial → Met is the core claim of the per-test
 /// wire format; pin it at the dispatcher level.
 #[test]
 fn a7_3_4_normal_per_test_outcomes_present_is_met() {
