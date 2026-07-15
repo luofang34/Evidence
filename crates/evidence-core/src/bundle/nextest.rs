@@ -28,7 +28,9 @@ use crate::bundle::outcome_record::TestOutcomeRecord;
 pub struct NextestRun {
     /// One record per executed or ignored test, sorted by identity.
     pub records: Vec<TestOutcomeRecord>,
-    /// Aggregate counts summed across every suite.
+    /// Aggregate counts: each binary's suite summaries reduced per
+    /// binary identity (partitions do not double-count), then summed
+    /// across distinct binaries.
     pub summary: TestSummary,
 }
 
