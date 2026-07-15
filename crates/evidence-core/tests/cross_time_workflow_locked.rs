@@ -98,6 +98,27 @@ fn cross_time_compares_on_pull_requests_only() {
 }
 
 #[test]
+fn missing_baseline_fails_closed() {
+    // A missing / expired / malformed baseline for the base SHA must
+    // FAIL the job, not skip it — a required cross-time check that
+    // skipped would pass without ever comparing (the exact failure this
+    // gate exists to prevent).
+    let yml = ci_yml();
+    let job = job_block(&yml, "cross-time-determinism");
+    assert!(
+        job.contains("fail_closed"),
+        "the baseline fetch must fail closed on a missing/expired/\
+         malformed baseline."
+    );
+    assert!(
+        !job.contains("prior_missing=1"),
+        "the baseline fetch must not skip (set prior_missing=1) on a \
+         missing baseline — that lets a required check pass without a \
+         comparison."
+    );
+}
+
+#[test]
 fn baseline_producer_and_consumer_agree_on_artifact() {
     let yml = ci_yml();
     // Producer: the cross-host job uploads one artifact per OS.

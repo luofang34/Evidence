@@ -1280,37 +1280,43 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/prior-main"
 
+          # Fail closed: the baseline for the PR's exact base commit MUST
+          # exist and be usable. A required cross-time check that silently
+          # skipped on a missing baseline would pass without ever
+          # comparing — the failure mode this gate exists to prevent.
+          # Strict up-to-date required checks keep the base at the current
+          # `main` tip, whose push/dispatch run publishes the xhost-Linux
+          # baseline; so missing / expired / malformed here is a real gap
+          # to surface, not a soft skip.
+          fail_closed() {
+            echo "::error::$1"
+            echo "Base SHA: ${BASE_SHA}"
+            echo "Fix: bring this PR up to date with \`main\` (its tip publishes the baseline), or re-run CI on the base commit to republish its xhost-Linux artifact."
+            exit 1
+          }
+
           # Select the successful ci.yml run whose head_sha is the PR's
-          # exact base commit — the current `main` tip (strict up-to-date
-          # required checks keep the base current). Binding to the base
-          # SHA, not merely the newest successful run, is what stops the
-          # baseline drifting to a stale historical commit. If that SHA
-          # has no published baseline yet, degrade to skip rather than
-          # compare against the wrong tip.
+          # exact base commit — binding to the base SHA (not merely the
+          # newest successful run) stops the baseline drifting to a stale
+          # commit.
           last_run=$(gh api \
               "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${BASE_SHA}&status=success&per_page=1" \
               --jq '.workflow_runs[0].id // empty')
           if [ -z "$last_run" ]; then
-            echo "::warning::No successful ci.yml run for base SHA ${BASE_SHA}; skipping cross-time compare (no baseline published for this main tip yet)."
-            echo "prior_missing=1" >> "$GITHUB_OUTPUT"
-            exit 0
+            fail_closed "No successful ci.yml run for base SHA ${BASE_SHA}; the cross-time baseline is not published for this base commit."
           fi
 
-          # Download the xhost-Linux artifact from that run. If
-          # retention expired (14 days), the download errors out
-          # and we degrade to skip.
+          # Download the base commit's xhost-Linux artifact. A 14-day
+          # retention expiry (or any unavailability) is fail-closed too:
+          # the comparison cannot be performed, so the check must not pass.
           if ! gh run download "$last_run" \
                --name xhost-Linux \
                --dir "$RUNNER_TEMP/prior-main" 2>/dev/null; then
-            echo "::warning::Prior main-branch artifact xhost-Linux from run $last_run is unavailable (expired?); skipping compare."
-            echo "prior_missing=1" >> "$GITHUB_OUTPUT"
-            exit 0
+            fail_closed "Baseline artifact xhost-Linux for base SHA ${BASE_SHA} (run ${last_run}) is unavailable (expired or missing)."
           fi
 
           if [ ! -f "$RUNNER_TEMP/prior-main/deterministic-manifest.json" ]; then
-            echo "::warning::Prior artifact downloaded but deterministic-manifest.json is missing; skipping."
-            echo "prior_missing=1" >> "$GITHUB_OUTPUT"
-            exit 0
+            fail_closed "Baseline artifact for base SHA ${BASE_SHA} is missing deterministic-manifest.json (indeterminate)."
           fi
 
           echo "prior_missing=0" >> "$GITHUB_OUTPUT"
@@ -1339,15 +1345,14 @@ jobs:
         run: |
           # Report "matched" ONLY when the compare step actually ran and
           # succeeded. Every other state must not read as a match: a
-          # failed comparison is drift; a skipped compare means no
-          # baseline for the base SHA; anything else (e.g. the fetch
-          # errored before setting prior_missing) is indeterminate.
+          # failed comparison is drift; anything else means the baseline
+          # fetch failed closed (missing / expired / malformed) so no
+          # comparison ran — the job has already failed and this is not a
+          # pass.
           if [ "${{ steps.compare.outcome }}" = "success" ]; then
             echo "_Cross-time determinism: base-SHA baseline deterministic_hash matched the current build._" >> "$GITHUB_STEP_SUMMARY"
           elif [ "${{ steps.compare.outcome }}" = "failure" ]; then
             echo "_Cross-time determinism: **drift detected** — the current bundle's deterministic_hash differs from the base-SHA baseline and no accepted override was found._" >> "$GITHUB_STEP_SUMMARY"
-          elif [ "${{ steps.fetch-prior.outputs.prior_missing }}" = "1" ]; then
-            echo "_Cross-time determinism: skipped — no published baseline for the PR base SHA._" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "_Cross-time determinism: **indeterminate** — the baseline fetch did not complete; treat as unverified._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_Cross-time determinism: **failed closed** — no usable baseline for the PR base SHA (missing, expired, or malformed); the comparison did not run._" >> "$GITHUB_STEP_SUMMARY"
           fi
