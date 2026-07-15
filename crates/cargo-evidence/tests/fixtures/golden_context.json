@@ -651,7 +651,7 @@
       "uid": "b7e107fa-7fb0-435d-823c-a786221be3a7",
       "layer": "llr",
       "title": "nextest libtest-json-plus parser preserves per-test identity",
-      "description": "`parse_nextest_libtest_json` reads nextest's `libtest-json-plus`\nstream: `test` events (`{crate}::{binary}${module::path::name}`)\nbecome `TestOutcomeRecord`s with package, binary, harness, and a\n`module_path` reconstructed to begin with the binary, so\n`{module_path}::{name}` equals the trace `test_selector` format;\n`suite` events supply the aggregate `TestSummary`. Per-test\n`exec_time` is deliberately not recorded and records are sorted,\nso `test_outcomes.jsonl` stays byte-deterministic (SYS-003).\n\n`run_tests_and_capture` runs `cargo nextest run --workspace\n--no-fail-fast --message-format libtest-json-plus` through the\nbuilder's `run_capture` and feeds its stdout to the parser.\n",
+      "description": "`parse_nextest_libtest_json` reads nextest's `libtest-json-plus`\nstream: `test` events (`{crate}::{binary}${module::path::name}`)\nbecome `TestOutcomeRecord`s with package, binary, harness, and a\n`module_path` reconstructed to begin with the binary, so\n`{module_path}::{name}` equals the trace `test_selector` format;\n`suite` events supply the aggregate `TestSummary`. nextest may emit\nmore than one `suite` summary for the same binary when it partitions\nthat binary's tests; suite counts are reduced per binary identity\n(`passed`/`failed` summed over disjoint partitions, `ignored` and\n`filtered_out` reduced as whole-binary tallies) so a partitioned\nbinary does not double-count and `reconcile` stays exact against the\nper-test records. Per-test `exec_time` is deliberately not recorded\nand records are sorted, so `test_outcomes.jsonl` stays\nbyte-deterministic (SYS-003).\n\n`run_tests_and_capture` runs `cargo nextest run --workspace\n--no-fail-fast --message-format libtest-json-plus` through the\nbuilder's `run_capture` and feeds its stdout to the parser.\n",
       "modules": [
         "evidence_core::bundle::nextest::parse_nextest_libtest_json",
         "cargo_evidence::cli::generate::phases::run_tests_and_capture"
@@ -1490,6 +1490,18 @@
       "selectors": [
         "evidence_core::bundle::nextest::tests::records_are_sorted_for_determinism",
         "evidence_core::bundle::nextest::tests::summary_aggregates_across_suites"
+      ],
+      "traces_to": [
+        "b7e107fa-7fb0-435d-823c-a786221be3a7"
+      ]
+    },
+    {
+      "id": "TEST-116",
+      "uid": "4f88de51-55ee-44a6-b29e-b105a2424256",
+      "name": "nextest parser dedupes repeated suite summaries so a partitioned binary reconciles",
+      "selectors": [
+        "evidence_core::bundle::nextest::tests::partitioned_binary_stream_reconciles_clean",
+        "evidence_core::bundle::nextest::tests::repeated_suite_summaries_dedupe_whole_binary_dimensions"
       ],
       "traces_to": [
         "b7e107fa-7fb0-435d-823c-a786221be3a7"

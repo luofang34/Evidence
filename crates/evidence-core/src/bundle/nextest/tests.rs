@@ -172,6 +172,69 @@ fn reconcile_detects_summary_record_mismatch() {
     assert_eq!(disc[0].to_string(), "passed: summary=5 records=1");
 }
 
+// One binary that nextest partitioned into two `suite` "ok" summaries:
+// the two summaries share the same `nextest` identity, split the passing
+// tests disjointly (7 + 1), and EACH restates the binary's whole-list
+// `ignored=1`. The single `#[ignore]` test emits one `test` "ignored"
+// event. Summing suite counts naively would report `ignored=2` against
+// one ignored record — the spurious mismatch that fails a cert bundle
+// closed. `filtered_out` differs per partition (0 vs 7) as a
+// partitioning artifact, not a user filter.
+fn partitioned_binary_stream() -> String {
+    let mut lines = vec![
+        r#"{"type":"suite","event":"started","test_count":8,"nextest":{"crate":"evidence-mcp","test_binary":"mcp_surface","kind":"test"}}"#.to_string(),
+        r#"{"type":"test","event":"ignored","name":"evidence-mcp::mcp_surface$long::opt_in_only"}"#.to_string(),
+    ];
+    for i in 0..7 {
+        lines.push(format!(
+            r#"{{"type":"test","event":"ok","name":"evidence-mcp::mcp_surface$grp::case_{i}"}}"#
+        ));
+    }
+    lines.push(
+        r#"{"type":"suite","event":"ok","passed":7,"failed":0,"ignored":1,"measured":0,"filtered_out":0,"nextest":{"crate":"evidence-mcp","test_binary":"mcp_surface","kind":"test"}}"#.to_string(),
+    );
+    lines.push(
+        r#"{"type":"test","event":"ok","name":"evidence-mcp::mcp_surface$serial::case_solo"}"#
+            .to_string(),
+    );
+    lines.push(
+        r#"{"type":"suite","event":"ok","passed":1,"failed":0,"ignored":1,"measured":0,"filtered_out":7,"nextest":{"crate":"evidence-mcp","test_binary":"mcp_surface","kind":"test"}}"#.to_string(),
+    );
+    lines.join("\n")
+}
+
+#[test]
+fn repeated_suite_summaries_dedupe_whole_binary_dimensions() {
+    let run = parse_nextest_libtest_json(&partitioned_binary_stream());
+    // passed accumulates across the disjoint partitions (7 + 1)…
+    assert_eq!(run.summary.passed, 8);
+    assert_eq!(run.summary.failed, 0);
+    // …but ignored is one #[ignore] test, not one-per-partition, and
+    // filtered_out is the least-filtered partition (a full run), not a
+    // partitioning artifact.
+    assert_eq!(
+        run.summary.ignored, 1,
+        "repeated suite summaries must not double-count the binary's ignored tests"
+    );
+    assert_eq!(run.summary.filtered_out, 0);
+    assert_eq!(run.summary.total, 9);
+    // Ground truth: 8 ok records + 1 ignored record.
+    assert_eq!(run.records.len(), 9);
+}
+
+#[test]
+fn partitioned_binary_stream_reconciles_clean() {
+    // With per-binary reduction the suite summary agrees with the
+    // per-test records, so a cert-mode generate does not fail closed on
+    // nextest's legitimate repeated suite summaries.
+    let run = parse_nextest_libtest_json(&partitioned_binary_stream());
+    assert!(
+        run.reconcile().is_empty(),
+        "a partitioned binary's repeated summaries must reconcile: {:?}",
+        run.reconcile()
+    );
+}
+
 #[test]
 fn malformed_and_unknown_lines_are_skipped() {
     let stream = [
