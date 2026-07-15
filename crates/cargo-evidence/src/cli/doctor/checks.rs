@@ -327,17 +327,19 @@ fn workflow_invokes_cargo_evidence(text: &str) -> bool {
 
 pub(super) fn check_merge_style(workspace: &Path) -> CheckResult {
     // The real question: can an `Override-Deterministic-Baseline:` line
-    // in a PR body actually reach the push-event gate? Two
+    // in a PR body actually reach the gate that reads it? Three
     // mitigations suffice:
-    //   (a) workflow plumbs `github.event.commits[*].message` as an
-    //       additional haystack (survives any merge style)
+    //   (a) a workflow reads the override from a merge-style-immune
+    //       haystack — `github.event.commits[*].message` (push-event) or
+    //       `github.event.pull_request.body` (a PR-only gate reads the
+    //       PR body directly, so merge style is irrelevant)
     //   (b) repo uses squash-merge exclusively (PR body lands in the
     //       squashed head_commit message)
     // If EITHER is in place, no warning. If NEITHER, merge-commit
     // history points at a real gap.
 
     // (a) Workflow-plumb probe.
-    if workflow_plumbs_commits_array(workspace) {
+    if workflow_plumbs_override_haystack(workspace) {
         return CheckResult::Pass;
     }
 
@@ -366,15 +368,16 @@ pub(super) fn check_merge_style(workspace: &Path) -> CheckResult {
         "DOCTOR_MERGE_STYLE_RISK",
         format!(
             "{}/{} recent main commits are merge-commits (`Merge pull \
-             request #`), AND no workflow file plumbs \
-             `github.event.commits[*].message` as an override haystack. \
-             On push-to-main events the gate reads only \
-             `head_commit.message` by default, which is the mechanical \
-             merge-commit subject — so an Override-Deterministic-\
-             Baseline line in the PR body never surfaces. Mitigations: \
-             (a) switch to squash-merge in repo Settings → General → \
-             Pull Requests; (b) or plumb `github.event.commits[*].message` \
-             as a third haystack (see cargo-evidence's own ci.yml).",
+             request #`), AND no workflow reads the override from a \
+             merge-style-immune haystack. On push-to-main events a \
+             gate that reads only `head_commit.message` sees the \
+             mechanical merge-commit subject — so an Override-\
+             Deterministic-Baseline line in the PR body never surfaces. \
+             Mitigations: (a) switch to squash-merge in repo Settings → \
+             General → Pull Requests; (b) read the override on the \
+             pull_request event from `github.event.pull_request.body`, \
+             or plumb `github.event.commits[*].message` (see \
+             cargo-evidence's own ci.yml).",
             merge_commits,
             lines.len()
         ),
@@ -420,10 +423,11 @@ fn git_log_default_branch(workspace: &Path) -> Result<String, String> {
     ))
 }
 
-/// True iff any workflow file under `.github/workflows` references
-/// `github.event.commits`, indicating the override-haystack plumbing
-/// that neutralizes merge-commit-style risk.
-fn workflow_plumbs_commits_array(workspace: &Path) -> bool {
+/// True iff any workflow reads the override from a merge-style-immune
+/// haystack: `github.event.commits[*].message` (push-event, survives any
+/// merge style) or `github.event.pull_request.body` (a PR-event gate
+/// reads the PR body directly, so merge style is irrelevant).
+fn workflow_plumbs_override_haystack(workspace: &Path) -> bool {
     let wf_dir = workspace.join(".github").join("workflows");
     if !wf_dir.is_dir() {
         return false;
@@ -442,7 +446,10 @@ fn workflow_plumbs_commits_array(workspace: &Path) -> bool {
         })
         .any(|e| {
             std::fs::read_to_string(e.path())
-                .map(|t| t.contains("github.event.commits"))
+                .map(|t| {
+                    t.contains("github.event.commits")
+                        || t.contains("github.event.pull_request.body")
+                })
                 .unwrap_or(false)
         })
 }
