@@ -1270,26 +1270,28 @@ jobs:
           echo "current toolchain projection:"
           jq '{rustc, cargo, llvm_version, cargo_lock_hash, rustflags}' "$RUNNER_TEMP/current-manifest.json"
 
-      - name: Fetch last successful main-branch artifact
+      - name: Fetch baseline artifact for the PR base SHA
         id: fetch-prior
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/prior-main"
 
-          # Find the last successful run of this workflow on main.
-          # If no such run exists, degrade gracefully.
-          last_run=$(gh run list \
-              --branch main \
-              --workflow ci.yml \
-              --status success \
-              --limit 1 \
-              --json databaseId \
-              --jq '.[0].databaseId // empty')
+          # Select the successful ci.yml run whose head_sha is the PR's
+          # exact base commit — the current `main` tip (strict up-to-date
+          # required checks keep the base current). Binding to the base
+          # SHA, not merely the newest successful run, is what stops the
+          # baseline drifting to a stale historical commit. If that SHA
+          # has no published baseline yet, degrade to skip rather than
+          # compare against the wrong tip.
+          last_run=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${BASE_SHA}&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id // empty')
           if [ -z "$last_run" ]; then
-            echo "::warning::No successful main-branch CI run found; skipping cross-time compare."
+            echo "::warning::No successful ci.yml run for base SHA ${BASE_SHA}; skipping cross-time compare (no baseline published for this main tip yet)."
             echo "prior_missing=1" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -1335,14 +1337,17 @@ jobs:
         if: always()
         shell: bash
         run: |
-          # Report the ACTUAL comparison outcome. Keying only on
-          # `prior_missing` would print "matched" even when the compare
-          # step failed on real drift; `steps.compare.outcome` is the
-          # source of truth (success / failure / skipped).
-          if [ "${{ steps.fetch-prior.outputs.prior_missing }}" = "1" ]; then
-            echo "_Cross-time determinism: skipped — no prior main-branch artifact available._" >> "$GITHUB_STEP_SUMMARY"
+          # Report "matched" ONLY when the compare step actually ran and
+          # succeeded. Every other state must not read as a match: a
+          # failed comparison is drift; a skipped compare means no
+          # baseline for the base SHA; anything else (e.g. the fetch
+          # errored before setting prior_missing) is indeterminate.
+          if [ "${{ steps.compare.outcome }}" = "success" ]; then
+            echo "_Cross-time determinism: base-SHA baseline deterministic_hash matched the current build._" >> "$GITHUB_STEP_SUMMARY"
           elif [ "${{ steps.compare.outcome }}" = "failure" ]; then
-            echo "_Cross-time determinism: **drift detected** — the current bundle's deterministic_hash differs from the current main baseline and no accepted override was found._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_Cross-time determinism: **drift detected** — the current bundle's deterministic_hash differs from the base-SHA baseline and no accepted override was found._" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.fetch-prior.outputs.prior_missing }}" = "1" ]; then
+            echo "_Cross-time determinism: skipped — no published baseline for the PR base SHA._" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "_Cross-time determinism: current main baseline deterministic_hash matched the current build._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_Cross-time determinism: **indeterminate** — the baseline fetch did not complete; treat as unverified._" >> "$GITHUB_STEP_SUMMARY"
           fi

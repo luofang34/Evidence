@@ -116,21 +116,43 @@ fn baseline_producer_and_consumer_agree_on_artifact() {
 }
 
 #[test]
+fn baseline_lookup_is_bound_to_pr_base_sha() {
+    // The baseline must be the run for the PR's exact base commit
+    // (`github.event.pull_request.base.sha`), not merely the newest
+    // successful run — otherwise it drifts to a stale historical commit.
+    let yml = ci_yml();
+    let job = job_block(&yml, "cross-time-determinism");
+    assert!(
+        job.contains("github.event.pull_request.base.sha"),
+        "the baseline lookup must bind to `github.event.pull_request.base.sha`."
+    );
+    assert!(
+        job.contains("head_sha="),
+        "the run selection must filter by `head_sha=<base sha>` so it \
+         resolves the baseline for the exact base commit."
+    );
+}
+
+#[test]
 fn override_is_read_from_a_merge_style_immune_haystack() {
     // A PR-only cross-time gate reads the `Override-Deterministic-Baseline`
     // line from `github.event.pull_request.body` — always present on the
     // pull_request event, so merge style can never hide it. The doctor
     // `check_merge_style` self-check (exercised by the cert-profile CI
-    // job) treats this as the mitigation; removing it fails cert
-    // generation for a non-obvious reason, so pin it here where the
-    // failure is fast and self-explanatory.
+    // job) treats this as the mitigation ONLY when the PR body co-occurs
+    // with the override marker; removing either fails cert generation for
+    // a non-obvious reason, so pin the pair here where the failure is
+    // fast and self-explanatory.
     let yml = ci_yml();
-    let job = job_block(&yml, "cross-time-determinism");
+    let commits_haystack = yml.contains("github.event.commits");
+    let pr_body_gate = yml.contains("github.event.pull_request.body")
+        && yml.contains("Override-Deterministic-Baseline");
     assert!(
-        job.contains("github.event.pull_request.body") || yml.contains("github.event.commits"),
+        commits_haystack || pr_body_gate,
         "the cross-time gate must read the override from a merge-style-\
-         immune haystack (`github.event.pull_request.body`), or a \
-         workflow must plumb `github.event.commits` — otherwise \
+         immune haystack: `github.event.pull_request.body` paired with \
+         the `Override-Deterministic-Baseline` marker, or a workflow \
+         plumbing `github.event.commits` — otherwise \
          `cargo evidence doctor`'s merge-style check flips to a warning \
          and cert-profile generation fails."
     );
