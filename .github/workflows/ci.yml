@@ -1217,10 +1217,13 @@ jobs:
     # therefore follows the current `main` tip; running this compare on
     # a main event would only risk freezing it at a stale run.
     #
-    # Degradation: if no prior artifact exists (fresh repo, first
-    # workflow run, or the 14-day retention expired before this
-    # PR opened), skip with a warning. Blocking a PR because CI
-    # history is thin would be user-hostile.
+    # Fail-closed: if the baseline for the PR's exact base SHA is
+    # missing, unavailable (14-day retention expiry), or malformed, the
+    # fetch script exits non-zero and the job fails. A required check
+    # that skipped on a missing baseline would pass without ever
+    # comparing. Strict up-to-date checks keep the base at the current
+    # `main` tip, whose run publishes the baseline, so a gap is a real
+    # problem — bring the PR up to date or re-run CI on the base commit.
     #
     # Linux-only — `deterministic_hash` is cross-host-stable by
     # design, so one OS is enough to catch drift. Running on three
