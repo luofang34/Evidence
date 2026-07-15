@@ -46,13 +46,14 @@ use super::args::{EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE};
 use super::output::emit_jsonl;
 
 mod checks;
+mod merge_style;
 mod nextest_preflight;
 mod qualification;
 mod untracked_hint;
 use checks::{
-    check_boundary, check_ci_integration, check_floors, check_merge_style, check_override_protocol,
-    check_trace,
+    check_boundary, check_ci_integration, check_floors, check_override_protocol, check_trace,
 };
+use merge_style::check_merge_style;
 use nextest_preflight::check_nextest;
 use qualification::check_qualification;
 
