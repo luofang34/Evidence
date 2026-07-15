@@ -80,6 +80,13 @@ pub fn parse_cargo_test_output_detailed(
         records.push(TestOutcomeRecord {
             name: name.to_string(),
             module_path: module_path.to_string(),
+            // Plain libtest text does not carry structured package /
+            // binary / harness identity — the binary is folded into
+            // module_path. The machine-readable nextest path populates
+            // these explicitly.
+            package: String::new(),
+            binary: String::new(),
+            harness: String::new(),
             passed,
             ignored,
             failure_message,

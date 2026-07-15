@@ -350,6 +350,13 @@
     "terminal": false
   },
   {
+    "code": "DOCTOR_NEXTEST_MISSING",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "DOCTOR_OK",
     "severity": "info",
     "domain": "doctor",
@@ -1093,6 +1100,13 @@
   },
   {
     "code": "VERIFY_SOURCE_BASELINE_EMPTY",
+    "severity": "error",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "VERIFY_TEST_IDENTITY_UNKNOWN",
     "severity": "error",
     "domain": "verify",
     "has_fix_hint": false,

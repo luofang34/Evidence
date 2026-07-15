@@ -273,6 +273,7 @@ pub fn cmd_verify(
                     VE::BoundaryVerifyForbiddenBuildRs { .. } => "boundary_verify_build_rs",
                     VE::BoundaryVerifyForbiddenProcMacro { .. } => "boundary_verify_proc_macro",
                     VE::SourceBaselineEmpty             => "source_baseline_empty",
+                    VE::TestIdentityUnknown { .. }      => "test_identity_unknown",
                 };
                 checks.push(VerifyCheck {
                     name: name.to_string(),

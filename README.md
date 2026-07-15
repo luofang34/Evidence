@@ -106,6 +106,10 @@ Get your first evidence bundle in under 30 seconds:
 # Install
 cargo install cargo-evidence
 
+# Prerequisite: `generate` runs the workspace tests through cargo-nextest
+# to capture per-test execution identity. Install it once:
+cargo install cargo-nextest --locked
+
 # Initialize evidence tracking in your project
 cargo evidence init
 

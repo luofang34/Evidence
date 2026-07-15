@@ -848,3 +848,28 @@ is not rejected on this basis.
 """
 verification_methods = ["test", "review"]
 traces_to = []
+
+[[requirements]]
+uid = "40b3032d-fc8e-4fc0-b93c-0eba35b1bb3d"
+id = "SYS-033"
+title = "Bundle shall preserve per-test execution identity so every declared test selector resolves to an executed result"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall record, for every test it captures, enough
+execution identity — package, test binary, harness, module path,
+and test name — that a requirement's test selector resolves to a
+specific executed result. Plain stable-libtest text that folds
+away binary identity is not sufficient on its own: two tests of
+the same name in different binaries must stay distinguishable,
+and a result whose binary is unknown cannot satisfy a selector.
+
+Generation shall therefore consume machine-readable test output
+(cargo-nextest) rather than identity-losing text. Certification
+of a bundle shall fail closed when a captured result carries no
+binary identity, and the release verifier run against a freshly
+generated bundle shall resolve every test-verified requirement to
+at least one executed result.
+"""
+verification_methods = ["test", "review"]
+traces_to = []

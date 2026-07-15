@@ -620,8 +620,8 @@ title = "Dangling LLR (test-verified, no matching test record) fires VERIFY_LLR_
 owner = "tool"
 traces_to = ["4bd86c6c-1743-4a78-9d17-c284b3ad8e04"]
 test_selectors = [
-    "verify::llr_selectors::tests::llr_with_no_matching_test_outcome_fires_unresolved",
-    "verify::llr_selectors::tests::llr_present_in_requirement_uids_passes",
+    "evidence_core::verify::llr_selectors::tests::llr_with_no_matching_test_outcome_fires_unresolved",
+    "evidence_core::verify::llr_selectors::tests::llr_present_in_requirement_uids_passes",
 ]
 
 [[tests]]
@@ -799,9 +799,9 @@ Pins the four legs of LLR-064's contract:
   real emit sites.
 """
 test_selectors = [
-    "subprocess::tests::run_error_code_is_self_describing",
-    "subprocess::tests::parse_jsonl_empty_stream_is_mcp_no_output",
-    "subprocess::tests::parse_jsonl_malformed_line_surfaces_mcp_marker",
+    "evidence_mcp::subprocess::tests::run_error_code_is_self_describing",
+    "evidence_mcp::subprocess::tests::parse_jsonl_empty_stream_is_mcp_no_output",
+    "evidence_mcp::subprocess::tests::parse_jsonl_malformed_line_surfaces_mcp_marker",
     "mcp_failure_surface::evidence_check_cargo_not_found_returns_structured_diagnostic",
     "mcp_codes_audit::every_mcp_code_emitted_in_source",
 ]
@@ -826,12 +826,12 @@ Pins the three legs of LLR-065's contract:
   (structured `JsonlToolResponse`, `exit_code == 2`).
 """
 test_selectors = [
-    "subprocess::tests::resolve_timeout_defaults_when_env_unset",
-    "subprocess::tests::resolve_timeout_defaults_when_env_empty",
-    "subprocess::tests::resolve_timeout_parses_valid_value",
-    "subprocess::tests::resolve_timeout_clamps_below_minimum",
-    "subprocess::tests::resolve_timeout_clamps_above_maximum",
-    "subprocess::tests::resolve_timeout_falls_back_on_malformed_env",
+    "evidence_mcp::subprocess::tests::resolve_timeout_defaults_when_env_unset",
+    "evidence_mcp::subprocess::tests::resolve_timeout_defaults_when_env_empty",
+    "evidence_mcp::subprocess::tests::resolve_timeout_parses_valid_value",
+    "evidence_mcp::subprocess::tests::resolve_timeout_clamps_below_minimum",
+    "evidence_mcp::subprocess::tests::resolve_timeout_clamps_above_maximum",
+    "evidence_mcp::subprocess::tests::resolve_timeout_falls_back_on_malformed_env",
 ]
 
 [[tests]]
@@ -858,7 +858,7 @@ Pins the three shape legs of LLR-066's contract:
 test_selectors = [
     "mcp_ping_surface::evidence_ping_matched_returns_versions_and_matched_skew",
     "mcp_ping_surface::evidence_ping_rejects_unknown_field_typo",
-    "server::responses::tests::ping_response_shapes_for_matched_skewed_probe_failed",
+    "evidence_mcp::server::responses::tests::ping_response_shapes_for_matched_skewed_probe_failed",
 ]
 
 [[tests]]
@@ -1277,13 +1277,13 @@ permission check:
   - signing_key_chmod_600_on_unix: signing.key has owner-rw mode.
 """
 test_selectors = [
-    "cli::keygen::tests::first_time_create_writes_both_files",
-    "cli::keygen::tests::refuses_overwrite_without_rotate",
-    "cli::keygen::tests::rotate_requires_existing_pair",
-    "cli::keygen::tests::rotate_overwrites_and_logs",
-    "cli::keygen::tests::rotate_without_reason_is_an_error",
-    "cli::keygen::tests::rotate_appends_each_log_line",
-    "cli::keygen::tests::signing_key_chmod_600_on_unix",
+    "cargo_evidence::cli::keygen::tests::first_time_create_writes_both_files",
+    "cargo_evidence::cli::keygen::tests::refuses_overwrite_without_rotate",
+    "cargo_evidence::cli::keygen::tests::rotate_requires_existing_pair",
+    "cargo_evidence::cli::keygen::tests::rotate_overwrites_and_logs",
+    "cargo_evidence::cli::keygen::tests::rotate_without_reason_is_an_error",
+    "cargo_evidence::cli::keygen::tests::rotate_appends_each_log_line",
+    "cargo_evidence::cli::keygen::tests::signing_key_chmod_600_on_unix",
 ]
 
 [[tests]]
@@ -1305,11 +1305,11 @@ Plus two helpers covering signing-key path resolution priority:
   - resolve_signing_key_path_returns_none_when_neither_explicit_nor_env.
 """
 test_selectors = [
-    "cli::generate::finalize::tests::anchor_absent_is_ok",
-    "cli::generate::finalize::tests::anchor_match_is_ok",
-    "cli::generate::finalize::tests::anchor_mismatch_refuses",
-    "cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
-    "cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env",
+    "cargo_evidence::cli::generate::finalize::tests::anchor_absent_is_ok",
+    "cargo_evidence::cli::generate::finalize::tests::anchor_match_is_ok",
+    "cargo_evidence::cli::generate::finalize::tests::anchor_mismatch_refuses",
+    "cargo_evidence::cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
+    "cargo_evidence::cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env",
 ]
 
 [[tests]]
@@ -1346,13 +1346,13 @@ case asserts the variant and the carried fields verbatim so a
 priority regression names the failing case.
 """
 test_selectors = [
-    "context::tests::resolve_none_returns_workspace",
-    "context::tests::resolve_empty_string_returns_workspace",
-    "context::tests::resolve_file_under_crates_dir",
-    "context::tests::resolve_crate_by_package_name",
-    "context::tests::resolve_module_by_dotted_path",
-    "context::tests::resolve_unknown_returns_out_of_scope",
-    "context::tests::selector_out_of_scope_preserves_raw_input",
+    "evidence_core::context::tests::resolve_none_returns_workspace",
+    "evidence_core::context::tests::resolve_empty_string_returns_workspace",
+    "evidence_core::context::tests::resolve_file_under_crates_dir",
+    "evidence_core::context::tests::resolve_crate_by_package_name",
+    "evidence_core::context::tests::resolve_module_by_dotted_path",
+    "evidence_core::context::tests::resolve_unknown_returns_out_of_scope",
+    "evidence_core::context::tests::selector_out_of_scope_preserves_raw_input",
 ]
 
 [[tests]]
@@ -1373,13 +1373,13 @@ in-tree crates. A seventh case round-trips the ContextReport
 through serde_json so the wire shape stays stable.
 """
 test_selectors = [
-    "context::tests::workspace_overview_carries_root_claude_md",
-    "context::tests::file_selector_carries_per_crate_claude_md",
-    "context::tests::file_selector_pulls_requirements_and_parents",
-    "context::tests::crate_selector_carries_per_crate_floor_rows",
-    "context::tests::requirements_emit_set_aggregates_diagnostic_codes",
-    "context::tests::boundary_slice_reports_in_scope_for_workspace_crate",
-    "context::tests::context_report_round_trips_via_serde_json",
+    "evidence_core::context::tests::workspace_overview_carries_root_claude_md",
+    "evidence_core::context::tests::file_selector_carries_per_crate_claude_md",
+    "evidence_core::context::tests::file_selector_pulls_requirements_and_parents",
+    "evidence_core::context::tests::crate_selector_carries_per_crate_floor_rows",
+    "evidence_core::context::tests::requirements_emit_set_aggregates_diagnostic_codes",
+    "evidence_core::context::tests::boundary_slice_reports_in_scope_for_workspace_crate",
+    "evidence_core::context::tests::context_report_round_trips_via_serde_json",
 ]
 
 [[tests]]
@@ -1398,8 +1398,8 @@ carries the raw selector string verbatim so the CLI can echo it
 back in a fix hint.
 """
 test_selectors = [
-    "context::tests::missing_trace_root_returns_trace_not_configured",
-    "context::tests::selector_out_of_scope_preserves_raw_input",
+    "evidence_core::context::tests::missing_trace_root_returns_trace_not_configured",
+    "evidence_core::context::tests::selector_out_of_scope_preserves_raw_input",
 ]
 
 [[tests]]
@@ -1611,3 +1611,68 @@ title = "declared required controlled input fails closed when absent, passes whe
 owner = "tool"
 traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
 test_selector = "evidence_core::bundle::input_scope::tests::required_input_presence_is_checked"
+
+[[tests]]
+uid = "32e6f48e-9421-4301-b70a-d6c7c51b228e"
+id = "TEST-106"
+title = "per-test outcome parser builds an outcome map from libtest text"
+owner = "tool"
+traces_to = ["b0569bd5-c609-440b-9389-a7996fffddad"]
+test_selector = "evidence_core::bundle::test_summary::tests::test_parse_cargo_test_output_failed"
+
+[[tests]]
+uid = "dd5a798f-aa1c-4e67-b88c-1e5832b55dce"
+id = "TEST-107"
+title = "cli context verb emits CONTEXT_* terminals over the wire"
+owner = "tool"
+traces_to = ["dde74fce-62f8-4f33-b161-e21ee8b4627d"]
+test_selector = "cli_context::context_human_mode_workspace_overview_exits_zero"
+
+[[tests]]
+uid = "b9bba1ed-4ffe-4c82-b782-5e203afebd47"
+id = "TEST-108"
+title = "context_roundtrip pins the MCP evidence_context wire shape"
+owner = "tool"
+traces_to = ["802701d1-9770-40fa-8a74-d65c3c34c8ca"]
+test_selector = "context_roundtrip::evidence_context_file_selector_pulls_requirements"
+
+[[tests]]
+uid = "60969bce-5b4a-4997-a442-5659f51151be"
+id = "TEST-109"
+title = "nextest parser reconstructs selector-matching identity for unit and integration tests"
+owner = "tool"
+traces_to = ["b7e107fa-7fb0-435d-823c-a786221be3a7"]
+test_selectors = [
+    "evidence_core::bundle::nextest::tests::unit_test_identity_matches_selector_format",
+    "evidence_core::bundle::nextest::tests::integration_test_bare_fn_identity",
+]
+
+[[tests]]
+uid = "db6175ca-a05e-4b78-a5f2-00754a3a86fa"
+id = "TEST-110"
+title = "nextest parser aggregates suite counts and emits deterministic sorted records"
+owner = "tool"
+traces_to = ["b7e107fa-7fb0-435d-823c-a786221be3a7"]
+test_selectors = [
+    "evidence_core::bundle::nextest::tests::summary_aggregates_across_suites",
+    "evidence_core::bundle::nextest::tests::records_are_sorted_for_determinism",
+]
+
+[[tests]]
+uid = "ac19b5e2-212f-47a2-96ae-17a70dc8012b"
+id = "TEST-111"
+title = "verify rejects an outcome record that lost its binary identity"
+owner = "tool"
+traces_to = ["50e04423-81fb-436d-a088-62e4639301a6"]
+test_selector = "evidence_core::verify::test_identity::tests::unknown_binary_record_is_rejected"
+
+[[tests]]
+uid = "c610d1fc-683d-43b9-b2d4-75f21532f4c8"
+id = "TEST-115"
+title = "generator closure blocks the right verify findings per profile"
+owner = "tool"
+traces_to = ["89f9de65-c963-4993-ab16-6d153e8c5dd7"]
+test_selectors = [
+    "cargo_evidence::cli::generate::closure::tests::prerelease_tool_is_non_blocking_only_on_dev",
+    "cargo_evidence::cli::generate::closure::tests::every_other_finding_blocks_on_every_profile",
+]

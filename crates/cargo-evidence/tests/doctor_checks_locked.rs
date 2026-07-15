@@ -48,6 +48,7 @@ const REQUIRED_CHECK_NAMES: &[&str] = &[
     "merge-style policy",
     "override protocol docs",
     "qualification docs",
+    "nextest available",
 ];
 
 #[test]

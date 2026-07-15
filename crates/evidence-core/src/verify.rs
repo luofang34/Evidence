@@ -27,6 +27,7 @@ mod llr_selectors;
 mod paths;
 mod runtime_error;
 mod source_baseline;
+mod test_identity;
 
 pub use bundle::{verify_bundle, verify_bundle_with_key};
 pub use errors::{VerifyError, VerifyResult};

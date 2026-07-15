@@ -211,6 +211,13 @@ pub enum VerifyError {
     /// cannot support a source-baseline or reproducibility claim with
     /// zero recorded inputs.
     SourceBaselineEmpty,
+    /// A per-test outcome record lost its binary identity (its
+    /// `module_path` carries the `__unknown_binary__` sentinel), so LLR
+    /// `test_selector`s cannot resolve to it even though the test ran.
+    TestIdentityUnknown {
+        /// The affected `{module_path}::{name}`.
+        test: String,
+    },
 }
 
 impl DiagnosticCode for VerifyError {
@@ -247,6 +254,7 @@ impl DiagnosticCode for VerifyError {
             VerifyError::BoundaryVerifyForbiddenBuildRs { .. }   => "VERIFY_BOUNDARY_BUILD_RS_DETECTED",
             VerifyError::BoundaryVerifyForbiddenProcMacro { .. } => "VERIFY_BOUNDARY_PROC_MACRO_DETECTED",
             VerifyError::SourceBaselineEmpty               => "VERIFY_SOURCE_BASELINE_EMPTY",
+            VerifyError::TestIdentityUnknown { .. }         => "VERIFY_TEST_IDENTITY_UNKNOWN",
         }
     }
 
@@ -280,6 +288,9 @@ impl DiagnosticCode for VerifyError {
                 Some(PathBuf::from("cargo_metadata.json"))
             }
             VerifyError::SourceBaselineEmpty => Some(PathBuf::from("inputs_hashes.json")),
+            VerifyError::TestIdentityUnknown { .. } => {
+                Some(PathBuf::from("tests/test_outcomes.jsonl"))
+            }
             // The remaining variants are bundle-wide invariants; no
             // single file "owns" the failure.
             VerifyError::SignatureInvalid

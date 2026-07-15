@@ -76,8 +76,9 @@ pub use bundle::{
     EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, InputEntry, InputReason, InputScopeError,
     ResolvedUnit, SigningError, TestSummary, ToolCommandFailure, WORKSPACE_CONTROL_PATHSPECS,
     assemble_input_plan, build_input_plan_blocking, generate_signing_key,
-    parse_cargo_test_output_detailed, read_signing_key, read_verifying_key, resolve_in_scope_units,
-    sign_bundle, verify_bundle_signature, write_signing_key, write_verifying_key,
+    parse_cargo_test_output_detailed, parse_nextest_libtest_json, read_signing_key,
+    read_verifying_key, resolve_in_scope_units, sign_bundle, verify_bundle_signature,
+    write_signing_key, write_verifying_key,
 };
 pub use compliance::{
     Applicability, ComplianceReport, ComplianceSummary, CrateEvidence, OBJECTIVES, ObjectiveStatus,

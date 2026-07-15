@@ -187,6 +187,7 @@ pub const RULES: &[RuleEntry] = &[
         Severity::Warning,
         Domain::Doctor,
     ),
+    r("DOCTOR_NEXTEST_MISSING", Severity::Warning, Domain::Doctor),
     terminal("DOCTOR_OK", Severity::Info),
     r(
         "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
@@ -395,6 +396,11 @@ pub const RULES: &[RuleEntry] = &[
     r("VERIFY_SIGNATURE_INVALID", Severity::Error, Domain::Verify),
     r(
         "VERIFY_SOURCE_BASELINE_EMPTY",
+        Severity::Error,
+        Domain::Verify,
+    ),
+    r(
+        "VERIFY_TEST_IDENTITY_UNKNOWN",
         Severity::Error,
         Domain::Verify,
     ),
