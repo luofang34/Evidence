@@ -9,8 +9,8 @@
 //! `main.rs`).
 //!
 //! The underlying data lives in [`evidence_core::RULES`] and is pinned by
-//! four bijection invariants in `diagnostic_codes_locked`. MCP (PR
-//! #50) wraps the `--json` shape directly.
+//! four bijection invariants in `diagnostic_codes_locked`. The MCP
+//! `evidence_rules` tool wraps the `--json` shape directly.
 
 use anyhow::Result;
 

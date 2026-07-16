@@ -23,6 +23,9 @@
             # `./scripts/local-ci.sh` inside `nix develop` don't
             # hit a PATH miss.
             pkgs.jq
+            # The input-scope tests spawn `git` to distinguish a git
+            # working tree from a packaged (walk-fallback) source.
+            pkgs.gitMinimal
           ];
           shellHook = ''
             export IN_NIX_SHELL=1
@@ -51,7 +54,10 @@
             # manifests. Without this, the sandbox hides `jq`
             # from PATH and the tests silently skip — which
             # defeats the Nix reproducibility gate's whole point.
-            nativeBuildInputs = [ pkgs.jq ];
+            # `gitMinimal`: the input-scope tests spawn `git` to
+            # exercise the git-vs-walk enumeration paths, which the
+            # sandbox otherwise lacks.
+            nativeBuildInputs = [ pkgs.jq pkgs.gitMinimal ];
           };
       });
 }

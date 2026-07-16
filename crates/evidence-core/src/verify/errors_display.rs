@@ -175,6 +175,30 @@ impl std::fmt::Display for VerifyError {
                     "verify-time recheck: in-scope proc-macro found: {details}"
                 )
             }
+            VerifyError::SourceBaselineEmpty => {
+                write!(
+                    f,
+                    "inputs_hashes.json is empty — the bundle records no source \
+                     baseline; a bundle cannot support a source-baseline or \
+                     reproducibility claim with zero recorded inputs"
+                )
+            }
+            VerifyError::TestIdentityUnknown { test } => {
+                write!(
+                    f,
+                    "test outcome '{test}' lost its binary identity \
+                     (__unknown_binary__); LLR test_selectors cannot resolve to a \
+                     test whose executing binary is unknown"
+                )
+            }
+            VerifyError::OutputManifestEmpty => {
+                write!(
+                    f,
+                    "outputs_hashes.json is empty but the bundle recorded a test \
+                     summary — the build produced deliverables that were never \
+                     attested"
+                )
+            }
         }
     }
 }

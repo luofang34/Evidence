@@ -9,6 +9,7 @@
 //! below, and the I/O-bound phase bodies are covered end-to-end by
 //! the `cargo-evidence evidence generate` integration tests.
 
+mod closure;
 mod coverage_phase;
 mod envelope;
 mod finalize;
@@ -21,6 +22,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use serde::Serialize;
 
+use closure::generator_closure;
 use evidence_core::diagnostic::{Diagnostic, Severity};
 use evidence_core::{EvidencePolicy, Profile};
 
@@ -212,7 +214,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     // tree", not after. See LLR-048 / cli/doctor.rs::precheck_doctor.
     if matches!(profile, Profile::Cert | Profile::Record) {
         let workspace = std::env::current_dir()?;
-        if let Err(e) = super::doctor::precheck_doctor(&workspace) {
+        if let Err(e) = super::doctor::precheck_doctor(&workspace, skip_tests) {
             return fail_dispatch(profile, e.to_string());
         }
     }
@@ -244,6 +246,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     phases::hash_in_scope_sources(
         &mut builder,
         &derived.in_scope_crates,
+        &derived.required_inputs,
         strict,
         quiet,
         json_output,
@@ -253,6 +256,14 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     builder.write_commands()?;
 
     phases::run_tests_and_capture(&mut builder, skip_tests, strict, quiet, json_output)?;
+    phases::inventory_and_hash_outputs(
+        &mut builder,
+        profile,
+        skip_tests,
+        strict,
+        quiet,
+        json_output,
+    )?;
     builder.write_outputs()?;
     builder.write_commands()?;
 
@@ -333,6 +344,13 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         quiet,
         json_output,
     )?;
+
+    // Generator closure: GENERATE_OK is never emitted for a bundle the
+    // tool's own release verifier would reject.
+    if let Some(code) = generator_closure(&bundle_path, profile, jsonl_output, json_output)? {
+        return Ok(code);
+    }
+
     if !jsonl_output {
         phases::emit_success_envelope(
             json_output,
@@ -345,29 +363,14 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     }
 
     if recorded_failures > 0 && matches!(profile, Profile::Cert | Profile::Record) {
+        let msg = format!(
+            "{} captured command(s) exited non-zero; bundle_complete=false",
+            recorded_failures
+        );
         if jsonl_output {
-            super::output::emit_jsonl(&Diagnostic {
-                code: "GENERATE_FAIL".to_string(),
-                severity: Severity::Error,
-                message: format!(
-                    "profile={}: {} captured command(s) exited non-zero; \
-                     bundle_complete=false",
-                    profile, recorded_failures
-                ),
-                location: Some(evidence_core::Location {
-                    file: Some(bundle_path),
-                    ..evidence_core::Location::default()
-                }),
-                fix_hint: None,
-                subcommand: Some("generate".to_string()),
-                root_cause_uid: None,
-            })?;
+            fail_jsonl(profile, msg)?;
         } else {
-            tracing::warn!(
-                "{} captured command(s) exited non-zero; cert/record bundle marked \
-                 bundle_complete=false — generate returning non-zero exit to signal",
-                recorded_failures
-            );
+            tracing::warn!("{} — cert/record bundle marked incomplete", msg);
         }
         return Ok(EXIT_VERIFICATION_FAILURE);
     }

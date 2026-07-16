@@ -816,3 +816,86 @@ conventions and scoped test commands).
 """
 verification_methods = ["test"]
 traces_to = []
+
+[[requirements]]
+uid = "3e47dd57-e3d6-4b95-95b3-684601471777"
+id = "SYS-032"
+title = "Bundle shall record a complete, canonically-identified source-input baseline; certification fails closed on empty or unresolved scope"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall record, in `inputs_hashes.json`, the SHA-256 of
+every controlled source input backing a bundle: the tracked
+sources of each in-scope Cargo package plus the workspace-level
+controlled inputs (root manifest and lockfile, toolchain pin,
+and certification data under `cert/`).
+
+Package identity is not a repository path. An in-scope entry
+names a Cargo package; its sources live at its manifest
+directory, resolved through `cargo metadata`, not by treating
+the bare package name as a `git` pathspec.
+
+The source baseline shall fail closed. Certification or record
+generation shall fail if a declared in-scope package is absent
+from the metadata, resolves to a directory outside the
+workspace root, resolves to zero tracked files, or if the
+assembled baseline is empty. Bundle verification shall reject a
+bundle that declares in-scope packages yet records an empty
+`inputs_hashes.json`, because a declared baseline that captured
+nothing cannot back a source-baseline or reproducibility claim.
+A bundle that declares no scope has no baseline to capture and
+is not rejected on this basis.
+"""
+verification_methods = ["test", "review"]
+traces_to = []
+
+[[requirements]]
+uid = "40b3032d-fc8e-4fc0-b93c-0eba35b1bb3d"
+id = "SYS-033"
+title = "Bundle shall preserve per-test execution identity so every declared test selector resolves to an executed result"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall record, for every test it captures, enough
+execution identity — package, test binary, harness, module path,
+and test name — that a requirement's test selector resolves to a
+specific executed result. Plain stable-libtest text that folds
+away binary identity is not sufficient on its own: two tests of
+the same name in different binaries must stay distinguishable,
+and a result whose binary is unknown cannot satisfy a selector.
+
+Generation shall therefore consume machine-readable test output
+(cargo-nextest) rather than identity-losing text. Certification
+of a bundle shall fail closed when a captured result carries no
+binary identity, and the release verifier run against a freshly
+generated bundle shall resolve every test-verified requirement to
+at least one executed result.
+"""
+verification_methods = ["test", "review"]
+traces_to = []
+
+[[requirements]]
+uid = "4ce28d5c-374d-4e96-bcee-e283ff829db9"
+id = "SYS-034"
+title = "Bundle shall record the compiled deliverables of its build; certification fails closed on a build that attested none"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall record, in `outputs_hashes.json`, the SHA-256 of
+every deliverable an in-scope crate's build produces — its
+library and binary artifacts — inventoried from the build's own
+machine-readable compiler-artifact messages, so a bundle attests
+what its recorded recipe actually built.
+
+Output digests are host- and build-specific: they belong to the
+bundle's content-integrity channel, not the cross-host recipe
+channel. A bundle that compiled the workspace and produced
+deliverables shall not attest an empty output manifest;
+certification or record generation fails closed when a build
+produced deliverables but captured none, and bundle verification
+rejects an empty output manifest on a bundle that recorded a test
+summary (which implies a build ran). A bundle that compiled
+nothing (`--skip-tests`) legitimately has no outputs.
+"""
+verification_methods = ["test", "review"]
+traces_to = []

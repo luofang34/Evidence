@@ -3,16 +3,16 @@
 //! Covers the four selectors TEST-048 pins:
 //! - `rigorous_fixture_passes` — synthetic fixture with trace +
 //!   floors + boundary + ci.yml + README override section passes
-//!   with `DOCTOR_OK` + 6 `DOCTOR_CHECK_PASSED`.
+//!   with `DOCTOR_OK` and no error-severity findings.
 //! - `sloppy_fixture_fails_with_named_codes` — fixture missing
 //!   trace + floors + boundary fires with specific fail codes and
 //!   the `DOCTOR_FAIL` terminal.
 //! - `cert_generate_blocks_on_doctor_fail` — `generate --profile
 //!   cert` on a sloppy fixture aborts before bundle assembly,
 //!   surfacing the doctor codes in the error message.
-//! - `current_workspace_passes_doctor` — our own repo passes all
-//!   6 checks (load-bearing regression: if the tool's own rigor
-//!   slips, this fires).
+//! - `current_workspace_passes_doctor` — our own repo passes doctor
+//!   (exit 0, `DOCTOR_OK`) — a load-bearing regression: if the tool's
+//!   own rigor slips, this fires.
 
 #![allow(
     clippy::unwrap_used,
@@ -36,12 +36,14 @@ fn rigorous_fixture_passes() {
     let (exit, diags) = run_doctor(tmp.path());
     assert_eq!(exit, 0, "rigorous fixture should exit 0; diags={:?}", diags);
     let codes: Vec<&str> = diags.iter().map(|d| d["code"].as_str().unwrap()).collect();
-    // Exactly 8 lines: 7 checks + 1 terminal. No DOCTOR_FAIL, no
-    // error-severity DOCTOR_* in the stream.
+    // Exactly 9 lines: 8 checks + 1 terminal. No DOCTOR_FAIL, no
+    // error-severity DOCTOR_* in the stream. (The nextest-available
+    // check emits DOCTOR_CHECK_PASSED or a DOCTOR_NEXTEST_MISSING
+    // warning depending on the host, but is one line either way.)
     assert_eq!(
         codes.len(),
-        8,
-        "expected 7 check diagnostics + 1 terminal = 8 lines; got codes={:?}",
+        9,
+        "expected 8 check diagnostics + 1 terminal = 9 lines; got codes={:?}",
         codes
     );
     let errors: Vec<&&str> = diags

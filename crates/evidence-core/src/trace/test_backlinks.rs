@@ -101,6 +101,9 @@ mod tests {
         TestOutcomeRecord {
             name: name.to_string(),
             module_path: module_path.to_string(),
+            package: String::new(),
+            binary: String::new(),
+            harness: String::new(),
             passed: true,
             ignored: false,
             failure_message: None,

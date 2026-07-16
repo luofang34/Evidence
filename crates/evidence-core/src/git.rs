@@ -256,21 +256,36 @@ pub fn git_dirty_files() -> Result<Vec<String>, GitError> {
         .collect())
 }
 
-/// Get list of files tracked by git matching the given prefixes.
+/// Get list of files tracked by git matching the given prefixes,
+/// interpreted relative to the current working directory.
 ///
 /// Uses null-separated output for robustness with special characters.
 /// Returns sorted list for determinism.
 pub fn git_ls_files(prefixes: &[&str]) -> Result<Vec<String>, GitError> {
+    git_ls_files_in(Path::new("."), prefixes)
+}
+
+/// Like [`git_ls_files`], but runs git with `dir` as its working
+/// directory so both the pathspecs and the returned paths are relative
+/// to `dir`. Callers that resolve pathspecs against the Cargo workspace
+/// root must pass that root here — otherwise a `generate` invoked from
+/// a subdirectory would resolve pathspecs against the wrong base and
+/// silently capture nothing.
+pub fn git_ls_files_in(dir: &Path, prefixes: &[&str]) -> Result<Vec<String>, GitError> {
     let mut args: Vec<String> = vec!["ls-files".into(), "-z".into(), "--".into()];
     args.extend(prefixes.iter().map(|s| (*s).to_string()));
 
-    let output = Command::new("git").args(&args).output().map_err(|source| {
-        GitError::Cmd(CmdError::Launch {
-            prog: "git".to_string(),
-            args: args.clone(),
-            source,
-        })
-    })?;
+    let output = Command::new("git")
+        .current_dir(dir)
+        .args(&args)
+        .output()
+        .map_err(|source| {
+            GitError::Cmd(CmdError::Launch {
+                prog: "git".to_string(),
+                args: args.clone(),
+                source,
+            })
+        })?;
     if !output.status.success() {
         return Err(GitError::SubcommandFailed {
             cmd: "git ls-files".to_string(),
