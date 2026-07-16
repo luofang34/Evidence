@@ -57,7 +57,7 @@ trace_hlr = 78
 # cert/trace/llr.toml — Low-Level Requirements.
 trace_llr = 94
 # cert/trace/tests.toml — Test Cases.
-trace_test = 111
+trace_test = 112
 
 # evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
@@ -79,7 +79,7 @@ known_surfaces = 26
 
 [per_crate.evidence-core]
 # `#[test]` attribute count inside crates/evidence-core/**/*.rs.
-test_count = 441
+test_count = 443
 
 [per_crate.cargo-evidence]
 test_count = 176

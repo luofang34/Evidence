@@ -2795,9 +2795,15 @@ stream: `test` events (`{crate}::{binary}${module::path::name}`)
 become `TestOutcomeRecord`s with package, binary, harness, and a
 `module_path` reconstructed to begin with the binary, so
 `{module_path}::{name}` equals the trace `test_selector` format;
-`suite` events supply the aggregate `TestSummary`. Per-test
-`exec_time` is deliberately not recorded and records are sorted,
-so `test_outcomes.jsonl` stays byte-deterministic (SYS-003).
+`suite` events supply the aggregate `TestSummary`. nextest may emit
+more than one `suite` summary for the same binary when it partitions
+that binary's tests; suite counts are reduced per binary identity
+(`passed`/`failed` summed over disjoint partitions, `ignored` and
+`filtered_out` reduced as whole-binary tallies) so a partitioned
+binary does not double-count and `reconcile` stays exact against the
+per-test records. Per-test `exec_time` is deliberately not recorded
+and records are sorted, so `test_outcomes.jsonl` stays
+byte-deterministic (SYS-003).
 
 `run_tests_and_capture` runs `cargo nextest run --workspace
 --no-fail-fast --message-format libtest-json-plus` through the
