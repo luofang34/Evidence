@@ -735,6 +735,13 @@
     "terminal": false
   },
   {
+    "code": "SIGN_KEYGEN_ENTROPY",
+    "severity": "error",
+    "domain": "sign",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "SIGN_PUBKEY_ANCHOR_MISMATCH",
     "severity": "error",
     "domain": "sign",
