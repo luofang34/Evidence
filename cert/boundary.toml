@@ -46,5 +46,14 @@ forbid_proc_macros = false
 
 [forbidden_external]
 
+# Controlled inputs the source baseline must capture even when they are
+# not git-tracked — e.g. generated code an in-scope crate compiles
+# against. Each is a workspace-relative path; generation fails closed if
+# a declared input is absent on disk. This workspace generates no such
+# inputs (the engine's git SHA is embedded at compile time via build.rs,
+# not written to a tracked file), so the set is empty.
+[inputs]
+required = []
+
 [dal]
 default_dal = "D"

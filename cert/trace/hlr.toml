@@ -1902,3 +1902,81 @@ via the same JSONL `INIT_TEMPLATE_WRITTEN` channel as the
 verification_methods = ["test"]
 traces_to = ["d8d1f204-3909-418d-b62a-1e28edd088ed"]
 surfaces = ["init"]
+
+[[requirements]]
+uid = "2f043730-58ae-4528-aec7-6b30eed81fcf"
+id = "HLR-076"
+title = "In-scope package names resolve to manifest directories; workspace-control inputs are captured; empty or unresolved scope fails closed"
+owner = "tool"
+scope = "component"
+description = """
+Generation shall resolve each `boundary.toml` in-scope package
+name to its workspace-relative manifest directory via
+`cargo metadata --format-version 1`, enumerate that directory
+and the workspace-control pathspecs (root `Cargo.toml`,
+`Cargo.lock`, `rust-toolchain[.toml]`, `cert/`) through
+`git ls-files`, deduplicate the result with unit provenance
+winning over control provenance, and hash every entry into
+`inputs_hashes.json`.
+
+Fail-closed obligations: a missing package, a manifest escaping
+the workspace root, an in-scope unit with zero tracked files, or
+a zero-input total shall fail cert/record generation. Bundle
+verification shall independently reject a bundle that declares
+in-scope packages yet records an empty source baseline, so a
+regression that reintroduces the empty baseline is caught at both
+ends of the pipeline.
+"""
+verification_methods = ["test"]
+traces_to = ["3e47dd57-e3d6-4b95-95b3-684601471777"]
+
+[[requirements]]
+uid = "d7fd101f-ff38-4bb1-87c1-4ba486fd3714"
+id = "HLR-077"
+title = "Generate captures tests via nextest libtest-json-plus preserving per-binary identity; verify fails closed on lost identity"
+owner = "tool"
+scope = "component"
+description = """
+Generation shall run `cargo nextest run --workspace
+--no-fail-fast --message-format libtest-json-plus` and parse the
+event stream into per-test outcome records that carry package,
+binary, harness, module path, and test name. `--no-fail-fast`
+ensures every test's outcome is recorded even when some fail.
+Records are keyed `{binary}::{module_path}::{name}` so the
+trace's `test_selector`s resolve and same-named tests in
+different binaries stay distinct. Per-test wall-clock time is
+dropped and records are sorted, keeping the bundle deterministic.
+
+Bundle verification shall reject any outcome record that still
+carries the `__unknown_binary__` sentinel
+(`VERIFY_TEST_IDENTITY_UNKNOWN`), catching a regression to
+identity-losing capture at the far end of the pipeline.
+"""
+verification_methods = ["test"]
+traces_to = ["40b3032d-fc8e-4fc0-b93c-0eba35b1bb3d"]
+
+[[requirements]]
+uid = "a4b1c88d-2f16-4086-86d7-1a7a8094055f"
+id = "HLR-078"
+title = "Generate inventories workspace compiler artifacts and hashes each deliverable; verify fails closed on empty outputs when a build ran"
+owner = "tool"
+scope = "component"
+description = """
+After the test phase compiles the workspace, generation shall run
+`cargo build --workspace --message-format=json` and parse the
+`compiler-artifact` messages, keeping the `lib` and `bin`
+deliverables of workspace members (package id under the workspace
+root) and excluding build scripts, proc-macros, and external
+dependencies. Each produced file is hashed into
+`outputs_hashes.json` under its workspace-relative path; results
+are sorted for deterministic ordering. The phase is skipped under
+`--skip-tests`, which compiles nothing.
+
+Fail-closed obligations: strict (cert/record) generation fails
+when a build produced no deliverables or an artifact cannot be
+hashed. Bundle verification rejects an empty `outputs_hashes.json`
+on any bundle that recorded a test summary
+(`VERIFY_OUTPUT_MANIFEST_EMPTY`).
+"""
+verification_methods = ["test"]
+traces_to = ["4ce28d5c-374d-4e96-bcee-e283ff829db9"]

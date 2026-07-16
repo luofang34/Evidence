@@ -1085,6 +1085,7 @@ emits = [
     "DOCTOR_CI_INTEGRATION_MISSING",
     "DOCTOR_MERGE_STYLE_RISK",
     "DOCTOR_MERGE_STYLE_UNKNOWN",
+    "DOCTOR_NEXTEST_MISSING",
     "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
     "DOCTOR_QUALIFICATION_MISSING",
 ]
@@ -2714,3 +2715,197 @@ the user would do by hand. Each successful write goes through
 `cert/` emissions, terminating with the standard `INIT_OK`.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
+id = "LLR-091"
+title = "package-name -> manifest-dir resolution + control-input planning + generate-time fail-closed"
+owner = "tool"
+traces_to = ["2f043730-58ae-4528-aec7-6b30eed81fcf"]
+modules = [
+    "evidence_core::bundle::input_scope::resolve_in_scope_units",
+    "evidence_core::bundle::input_scope::assemble_input_plan",
+    "evidence_core::bundle::input_scope::build_input_plan_blocking",
+    "cargo_evidence::cli::generate::phases::hash_in_scope_sources",
+]
+description = """
+`resolve_in_scope_units` parses `cargo metadata` and maps each
+in-scope package name to its workspace-relative manifest
+directory via `manifest_path`, failing closed with
+`MissingPackage` (name absent) or `PathEscape` (manifest not
+under `workspace_root`).
+
+`assemble_input_plan` merges the per-unit `git ls-files` results,
+the declared required inputs (`boundary.toml` `[inputs].required`),
+and the `WORKSPACE_CONTROL_PATHSPECS` results into a deduplicated,
+provenance-tagged, sorted set (precedence unit > declared-required
+> control), failing closed with `EmptyScope` (a unit resolved to
+zero files) or `NoInputs` (an empty total). Declared required
+inputs are existence-checked against the workspace root
+(`check_required_inputs_exist`) and fail closed with
+`MissingRequiredInput` — a git-ignored generated input that is
+required but absent cannot be silently dropped.
+
+`build_input_plan_blocking` orchestrates the subprocess calls and
+the pure helpers. `hash_in_scope_sources` consumes the plan,
+hashing each entry into `inputs_hashes.json`; strict (cert/record)
+mode propagates any planning error as a generate failure, so a
+cert bundle can never record an empty or mis-resolved source
+baseline.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "7d8dc29d-16a4-4415-96cf-0c1df7ec894b"
+id = "LLR-092"
+title = "verify fails closed on an empty source baseline"
+owner = "tool"
+traces_to = ["2f043730-58ae-4528-aec7-6b30eed81fcf"]
+modules = [
+    "evidence_core::verify::source_baseline::check_source_baseline",
+]
+description = """
+`check_source_baseline` runs inside `verify_bundle_with_key`
+only when the bundle declares in-scope packages (`index.dal_map`
+non-empty). It reads `inputs_hashes.json`; if the file parses to
+an empty object it pushes `VerifyError::SourceBaselineEmpty`. A
+bundle that declares no scope has no baseline to capture and is
+left alone. A missing or unparseable file stays silent here —
+the required-files and hash-manifest checks upstream own that
+finding — so the empty-baseline signal is not duplicated. This
+is the verify-side half of the fail-closed contract whose
+generate-side half is LLR-091.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_SOURCE_BASELINE_EMPTY"]
+
+[[requirements]]
+uid = "b7e107fa-7fb0-435d-823c-a786221be3a7"
+id = "LLR-093"
+title = "nextest libtest-json-plus parser preserves per-test identity"
+owner = "tool"
+traces_to = ["d7fd101f-ff38-4bb1-87c1-4ba486fd3714"]
+modules = [
+    "evidence_core::bundle::nextest::parse_nextest_libtest_json",
+    "cargo_evidence::cli::generate::phases::run_tests_and_capture",
+]
+description = """
+`parse_nextest_libtest_json` reads nextest's `libtest-json-plus`
+stream: `test` events (`{crate}::{binary}${module::path::name}`)
+become `TestOutcomeRecord`s with package, binary, harness, and a
+`module_path` reconstructed to begin with the binary, so
+`{module_path}::{name}` equals the trace `test_selector` format;
+`suite` events supply the aggregate `TestSummary`. nextest may emit
+more than one `suite` summary for the same binary when it partitions
+that binary's tests; suite counts are reduced per binary identity
+(`passed`/`failed` summed over disjoint partitions, `ignored` and
+`filtered_out` reduced as whole-binary tallies) so a partitioned
+binary does not double-count and `reconcile` stays exact against the
+per-test records. Per-test `exec_time` is deliberately not recorded
+and records are sorted, so `test_outcomes.jsonl` stays
+byte-deterministic (SYS-003).
+
+`run_tests_and_capture` runs `cargo nextest run --workspace
+--no-fail-fast --message-format libtest-json-plus` through the
+builder's `run_capture` and feeds its stdout to the parser.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "50e04423-81fb-436d-a088-62e4639301a6"
+id = "LLR-094"
+title = "verify fails closed on lost test-execution identity"
+owner = "tool"
+traces_to = ["d7fd101f-ff38-4bb1-87c1-4ba486fd3714"]
+modules = [
+    "evidence_core::verify::test_identity::check_test_identity",
+]
+description = """
+`check_test_identity` scans `tests/test_outcomes.jsonl` inside
+`verify_bundle_with_key` and pushes
+`VerifyError::TestIdentityUnknown` for any record whose
+`module_path` still carries the `__unknown_binary__` sentinel —
+the machine-readable capture never emits it, so its presence
+means identity was lost and LLR selectors would dangle. This is
+the verify-side regression guard for the generate-side capture in
+LLR-093.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_TEST_IDENTITY_UNKNOWN"]
+
+[[requirements]]
+uid = "89f9de65-c963-4993-ab16-6d153e8c5dd7"
+id = "LLR-097"
+title = "generator closure runs the release verifier before emitting GENERATE_OK"
+owner = "tool"
+traces_to = ["d7fd101f-ff38-4bb1-87c1-4ba486fd3714"]
+modules = [
+    "cargo_evidence::cli::generate::generator_closure",
+    "cargo_evidence::cli::generate::verify_error_blocks_generate",
+]
+description = """
+After `finalize_and_sign`, `generator_closure` runs `verify_bundle`
+against the just-written bundle. If the verifier rejects it, generate
+emits `GENERATE_FAIL` and returns a non-zero exit instead of
+`GENERATE_OK` — a generated bundle is not complete when the same tool
+rejects the unchanged bundle. `verify_error_blocks_generate` mirrors
+`verify`'s severity partition: a `PrereleaseToolDetected` finding is
+non-blocking on `dev` only; every other finding, and all findings on
+cert/record, blocks.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"
+id = "LLR-095"
+title = "compiler-artifact inventory hashes workspace deliverables into outputs_hashes.json"
+owner = "tool"
+traces_to = ["a4b1c88d-2f16-4086-86d7-1a7a8094055f"]
+modules = [
+    "evidence_core::bundle::cargo_artifacts::parse_workspace_artifacts",
+    "evidence_core::bundle::cargo_artifacts::inventory_outputs_blocking",
+    "cargo_evidence::cli::generate::phases::inventory_and_hash_outputs",
+]
+description = """
+`parse_workspace_artifacts` reads `cargo build
+--message-format=json` output, keeping `compiler-artifact`
+messages whose `package_id` is an exact `cargo metadata`
+`workspace_members` entry and whose target is a `lib` or `bin`.
+Every produced filename becomes an `OutputArtifact { key, path }`
+keyed by its path relative to cargo's `target_directory` — never
+an absolute path. It fails closed on a malformed build message
+(`MalformedMessage`) or an artifact outside `target_directory`
+(`ArtifactOutsideTargetDir`) rather than silently skipping;
+results are sorted and deduplicated for determinism.
+
+`inventory_outputs_blocking` reads `workspace_members` and
+`target_directory` from `cargo metadata`, then builds with the
+bundle's recipe — cert/record build `--release --locked` so the
+inventory attests the deliverable and a pinned dependency graph,
+not an implicit debug build. `inventory_and_hash_outputs` hashes
+each artifact into `outputs_hashes.json` via `builder.add_output`;
+strict mode fails closed on zero deliverables or an unhashable
+artifact, and the phase is skipped under `--skip-tests`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "8b9b283e-27a8-401f-b846-413bdf94ea11"
+id = "LLR-096"
+title = "verify fails closed on an empty output manifest when a build ran"
+owner = "tool"
+traces_to = ["a4b1c88d-2f16-4086-86d7-1a7a8094055f"]
+modules = [
+    "evidence_core::verify::output_manifest::check_output_manifest",
+]
+description = """
+`check_output_manifest` runs inside `verify_bundle_with_key` when
+the bundle records a test summary (`index.test_summary.is_some()`
+— a build ran). It reads `outputs_hashes.json`; an empty object
+pushes `VerifyError::OutputManifestEmpty`. A `--skip-tests` bundle
+records no test summary and is left alone. This is the verify-side
+half of the fail-closed contract whose generate-side half is
+LLR-095.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_OUTPUT_MANIFEST_EMPTY"]

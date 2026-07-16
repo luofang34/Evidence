@@ -133,8 +133,29 @@ pub struct TestOutcomeRecord {
     /// The concatenation `{module_path}::{name}` is the
     /// libtest-qualified key the rest of the tool uses
     /// (`test_selector` resolution, requirement-to-test
-    /// matching).
+    /// matching). `module_path` begins with the test binary name,
+    /// so tests with the same name in different binaries stay
+    /// distinguishable.
     pub module_path: String,
+
+    /// Cargo package the test belongs to (e.g. `evidence-core`).
+    /// Populated from machine-readable nextest output; empty for
+    /// records parsed from plain libtest text, which does not carry
+    /// package identity. Serializes absent when empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub package: String,
+
+    /// Test binary the test executed in (e.g. `evidence_core` for a
+    /// lib's unit tests, or the integration-test file stem). This is
+    /// the identity that was lost as `__unknown_binary__`. Empty for
+    /// libtest-text records. Serializes absent when empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub binary: String,
+
+    /// Test harness that produced the result (e.g. `libtest`). Empty
+    /// for libtest-text records. Serializes absent when empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub harness: String,
 
     /// `true` iff the test ran and succeeded.
     /// `false` iff the test ran and failed — `failure_message`
@@ -207,6 +228,9 @@ mod tests {
         let rec = TestOutcomeRecord {
             name: "verify_ok_terminates_with_verify_ok_and_exit_zero".to_string(),
             module_path: "verify_jsonl".to_string(),
+            package: String::new(),
+            binary: String::new(),
+            harness: String::new(),
             passed: true,
             ignored: false,
             failure_message: None,
@@ -233,6 +257,9 @@ mod tests {
         let rec = TestOutcomeRecord {
             name: "divides_by_zero".to_string(),
             module_path: "arith::tests".to_string(),
+            package: String::new(),
+            binary: String::new(),
+            harness: String::new(),
             passed: false,
             ignored: false,
             failure_message: Some(
@@ -265,6 +292,9 @@ mod tests {
             TestOutcomeRecord {
                 name: "a".to_string(),
                 module_path: "mod1".to_string(),
+                package: String::new(),
+                binary: String::new(),
+                harness: String::new(),
                 passed: true,
                 ignored: false,
                 failure_message: None,
@@ -274,6 +304,9 @@ mod tests {
             TestOutcomeRecord {
                 name: "b".to_string(),
                 module_path: "mod1".to_string(),
+                package: String::new(),
+                binary: String::new(),
+                harness: String::new(),
                 passed: false,
                 ignored: false,
                 failure_message: Some("boom".to_string()),
