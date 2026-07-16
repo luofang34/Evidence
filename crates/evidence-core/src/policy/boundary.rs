@@ -87,6 +87,19 @@ pub struct BoundaryScope {
     pub explicit_forbidden: Vec<String>,
 }
 
+/// Explicitly declared controlled inputs that the source baseline must
+/// capture even when they are not git-tracked — e.g. generated code an
+/// in-scope crate compiles against. Each entry is a workspace-relative
+/// path; generation fails closed if a declared input is absent on disk,
+/// because a controlled input that cannot be hashed cannot back the
+/// evidence result.
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
+pub struct BoundaryInputs {
+    /// Workspace-relative paths of required controlled inputs.
+    #[serde(default)]
+    pub required: Vec<String>,
+}
+
 /// Boundary policy rules.
 #[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct BoundaryPolicy {
@@ -169,6 +182,10 @@ pub struct BoundaryConfig {
     /// Forbidden external crates with reasons
     #[serde(default)]
     pub forbidden_external: BTreeMap<String, String>,
+    /// Explicitly declared required controlled inputs (see
+    /// [`BoundaryInputs`]). Defaults to empty.
+    #[serde(default)]
+    pub inputs: BoundaryInputs,
     /// DAL configuration. If absent, all crates default to DAL-D.
     #[serde(default)]
     pub dal: DalConfig,
@@ -226,6 +243,7 @@ impl BoundaryConfig {
                 forbid_proc_macros: false,
             },
             forbidden_external: BTreeMap::new(),
+            inputs: BoundaryInputs::default(),
             dal: DalConfig::default(),
         }
     }

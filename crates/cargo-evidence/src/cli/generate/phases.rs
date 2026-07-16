@@ -10,9 +10,9 @@ use anyhow::Result;
 
 use evidence_core::{
     BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
-    Profile,
-    git::{check_shallow_clone, git_ls_files, is_dirty_or_unknown},
-    load_trace_roots, parse_cargo_test_output_detailed,
+    Profile, build_input_plan_blocking,
+    git::{check_shallow_clone, is_dirty_or_unknown},
+    load_trace_roots, parse_nextest_libtest_json,
     trace::{generate_traceability_matrix, read_all_trace_files},
 };
 
@@ -23,6 +23,10 @@ use crate::cli::output::emit_json;
 /// phases downstream of config construction.
 pub(super) struct BoundaryDerived {
     pub(super) in_scope_crates: Vec<String>,
+    /// Workspace-relative paths of controlled inputs declared required
+    /// in `boundary.toml`'s `[inputs]` section — hashed even when not
+    /// git-tracked (generated code), failing closed if absent.
+    pub(super) required_inputs: Vec<String>,
     pub(super) trace_roots: Vec<String>,
     pub(super) dal_map: BTreeMap<String, Dal>,
     pub(super) max_dal: Dal,
@@ -79,6 +83,7 @@ pub(super) fn build_config(
         .unwrap_or_else(|| load_trace_roots(boundary_path));
     let boundary_config = BoundaryConfig::load_or_default(boundary_path);
     let in_scope_crates = boundary_config.scope.in_scope.clone();
+    let required_inputs = boundary_config.inputs.required.clone();
     let dal_map = boundary_config.dal_map();
     let max_dal = dal_map.values().copied().max().unwrap_or_default();
     let policy = boundary_config.policy.clone();
@@ -98,6 +103,7 @@ pub(super) fn build_config(
         config,
         BoundaryDerived {
             in_scope_crates,
+            required_inputs,
             trace_roots,
             dal_map,
             max_dal,
@@ -174,54 +180,64 @@ pub(super) fn capture_and_write_env(
 
 // Phase 4 — hash in-scope source files
 
-/// Run `git ls-files` over the in-scope crate prefixes and hash each
-/// returned file into the bundle's `inputs_hashes.json`. Strict
-/// (cert/record) mode bails on any failure; non-strict mode logs a
-/// `warning:` line and continues.
+/// Resolve each in-scope Cargo package name to its manifest directory,
+/// enumerate that directory plus the workspace-control inputs via
+/// `git ls-files`, and hash every resolved file into the bundle's
+/// `inputs_hashes.json`. Package identity is resolved through
+/// `cargo metadata` — never treated as a repository path.
+///
+/// Strict (cert/record) mode fails closed on any unresolved package,
+/// path escape, empty in-scope unit, or zero-input total, so a cert
+/// bundle can never record an empty source baseline. Non-strict mode
+/// degrades to a `warning:` line and continues.
 pub(super) fn hash_in_scope_sources(
     builder: &mut EvidenceBuilder,
     prefixes: &[String],
+    required_inputs: &[String],
     strict: bool,
     quiet: bool,
     json_output: bool,
 ) -> Result<()> {
-    if prefixes.is_empty() {
+    if prefixes.is_empty() && required_inputs.is_empty() {
         return Ok(());
     }
-    let refs: Vec<&str> = prefixes.iter().map(|s| s.as_str()).collect();
-    match git_ls_files(&refs) {
-        Ok(files) => {
-            for f in &files {
-                if let Err(e) = builder.hash_input(f) {
+    match build_input_plan_blocking(prefixes, required_inputs) {
+        Ok(plan) => {
+            for entry in &plan {
+                if let Err(e) = builder.hash_input(&entry.path) {
                     if strict {
-                        return Err(
-                            anyhow::Error::new(e).context(format!("hashing source file: {}", f))
-                        );
+                        return Err(anyhow::Error::new(e)
+                            .context(format!("hashing source file: {}", entry.path)));
                     }
-                    eprintln!("warning: could not hash {}: {}", f, e);
+                    tracing::warn!("could not hash {}: {}", entry.path, e);
                 }
             }
             if !quiet && !json_output {
-                println!("evidence: hashed {} source file(s)", files.len());
+                println!("evidence: hashed {} source input(s)", plan.len());
             }
         }
         Err(e) => {
             if strict {
-                return Err(anyhow::Error::new(e).context("listing in-scope source files"));
+                return Err(anyhow::Error::new(e).context("resolving in-scope source inputs"));
             }
-            eprintln!("warning: could not list source files: {}", e);
+            tracing::warn!("could not resolve source inputs: {}", e);
         }
     }
     Ok(())
 }
 
-// Phase 5 — run cargo test and capture
+// Phase 5 — run nextest and capture
 
-/// Run `cargo test --workspace` through the builder's `run_capture`,
-/// parse the stdout summary, and record it on the builder. `skip_tests`
-/// short-circuits. In strict mode any failure to *run* cargo test
-/// bails (so cert bundles never silently omit test evidence); in dev
-/// mode a failure degrades to a warning.
+/// Run `cargo nextest run --workspace` under `libtest-json-plus`
+/// through the builder's `run_capture`, parse the machine-readable
+/// event stream, and record the per-test outcomes + summary on the
+/// builder. Machine-readable output preserves per-binary identity, so
+/// LLR `test_selector`s resolve to executed results — the identity that
+/// plain libtest text loses as `__unknown_binary__`.
+///
+/// `skip_tests` short-circuits. In strict mode any failure to *run*
+/// nextest bails (so cert bundles never silently omit test evidence);
+/// in dev mode a spawn failure degrades to a warning.
 pub(super) fn run_tests_and_capture(
     builder: &mut EvidenceBuilder,
     skip_tests: bool,
@@ -233,52 +249,89 @@ pub(super) fn run_tests_and_capture(
         return Ok(());
     }
     let mut test_cmd = std::process::Command::new("cargo");
-    test_cmd.args(["test", "--workspace"]);
-    match builder.run_capture(test_cmd, "tests", "cargo_test", "cargo test --workspace") {
+    test_cmd.args([
+        "nextest",
+        "run",
+        "--workspace",
+        // Record every test's outcome even when some fail — evidence
+        // generation must not stop at the first failure (nextest's
+        // default), or the bundle would omit results for the rest.
+        "--no-fail-fast",
+        "--message-format",
+        "libtest-json-plus",
+    ]);
+    // The libtest-json format is gated behind this env in current
+    // nextest; NO_COLOR keeps the JSON stream free of ANSI escapes.
+    test_cmd.env("NEXTEST_EXPERIMENTAL_LIBTEST_JSON", "1");
+    test_cmd.env("NO_COLOR", "1");
+    match builder.run_capture(
+        test_cmd,
+        "tests",
+        "cargo_test",
+        "cargo nextest run --workspace",
+    ) {
         Ok((stdout, _stderr)) => {
             let stdout_str = String::from_utf8_lossy(&stdout);
-            // The detailed parser enriches TestSummary with
-            // per-test records + captured failure-message blocks.
-            // `None` means skipped tests / empty workspace.
-            if let Some((summary, outcomes, _errors)) =
-                parse_cargo_test_output_detailed(&stdout_str)
-            {
-                if !quiet && !json_output {
-                    println!(
-                        "evidence: tests: {} passed, {} failed, {} ignored",
-                        summary.passed, summary.failed, summary.ignored
-                    );
+            let run = parse_nextest_libtest_json(&stdout_str);
+            // The suite-level summary and the per-test records are two
+            // independent tallies of the same stream; if they disagree
+            // the capture dropped an event. Fail closed in strict mode
+            // (a cert bundle must not ship inconsistent test evidence);
+            // warn on dev.
+            let discrepancies = run.reconcile();
+            if !discrepancies.is_empty() {
+                let detail = discrepancies
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if strict {
+                    return Err(anyhow::anyhow!(
+                        "nextest summary does not reconcile with per-test records \
+                         ({detail}); captured test evidence is inconsistent"
+                    ));
                 }
-                builder.set_test_summary(summary);
-                if !outcomes.is_empty() {
-                    // Set outcomes now; write is deferred to
-                    // `enrich_and_write_test_outcomes` which
-                    // runs after the trace phase loads LLR data
-                    // and populates the per-test → LLR
-                    // back-links.
-                    builder.set_test_outcomes(outcomes);
-                }
+                tracing::warn!("nextest summary/record reconciliation mismatch: {detail}");
+            }
+            if !quiet && !json_output {
+                println!(
+                    "evidence: tests: {} passed, {} failed, {} ignored",
+                    run.summary.passed, run.summary.failed, run.summary.ignored
+                );
+            }
+            builder.set_test_summary(run.summary);
+            if !run.records.is_empty() {
+                // Write is deferred to `enrich_and_write_test_outcomes`,
+                // which runs after the trace phase loads LLR data and
+                // populates the per-test → LLR back-links.
+                builder.set_test_outcomes(run.records);
             }
         }
         Err(e) => {
             // run_capture returns Err only on subprocess spawn
-            // failure; non-zero exit goes through the Ok arm
-            // and is recorded inside run_capture. Record spawn
-            // failures here so verify sees the bundle as
-            // incomplete either way.
+            // failure; non-zero exit goes through the Ok arm and is
+            // recorded inside run_capture. Record spawn failures here
+            // so verify sees the bundle as incomplete either way.
             builder.record_command_failure(evidence_core::ToolCommandFailure {
-                command_name: "cargo test --workspace".to_string(),
+                command_name: "cargo nextest run --workspace".to_string(),
                 exit_code: -1,
                 stderr_tail: e.to_string(),
             });
             if strict {
-                return Err(anyhow::Error::new(e).context("running cargo test"));
+                return Err(anyhow::Error::new(e).context("running cargo nextest"));
             }
-            tracing::warn!("cargo test could not be spawned: {}", e);
+            tracing::warn!("cargo nextest could not be spawned: {}", e);
         }
     }
     Ok(())
 }
+
+// Phase 5b lives in sibling `phases/output_inventory.rs` via `#[path]`
+// so this file stays under the 500-line limit. Re-exported below as
+// `inventory_and_hash_outputs`.
+#[path = "phases/output_inventory.rs"]
+mod output_inventory;
+pub(super) use output_inventory::inventory_and_hash_outputs;
 
 // Phase 6 lives in sibling `phases/trace_validation.rs` via
 // `#[path]` so this file stays under the 500-line limit.

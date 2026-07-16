@@ -64,7 +64,16 @@ pub(super) fn check_test_summary(
             return;
         }
     };
-    match crate::bundle::parse_cargo_test_output(&captured) {
+    // Re-derive the summary from captured evidence. Nextest bundles
+    // carry a `libtest-json` event stream (identified by its `suite`
+    // events); older bundles carry plain libtest text with a
+    // `test result:` line. Sniff the format so either re-verifies.
+    let parsed = if captured.contains("\"type\":\"suite\"") {
+        Some(crate::bundle::parse_nextest_libtest_json(&captured).summary)
+    } else {
+        crate::bundle::parse_cargo_test_output(&captured)
+    };
+    match parsed {
         Some(parsed) => {
             let cases: [(&'static str, u32, u32); 5] = [
                 ("total", index_ts.total, parsed.total),
@@ -90,7 +99,7 @@ pub(super) fn check_test_summary(
                     "total={} passed={} failed={}",
                     index_ts.total, index_ts.passed, index_ts.failed
                 ),
-                parsed_value: "no `test result:` line found in cargo_test_stdout.txt".to_string(),
+                parsed_value: "no recognizable test summary in cargo_test_stdout.txt".to_string(),
             });
         }
     }

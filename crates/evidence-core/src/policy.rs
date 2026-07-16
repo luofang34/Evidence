@@ -19,7 +19,8 @@ mod evidence;
 mod profile;
 
 pub use boundary::{
-    BoundaryConfig, BoundaryPolicy, BoundaryScope, LoadBoundaryError, Schema, load_trace_roots,
+    BoundaryConfig, BoundaryInputs, BoundaryPolicy, BoundaryScope, LoadBoundaryError, Schema,
+    load_trace_roots,
 };
 pub use dal::{AuxiliaryMcdcTool, Dal, DalConfig, DalCoverageThresholds, ParseDalError};
 pub use evidence::{EvidencePolicy, TracePolicy};

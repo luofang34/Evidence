@@ -26,6 +26,10 @@
 //!   (`DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED` warning) — grep
 //!   `README.md` + `CONTRIBUTING.md` for the override string so
 //!   contributors know the convention.
+//! - **nextest available** (`DOCTOR_NEXTEST_MISSING` warning) —
+//!   probe `cargo nextest --version`; per-test execution identity
+//!   capture depends on it, so cert/record `generate` blocks on
+//!   this via `precheck_doctor`.
 //!
 //! Every check that passes emits `DOCTOR_CHECK_PASSED` with the
 //! check name in `message`, so the stream shape is exactly one
@@ -43,12 +47,14 @@ use super::output::emit_jsonl;
 
 mod checks;
 mod merge_style;
+mod nextest_preflight;
 mod qualification;
 mod untracked_hint;
 use checks::{
     check_boundary, check_ci_integration, check_floors, check_override_protocol, check_trace,
 };
 use merge_style::check_merge_style;
+use nextest_preflight::check_nextest;
 use qualification::check_qualification;
 
 const SUBCOMMAND: &str = "doctor";
@@ -72,6 +78,7 @@ const CHECKS: &[&str] = &[
     "merge-style policy",
     "override protocol docs",
     "qualification docs",
+    "nextest available",
 ];
 
 /// Entrypoint for `cargo evidence doctor`.
@@ -134,9 +141,14 @@ pub fn cmd_doctor(json: bool) -> Result<i32> {
 /// Returns `Err(anyhow!(...))` enumerating the triggered
 /// `DOCTOR_*` codes so the caller surfaces them in a
 /// `GENERATE_ERROR` terminal without rerunning doctor.
-pub fn precheck_doctor(workspace: &Path) -> Result<()> {
+///
+/// `skip_tests` drops the `nextest available` check: with
+/// `--skip-tests` no test-execution identity is captured, so
+/// cargo-nextest is not a required capability and its absence must not
+/// block an otherwise-valid cert/record bundle.
+pub fn precheck_doctor(workspace: &Path, skip_tests: bool) -> Result<()> {
     let mut failed_codes: Vec<&'static str> = Vec::new();
-    for name in CHECKS {
+    for name in precheck_check_names(skip_tests) {
         if let CheckResult::Fail(code, _) = run_named_check(name, workspace) {
             failed_codes.push(code);
         }
@@ -152,6 +164,18 @@ pub fn precheck_doctor(workspace: &Path) -> Result<()> {
     }
 }
 
+/// The checks the cert/record `generate` precheck runs. With
+/// `--skip-tests` the `nextest available` check is dropped — no tests
+/// run, so nextest is not a required capability. Standalone `doctor`
+/// (via `CHECKS`) always reports it regardless.
+fn precheck_check_names(skip_tests: bool) -> Vec<&'static str> {
+    CHECKS
+        .iter()
+        .copied()
+        .filter(|name| !(skip_tests && *name == "nextest available"))
+        .collect()
+}
+
 fn run_named_check(name: &str, workspace: &Path) -> CheckResult {
     match name {
         "trace validity" => check_trace(workspace),
@@ -161,6 +185,7 @@ fn run_named_check(name: &str, workspace: &Path) -> CheckResult {
         "merge-style policy" => check_merge_style(workspace),
         "override protocol docs" => check_override_protocol(workspace),
         "qualification docs" => check_qualification(workspace),
+        "nextest available" => check_nextest(),
         other => CheckResult::Fail("DOCTOR_FAIL", format!("unknown check name '{}'", other)),
     }
 }
@@ -303,5 +328,32 @@ fn terminal_fail() -> Diagnostic {
         fix_hint: None,
         subcommand: Some(SUBCOMMAND.to_string()),
         root_cause_uid: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression: cert/record `generate --skip-tests` must not require
+    /// cargo-nextest. With tests skipped, the precheck drops the
+    /// `nextest available` check, so a missing nextest can't block the
+    /// bundle; every other check is retained.
+    #[test]
+    fn precheck_drops_nextest_check_only_when_tests_skipped() {
+        assert!(
+            precheck_check_names(false).contains(&"nextest available"),
+            "with tests running, nextest availability is still required"
+        );
+        assert!(
+            !precheck_check_names(true).contains(&"nextest available"),
+            "with --skip-tests, nextest must not be a required precheck capability"
+        );
+        for name in CHECKS.iter().filter(|n| **n != "nextest available") {
+            assert!(
+                precheck_check_names(true).contains(name),
+                "--skip-tests must drop only the nextest check, not `{name}`"
+            );
+        }
     }
 }
