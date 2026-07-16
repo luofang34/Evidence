@@ -1036,6 +1036,13 @@
     "terminal": true
   },
   {
+    "code": "VERIFY_OUTPUT_MANIFEST_EMPTY",
+    "severity": "error",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "VERIFY_PRERELEASE_TOOL",
     "severity": "error",
     "domain": "verify",

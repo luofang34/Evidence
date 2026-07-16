@@ -22,11 +22,12 @@ use super::run_capture::run_capture as do_run_capture;
 use super::test_summary::TestSummary;
 use super::time::{utc_compact_stamp, utc_now_rfc3339};
 use crate::git::{GitSnapshot, RealGitProvider};
-use crate::hash::{hash_file_relative_into, write_sha256sums};
+use crate::hash::write_sha256sums;
 use crate::policy::Profile;
 use crate::traits::GitProvider;
 
 mod config;
+mod outputs;
 pub use config::EvidenceBuildConfig;
 
 /// Builder for creating evidence bundles.
@@ -208,15 +209,6 @@ impl EvidenceBuilder {
         let hash = crate::hash::sha256_file(&base.join(rel_path))?;
         self.inputs.insert(rel_path.to_string(), hash);
         Ok(())
-    }
-
-    /// Hash a file with relative path and add to outputs.
-    pub fn hash_output(&mut self, path: &Path) -> Result<(), BuilderError> {
-        Ok(hash_file_relative_into(
-            &mut self.outputs,
-            path,
-            &self.bundle_dir,
-        )?)
     }
 
     /// Record a command execution.

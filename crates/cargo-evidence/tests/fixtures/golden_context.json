@@ -681,6 +681,25 @@
       "verification_methods": [
         "test"
       ]
+    },
+    {
+      "id": "LLR-095",
+      "uid": "0a85bb33-ef4c-4686-9a5e-c1ce2aa851db",
+      "layer": "llr",
+      "title": "compiler-artifact inventory hashes workspace deliverables into outputs_hashes.json",
+      "description": "`parse_workspace_artifacts` reads `cargo build\n--message-format=json` output, keeping `compiler-artifact`\nmessages whose `package_id` is an exact `cargo metadata`\n`workspace_members` entry and whose target is a `lib` or `bin`.\nEvery produced filename becomes an `OutputArtifact { key, path }`\nkeyed by its path relative to cargo's `target_directory` — never\nan absolute path. It fails closed on a malformed build message\n(`MalformedMessage`) or an artifact outside `target_directory`\n(`ArtifactOutsideTargetDir`) rather than silently skipping;\nresults are sorted and deduplicated for determinism.\n\n`inventory_outputs_blocking` reads `workspace_members` and\n`target_directory` from `cargo metadata`, then builds with the\nbundle's recipe — cert/record build `--release --locked` so the\ninventory attests the deliverable and a pinned dependency graph,\nnot an implicit debug build. `inventory_and_hash_outputs` hashes\neach artifact into `outputs_hashes.json` via `builder.add_output`;\nstrict mode fails closed on zero deliverables or an unhashable\nartifact, and the phase is skipped under `--skip-tests`.\n",
+      "modules": [
+        "evidence_core::bundle::cargo_artifacts::parse_workspace_artifacts",
+        "evidence_core::bundle::cargo_artifacts::inventory_outputs_blocking",
+        "cargo_evidence::cli::generate::phases::inventory_and_hash_outputs"
+      ],
+      "emits": [],
+      "traces_to": [
+        "a4b1c88d-2f16-4086-86d7-1a7a8094055f"
+      ],
+      "verification_methods": [
+        "test"
+      ]
     }
   ],
   "parents": [
@@ -937,6 +956,15 @@
       ]
     },
     {
+      "id": "HLR-078",
+      "uid": "a4b1c88d-2f16-4086-86d7-1a7a8094055f",
+      "layer": "hlr",
+      "title": "Generate inventories workspace compiler artifacts and hashes each deliverable; verify fails closed on empty outputs when a build ran",
+      "traces_to": [
+        "4ce28d5c-374d-4e96-bcee-e283ff829db9"
+      ]
+    },
+    {
       "id": "SYS-002",
       "uid": "0e42b90f-88d7-408f-8843-0a3335279360",
       "layer": "sys",
@@ -1081,6 +1109,13 @@
       "uid": "40b3032d-fc8e-4fc0-b93c-0eba35b1bb3d",
       "layer": "sys",
       "title": "Bundle shall preserve per-test execution identity so every declared test selector resolves to an executed result",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-034",
+      "uid": "4ce28d5c-374d-4e96-bcee-e283ff829db9",
+      "layer": "sys",
+      "title": "Bundle shall record the compiled deliverables of its build; certification fails closed on a build that attested none",
       "traces_to": []
     }
   ],
@@ -1339,6 +1374,29 @@
       ],
       "traces_to": [
         "dde74fce-62f8-4f33-b161-e21ee8b4627d"
+      ]
+    },
+    {
+      "id": "TEST-113",
+      "uid": "9e5c599b-2463-45ab-af2a-5bb5c130acf0",
+      "name": "compiler-artifact parser excludes build scripts and external deps",
+      "selectors": [
+        "evidence_core::bundle::cargo_artifacts::tests::excludes_build_scripts_and_non_member_deps"
+      ],
+      "traces_to": [
+        "0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"
+      ]
+    },
+    {
+      "id": "TEST-112",
+      "uid": "094f9fee-f5f9-49c7-be4a-d47132eb459b",
+      "name": "compiler-artifact parser keeps only workspace lib/bin deliverables, keyed workspace-relative",
+      "selectors": [
+        "evidence_core::bundle::cargo_artifacts::tests::artifact_outside_target_dir_is_rejected",
+        "evidence_core::bundle::cargo_artifacts::tests::keeps_only_workspace_member_lib_and_bin_keyed_under_target_dir"
+      ],
+      "traces_to": [
+        "0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"
       ]
     },
     {

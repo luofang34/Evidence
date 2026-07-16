@@ -873,3 +873,29 @@ at least one executed result.
 """
 verification_methods = ["test", "review"]
 traces_to = []
+
+[[requirements]]
+uid = "4ce28d5c-374d-4e96-bcee-e283ff829db9"
+id = "SYS-034"
+title = "Bundle shall record the compiled deliverables of its build; certification fails closed on a build that attested none"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall record, in `outputs_hashes.json`, the SHA-256 of
+every deliverable an in-scope crate's build produces — its
+library and binary artifacts — inventoried from the build's own
+machine-readable compiler-artifact messages, so a bundle attests
+what its recorded recipe actually built.
+
+Output digests are host- and build-specific: they belong to the
+bundle's content-integrity channel, not the cross-host recipe
+channel. A bundle that compiled the workspace and produced
+deliverables shall not attest an empty output manifest;
+certification or record generation fails closed when a build
+produced deliverables but captured none, and bundle verification
+rejects an empty output manifest on a bundle that recorded a test
+summary (which implies a build ran). A bundle that compiled
+nothing (`--skip-tests`) legitimately has no outputs.
+"""
+verification_methods = ["test", "review"]
+traces_to = []

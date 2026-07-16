@@ -96,6 +96,15 @@ pub fn verify_bundle_with_key(
     // keyed under `__unknown_binary__` cannot back an LLR selector.
     super::test_identity::check_test_identity(bundle, &mut verify_errors);
 
+    // 3a''''. Fail closed on an empty output manifest when a build ran.
+    // A recorded test summary implies the workspace was compiled, so
+    // its deliverables must be attested in outputs_hashes.json.
+    super::output_manifest::check_output_manifest(
+        bundle,
+        index.test_summary.is_some(),
+        &mut verify_errors,
+    );
+
     // 3b. Validate index.json field formats (semantic checks beyond serde)
     validate_index_fields(&index, &mut verify_errors);
 

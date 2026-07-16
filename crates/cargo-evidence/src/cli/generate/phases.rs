@@ -326,6 +326,13 @@ pub(super) fn run_tests_and_capture(
     Ok(())
 }
 
+// Phase 5b lives in sibling `phases/output_inventory.rs` via `#[path]`
+// so this file stays under the 500-line limit. Re-exported below as
+// `inventory_and_hash_outputs`.
+#[path = "phases/output_inventory.rs"]
+mod output_inventory;
+pub(super) use output_inventory::inventory_and_hash_outputs;
+
 // Phase 6 lives in sibling `phases/trace_validation.rs` via
 // `#[path]` so this file stays under the 500-line limit.
 // Re-exported below as `validate_trace_links_phase` +

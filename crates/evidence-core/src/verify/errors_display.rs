@@ -191,6 +191,14 @@ impl std::fmt::Display for VerifyError {
                      test whose executing binary is unknown"
                 )
             }
+            VerifyError::OutputManifestEmpty => {
+                write!(
+                    f,
+                    "outputs_hashes.json is empty but the bundle recorded a test \
+                     summary — the build produced deliverables that were never \
+                     attested"
+                )
+            }
         }
     }
 }

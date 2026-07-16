@@ -2854,3 +2854,58 @@ non-blocking on `dev` only; every other finding, and all findings on
 cert/record, blocks.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"
+id = "LLR-095"
+title = "compiler-artifact inventory hashes workspace deliverables into outputs_hashes.json"
+owner = "tool"
+traces_to = ["a4b1c88d-2f16-4086-86d7-1a7a8094055f"]
+modules = [
+    "evidence_core::bundle::cargo_artifacts::parse_workspace_artifacts",
+    "evidence_core::bundle::cargo_artifacts::inventory_outputs_blocking",
+    "cargo_evidence::cli::generate::phases::inventory_and_hash_outputs",
+]
+description = """
+`parse_workspace_artifacts` reads `cargo build
+--message-format=json` output, keeping `compiler-artifact`
+messages whose `package_id` is an exact `cargo metadata`
+`workspace_members` entry and whose target is a `lib` or `bin`.
+Every produced filename becomes an `OutputArtifact { key, path }`
+keyed by its path relative to cargo's `target_directory` — never
+an absolute path. It fails closed on a malformed build message
+(`MalformedMessage`) or an artifact outside `target_directory`
+(`ArtifactOutsideTargetDir`) rather than silently skipping;
+results are sorted and deduplicated for determinism.
+
+`inventory_outputs_blocking` reads `workspace_members` and
+`target_directory` from `cargo metadata`, then builds with the
+bundle's recipe — cert/record build `--release --locked` so the
+inventory attests the deliverable and a pinned dependency graph,
+not an implicit debug build. `inventory_and_hash_outputs` hashes
+each artifact into `outputs_hashes.json` via `builder.add_output`;
+strict mode fails closed on zero deliverables or an unhashable
+artifact, and the phase is skipped under `--skip-tests`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "8b9b283e-27a8-401f-b846-413bdf94ea11"
+id = "LLR-096"
+title = "verify fails closed on an empty output manifest when a build ran"
+owner = "tool"
+traces_to = ["a4b1c88d-2f16-4086-86d7-1a7a8094055f"]
+modules = [
+    "evidence_core::verify::output_manifest::check_output_manifest",
+]
+description = """
+`check_output_manifest` runs inside `verify_bundle_with_key` when
+the bundle records a test summary (`index.test_summary.is_some()`
+— a build ran). It reads `outputs_hashes.json`; an empty object
+pushes `VerifyError::OutputManifestEmpty`. A `--skip-tests` bundle
+records no test summary and is left alone. This is the verify-side
+half of the fail-closed contract whose generate-side half is
+LLR-095.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_OUTPUT_MANIFEST_EMPTY"]

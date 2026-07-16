@@ -256,6 +256,14 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     builder.write_commands()?;
 
     phases::run_tests_and_capture(&mut builder, skip_tests, strict, quiet, json_output)?;
+    phases::inventory_and_hash_outputs(
+        &mut builder,
+        profile,
+        skip_tests,
+        strict,
+        quiet,
+        json_output,
+    )?;
     builder.write_outputs()?;
     builder.write_commands()?;
 
