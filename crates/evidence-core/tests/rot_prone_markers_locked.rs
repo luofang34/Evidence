@@ -21,6 +21,9 @@
 //! Markers whose truth depends on transient state outside the file:
 //!
 //! - PR-number breadcrumbs — `PR #49 removed ...` and relatives.
+//! - Bare issue/PR breadcrumbs — `#50`, `the #82 bug`, `(#73 AC)`.
+//!   The number rots when history is rewritten; the surviving
+//!   description or a stable anchor (LLR ID / function name) does not.
 //! - "post-PR" / "pre-PR" / review-round narrative.
 //! - Absolute line counts — drift by the next edit.
 //! - "Newly-added" / "just-added" adjectives — decay to meaningless.
@@ -94,6 +97,15 @@ fn banned_patterns() -> Vec<(&'static str, Regex)> {
         (
             "PR-number breadcrumb",
             Regex::new(r"PR\s+#\d+").expect("valid regex"),
+        ),
+        // Bare issue/PR breadcrumbs — `#50`, `(#73 AC)`, `the #82 bug`.
+        // Requires the `#` to sit at a token boundary (line start,
+        // whitespace, or `(`) so upstream refs written `rust-lang/rust#NNN`
+        // (the `#` follows a letter) do not match, and `\d{2,}` skips
+        // ordinals like `rotation #1` / `key #2`.
+        (
+            "bare issue-number breadcrumb",
+            Regex::new(r"(?:^|[\s(])#\d{2,}\b").expect("valid regex"),
         ),
         (
             "pre-/post-PR narrative",
@@ -296,6 +308,48 @@ fn fires_on_banned_pattern() {
         hits.iter()
             .any(|(_, _, label, _)| *label == "PR-number breadcrumb"),
         "expected PR-number breadcrumb hit; got {:?}",
+        hits
+    );
+}
+
+/// Positive dogfood: a bare `#NN` issue breadcrumb fires the gate.
+#[test]
+fn fires_on_bare_issue_number() {
+    let tmp = tempfile::TempDir::new().expect("tempdir");
+    let src = tmp.path().join("crates").join("fake").join("src");
+    std::fs::create_dir_all(&src).expect("mkdir");
+    std::fs::write(
+        src.join("lib.rs"),
+        "//! The bug #82 fixed. See (#73) for context.\npub fn f() {}\n",
+    )
+    .expect("write fixture");
+    let hits = scan_tree(tmp.path());
+    assert!(
+        hits.iter()
+            .any(|(_, _, label, _)| *label == "bare issue-number breadcrumb"),
+        "expected bare issue-number breadcrumb hit; got {:?}",
+        hits
+    );
+}
+
+/// Negative dogfood: upstream `rust-lang/rust#NNN` refs and small
+/// ordinals (`rotation #1`) are legitimate and must not fire.
+#[test]
+fn does_not_fire_on_upstream_refs_or_ordinals() {
+    let tmp = tempfile::TempDir::new().expect("tempdir");
+    let src = tmp.path().join("crates").join("clean").join("src");
+    std::fs::create_dir_all(&src).expect("mkdir");
+    std::fs::write(
+        src.join("lib.rs"),
+        "//! Tracks rust-lang/rust#144999 (merged upstream).\n\
+         //! Labels rotations `rotation #1` and `key #2`.\n\
+         pub fn stable() {}\n",
+    )
+    .expect("write fixture");
+    let hits = scan_tree(tmp.path());
+    assert!(
+        hits.is_empty(),
+        "expected upstream refs + ordinals to pass; got hits {:?}",
         hits
     );
 }

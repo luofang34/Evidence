@@ -180,7 +180,7 @@ fn aggregate_branches_bva_all_covered_is_hundred() {
     assert_eq!(aggregate_branches_percent(&m), 100.0);
 }
 
-/// **The bug 0.1.1's #82 fixed.** Pre-fix: the branch-threshold
+/// **The 0.1.1 branch-aggregator bug.** Pre-fix: the branch-threshold
 /// aggregator summed `lines.*`, so a file at 95% lines / 50%
 /// branches reported branch coverage as 95% — DAL-B compliance
 /// gate passed spuriously. Post-fix: the branch aggregator
@@ -280,7 +280,7 @@ fn threshold_bva_just_below_fires() {
     assert_eq!(v[0].dimension, "branch");
 }
 
-/// Integration regression for the original 0.1.1 #82 bug.
+/// Integration regression for the original 0.1.1 branch-aggregator bug.
 /// 95% lines / 60% branches at DAL-B {stmt 90, branch 85}.
 /// Pre-fix: zero violations (branch check read lines → 95%
 /// passed 85%). Post-fix: exactly one branch violation.
