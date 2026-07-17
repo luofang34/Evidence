@@ -254,6 +254,7 @@ pub const RULES: &[RuleEntry] = &[
     r("SCHEMA_PARSE_FAILED", Severity::Error, Domain::Schema),
     r("SIGN_INVALID_KEY", Severity::Error, Domain::Sign),
     r("SIGN_INVALID_SIGNATURE_HEX", Severity::Error, Domain::Sign),
+    r("SIGN_KEYGEN_ENTROPY", Severity::Error, Domain::Sign),
     r("SIGN_PUBKEY_ANCHOR_MISMATCH", Severity::Error, Domain::Sign),
     r("SIGN_READ_FAILED", Severity::Error, Domain::Sign),
     r("SIGN_WRITE_FAILED", Severity::Error, Domain::Sign),

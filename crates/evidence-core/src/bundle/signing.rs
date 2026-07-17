@@ -25,7 +25,7 @@
 //! See `cert/QUALIFICATION.md` "Integrity layers" for the auditor framing.
 
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use rand_core::OsRng;
+use rand_core::{OsRng, TryRngCore};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -68,6 +68,17 @@ pub enum SigningError {
     /// `BUNDLE.sig` contained non-hex bytes.
     #[error("BUNDLE.sig contains invalid hex")]
     InvalidSignatureHex(#[source] hex::FromHexError),
+    /// The operating system's randomness source was unavailable while
+    /// drawing the seed for a fresh signing key. On supported platforms
+    /// this effectively never occurs; the OS entropy call is fallible at
+    /// the type level, so the failure is propagated rather than aborting
+    /// the process.
+    #[error("OS randomness unavailable while generating a signing key")]
+    KeygenEntropy {
+        /// Underlying `getrandom` failure surfaced by `rand_core::OsRng`.
+        #[source]
+        source: rand_core::OsError,
+    },
 }
 
 impl DiagnosticCode for SigningError {
@@ -77,6 +88,7 @@ impl DiagnosticCode for SigningError {
             SigningError::Write { .. } => "SIGN_WRITE_FAILED",
             SigningError::InvalidKey { .. } => "SIGN_INVALID_KEY",
             SigningError::InvalidSignatureHex(_) => "SIGN_INVALID_SIGNATURE_HEX",
+            SigningError::KeygenEntropy { .. } => "SIGN_KEYGEN_ENTROPY",
         }
     }
 
@@ -89,7 +101,9 @@ impl DiagnosticCode for SigningError {
             SigningError::Read { path, .. } | SigningError::Write { path, .. } => {
                 Some(PathBuf::from(path))
             }
-            SigningError::InvalidKey { .. } | SigningError::InvalidSignatureHex(_) => None,
+            SigningError::InvalidKey { .. }
+            | SigningError::InvalidSignatureHex(_)
+            | SigningError::KeygenEntropy { .. } => None,
         };
         file.map(|file| Location {
             file: Some(file),
@@ -102,8 +116,23 @@ impl DiagnosticCode for SigningError {
 ///
 /// The returned [`SigningKey`] both signs and exposes its companion
 /// [`VerifyingKey`] via `signing_key.verifying_key()`.
-pub fn generate_signing_key() -> SigningKey {
-    SigningKey::generate(&mut OsRng)
+///
+/// # Errors
+///
+/// Returns [`SigningError::KeygenEntropy`] if the OS randomness source is
+/// unavailable while drawing the 32-byte seed. This is effectively
+/// unreachable on supported platforms but is surfaced rather than
+/// panicked on, since the entropy call is fallible at the type level.
+pub fn generate_signing_key() -> Result<SigningKey, SigningError> {
+    // Mirror `SigningKey::generate`: fill 32 bytes from the CSPRNG and
+    // build the key from that seed. Drawing the seed explicitly lets the
+    // fallible OS-entropy result be propagated instead of unwrapped —
+    // the workspace lints forbid unwrap/panic in library code.
+    let mut seed = [0u8; 32];
+    OsRng
+        .try_fill_bytes(&mut seed)
+        .map_err(|source| SigningError::KeygenEntropy { source })?;
+    Ok(SigningKey::from_bytes(&seed))
 }
 
 /// Read an ed25519 signing (private) key from a 64-character hex file.
@@ -399,8 +428,8 @@ mod tests {
 
     #[test]
     fn generate_signing_key_returns_distinct_keys() {
-        let a = generate_signing_key();
-        let b = generate_signing_key();
+        let a = generate_signing_key().expect("OS entropy available in test");
+        let b = generate_signing_key().expect("OS entropy available in test");
         assert_ne!(
             a.to_bytes(),
             b.to_bytes(),

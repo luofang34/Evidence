@@ -179,7 +179,7 @@ fn write_fresh_pair(
         })?;
     }
 
-    let key: SigningKey = generate_signing_key();
+    let key: SigningKey = generate_signing_key()?;
     write_signing_key(signing_path, &key)?;
     write_verifying_key(verifying_path, &key.verifying_key())?;
     chmod_private(signing_path)?;

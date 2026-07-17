@@ -2404,12 +2404,16 @@ evidence_core::{generate_signing_key, write_signing_key,
 write_verifying_key}, best-effort chmod 600 on signing.key (Unix only),
 and emit KEYGEN_OK; the rotate branch additionally appends a single
 line to KEY-ROTATION-LOG carrying timestamp + new pubkey hex + reason.
+If the OS randomness source is unavailable while drawing the key seed,
+generate_signing_key surfaces SIGN_KEYGEN_ENTROPY, which propagates to
+the KEYGEN_FAIL terminal rather than aborting the process.
 """
 verification_methods = ["test"]
 emits = [
     "KEYGEN_OK",
     "KEYGEN_FAIL",
     "KEYGEN_KEY_EXISTS",
+    "SIGN_KEYGEN_ENTROPY",
 ]
 
 [[requirements]]

@@ -526,14 +526,15 @@
       "uid": "2edcdfa5-d7e7-4115-a3fa-8ed36354aa1b",
       "layer": "llr",
       "title": "cmd_keygen create + rotate dispatch",
-      "description": "cmd_keygen branches on the `rotate` flag. The create branch refuses if\neither signing.key or signing.pub already exists (Outcome::RefusedExists\n→ KEYGEN_KEY_EXISTS finding + KEYGEN_FAIL terminal, exit 1). The rotate\nbranch refuses if either file is missing (Outcome::RefusedRotateMissing\n→ same code pair) and refuses up-front if --reason is missing (top-level\nanyhow error). On success, both branches generate a fresh keypair via\nevidence_core::{generate_signing_key, write_signing_key,\nwrite_verifying_key}, best-effort chmod 600 on signing.key (Unix only),\nand emit KEYGEN_OK; the rotate branch additionally appends a single\nline to KEY-ROTATION-LOG carrying timestamp + new pubkey hex + reason.\n",
+      "description": "cmd_keygen branches on the `rotate` flag. The create branch refuses if\neither signing.key or signing.pub already exists (Outcome::RefusedExists\n→ KEYGEN_KEY_EXISTS finding + KEYGEN_FAIL terminal, exit 1). The rotate\nbranch refuses if either file is missing (Outcome::RefusedRotateMissing\n→ same code pair) and refuses up-front if --reason is missing (top-level\nanyhow error). On success, both branches generate a fresh keypair via\nevidence_core::{generate_signing_key, write_signing_key,\nwrite_verifying_key}, best-effort chmod 600 on signing.key (Unix only),\nand emit KEYGEN_OK; the rotate branch additionally appends a single\nline to KEY-ROTATION-LOG carrying timestamp + new pubkey hex + reason.\nIf the OS randomness source is unavailable while drawing the key seed,\ngenerate_signing_key surfaces SIGN_KEYGEN_ENTROPY, which propagates to\nthe KEYGEN_FAIL terminal rather than aborting the process.\n",
       "modules": [
         "cargo_evidence::cli::keygen::cmd_keygen"
       ],
       "emits": [
         "KEYGEN_OK",
         "KEYGEN_FAIL",
-        "KEYGEN_KEY_EXISTS"
+        "KEYGEN_KEY_EXISTS",
+        "SIGN_KEYGEN_ENTROPY"
       ],
       "traces_to": [
         "b874c97f-dbcd-424f-a1fe-15b16cf36876"
@@ -1722,6 +1723,7 @@
     "SCHEMA_PARSE_FAILED",
     "SIGN_INVALID_KEY",
     "SIGN_INVALID_SIGNATURE_HEX",
+    "SIGN_KEYGEN_ENTROPY",
     "SIGN_PUBKEY_ANCHOR_MISMATCH",
     "SIGN_READ_FAILED",
     "SIGN_WRITE_FAILED",
