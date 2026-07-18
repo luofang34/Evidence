@@ -467,9 +467,14 @@ jobs:
 
       - name: Generate bundle (run A)
         run: |
+          # --skip-tests keeps the two-run content_hash gate free of
+          # nondeterministic test output; --inventory-outputs still runs
+          # the output inventory (its own cargo build) so every positive
+          # bundle attests its deliverables.
           mkdir -p "$RUNNER_TEMP/out-a"
           ./target/release/cargo-evidence evidence generate \
             --skip-tests \
+            --inventory-outputs \
             --out-dir "$RUNNER_TEMP/out-a" \
             --profile dev
 
@@ -480,6 +485,14 @@ jobs:
           path=${path%/}
           echo "path=$path" >> "$GITHUB_OUTPUT"
           echo "Bundle A: $path"
+
+      - name: Assert output manifest is non-empty
+        shell: bash
+        run: |
+          # tests are intentionally skipped; the inventory still ran.
+          jq -e 'type == "object" and length > 0' \
+            "${{ steps.bundle_a.outputs.path }}/outputs_hashes.json" > /dev/null \
+            || { echo "::error::outputs_hashes.json is empty after output inventory."; exit 1; }
 
       - name: Verify bundle A
         run: ./target/release/cargo-evidence evidence verify "${{ steps.bundle_a.outputs.path }}"
@@ -565,6 +578,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/out-b"
           ./target/release/cargo-evidence evidence generate \
             --skip-tests \
+            --inventory-outputs \
             --out-dir "$RUNNER_TEMP/out-b" \
             --profile dev
 
@@ -666,11 +680,27 @@ jobs:
       - name: Generate bundle
         shell: bash
         run: |
+          # --skip-tests keeps this determinism job fast (no nextest);
+          # --inventory-outputs still runs the output-inventory phase (its
+          # own cargo build), so the bundle attests its deliverables in
+          # outputs_hashes.json without paying for the unrelated test suite.
           mkdir -p "$RUNNER_TEMP/xhost-out"
           ./target/release/cargo-evidence evidence generate \
             --skip-tests \
+            --inventory-outputs \
             --out-dir "$RUNNER_TEMP/xhost-out" \
             --profile dev
+
+      - name: Assert output manifest is non-empty
+        shell: bash
+        run: |
+          # A generation that inventoried its build must attest its
+          # deliverables. An empty outputs_hashes.json here means the
+          # output-inventory path silently regressed.
+          bundle=$(ls -d "$RUNNER_TEMP"/xhost-out/dev-*/ | head -n1)
+          bundle=${bundle%/}
+          jq -e 'type == "object" and length > 0' "$bundle/outputs_hashes.json" > /dev/null \
+            || { echo "::error::outputs_hashes.json is empty after output inventory on ${{ runner.os }}."; exit 1; }
 
       - name: Stage per-OS bundle metadata
         shell: bash
@@ -682,6 +712,7 @@ jobs:
           cp "$bundle/SHA256SUMS"                   ./xhost-stage/SHA256SUMS
           cp "$bundle/env.json"                     ./xhost-stage/env.json
           cp "$bundle/deterministic-manifest.json"  ./xhost-stage/deterministic-manifest.json
+          cp "$bundle/outputs_hashes.json"          ./xhost-stage/outputs_hashes.json
           # runner.os ("Linux" / "macOS" / "Windows") is the flavor
           # label the determinism-compare job keys on.
           echo "${{ runner.os }}" > ./xhost-stage/runner-os.txt
@@ -769,10 +800,13 @@ jobs:
         run: |
           # RUSTFLAGS is read at generate time (env.rs), not build
           # time, so pass it through on the generate invocation too.
+          # --inventory-outputs runs the output inventory without the test
+          # suite, keeping the two-run content_hash gate stable.
           mkdir -p "$RUNNER_TEMP/out-a"
           nix develop -c env RUSTFLAGS="$RUSTFLAGS" \
             ./target/release/cargo-evidence evidence generate \
             --skip-tests \
+            --inventory-outputs \
             --out-dir "$RUNNER_TEMP/out-a" \
             --profile dev
 
@@ -784,6 +818,14 @@ jobs:
           path=${path%/}
           echo "path=$path" >> "$GITHUB_OUTPUT"
           echo "Bundle A: $path"
+
+      - name: Assert output manifest is non-empty
+        shell: bash
+        run: |
+          # tests are intentionally skipped; the inventory still ran.
+          jq -e 'type == "object" and length > 0' \
+            "${{ steps.bundle_a.outputs.path }}/outputs_hashes.json" > /dev/null \
+            || { echo "::error::Nix-${{ runner.os }}: outputs_hashes.json is empty after output inventory."; exit 1; }
 
       - name: Verify bundle A
         shell: bash
@@ -802,6 +844,7 @@ jobs:
           nix develop -c env RUSTFLAGS="$RUSTFLAGS" \
             ./target/release/cargo-evidence evidence generate \
             --skip-tests \
+            --inventory-outputs \
             --out-dir "$RUNNER_TEMP/out-b" \
             --profile dev
 
@@ -836,6 +879,7 @@ jobs:
           cp "$bundle/SHA256SUMS"                   ./xhost-stage/SHA256SUMS
           cp "$bundle/env.json"                     ./xhost-stage/env.json
           cp "$bundle/deterministic-manifest.json"  ./xhost-stage/deterministic-manifest.json
+          cp "$bundle/outputs_hashes.json"          ./xhost-stage/outputs_hashes.json
           # `Nix-` prefix makes the determinism-compare table show
           # Nix-Linux / Nix-macOS distinct from plain Linux / macOS.
           echo "Nix-${{ runner.os }}" > ./xhost-stage/runner-os.txt
@@ -959,6 +1003,10 @@ jobs:
         env:
           EVIDENCE_PUBKEY_ANCHOR: ${{ runner.temp }}/sig/signing.pub
         run: |
+          # Only --skip-tests here (no --inventory-outputs): strict
+          # (cert/record) generation inventories unconditionally, so this
+          # exercises that defense — a cert bundle must attest its
+          # --release --locked deliverables even without the opt-in flag.
           mkdir -p "$RUNNER_TEMP/cert-out"
           ./target/release/cargo-evidence evidence generate \
             --skip-tests \
@@ -973,6 +1021,15 @@ jobs:
           path=${path%/}
           echo "path=$path" >> "$GITHUB_OUTPUT"
           echo "Bundle: $path"
+
+      - name: Assert output manifest is non-empty
+        run: |
+          # Strict cert generation must inventory its deliverables even
+          # without --inventory-outputs. Empty here means the inventory
+          # path (or its strict auto-enable) regressed.
+          jq -e 'type == "object" and length > 0' \
+            "${{ steps.bundle.outputs.path }}/outputs_hashes.json" > /dev/null \
+            || { echo "::error::outputs_hashes.json is empty after cert output inventory."; exit 1; }
 
       - name: Verify bundle (prerelease-aware)
         shell: bash
@@ -1262,13 +1319,21 @@ jobs:
       - name: Generate current bundle
         shell: bash
         run: |
+          # --skip-tests --inventory-outputs: no nextest, but the inventory
+          # phase runs so outputs_hashes.json is populated. The cross-time
+          # gate compares deterministic_hash (a toolchain/git projection
+          # that excludes deliverable digests), so the inventory does not
+          # perturb it.
           mkdir -p "$RUNNER_TEMP/current-out"
           ./target/release/cargo-evidence evidence generate \
             --skip-tests \
+            --inventory-outputs \
             --out-dir "$RUNNER_TEMP/current-out" \
             --profile dev
           current_bundle=$(ls -d "$RUNNER_TEMP"/current-out/dev-*/ | head -n1)
           current_bundle=${current_bundle%/}
+          jq -e 'type == "object" and length > 0' "$current_bundle/outputs_hashes.json" > /dev/null \
+            || { echo "::error::outputs_hashes.json is empty after output inventory."; exit 1; }
           cp "$current_bundle/deterministic-manifest.json" "$RUNNER_TEMP/current-manifest.json"
           echo "current toolchain projection:"
           jq '{rustc, cargo, llvm_version, cargo_lock_hash, rustflags}' "$RUNNER_TEMP/current-manifest.json"

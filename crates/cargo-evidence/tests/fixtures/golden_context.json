@@ -688,7 +688,7 @@
       "uid": "0a85bb33-ef4c-4686-9a5e-c1ce2aa851db",
       "layer": "llr",
       "title": "compiler-artifact inventory hashes workspace deliverables into outputs_hashes.json",
-      "description": "`parse_workspace_artifacts` reads `cargo build\n--message-format=json` output, keeping `compiler-artifact`\nmessages whose `package_id` is an exact `cargo metadata`\n`workspace_members` entry and whose target is a `lib` or `bin`.\nEvery produced filename becomes an `OutputArtifact { key, path }`\nkeyed by its path relative to cargo's `target_directory` — never\nan absolute path. It fails closed on a malformed build message\n(`MalformedMessage`) or an artifact outside `target_directory`\n(`ArtifactOutsideTargetDir`) rather than silently skipping;\nresults are sorted and deduplicated for determinism.\n\n`inventory_outputs_blocking` reads `workspace_members` and\n`target_directory` from `cargo metadata`, then builds with the\nbundle's recipe — cert/record build `--release --locked` so the\ninventory attests the deliverable and a pinned dependency graph,\nnot an implicit debug build. `inventory_and_hash_outputs` hashes\neach artifact into `outputs_hashes.json` via `builder.add_output`;\nstrict mode fails closed on zero deliverables or an unhashable\nartifact, and the phase is skipped under `--skip-tests`.\n",
+      "description": "`parse_workspace_artifacts` reads `cargo build\n--message-format=json` output, keeping `compiler-artifact`\nmessages whose `package_id` is an exact `cargo metadata`\n`workspace_members` entry and whose target is a `lib` or `bin`.\nEvery produced filename becomes an `OutputArtifact { key, path }`\nkeyed by its path relative to cargo's `target_directory` — never\nan absolute path. It fails closed on a malformed build message\n(`MalformedMessage`) or an artifact outside `target_directory`\n(`ArtifactOutsideTargetDir`) rather than silently skipping;\nresults are sorted and deduplicated for determinism.\n\n`inventory_outputs_blocking` reads `workspace_members` and\n`target_directory` from `cargo metadata`, then builds with the\nbundle's recipe — cert/record build `--release --locked` so the\ninventory attests the deliverable and a pinned dependency graph,\nnot an implicit debug build. `inventory_and_hash_outputs` hashes\neach artifact into `outputs_hashes.json` via `builder.add_output`;\nstrict mode fails closed on zero deliverables or an unhashable\nartifact. The inventory does its own build, so it is independent of\nthe test phase: `should_inventory` runs it on a full generate,\nunder `--skip-tests --inventory-outputs`, or unconditionally in\nstrict (cert/record) mode.\n",
       "modules": [
         "evidence_core::bundle::cargo_artifacts::parse_workspace_artifacts",
         "evidence_core::bundle::cargo_artifacts::inventory_outputs_blocking",
@@ -1391,7 +1391,7 @@
     {
       "id": "TEST-112",
       "uid": "094f9fee-f5f9-49c7-be4a-d47132eb459b",
-      "name": "compiler-artifact parser keeps only workspace lib/bin deliverables, keyed workspace-relative",
+      "name": "compiler-artifact parser keeps only workspace lib/bin deliverables, keyed relative to the target directory",
       "selectors": [
         "evidence_core::bundle::cargo_artifacts::tests::artifact_outside_target_dir_is_rejected",
         "evidence_core::bundle::cargo_artifacts::tests::keeps_only_workspace_member_lib_and_bin_keyed_under_target_dir"
@@ -1579,6 +1579,19 @@
       ]
     },
     {
+      "id": "TEST-117",
+      "uid": "95e3e6f2-c4ac-4f56-ba08-f6ce3293f46e",
+      "name": "output inventory is independent of test execution: opt-in under --skip-tests, always under strict",
+      "selectors": [
+        "cargo_evidence::cli::generate::phases::output_inventory::tests::full_generate_always_inventories",
+        "cargo_evidence::cli::generate::phases::output_inventory::tests::skip_tests_inventories_only_when_opted_in",
+        "cargo_evidence::cli::generate::phases::output_inventory::tests::strict_inventories_even_without_the_flag"
+      ],
+      "traces_to": [
+        "0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"
+      ]
+    },
+    {
       "id": "TEST-029",
       "uid": "ad68d844-d00a-4c4d-8963-0bfcb20f4e3b",
       "name": "rules --json emits stable JSON and --format=jsonl is rejected",
@@ -1749,8 +1762,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 176,
-      "floor": 176
+      "current": 179,
+      "floor": 179
     }
   ],
   "boundary": {
