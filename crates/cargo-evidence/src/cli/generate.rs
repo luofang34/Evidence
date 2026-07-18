@@ -105,6 +105,8 @@ pub struct GenerateArgs {
     pub signing_key: Option<PathBuf>,
     /// Skip the `cargo test` invocation during generation.
     pub skip_tests: bool,
+    /// Run output inventory even under `skip_tests` (`--inventory-outputs`).
+    pub inventory_outputs: bool,
     /// Structural-coverage level to capture (or `None` to apply
     /// the profile-derived default). See [`crate::cli::args::CoverageChoice`]
     /// + HLR-053.
@@ -177,6 +179,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         trace_roots_arg,
         signing_key,
         skip_tests,
+        inventory_outputs,
         coverage,
         quiet,
         json_output,
@@ -260,6 +263,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         &mut builder,
         profile,
         skip_tests,
+        inventory_outputs,
         strict,
         quiet,
         json_output,

@@ -666,20 +666,22 @@ jobs:
       - name: Generate bundle
         shell: bash
         run: |
-          # Full generate (no --skip-tests): the test phase runs, so the
-          # output-inventory phase records the build's deliverables into
-          # outputs_hashes.json. This is the real generation path a
-          # downstream adopter's CI exercises.
+          # --skip-tests keeps this determinism job fast (no nextest);
+          # --inventory-outputs still runs the output-inventory phase (its
+          # own cargo build), so the bundle attests its deliverables in
+          # outputs_hashes.json without paying for the unrelated test suite.
           mkdir -p "$RUNNER_TEMP/xhost-out"
           ./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --inventory-outputs \
             --out-dir "$RUNNER_TEMP/xhost-out" \
             --profile dev
 
       - name: Assert output manifest is non-empty
         shell: bash
         run: |
-          # A positive generation that compiled the workspace must attest
-          # its deliverables. An empty outputs_hashes.json here means the
+          # A generation that inventoried its build must attest its
+          # deliverables. An empty outputs_hashes.json here means the
           # output-inventory path silently regressed.
           bundle=$(ls -d "$RUNNER_TEMP"/xhost-out/dev-*/ | head -n1)
           bundle=${bundle%/}
@@ -978,11 +980,13 @@ jobs:
         env:
           EVIDENCE_PUBKEY_ANCHOR: ${{ runner.temp }}/sig/signing.pub
         run: |
-          # Full generate (no --skip-tests): the test phase runs so the
-          # cert bundle attests its --release --locked deliverables in
-          # outputs_hashes.json, matching the real cert generation path.
+          # --skip-tests --inventory-outputs: skip the test suite but still
+          # inventory the --release --locked deliverables into
+          # outputs_hashes.json, so the cert bundle attests them.
           mkdir -p "$RUNNER_TEMP/cert-out"
           ./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --inventory-outputs \
             --signing-key "$RUNNER_TEMP/sig/signing.key" \
             --out-dir "$RUNNER_TEMP/cert-out" \
             --profile cert
@@ -997,8 +1001,8 @@ jobs:
 
       - name: Assert output manifest is non-empty
         run: |
-          # A cert generation compiled the workspace, so its deliverables
-          # must be attested. Empty here means the inventory path regressed.
+          # The cert generation inventoried its deliverables, so they must
+          # be attested. Empty here means the inventory path regressed.
           n=$(jq 'length' "${{ steps.bundle.outputs.path }}/outputs_hashes.json")
           echo "outputs_hashes.json entries (cert): $n"
           if [ "$n" -lt 1 ]; then
@@ -1294,12 +1298,15 @@ jobs:
       - name: Generate current bundle
         shell: bash
         run: |
-          # Full generate (no --skip-tests): exercises the real inventory
-          # path. The cross-time gate compares deterministic_hash, a
-          # toolchain/git projection that excludes the test-output and
-          # deliverable digests, so running tests does not perturb it.
+          # --skip-tests --inventory-outputs: no nextest, but the inventory
+          # phase runs so outputs_hashes.json is populated. The cross-time
+          # gate compares deterministic_hash (a toolchain/git projection
+          # that excludes deliverable digests), so the inventory does not
+          # perturb it.
           mkdir -p "$RUNNER_TEMP/current-out"
           ./target/release/cargo-evidence evidence generate \
+            --skip-tests \
+            --inventory-outputs \
             --out-dir "$RUNNER_TEMP/current-out" \
             --profile dev
           current_bundle=$(ls -d "$RUNNER_TEMP"/current-out/dev-*/ | head -n1)

@@ -195,6 +195,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
         Some(Commands::Generate {
             signing_key,
             skip_tests,
+            inventory_outputs,
             coverage,
         }) => cmd_generate(GenerateArgs {
             profile_arg: args.profile,
@@ -204,6 +205,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             trace_roots_arg: args.trace_roots,
             signing_key,
             skip_tests,
+            inventory_outputs,
             coverage,
             quiet: args.quiet,
             json_output: args.json,
@@ -313,6 +315,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             trace_roots_arg: args.trace_roots,
             signing_key: None,
             skip_tests: false,
+            inventory_outputs: false,
             coverage: None,
             quiet: args.quiet,
             json_output: args.json,

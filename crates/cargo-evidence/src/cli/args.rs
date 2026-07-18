@@ -208,6 +208,17 @@ pub enum Commands {
         #[arg(long)]
         skip_tests: bool,
 
+        /// Inventory + hash the build's deliverables into
+        /// `outputs_hashes.json` even when `--skip-tests` is set.
+        ///
+        /// The inventory phase runs its own
+        /// `cargo build --message-format=json`, so it does not need the
+        /// test phase. This exercises the output-attestation path
+        /// without the full test suite. No effect without `--skip-tests`
+        /// (a full generate always inventories).
+        #[arg(long)]
+        inventory_outputs: bool,
+
         /// Structural coverage level to capture via cargo-llvm-cov.
         ///
         /// Runs an instrumented test pass between the plain

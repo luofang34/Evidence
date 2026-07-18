@@ -1,29 +1,40 @@
 //! Phase 5b — inventory + hash the workspace's compiled deliverables.
 //!
-//! Runs after the test phase: reads the build's `compiler-artifact`
-//! messages, hashes each in-scope deliverable, and records them into
-//! `outputs_hashes.json`. Skipped under `--skip-tests`.
+//! Reads the build's `compiler-artifact` messages, hashes each in-scope
+//! deliverable, and records them into `outputs_hashes.json`. The
+//! inventory runs its own `cargo build --message-format=json`, so it is
+//! independent of the test phase — a full generate always inventories,
+//! and a `--skip-tests` generate can opt in via `--inventory-outputs`.
 
 use anyhow::Result;
 
 use evidence_core::{EvidenceBuilder, Profile, inventory_outputs_blocking};
 
+/// Whether the inventory runs. It does its own
+/// `cargo build --message-format=json`, so it is independent of the test
+/// phase: a full generate always inventories, and a `--skip-tests`
+/// generate inventories only when `--inventory-outputs` opts in.
+fn should_inventory(skip_tests: bool, inventory_outputs: bool) -> bool {
+    !skip_tests || inventory_outputs
+}
+
 /// Inventory the workspace's compiled deliverables via
 /// `cargo build --message-format=json` and hash each into
-/// `outputs_hashes.json`. Skipped when tests are skipped (a
-/// `--skip-tests` bundle compiles nothing, so it has no build outputs
-/// to attest). Strict (cert/record) mode fails closed if the build
-/// produced no in-scope deliverables, or if a captured artifact cannot
-/// be hashed.
+/// `outputs_hashes.json`. Short-circuits when [`should_inventory`] is
+/// false (a plain `--skip-tests` bundle records no deliverables unless
+/// `--inventory-outputs` is also set). Strict (cert/record) mode fails
+/// closed if the build produced no in-scope deliverables, or if a
+/// captured artifact cannot be hashed.
 pub(in crate::cli::generate) fn inventory_and_hash_outputs(
     builder: &mut EvidenceBuilder,
     profile: Profile,
     skip_tests: bool,
+    inventory_outputs: bool,
     strict: bool,
     quiet: bool,
     json_output: bool,
 ) -> Result<()> {
-    if skip_tests {
+    if !should_inventory(skip_tests, inventory_outputs) {
         return Ok(());
     }
     match inventory_outputs_blocking(profile) {
@@ -55,4 +66,25 @@ pub(in crate::cli::generate) fn inventory_and_hash_outputs(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_inventory;
+
+    #[test]
+    fn full_generate_always_inventories() {
+        // skip_tests=false: the inventory runs regardless of the
+        // --inventory-outputs flag.
+        assert!(should_inventory(false, false));
+        assert!(should_inventory(false, true));
+    }
+
+    #[test]
+    fn skip_tests_inventories_only_when_opted_in() {
+        // Plain --skip-tests records no deliverables; --inventory-outputs
+        // opts the inventory back in without running the test suite.
+        assert!(!should_inventory(true, false));
+        assert!(should_inventory(true, true));
+    }
 }
