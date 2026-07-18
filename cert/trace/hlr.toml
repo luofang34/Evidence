@@ -1962,15 +1962,20 @@ title = "Generate inventories workspace compiler artifacts and hashes each deliv
 owner = "tool"
 scope = "component"
 description = """
-After the test phase compiles the workspace, generation shall run
-`cargo build --workspace --message-format=json` and parse the
+Generation shall inventory the workspace's compiled deliverables by
+running `cargo build --message-format=json` and parsing the
 `compiler-artifact` messages, keeping the `lib` and `bin`
-deliverables of workspace members (package id under the workspace
-root) and excluding build scripts, proc-macros, and external
-dependencies. Each produced file is hashed into
-`outputs_hashes.json` under its workspace-relative path; results
-are sorted for deterministic ordering. The phase is skipped under
-`--skip-tests`, which compiles nothing.
+deliverables whose package id is an exact `cargo metadata`
+`workspace_members` entry and excluding build scripts, proc-macros,
+path dependencies outside the workspace, and external dependencies.
+Each produced file is hashed into `outputs_hashes.json` keyed by its
+path relative to cargo's `target_directory`; results are sorted for
+deterministic ordering.
+
+The inventory runs its own build, so it is independent of the test
+phase: a full generate always inventories; a `--skip-tests` generate
+inventories when `--inventory-outputs` is set; and a strict
+(cert/record) generate always inventories.
 
 Fail-closed obligations: strict (cert/record) generation fails
 when a build produced no deliverables or an artifact cannot be

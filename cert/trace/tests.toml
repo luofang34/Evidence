@@ -1717,3 +1717,15 @@ test_selectors = [
     "evidence_core::verify::output_manifest::tests::empty_outputs_after_build_is_rejected",
     "evidence_core::verify::output_manifest::tests::skip_build_allows_empty_outputs",
 ]
+
+[[tests]]
+uid = "95e3e6f2-c4ac-4f56-ba08-f6ce3293f46e"
+id = "TEST-117"
+title = "output inventory is independent of test execution: opt-in under --skip-tests, always under strict"
+owner = "tool"
+traces_to = ["0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"]
+test_selectors = [
+    "cargo_evidence::cli::generate::phases::output_inventory::tests::full_generate_always_inventories",
+    "cargo_evidence::cli::generate::phases::output_inventory::tests::skip_tests_inventories_only_when_opted_in",
+    "cargo_evidence::cli::generate::phases::output_inventory::tests::strict_inventories_even_without_the_flag",
+]

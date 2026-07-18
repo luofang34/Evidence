@@ -2889,7 +2889,10 @@ inventory attests the deliverable and a pinned dependency graph,
 not an implicit debug build. `inventory_and_hash_outputs` hashes
 each artifact into `outputs_hashes.json` via `builder.add_output`;
 strict mode fails closed on zero deliverables or an unhashable
-artifact, and the phase is skipped under `--skip-tests`.
+artifact. The inventory does its own build, so it is independent of
+the test phase: `should_inventory` runs it on a full generate,
+under `--skip-tests --inventory-outputs`, or unconditionally in
+strict (cert/record) mode.
 """
 verification_methods = ["test"]
 
