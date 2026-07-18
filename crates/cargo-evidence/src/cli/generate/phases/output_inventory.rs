@@ -1,7 +1,8 @@
 //! Phase 5b — inventory + hash the workspace's compiled deliverables.
 //!
-//! Split out of the parent `phases` module so it stays under the
-//! 500-line workspace file-size limit.
+//! Runs after the test phase: reads the build's `compiler-artifact`
+//! messages, hashes each in-scope deliverable, and records them into
+//! `outputs_hashes.json`. Skipped under `--skip-tests`.
 
 use anyhow::Result;
 

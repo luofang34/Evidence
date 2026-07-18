@@ -1391,7 +1391,7 @@
     {
       "id": "TEST-112",
       "uid": "094f9fee-f5f9-49c7-be4a-d47132eb459b",
-      "name": "compiler-artifact parser keeps only workspace lib/bin deliverables, keyed workspace-relative",
+      "name": "compiler-artifact parser keeps only workspace lib/bin deliverables, keyed relative to the target directory",
       "selectors": [
         "evidence_core::bundle::cargo_artifacts::tests::artifact_outside_target_dir_is_rejected",
         "evidence_core::bundle::cargo_artifacts::tests::keeps_only_workspace_member_lib_and_bin_keyed_under_target_dir"

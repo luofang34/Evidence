@@ -666,11 +666,29 @@ jobs:
       - name: Generate bundle
         shell: bash
         run: |
+          # Full generate (no --skip-tests): the test phase runs, so the
+          # output-inventory phase records the build's deliverables into
+          # outputs_hashes.json. This is the real generation path a
+          # downstream adopter's CI exercises.
           mkdir -p "$RUNNER_TEMP/xhost-out"
           ./target/release/cargo-evidence evidence generate \
-            --skip-tests \
             --out-dir "$RUNNER_TEMP/xhost-out" \
             --profile dev
+
+      - name: Assert output manifest is non-empty
+        shell: bash
+        run: |
+          # A positive generation that compiled the workspace must attest
+          # its deliverables. An empty outputs_hashes.json here means the
+          # output-inventory path silently regressed.
+          bundle=$(ls -d "$RUNNER_TEMP"/xhost-out/dev-*/ | head -n1)
+          bundle=${bundle%/}
+          n=$(jq 'length' "$bundle/outputs_hashes.json")
+          echo "outputs_hashes.json entries on ${{ runner.os }}: $n"
+          if [ "$n" -lt 1 ]; then
+            echo "::error::outputs_hashes.json is empty after a full generate on ${{ runner.os }}."
+            exit 1
+          fi
 
       - name: Stage per-OS bundle metadata
         shell: bash
@@ -682,6 +700,7 @@ jobs:
           cp "$bundle/SHA256SUMS"                   ./xhost-stage/SHA256SUMS
           cp "$bundle/env.json"                     ./xhost-stage/env.json
           cp "$bundle/deterministic-manifest.json"  ./xhost-stage/deterministic-manifest.json
+          cp "$bundle/outputs_hashes.json"          ./xhost-stage/outputs_hashes.json
           # runner.os ("Linux" / "macOS" / "Windows") is the flavor
           # label the determinism-compare job keys on.
           echo "${{ runner.os }}" > ./xhost-stage/runner-os.txt
@@ -959,9 +978,11 @@ jobs:
         env:
           EVIDENCE_PUBKEY_ANCHOR: ${{ runner.temp }}/sig/signing.pub
         run: |
+          # Full generate (no --skip-tests): the test phase runs so the
+          # cert bundle attests its --release --locked deliverables in
+          # outputs_hashes.json, matching the real cert generation path.
           mkdir -p "$RUNNER_TEMP/cert-out"
           ./target/release/cargo-evidence evidence generate \
-            --skip-tests \
             --signing-key "$RUNNER_TEMP/sig/signing.key" \
             --out-dir "$RUNNER_TEMP/cert-out" \
             --profile cert
@@ -973,6 +994,17 @@ jobs:
           path=${path%/}
           echo "path=$path" >> "$GITHUB_OUTPUT"
           echo "Bundle: $path"
+
+      - name: Assert output manifest is non-empty
+        run: |
+          # A cert generation compiled the workspace, so its deliverables
+          # must be attested. Empty here means the inventory path regressed.
+          n=$(jq 'length' "${{ steps.bundle.outputs.path }}/outputs_hashes.json")
+          echo "outputs_hashes.json entries (cert): $n"
+          if [ "$n" -lt 1 ]; then
+            echo "::error::outputs_hashes.json is empty after a full cert generate."
+            exit 1
+          fi
 
       - name: Verify bundle (prerelease-aware)
         shell: bash
@@ -1262,13 +1294,22 @@ jobs:
       - name: Generate current bundle
         shell: bash
         run: |
+          # Full generate (no --skip-tests): exercises the real inventory
+          # path. The cross-time gate compares deterministic_hash, a
+          # toolchain/git projection that excludes the test-output and
+          # deliverable digests, so running tests does not perturb it.
           mkdir -p "$RUNNER_TEMP/current-out"
           ./target/release/cargo-evidence evidence generate \
-            --skip-tests \
             --out-dir "$RUNNER_TEMP/current-out" \
             --profile dev
           current_bundle=$(ls -d "$RUNNER_TEMP"/current-out/dev-*/ | head -n1)
           current_bundle=${current_bundle%/}
+          n=$(jq 'length' "$current_bundle/outputs_hashes.json")
+          echo "outputs_hashes.json entries (cross-time current): $n"
+          if [ "$n" -lt 1 ]; then
+            echo "::error::outputs_hashes.json is empty after a full generate."
+            exit 1
+          fi
           cp "$current_bundle/deterministic-manifest.json" "$RUNNER_TEMP/current-manifest.json"
           echo "current toolchain projection:"
           jq '{rustc, cargo, llvm_version, cargo_lock_hash, rustflags}' "$RUNNER_TEMP/current-manifest.json"

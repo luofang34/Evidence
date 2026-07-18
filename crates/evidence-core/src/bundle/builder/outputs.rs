@@ -1,10 +1,7 @@
 //! Output-hashing methods for [`EvidenceBuilder`](super::EvidenceBuilder).
 //!
-//! Split from the parent `builder` module (which also carries input
-//! hashing, command recording, and the bundle lifecycle) to stay under
-//! the 500-line workspace file-size limit. A child module, so these
-//! methods reach `EvidenceBuilder`'s private `outputs` / `bundle_dir`
-//! fields directly.
+//! A child module of `builder`, so these methods reach
+//! `EvidenceBuilder`'s private `outputs` / `bundle_dir` fields directly.
 
 use std::path::Path;
 

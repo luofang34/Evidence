@@ -1691,7 +1691,7 @@ test_selectors = [
 [[tests]]
 uid = "094f9fee-f5f9-49c7-be4a-d47132eb459b"
 id = "TEST-112"
-title = "compiler-artifact parser keeps only workspace lib/bin deliverables, keyed workspace-relative"
+title = "compiler-artifact parser keeps only workspace lib/bin deliverables, keyed relative to the target directory"
 owner = "tool"
 traces_to = ["0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"]
 test_selectors = [
