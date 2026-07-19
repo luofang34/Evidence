@@ -36,7 +36,10 @@ pub use entries::{
 };
 pub use matrix::{generate_corpus_traceability_matrix, generate_traceability_matrix};
 pub use read::{TraceFiles, TraceReadError, read_all_trace_files, read_toml};
-pub use requirement_report::{RequirementStatus, build_requirement_report};
+pub use requirement_report::{
+    RequirementReportError, RequirementStatus, build_corpus_requirement_report,
+    build_requirement_report,
+};
 pub use selector_check::{UnresolvedSelector, resolve_test_selectors};
 pub use surfaces::KNOWN_SURFACES;
 pub use test_backlinks::resolve_llr_backlinks;

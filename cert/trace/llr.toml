@@ -3056,3 +3056,29 @@ RULES and the reserved-unclaimed catalog in both directions.
 """
 verification_methods = ["test"]
 emits = []
+
+[[requirements]]
+uid = "f3b6a143-1b94-4423-9274-a44e9454f3a3"
+id = "LLR-104"
+title = "requirement report projects canonical graph relationships and statuses"
+owner = "tool"
+traces_to = ["8d2878da-a95d-468d-b36e-c6314e3f6f0d"]
+modules = [
+    "evidence_core::trace::requirement_report::build_corpus_requirement_report",
+    "evidence_core::trace::requirement_report::view",
+]
+description = """
+`build_corpus_requirement_report` projects SYS, HLR, LLR, and TEST
+nodes in canonical presentation order. Typed outgoing edges supply
+parent links, and the reverse child index supplies downstream
+coverage. Graph-attached trace metadata supplies verification methods
+and presentation order without making file layout semantic.
+
+Each node receives one status diagnostic. Direct structural gaps use
+the affected node as the cascade root, while execution gaps propagate
+the failing TEST uid through LLR, HLR, and SYS diagnostics. The trace
+entry API adapts through the graph and converts graph construction or
+unsupported-edge failures into a terminal-driving `REQ_GAP`.
+"""
+verification_methods = ["test"]
+emits = []

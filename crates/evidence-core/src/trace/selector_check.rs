@@ -1,5 +1,5 @@
-//! Resolve `TestEntry.test_selector` strings against actual
-//! `#[test] fn` definitions in the workspace source.
+//! Resolve each `TestEntry` selector against actual `#[test] fn`
+//! definitions in the workspace source.
 //!
 //! Without resolution, a refactor that renames a `#[test] fn` leaves
 //! the selector dangling — the UUID-based `traces_to` link stays
@@ -9,7 +9,7 @@
 //!
 //! # Algorithm
 //!
-//! For each `TestEntry` with a non-empty `test_selector`:
+//! For each non-empty selector returned by `TestEntry::all_selectors`:
 //!
 //! 1. Take the last `::`-separated segment as the function name.
 //!    Rust's `cargo test <selector>` convention accepts a suffix
@@ -26,12 +26,8 @@
 //! # Why grep, not syn
 //!
 //! `syn` would handle macro-generated tests (e.g. `#[tokio::test]`,
-//! `rstest`, quickcheck-style). Grep doesn't. The trade-off is
-//! acceptable at this scope — the tool's self-trace uses plain
-//! `#[test]` throughout. If a downstream project hits a macro
-//! collision, a future PR can swap the resolver for a `syn`-based
-//! one behind a `--strict` flag; the journal entry in
-//! `cert/trace/README.md` documents that escape hatch.
+//! `rstest`, quickcheck-style). This resolver intentionally accepts
+//! plain `#[test]` functions only.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -57,29 +53,35 @@ pub fn resolve_test_selectors(
     tests: &[TestEntry],
     workspace_root: &Path,
 ) -> Vec<UnresolvedSelector> {
+    let inputs: Vec<(String, Vec<String>)> = tests
+        .iter()
+        .map(|test| (test.id.clone(), test.all_selectors()))
+        .collect();
+    resolve_selector_inputs(&inputs, workspace_root)
+}
+
+pub(crate) fn resolve_selector_inputs(
+    tests: &[(String, Vec<String>)],
+    workspace_root: &Path,
+) -> Vec<UnresolvedSelector> {
     let rs_files = collect_rs_files(workspace_root);
 
     let mut unresolved = Vec::new();
-    for t in tests {
-        let selector = match t.test_selector.as_deref() {
-            Some(s) if !s.trim().is_empty() => s,
-            _ => continue, // empty / None selectors are not in scope
-        };
-        let fn_name = selector.rsplit("::").next().unwrap_or(selector);
-        // Unqualified selectors (no `::`) don't constrain the search
-        // scope — we resolve against any file. Qualified selectors
-        // pin the search to files whose path reflects the leading
-        // segment (crate / binary / module name).
-        let prefix = if selector.contains("::") {
-            Some(selector.split("::").next().unwrap_or(selector))
-        } else {
-            None
-        };
-        if !any_file_matches(&rs_files, fn_name, prefix) {
-            unresolved.push(UnresolvedSelector {
-                id: t.id.clone(),
-                selector: selector.to_string(),
-            });
+    for (id, selectors) in tests {
+        for selector in selectors.iter().filter(|value| !value.trim().is_empty()) {
+            let fn_name = selector.rsplit("::").next().unwrap_or(selector);
+            // Unqualified selectors don't constrain the search scope.
+            let prefix = if selector.contains("::") {
+                Some(selector.split("::").next().unwrap_or(selector))
+            } else {
+                None
+            };
+            if !any_file_matches(&rs_files, fn_name, prefix) {
+                unresolved.push(UnresolvedSelector {
+                    id: id.clone(),
+                    selector: selector.clone(),
+                });
+            }
         }
     }
     unresolved
@@ -295,7 +297,7 @@ mod tests {
 
         let files = collect_rs_files(tmp.path());
 
-        // Unqualified: resolves (legacy bare-name behavior preserved).
+        // Unqualified selectors resolve against any matching file.
         assert!(any_file_matches(&files, "my_fn", None));
         // Qualified against crate_b: resolves.
         assert!(any_file_matches(&files, "my_fn", Some("crate_b")));

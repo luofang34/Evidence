@@ -1816,3 +1816,15 @@ test_selectors = [
     "trace_decomposition::surface_unclaimed_fires_with_typed_code",
     "diagnostic_codes_locked::every_code_is_claimed_by_an_llr",
 ]
+
+[[tests]]
+uid = "9c68275c-dce1-41a2-b501-84bd8d06351c"
+id = "TEST-126"
+title = "graph-derived requirement reports preserve parity and cover every structural gap"
+owner = "tool"
+traces_to = ["f3b6a143-1b94-4423-9274-a44e9454f3a3"]
+test_selectors = [
+    "corpus_gap_reports::corpus_gap_report_matches_adapter_and_ignores_input_order",
+    "corpus_gap_reports::corpus_gap_report_covers_structural_and_execution_gaps",
+    "corpus_gap_reports::corpus_gap_report_rejects_unsupported_edge_kinds",
+]

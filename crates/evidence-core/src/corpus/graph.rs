@@ -64,6 +64,8 @@ pub(crate) struct RequirementMetadata {
     pub(crate) surfaces: Vec<String>,
     /// Diagnostic codes emitted by an LLR.
     pub(crate) emits: Vec<String>,
+    /// Verification methods required by trace policy.
+    pub(crate) verification_methods: Vec<String>,
 }
 
 /// Trace metadata retained for test-derived views.
@@ -77,7 +79,7 @@ pub(crate) struct TestMetadata {
     pub(crate) category: Option<String>,
     /// Source reference.
     pub(crate) source: Option<String>,
-    /// Primary selector displayed by legacy trace reports.
+    /// Primary selector displayed by trace reports.
     pub(crate) primary_selector: Option<String>,
 }
 

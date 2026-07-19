@@ -100,6 +100,7 @@ fn requirement_from_hlr_entry(
             modules: Vec::new(),
             surfaces: canonical_claims(&entry.surfaces),
             emits: Vec::new(),
+            verification_methods: canonical_claims(&entry.verification_methods),
         }),
     })
 }
@@ -123,6 +124,7 @@ fn requirement_from_llr_entry(entry: &LlrEntry) -> Result<AdaptedNode, CorpusErr
             modules: entry.modules.clone(),
             surfaces: Vec::new(),
             emits: canonical_claims(&entry.emits),
+            verification_methods: canonical_claims(&entry.verification_methods),
         }),
     })
 }
