@@ -2012,6 +2012,27 @@ verification_methods = ["test"]
 traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]
 
 [[requirements]]
+uid = "7d64b353-db6a-44da-8b10-c901fa8c1b35"
+id = "HLR-082"
+title = "Traceability matrix rows and relationships are derived from the canonical corpus graph"
+owner = "tool"
+scope = "component"
+description = """
+Bundle generation shall derive every HLR, LLR, and test row, each
+typed relationship, all coverage counts, and every matrix gap from
+the validated `CorpusGraph`. Legacy trace document headers supply
+schema and document provenance only.
+
+The graph-derived matrix shall remain byte-identical to the existing
+matrix for Evidence's own trace. Node file order and outgoing edge
+input order are non-semantic and shall not change the rendered
+matrix. The existing matrix API remains available to downstream
+callers.
+"""
+verification_methods = ["test"]
+traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]
+
+[[requirements]]
 uid = "5adae145-ba90-4620-8977-a148bfcca2f2"
 id = "HLR-080"
 title = "Corpus graph enforces uid identity and resolvable typed edges"

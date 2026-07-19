@@ -2931,6 +2931,35 @@ verification_methods = ["test"]
 emits = []
 
 [[requirements]]
+uid = "de536781-44ca-4adc-8036-5e6dd0f7ff76"
+id = "LLR-101"
+title = "matrix view projects canonical corpus nodes and edges into the shared renderer"
+owner = "tool"
+traces_to = ["7d64b353-db6a-44da-8b10-c901fa8c1b35"]
+modules = [
+    "evidence_core::trace::matrix::generate_corpus_traceability_matrix",
+    "evidence_core::trace::matrix::view",
+    "cargo_evidence::cli::generate::phases::copy_trace_and_build_matrix",
+]
+description = """
+`generate_corpus_traceability_matrix` constructs the matrix view by
+iterating `CorpusGraph`: requirement layers select HLR and LLR rows,
+test nodes select test rows, and canonical `DerivesFrom` and
+`Verifies` edges supply relationships. Graph nodes retain the
+presentation metadata needed for exact report parity. Both the
+legacy entry projection and corpus projection feed one renderer, so
+headers, annotations, tables, coverage counts, gaps, and ordering
+cannot drift between two rendering implementations.
+
+Bundle generation adapts the parsed legacy trace into a graph,
+validates it, and calls the corpus generator. The existing
+`generate_traceability_matrix` function retains its signature for
+downstream compatibility.
+"""
+verification_methods = ["test"]
+emits = []
+
+[[requirements]]
 uid = "bbbadd81-3db1-40c0-8355-c5fe10dc4b7f"
 id = "LLR-098"
 title = "corpus::graph enforces identity and canonical typed edges"

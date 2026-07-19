@@ -45,6 +45,44 @@ pub enum NodeKind {
     Test,
 }
 
+/// Trace metadata retained for requirement-derived views.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct RequirementMetadata {
+    /// Optional namespace prefix for the human-readable identifier.
+    pub(crate) namespace: Option<String>,
+    /// Explicit presentation order within the requirement layer.
+    pub(crate) sort_key: Option<i64>,
+    /// Requirement scope.
+    pub(crate) scope: Option<String>,
+    /// Requirement category.
+    pub(crate) category: Option<String>,
+    /// Source reference.
+    pub(crate) source: Option<String>,
+    /// Implementation modules associated with the requirement.
+    pub(crate) modules: Vec<String>,
+}
+
+/// Trace metadata retained for test-derived views.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct TestMetadata {
+    /// Optional namespace prefix for the human-readable identifier.
+    pub(crate) namespace: Option<String>,
+    /// Explicit presentation order within the test layer.
+    pub(crate) sort_key: Option<i64>,
+    /// Test category.
+    pub(crate) category: Option<String>,
+    /// Source reference.
+    pub(crate) source: Option<String>,
+    /// Primary selector displayed by legacy trace reports.
+    pub(crate) primary_selector: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum TraceMetadata {
+    Requirement(RequirementMetadata),
+    Test(TestMetadata),
+}
+
 /// A requirement node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequirementNode {
@@ -129,6 +167,7 @@ impl Node {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CorpusGraph {
     nodes: BTreeMap<String, Node>,
+    trace_metadata: BTreeMap<String, TraceMetadata>,
 }
 
 impl CorpusGraph {
@@ -179,6 +218,21 @@ impl CorpusGraph {
     /// Iterate nodes in deterministic (uid) order.
     pub fn nodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes.values()
+    }
+
+    pub(crate) fn trace_metadata(&self, uid: &str) -> Option<&TraceMetadata> {
+        self.trace_metadata.get(uid)
+    }
+
+    pub(super) fn insert_with_trace_metadata(
+        &mut self,
+        node: Node,
+        metadata: TraceMetadata,
+    ) -> Result<(), CorpusError> {
+        let uid = node.uid().to_string();
+        self.insert(node)?;
+        self.trace_metadata.insert(uid, metadata);
+        Ok(())
     }
 
     /// Check every edge resolves and obeys its source/target kind

@@ -32,7 +32,7 @@ pub use entries::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile,
     TraceMeta,
 };
-pub use matrix::generate_traceability_matrix;
+pub use matrix::{generate_corpus_traceability_matrix, generate_traceability_matrix};
 pub use read::{TraceFiles, TraceReadError, read_all_trace_files, read_toml};
 pub use requirement_report::{RequirementStatus, build_requirement_report};
 pub use selector_check::{UnresolvedSelector, resolve_test_selectors};
