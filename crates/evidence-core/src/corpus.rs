@@ -4,14 +4,15 @@
 //! into one uid-keyed, typed graph; traceability reports are derived
 //! views of that graph, and file layout carries no semantic meaning
 //! (SYS-035). Legacy `cert/trace` documents load into the same graph
-//! through [`legacy`] at exact parity until the corpus cutover.
+//! through [`graph_from_trace_files`] at exact parity until the corpus
+//! cutover.
 //!
 //! Module map:
 //!
-//! - [`index`] — `corpus.toml` parsing + per-kind file resolution
-//! - [`graph`] — node/edge types and the uid-keyed graph
-//! - [`records`] — corpus-native record file schemas
-//! - [`legacy`] — four-file `cert/trace` → graph adapter
+//! - `index` — `corpus.toml` parsing + per-kind file resolution
+//! - `graph` — node/edge types and the uid-keyed graph
+//! - `records` — corpus-native record file schemas
+//! - `legacy` — four-file `cert/trace` → graph adapter
 //!
 //! Design record:
 //! `docs/superpowers/specs/2026-07-18-corpus-model-v0.2-design.md`.
