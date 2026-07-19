@@ -24,7 +24,7 @@ use evidence_core::verify::verify_bundle;
 
 use tempfile::TempDir;
 
-use helpers::{MockGitProvider, create_minimal_bundle};
+use helpers::create_minimal_bundle;
 
 #[test]
 fn test_bundle_roundtrip() {
@@ -95,41 +95,6 @@ fn test_determinism_sha256sums_identical() {
         sums_a, sums_b,
         "SHA256SUMS must be byte-identical for identical content"
     );
-}
-
-#[test]
-fn test_overwrite_protection() {
-    let tmp = TempDir::new().unwrap();
-
-    let make_config = || EvidenceBuildConfig {
-        output_root: tmp.path().to_path_buf(),
-        profile: Profile::Dev,
-        in_scope_crates: vec![],
-        trace_roots: vec![],
-        require_clean_git: false,
-        fail_on_dirty: false,
-        dal_map: BTreeMap::new(),
-        boundary_policy: evidence_core::BoundaryPolicy::default(),
-    };
-
-    // First builder succeeds and creates the bundle directory.
-    let _builder1 = EvidenceBuilder::new_with_provider(make_config(), MockGitProvider::clean())
-        .expect("first builder should succeed");
-
-    // Second builder called immediately (same second, same SHA) must fail
-    // because the bundle directory already exists.
-    let result = EvidenceBuilder::new_with_provider(make_config(), MockGitProvider::clean());
-    match result {
-        Err(e) => {
-            let msg = e.to_string();
-            assert!(
-                msg.contains("already exists"),
-                "Error should mention 'already exists', got: {}",
-                msg
-            );
-        }
-        Ok(_) => panic!("Second builder in same second should fail (overwrite protection)"),
-    }
 }
 
 #[test]

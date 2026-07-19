@@ -27,7 +27,10 @@ use crate::policy::Profile;
 use crate::traits::GitProvider;
 
 mod config;
+mod naming;
 mod outputs;
+#[cfg(test)]
+mod tests;
 pub use config::EvidenceBuildConfig;
 
 /// Builder for creating evidence bundles.
@@ -71,16 +74,20 @@ impl EvidenceBuilder {
         config: EvidenceBuildConfig,
         provider: G,
     ) -> Result<Self, BuilderError> {
-        // Determine strict mode from profile (cert and record require strictness)
+        Self::new_with_provider_at(config, provider, &utc_compact_stamp())
+    }
+
+    fn new_with_provider_at<G: GitProvider + 'static>(
+        config: EvidenceBuildConfig,
+        provider: G,
+        timestamp: &str,
+    ) -> Result<Self, BuilderError> {
         let strict = matches!(config.profile, Profile::Cert | Profile::Record);
 
-        // Snapshot git state at the START (strict mode for cert/record)
         let git_snapshot = GitSnapshot::capture_with(&provider, strict)?;
 
-        // Check for shallow clone (shared with CLI's preflight).
         crate::git::check_shallow_clone()?;
 
-        // Check git clean requirements
         if (config.require_clean_git || config.fail_on_dirty) && git_snapshot.dirty {
             let dirty_files = match provider.dirty_files() {
                 Ok(files) => files,
@@ -119,41 +126,7 @@ impl EvidenceBuilder {
             });
         }
 
-        // Create bundle directory with profile prefix, timestamp, and SHA.
-        // Format: <profile>-<YYYYMMDD-HHMMSSZ>-<sha8>
-        // The profile prefix makes it visually obvious which profile generated
-        // the bundle and prevents accidental submission of dev bundles as cert.
-        let ts = utc_compact_stamp();
-        let sha_short = if git_snapshot.sha.len() >= 8 {
-            &git_snapshot.sha[..8]
-        } else {
-            &git_snapshot.sha
-        };
-        let bundle_dir = config
-            .output_root
-            .join(format!("{}-{}-{}", config.profile, ts, sha_short));
-
-        if bundle_dir.exists() {
-            return Err(BuilderError::BundleExists { path: bundle_dir });
-        }
-
-        fs::create_dir_all(&bundle_dir).map_err(|source| BuilderError::Io {
-            op: "creating",
-            path: bundle_dir.clone(),
-            source,
-        })?;
-        let tests_dir = bundle_dir.join("tests");
-        fs::create_dir_all(&tests_dir).map_err(|source| BuilderError::Io {
-            op: "creating",
-            path: tests_dir,
-            source,
-        })?;
-        let trace_dir = bundle_dir.join("trace");
-        fs::create_dir_all(&trace_dir).map_err(|source| BuilderError::Io {
-            op: "creating",
-            path: trace_dir,
-            source,
-        })?;
+        let bundle_dir = naming::create_bundle_directories(&config, &git_snapshot, timestamp)?;
 
         Ok(Self {
             config,
