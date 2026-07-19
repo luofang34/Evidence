@@ -4,8 +4,8 @@
 //! into one uid-keyed, typed graph; traceability reports are derived
 //! views of that graph, and file layout carries no semantic meaning
 //! (SYS-035). Legacy `cert/trace` documents load into the same graph
-//! through [`graph_from_trace_files`] at exact parity until the corpus
-//! cutover.
+//! through [`graph_from_trace_files`] with the same identities and
+//! edge sets.
 //!
 //! Module map:
 //!

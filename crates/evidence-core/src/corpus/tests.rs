@@ -1,5 +1,5 @@
 //! Unit tests for the corpus index, graph invariants, layout
-//! agnosticism, and legacy-trace parity (TEST-118..121).
+//! agnosticism, and legacy-trace parity (TEST-119..122).
 
 #![allow(
     clippy::unwrap_used,
@@ -13,7 +13,9 @@ use std::path::{Path, PathBuf};
 use crate::trace::{HlrEntry, TestEntry, read_all_trace_files};
 
 use super::CorpusError;
-use super::graph::{CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementNode};
+use super::graph::{
+    CorpusGraph, EdgeKind, Node, NodeKind, RequirementLayer, RequirementNode, TestNode,
+};
 use super::index::CorpusIndex;
 use super::legacy::graph_from_trace_files;
 
@@ -37,8 +39,6 @@ fn requirement(uid: &str, id: &str, edges: &[&str]) -> Node {
     })
 }
 
-// ---------------------------------------------------------------- index
-
 #[test]
 fn index_parses_minimal() {
     let dir = tempfile::tempdir().unwrap();
@@ -48,7 +48,7 @@ fn index_parses_minimal() {
 schema_version = 1
 
 [[requirements]]
-uid = "req_00000000-0000-0000-0000-00000000000a"
+uid = "req_00000000-0000-4000-8000-00000000000a"
 id = "R-A"
 layer = "sys"
 title = "a"
@@ -66,7 +66,7 @@ title = "a"
     assert_eq!(graph.len(), 1);
     assert!(
         graph
-            .get("req_00000000-0000-0000-0000-00000000000a")
+            .get("req_00000000-0000-4000-8000-00000000000a")
             .is_some()
     );
 }
@@ -112,7 +112,7 @@ fn index_empty_resolution_is_error() {
 }
 
 #[test]
-fn index_unimplemented_kind_fails_closed() {
+fn index_unsupported_kind_fails_closed() {
     let dir = tempfile::tempdir().unwrap();
     write(
         &dir.path().join("corpus.toml"),
@@ -120,41 +120,51 @@ fn index_unimplemented_kind_fails_closed() {
     );
     let err = CorpusIndex::load(&dir.path().join("corpus.toml")).unwrap_err();
     assert!(
-        matches!(err, CorpusError::UnimplementedKind { kind: "sources" }),
+        matches!(err, CorpusError::UnsupportedKind { kind: "sources" }),
         "an indexed-but-unloadable kind must refuse, got: {err:?}"
     );
 }
 
 #[test]
-fn records_reject_unprefixed_uid() {
+fn records_reject_invalid_native_uid() {
+    let err = native_requirement_error("00000000-0000-4000-8000-00000000000a");
+    assert!(
+        matches!(err, CorpusError::NativeUidPrefix { .. }),
+        "native record uids must carry the req_ prefix, got: {err:?}"
+    );
+
+    let err = native_requirement_error("req_00000000-0000-1000-8000-00000000000a");
+    assert!(
+        matches!(err, CorpusError::NativeUidUuidV4 { .. }),
+        "native record uid suffixes must be UUIDv4, got: {err:?}"
+    );
+}
+
+fn native_requirement_error(uid: &str) -> CorpusError {
     let dir = tempfile::tempdir().unwrap();
     write(
         &dir.path().join("reqs/bad.toml"),
-        r#"
+        &format!(
+            r#"
 schema_version = 1
 
 [[requirements]]
-uid = "00000000-0000-0000-0000-00000000000a"
+uid = "{uid}"
 id = "R-A"
 layer = "sys"
 title = "a"
-"#,
+"#
+        ),
     );
     write(
         &dir.path().join("corpus.toml"),
         "schema_version = 1\nrequirements = [\"reqs/**/*.toml\"]\n",
     );
-    let err = CorpusIndex::load_graph(&dir.path().join("corpus.toml")).unwrap_err();
-    assert!(
-        matches!(err, CorpusError::NativeUidPrefix { .. }),
-        "native record uids must carry the req_ prefix, got: {err:?}"
-    );
+    CorpusIndex::load_graph(&dir.path().join("corpus.toml")).unwrap_err()
 }
 
-// ---------------------------------------------------------------- graph
-
 #[test]
-fn graph_rejects_duplicate_uid() {
+fn graph_rejects_duplicate_identities_and_edges() {
     let mut graph = CorpusGraph::new();
     graph.insert(requirement("req_dup", "R-1", &[])).unwrap();
     let err = graph
@@ -164,10 +174,65 @@ fn graph_rejects_duplicate_uid() {
         matches!(err, CorpusError::DuplicateUid { ref uid } if uid == "req_dup"),
         "duplicate uid must be rejected naming the uid, got: {err:?}"
     );
+
+    let err = graph
+        .insert(requirement("req_other", "R-1", &[]))
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CorpusError::DuplicateHumanId {
+                ref id,
+                kind: NodeKind::Requirement,
+                ref first_uid,
+                ref duplicate_uid,
+            } if id == "R-1" && first_uid == "req_dup" && duplicate_uid == "req_other"
+        ),
+        "duplicate human ids must be rejected within a node kind, got: {err:?}"
+    );
+
+    graph
+        .insert(graph_node(NodeKind::Test, "test_one", "R-1", Vec::new()))
+        .expect("the same human id is legal across different node kinds");
+    let err = graph
+        .insert(graph_node(NodeKind::Test, "test_two", "R-1", Vec::new()))
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CorpusError::DuplicateHumanId {
+                kind: NodeKind::Test,
+                ref first_uid,
+                ref duplicate_uid,
+                ..
+            } if first_uid == "test_one" && duplicate_uid == "test_two"
+        ),
+        "duplicate human ids must also be rejected within tests, got: {err:?}"
+    );
+
+    let mut edge_graph = CorpusGraph::new();
+    let err = edge_graph
+        .insert(requirement(
+            "req_child",
+            "R-child",
+            &["req_parent", "req_parent"],
+        ))
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CorpusError::DuplicateEdge {
+                ref from,
+                ref to,
+                kind: EdgeKind::DerivesFrom,
+            } if from == "req_child" && to == "req_parent"
+        ),
+        "duplicate edges must be rejected with their owner and target, got: {err:?}"
+    );
 }
 
 #[test]
-fn graph_detects_dangling_edge() {
+fn graph_detects_dangling_and_invalid_edge_kinds() {
     let mut graph = CorpusGraph::new();
     graph
         .insert(requirement("req_child", "R-1", &["req_missing"]))
@@ -184,74 +249,170 @@ fn graph_detects_dangling_edge() {
         ),
         "dangling edge must name source, target, and kind, got: {err:?}"
     );
+
+    assert_invalid_edge_kinds(NodeKind::Requirement, EdgeKind::DerivesFrom, NodeKind::Test);
+    assert_invalid_edge_kinds(NodeKind::Test, EdgeKind::DerivesFrom, NodeKind::Requirement);
+    assert_invalid_edge_kinds(
+        NodeKind::Requirement,
+        EdgeKind::Verifies,
+        NodeKind::Requirement,
+    );
+    assert_invalid_edge_kinds(NodeKind::Test, EdgeKind::Verifies, NodeKind::Test);
 }
 
-// --------------------------------------------------------------- layout
+fn assert_invalid_edge_kinds(source_kind: NodeKind, edge_kind: EdgeKind, target_kind: NodeKind) {
+    let mut graph = CorpusGraph::new();
+    graph
+        .insert(graph_node(target_kind, "target", "TARGET", Vec::new()))
+        .unwrap();
+    graph
+        .insert(graph_node(
+            source_kind,
+            "source",
+            "SOURCE",
+            vec![(edge_kind, "target".to_string())],
+        ))
+        .unwrap();
 
-#[test]
-fn layout_split_produces_identical_graph() {
-    const A: &str = r#"
+    let err = graph.validate().unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CorpusError::InvalidEdgeKinds {
+                ref from,
+                ref to,
+                kind,
+                source_kind: source,
+                target_kind: target,
+            } if from == "source"
+                && to == "target"
+                && kind == edge_kind
+                && source == source_kind
+                && target == target_kind
+        ),
+        "edge endpoint kinds must match the edge contract, got: {err:?}"
+    );
+}
+
+fn graph_node(kind: NodeKind, uid: &str, id: &str, edges: Vec<(EdgeKind, String)>) -> Node {
+    match kind {
+        NodeKind::Requirement => Node::Requirement(RequirementNode {
+            uid: uid.to_string(),
+            id: id.to_string(),
+            title: format!("title of {id}"),
+            layer: RequirementLayer::Sys,
+            edges,
+        }),
+        NodeKind::Test => Node::Test(TestNode {
+            uid: uid.to_string(),
+            id: id.to_string(),
+            title: format!("title of {id}"),
+            selectors: Vec::new(),
+            edges,
+        }),
+    }
+}
+
+const RECORD_A: &str = r#"
 [[requirements]]
-uid = "req_00000000-0000-0000-0000-00000000000a"
+uid = "req_00000000-0000-4000-8000-00000000000a"
 id = "R-A"
 layer = "sys"
 title = "root"
 "#;
-    const B: &str = r#"
+const RECORD_B: &str = r#"
 [[requirements]]
-uid = "req_00000000-0000-0000-0000-00000000000b"
+uid = "req_00000000-0000-4000-8000-00000000000b"
 id = "R-B"
 layer = "hlr"
-title = "middle"
-derives_from = ["req_00000000-0000-0000-0000-00000000000a"]
+title = "first parent"
+derives_from = ["req_00000000-0000-4000-8000-00000000000a"]
 "#;
-    const C: &str = r#"
+const RECORD_D: &str = r#"
 [[requirements]]
-uid = "req_00000000-0000-0000-0000-00000000000c"
+uid = "req_00000000-0000-4000-8000-00000000000d"
+id = "R-D"
+layer = "hlr"
+title = "second parent"
+derives_from = ["req_00000000-0000-4000-8000-00000000000a"]
+"#;
+const RECORD_C_FORWARD: &str = r#"
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000c"
 id = "R-C"
 layer = "llr"
 title = "leaf"
-derives_from = ["req_00000000-0000-0000-0000-00000000000b"]
+derives_from = [
+    "req_00000000-0000-4000-8000-00000000000b",
+    "req_00000000-0000-4000-8000-00000000000d",
+]
+"#;
+const RECORD_C_REVERSED: &str = r#"
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000c"
+id = "R-C"
+layer = "llr"
+title = "leaf"
+derives_from = [
+    "req_00000000-0000-4000-8000-00000000000d",
+    "req_00000000-0000-4000-8000-00000000000b",
+]
 "#;
 
-    // Layout 1: everything in one indexed file.
+#[test]
+fn layout_and_edge_order_produce_identical_graph() {
+    let g1 = load_single_file_layout();
+    let g2 = load_split_layout();
+    assert_eq!(
+        g1, g2,
+        "file layout and input edge order must not affect the loaded graph"
+    );
+    assert_eq!(g1.len(), 4);
+    let leaf = expect_requirement(&g1, "req_00000000-0000-4000-8000-00000000000c");
+    assert_edges(
+        &leaf.edges,
+        EdgeKind::DerivesFrom,
+        &[
+            "req_00000000-0000-4000-8000-00000000000b".to_string(),
+            "req_00000000-0000-4000-8000-00000000000d".to_string(),
+        ],
+    );
+}
+
+fn load_single_file_layout() -> CorpusGraph {
     let one = tempfile::tempdir().unwrap();
     write(
         &one.path().join("all/entries.toml"),
-        &format!("schema_version = 1\n{A}{B}{C}"),
+        &format!("schema_version = 1\n{RECORD_A}{RECORD_B}{RECORD_D}{RECORD_C_FORWARD}"),
     );
     write(
         &one.path().join("corpus.toml"),
         "schema_version = 1\nrequirements = [\"all/**/*.toml\"]\n",
     );
+    CorpusIndex::load_graph(&one.path().join("corpus.toml")).unwrap()
+}
 
-    // Layout 2: three files across two directories, mixing a literal
-    // path with a pattern, under unrelated filenames.
+fn load_split_layout() -> CorpusGraph {
     let split = tempfile::tempdir().unwrap();
     write(
         &split.path().join("x/one.toml"),
-        &format!("schema_version = 1\n{A}"),
+        &format!("schema_version = 1\n{RECORD_A}"),
     );
     write(
         &split.path().join("x/two.toml"),
-        &format!("schema_version = 1\n{B}"),
+        &format!("schema_version = 1\n{RECORD_B}"),
     );
     write(
         &split.path().join("y/rest.toml"),
-        &format!("schema_version = 1\n{C}"),
+        &format!("schema_version = 1\n{RECORD_D}{RECORD_C_REVERSED}"),
     );
     write(
         &split.path().join("corpus.toml"),
         "schema_version = 1\nrequirements = [\"x/**/*.toml\", \"y/rest.toml\"]\n",
     );
 
-    let g1 = CorpusIndex::load_graph(&one.path().join("corpus.toml")).unwrap();
-    let g2 = CorpusIndex::load_graph(&split.path().join("corpus.toml")).unwrap();
-    assert_eq!(g1, g2, "file layout must not affect the loaded graph");
-    assert_eq!(g1.len(), 3);
+    CorpusIndex::load_graph(&split.path().join("corpus.toml")).unwrap()
 }
-
-// --------------------------------------------------------------- legacy
 
 fn workspace_trace_root() -> String {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -328,6 +489,7 @@ fn assert_edges(edges: &[(EdgeKind, String)], kind: EdgeKind, expected_targets: 
             t.as_str()
         })
         .collect();
-    let expected: Vec<&str> = expected_targets.iter().map(String::as_str).collect();
+    let mut expected: Vec<&str> = expected_targets.iter().map(String::as_str).collect();
+    expected.sort_unstable();
     assert_eq!(targets, expected);
 }

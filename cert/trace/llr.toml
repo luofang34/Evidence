@@ -2923,9 +2923,9 @@ per-kind entry resolves to concrete files: a `<dir>/**/*.toml`
 pattern expands via `WalkDir::new(dir).follow_links(false)` with
 results sorted for determinism; any other value is a literal path
 that must exist. An entry resolving to zero files returns
-`CorpusError::EmptyIndexEntry` naming the pattern. Kinds whose
-loading this tool version does not implement return
-`CorpusError::UnimplementedKind` when their lists are non-empty.
+`CorpusError::EmptyIndexEntry` naming the pattern. Unsupported
+indexed kinds return `CorpusError::UnsupportedKind` when their
+lists are non-empty.
 """
 verification_methods = ["test"]
 emits = []
@@ -2933,21 +2933,25 @@ emits = []
 [[requirements]]
 uid = "bbbadd81-3db1-40c0-8355-c5fe10dc4b7f"
 id = "LLR-098"
-title = "corpus::graph owns node identity, typed edges, and dangling detection"
+title = "corpus::graph enforces identity and canonical typed edges"
 owner = "tool"
 traces_to = ["5adae145-ba90-4620-8977-a148bfcca2f2"]
 modules = ["evidence_core::corpus::graph"]
 description = """
-`CorpusGraph` stores nodes in a `BTreeMap` keyed by uid, so
-iteration is deterministic by construction. `insert` returns
-`CorpusError::DuplicateUid` when the uid is already present,
-regardless of node kind. Nodes are `Requirement` (with a
-`RequirementLayer`: source, sys, hlr, llr, derived) or `Test`
-(carrying its selectors); each owns its outgoing edges as
-`(EdgeKind, target uid)` pairs with kinds `DerivesFrom` and
-`Verifies`. `validate` walks every edge and returns
-`CorpusError::DanglingEdge` with source uid, target uid, and edge
-kind for any target absent from the graph.
+`CorpusGraph` stores nodes in a `BTreeMap` keyed by uid. `insert`
+returns `CorpusError::DuplicateUid` when the uid is already present
+regardless of node kind, and `CorpusError::DuplicateHumanId` when a
+human id repeats within `Requirement` or within `Test`. Native
+requirement records accept only `req_<UUIDv4>` identities.
+
+Each node owns outgoing `(EdgeKind, target uid)` pairs. Insertion
+sorts these pairs and rejects an exact duplicate with
+`CorpusError::DuplicateEdge`, making graph equality independent of
+input edge order. `validate` rejects a missing target with
+`CorpusError::DanglingEdge` and rejects any endpoint tuple other
+than requirement→`DerivesFrom`→requirement or
+test→`Verifies`→requirement with `CorpusError::InvalidEdgeKinds`.
+Every edge error carries its source uid, target uid, and edge kind.
 """
 verification_methods = ["test"]
 emits = []
@@ -2968,8 +2972,9 @@ description = """
 `test_selector` unioned with `test_selectors`) and their
 `traces_to` lists as `Verifies` edges. An entry with no uid returns
 `CorpusError::LegacyMissingUid` naming the human id. The adapter
-copies — it never renames, drops, or synthesizes entries, so the
-resulting graph is field-for-field parity with the legacy parser.
+never renames, drops, or synthesizes entries; identities, titles,
+edge sets, and selectors match the legacy parser, while graph edge
+vectors use canonical order.
 """
 verification_methods = ["test"]
 emits = []

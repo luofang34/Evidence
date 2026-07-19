@@ -69,7 +69,7 @@ overlays (DD-15), not committed baseline files.
 renameable. Corpus-native node kinds use typed-prefix uids (`src_`,
 `req_`, `rev_`, `amb_`, `dec_`, `prof_`) over a UUIDv4 core so
 cross-references self-document and edge type-checks are cheap. Legacy
-bare-UUID uids stay valid until the cutover migration rewrites them.
+bare-UUID uids are accepted by the legacy `cert/trace` adapter.
 Source-locator identity hierarchy: explicit spec ID/numbering → section
 path + local ordinal → content hash/structural fingerprint → page/DOM/line
 positions, which are diagnostic only, never identity.

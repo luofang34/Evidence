@@ -1,9 +1,9 @@
 //! Node/edge types and the uid-keyed corpus graph.
 //!
-//! Nodes live in a `BTreeMap` keyed by uid, so iteration — and every
-//! derived view built on it — is deterministic by construction
-//! (HLR-080). Edges are typed and owned by their source node; a
-//! dangling target is a validation error, never a silent no-op.
+//! Nodes live in a `BTreeMap` keyed by uid, and outgoing edges are
+//! sorted, so graph equality and derived views are independent of
+//! input order (HLR-080). Edges are typed and owned by their source
+//! node; invalid endpoints are validation errors.
 
 use std::collections::BTreeMap;
 
@@ -11,9 +11,8 @@ use serde::Deserialize;
 
 use super::error::CorpusError;
 
-/// Typed edge kinds. Grows with the corpus model (e.g. `quotes`,
-/// `reviews`, `resolves` in later milestones).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Typed edge kinds supported by the corpus graph.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeKind {
     /// Requirement → parent requirement it decomposes.
     DerivesFrom,
@@ -102,11 +101,26 @@ impl Node {
         }
     }
 
+    /// The node's human-readable identifier.
+    pub fn id(&self) -> &str {
+        match self {
+            Node::Requirement(r) => &r.id,
+            Node::Test(t) => &t.id,
+        }
+    }
+
     /// The node's outgoing typed edges.
     pub fn edges(&self) -> &[(EdgeKind, String)] {
         match self {
             Node::Requirement(r) => &r.edges,
             Node::Test(t) => &t.edges,
+        }
+    }
+
+    fn edges_mut(&mut self) -> &mut Vec<(EdgeKind, String)> {
+        match self {
+            Node::Requirement(r) => &mut r.edges,
+            Node::Test(t) => &mut t.edges,
         }
     }
 }
@@ -123,13 +137,26 @@ impl CorpusGraph {
         Self::default()
     }
 
-    /// Insert a node; a uid collision with any existing node — of any
-    /// kind — is an error naming the uid.
-    pub fn insert(&mut self, node: Node) -> Result<(), CorpusError> {
+    /// Insert a node after enforcing identity uniqueness and
+    /// canonical, duplicate-free edge order.
+    pub fn insert(&mut self, mut node: Node) -> Result<(), CorpusError> {
         let uid = node.uid().to_string();
         if self.nodes.contains_key(&uid) {
             return Err(CorpusError::DuplicateUid { uid });
         }
+        if let Some(existing) = self
+            .nodes
+            .values()
+            .find(|existing| existing.kind() == node.kind() && existing.id() == node.id())
+        {
+            return Err(CorpusError::DuplicateHumanId {
+                id: node.id().to_string(),
+                kind: node.kind(),
+                first_uid: existing.uid().to_string(),
+                duplicate_uid: uid,
+            });
+        }
+        canonicalize_edges(&mut node)?;
         self.nodes.insert(uid, node);
         Ok(())
     }
@@ -154,21 +181,55 @@ impl CorpusGraph {
         self.nodes.values()
     }
 
-    /// Check every edge resolves to a node present in the graph; the
-    /// first dangling edge is returned with its source, target, and
-    /// kind.
+    /// Check every edge resolves and obeys its source/target kind
+    /// contract.
     pub fn validate(&self) -> Result<(), CorpusError> {
         for node in self.nodes.values() {
             for (kind, target) in node.edges() {
-                if !self.nodes.contains_key(target) {
-                    return Err(CorpusError::DanglingEdge {
+                let target_node =
+                    self.nodes
+                        .get(target)
+                        .ok_or_else(|| CorpusError::DanglingEdge {
+                            from: node.uid().to_string(),
+                            to: target.clone(),
+                            kind: *kind,
+                        })?;
+                if !edge_kinds_match(node.kind(), *kind, target_node.kind()) {
+                    return Err(CorpusError::InvalidEdgeKinds {
                         from: node.uid().to_string(),
                         to: target.clone(),
                         kind: *kind,
+                        source_kind: node.kind(),
+                        target_kind: target_node.kind(),
                     });
                 }
             }
         }
         Ok(())
     }
+}
+
+fn canonicalize_edges(node: &mut Node) -> Result<(), CorpusError> {
+    let from = node.uid().to_string();
+    let edges = node.edges_mut();
+    edges.sort();
+    if let Some(pair) = edges.windows(2).find(|pair| pair[0] == pair[1]) {
+        return Err(CorpusError::DuplicateEdge {
+            from,
+            to: pair[0].1.clone(),
+            kind: pair[0].0,
+        });
+    }
+    Ok(())
+}
+
+fn edge_kinds_match(source: NodeKind, edge: EdgeKind, target: NodeKind) -> bool {
+    matches!(
+        (source, edge, target),
+        (
+            NodeKind::Requirement,
+            EdgeKind::DerivesFrom,
+            NodeKind::Requirement
+        ) | (NodeKind::Test, EdgeKind::Verifies, NodeKind::Requirement)
+    )
 }

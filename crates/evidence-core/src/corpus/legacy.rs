@@ -1,11 +1,9 @@
 //! Legacy `cert/trace` → corpus graph adapter (HLR-081, LLR-099).
 //!
 //! Maps a parsed [`TraceFiles`] into graph nodes without renaming,
-//! dropping, or synthesizing anything: the resulting graph is
-//! field-for-field parity with the legacy parser's view of the same
-//! files. The adapter exists so the graph can become the single source
-//! of truth before the legacy documents migrate; it is deleted at the
-//! corpus cutover.
+//! dropping, or synthesizing entries. Identities, titles, edge sets,
+//! and selectors match the legacy parser; graph insertion canonicalizes
+//! edge order and applies the same invariants as native records.
 
 use crate::trace::{DerivedEntry, HlrEntry, LlrEntry, TestEntry, TraceFiles};
 
@@ -18,9 +16,9 @@ use super::graph::{CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementNod
 /// # Errors
 ///
 /// Returns [`CorpusError::LegacyMissingUid`] for an entry without a
-/// uid and [`CorpusError::DuplicateUid`] on a uid collision. Edge
-/// resolution is the caller's choice via [`CorpusGraph::validate`] —
-/// parity checks want the graph exactly as written, dangling or not.
+/// uid and the relevant identity or edge error when insertion rejects
+/// an entry. Edge resolution is the caller's choice via
+/// [`CorpusGraph::validate`].
 pub fn graph_from_trace_files(files: &TraceFiles) -> Result<CorpusGraph, CorpusError> {
     let mut graph = CorpusGraph::new();
     for entry in &files.sys.requirements {

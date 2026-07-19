@@ -5,8 +5,8 @@
 //! path entry is either a literal file or a `<dir>/**/*.toml`
 //! recursive pattern; expansion is deterministic (sorted) and never
 //! follows symlinks. Everything degenerate fails closed: unknown
-//! fields, a newer schema, an entry resolving to nothing, and kinds
-//! this tool version cannot load yet.
+//! fields, a newer schema, an entry resolving to nothing, and
+//! unsupported node kinds.
 
 use std::path::{Path, PathBuf};
 
@@ -59,7 +59,7 @@ impl CorpusIndex {
     ///
     /// Fails closed on unreadable/malformed input, a newer
     /// `schema_version`, an entry resolving to no files, or a
-    /// non-empty kind this tool version cannot load.
+    /// non-empty unsupported node kind.
     pub fn load(path: &Path) -> Result<Self, CorpusError> {
         let raw = std::fs::read_to_string(path).map_err(|source| CorpusError::IndexRead {
             path: path.to_path_buf(),
@@ -76,7 +76,7 @@ impl CorpusIndex {
                 supported: SUPPORTED_INDEX_SCHEMA,
             });
         }
-        reject_unimplemented(&file)?;
+        reject_unsupported(&file)?;
 
         let root = path.parent().unwrap_or_else(|| Path::new("."));
         let mut requirement_files = Vec::new();
@@ -100,11 +100,10 @@ impl CorpusIndex {
     }
 }
 
-/// Kinds the index may declare but this tool version cannot load.
-/// Listing entries for one is an error — refusing beats silently
-/// ignoring indexed data (HLR-079).
-fn reject_unimplemented(file: &IndexFile) -> Result<(), CorpusError> {
-    let unimplemented: [(&'static str, &[String]); 7] = [
+/// Kinds declared by the index schema without a supported record
+/// loader. Listing entries for one is an error (HLR-079).
+fn reject_unsupported(file: &IndexFile) -> Result<(), CorpusError> {
+    let unsupported: [(&'static str, &[String]); 7] = [
         ("sources", &file.sources),
         ("source_graphs", &file.source_graphs),
         ("ambiguities", &file.ambiguities),
@@ -113,9 +112,9 @@ fn reject_unimplemented(file: &IndexFile) -> Result<(), CorpusError> {
         ("reviews", &file.reviews),
         ("tests", &file.tests),
     ];
-    for (kind, entries) in unimplemented {
+    for (kind, entries) in unsupported {
         if !entries.is_empty() {
-            return Err(CorpusError::UnimplementedKind { kind });
+            return Err(CorpusError::UnsupportedKind { kind });
         }
     }
     Ok(())

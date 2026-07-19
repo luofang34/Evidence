@@ -907,20 +907,17 @@ title = "Certification data is a single typed corpus graph"
 owner = "soi"
 scope = "soi"
 description = """
-The tool shall represent certification artifacts — requirements and
-tests, extending to sources, reviews, ambiguities, decisions, and
-profiles as the corpus model grows — as one typed, uid-keyed graph
-loaded from linked TOML files indexed by `cert/corpus.toml`. File
-layout carries no semantic meaning: the same entries, split across
-any arrangement of indexed files, produce the same graph.
-Traceability reports are derived views of this graph.
+The tool shall represent supported certification artifacts as one
+typed, uid-keyed graph loaded from linked TOML files indexed by
+`cert/corpus.toml`. File layout and input edge order carry no
+semantic meaning: equivalent entries under any indexed arrangement
+produce the same graph. Traceability reports are derived views of
+this graph.
 
-Until the corpus cutover, the legacy `cert/trace` documents load
-into the graph as requirement and test nodes at exact parity with
-the legacy parser — same uid set, same identifiers, same trace
-edges, same test selectors — so the graph can become the single
-source of truth without a flag-day rewrite of existing adopters'
-data.
+The legacy `cert/trace` adapter loads requirement and test nodes
+with the same uid set, human identifiers, titles, trace edge sets,
+and test selectors as the legacy parser. Graph edge ordering is
+canonical.
 """
 verification_methods = ["test", "review"]
 traces_to = []

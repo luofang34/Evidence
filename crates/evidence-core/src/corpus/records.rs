@@ -1,13 +1,13 @@
 //! Corpus-native record file schemas.
 //!
-//! The structural core of a native requirement record: identity, layer,
-//! title, and decomposition edges. Later milestones extend this shape
-//! (lifecycle state and reviews, then source bindings and modality);
-//! the file-level `schema_version` gates that growth.
+//! Native requirement records project identity, layer, title, and
+//! decomposition edges into the graph. Record descriptions remain
+//! file metadata; `schema_version` gates the accepted shape.
 
 use std::path::Path;
 
 use serde::Deserialize;
+use uuid::{Uuid, Variant, Version};
 
 use super::error::CorpusError;
 use super::graph::{CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementNode};
@@ -41,7 +41,7 @@ struct RequirementRecord {
     #[serde(default)]
     #[allow(
         dead_code,
-        reason = "carried for later milestones; not yet a graph field"
+        reason = "record metadata is outside the graph identity projection"
     )]
     description: Option<String>,
 }
@@ -52,8 +52,8 @@ struct RequirementRecord {
 /// # Errors
 ///
 /// Fails closed on unreadable/malformed input, a newer
-/// `schema_version`, a uid without the `req_` prefix, or a uid
-/// collision in the graph.
+/// `schema_version`, a uid outside the `req_<UUIDv4>` scheme, or a
+/// graph identity collision.
 pub(super) fn load_requirements_into(
     path: &Path,
     graph: &mut CorpusGraph,
@@ -75,12 +75,7 @@ pub(super) fn load_requirements_into(
         });
     }
     for record in file.requirements {
-        if !record.uid.starts_with(REQUIREMENT_UID_PREFIX) {
-            return Err(CorpusError::NativeUidPrefix {
-                uid: record.uid,
-                expected: REQUIREMENT_UID_PREFIX,
-            });
-        }
+        validate_requirement_uid(&record.uid)?;
         let edges = record
             .derives_from
             .into_iter()
@@ -93,6 +88,24 @@ pub(super) fn load_requirements_into(
             layer: record.layer,
             edges,
         }))?;
+    }
+    Ok(())
+}
+
+fn validate_requirement_uid(uid: &str) -> Result<(), CorpusError> {
+    let suffix =
+        uid.strip_prefix(REQUIREMENT_UID_PREFIX)
+            .ok_or_else(|| CorpusError::NativeUidPrefix {
+                uid: uid.to_string(),
+                expected: REQUIREMENT_UID_PREFIX,
+            })?;
+    let valid_v4 = Uuid::parse_str(suffix).is_ok_and(|parsed| {
+        parsed.get_version() == Some(Version::Random) && parsed.get_variant() == Variant::RFC4122
+    });
+    if !valid_v4 {
+        return Err(CorpusError::NativeUidUuidV4 {
+            uid: uid.to_string(),
+        });
     }
     Ok(())
 }
