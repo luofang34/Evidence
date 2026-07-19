@@ -3007,3 +3007,26 @@ vectors use canonical order.
 """
 verification_methods = ["test"]
 emits = []
+
+[[requirements]]
+uid = "558eefdf-a737-422b-af28-fc1c8cb1f31b"
+id = "LLR-102"
+title = "floors counts validated corpus nodes by requirement layer and test kind"
+owner = "tool"
+traces_to = ["5807f55e-ccbf-4f20-823f-af2f456b43fc"]
+modules = ["evidence_core::floors::count_trace_per_layer"]
+description = """
+`count_trace_per_layer` resolves every configured trace root, adapts
+its parsed entries into graph nodes, inserts those nodes into one
+aggregate `CorpusGraph`, and validates all typed edges. Any read,
+adaptation, insertion, or validation failure returns zero counts for
+all four trace dimensions.
+
+The counter iterates graph nodes only. `RequirementLayer::Sys`,
+`Hlr`, and `Llr` increment their matching dimensions; Source and
+Derived requirements do not contribute; each `Node::Test`
+increments the TEST dimension. Canonical graph insertion makes
+record layout and edge input order irrelevant to the result.
+"""
+verification_methods = ["test"]
+emits = []

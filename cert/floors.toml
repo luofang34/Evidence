@@ -53,11 +53,11 @@ terminal_codes = 18
 # cert/trace/sys.toml — System Requirements.
 trace_sys = 35
 # cert/trace/hlr.toml — High-Level Requirements.
-trace_hlr = 82
+trace_hlr = 83
 # cert/trace/llr.toml — Low-Level Requirements.
-trace_llr = 98
+trace_llr = 99
 # cert/trace/tests.toml — Test Cases.
-trace_test = 119
+trace_test = 120
 
 # evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR
@@ -79,7 +79,7 @@ known_surfaces = 26
 
 [per_crate.evidence-core]
 # `#[test]` attribute count inside crates/evidence-core/**/*.rs.
-test_count = 454
+test_count = 456
 
 [per_crate.cargo-evidence]
 test_count = 179

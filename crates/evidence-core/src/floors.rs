@@ -29,6 +29,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
+use crate::corpus::{CorpusGraph, Node, RequirementLayer, graph_from_trace_files};
 use crate::trace::read_all_trace_files;
 
 // Walker helpers are private to this module — no stable-API
@@ -249,10 +250,10 @@ pub fn count_terminals() -> u64 {
     crate::TERMINAL_CODES.len() as u64
 }
 
-/// Per-layer trace entry counts. Returns `(sys, hlr, llr, test)`;
-/// on missing trace root or load failure every layer is reported as
-/// 0 — the caller's floor comparison will fire and name the affected
-/// dimension.
+/// Per-layer corpus node counts. Returns `(sys, hlr, llr, test)`;
+/// on missing trace root, graph construction failure, or graph
+/// validation failure every layer is reported as 0 so the caller's
+/// floor comparison names each affected dimension.
 ///
 /// Trace-root resolution goes through
 /// [`crate::trace::default_trace_roots`] so the answer matches what
@@ -264,16 +265,39 @@ pub fn count_trace_per_layer(workspace_root: &Path) -> (u64, u64, u64, u64) {
     if roots.is_empty() {
         return (0, 0, 0, 0);
     }
-    let mut totals = (0u64, 0u64, 0u64, 0u64);
-    for root in &roots {
-        if let Ok(tf) = read_all_trace_files(root) {
-            totals.0 += tf.sys.requirements.len() as u64;
-            totals.1 += tf.hlr.requirements.len() as u64;
-            totals.2 += tf.llr.requirements.len() as u64;
-            totals.3 += tf.tests.tests.len() as u64;
+    let Some(graph) = load_trace_graph_blocking(&roots) else {
+        return (0, 0, 0, 0);
+    };
+    count_graph_per_layer(&graph)
+}
+
+fn load_trace_graph_blocking(roots: &[String]) -> Option<CorpusGraph> {
+    let mut graph = CorpusGraph::new();
+    for root in roots {
+        let files = read_all_trace_files(root).ok()?;
+        let root_graph = graph_from_trace_files(&files).ok()?;
+        for node in root_graph.nodes() {
+            graph.insert(node.clone()).ok()?;
         }
     }
-    totals
+    graph.validate().ok()?;
+    Some(graph)
+}
+
+fn count_graph_per_layer(graph: &CorpusGraph) -> (u64, u64, u64, u64) {
+    let mut counts = (0u64, 0u64, 0u64, 0u64);
+    for node in graph.nodes() {
+        match node {
+            Node::Requirement(requirement) => match requirement.layer {
+                RequirementLayer::Sys => counts.0 = counts.0.wrapping_add(1),
+                RequirementLayer::Hlr => counts.1 = counts.1.wrapping_add(1),
+                RequirementLayer::Llr => counts.2 = counts.2.wrapping_add(1),
+                RequirementLayer::Source | RequirementLayer::Derived => {}
+            },
+            Node::Test(_) => counts.3 = counts.3.wrapping_add(1),
+        }
+    }
+    counts
 }
 
 /// Count `#[test]` attribute occurrences inside `root` recursively.
