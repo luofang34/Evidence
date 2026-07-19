@@ -1,7 +1,7 @@
 //! Per-requirement pass/gap reporting for `cargo evidence check`.
 //!
-//! Walks a parsed [`TraceFiles`] and, for each SYS/HLR/LLR/Test entry,
-//! emits one [`Diagnostic`]:
+//! Projects a [`CorpusGraph`] into one canonical diagnostic per
+//! SYS/HLR/LLR/Test node:
 //!
 //! - `REQ_PASS` (info) — entry's test selector resolved and the named
 //!   test passed this run; or a higher-level entry whose children all
@@ -11,62 +11,52 @@
 //!   downstream chain contains a failure. Derived GAPs carry
 //!   `root_cause_uid` pointing at the primary failure; mechanical GAPs
 //!   carry a `FixHint` variant whose kind matches the sub-case.
-//! - `REQ_SKIP` (warning) — entry intentionally excluded (currently
-//!   only produced for `#[ignore]`-marked tests).
+//! - `REQ_SKIP` (warning) — an entry excluded by `#[ignore]`.
 //!
-//! Dedup semantics (Schema Rule 7 + ): one event per
+//! Dedup semantics (Schema Rule 7): one event per
 //! requirement, not one total. Agents group client-side by
 //! `root_cause_uid`. See
 //! [`Diagnostic::root_cause_uid`](crate::diagnostic::Diagnostic::root_cause_uid).
-//!
-//! ## Aggregation vs pass-through (C6 interaction)
-//!
-//! introduced typed `LinkError` variants and a per-variant
-//! JSONL stream on `cargo evidence trace --validate --format=jsonl`.
-//! `check` deliberately does NOT mirror that stream shape. For every
-//! failing LLR under a multi-selector (`test_selectors: Vec<String>`)
-//! setup, `check` emits **one** `REQ_GAP` whose `message` summarizes
-//! which selectors failed — not N `REQ_GAP` events (one per variant).
-//! The "one event per requirement" contract stays.
-//!
-//! Agents that want per-variant codes call `trace --validate
-//! --format=jsonl` directly; agents that want per-requirement
-//! pass/gap call `check`. The two surfaces answer different
-//! questions — "which Link-phase rules fired?" vs "which requirements
-//! are currently satisfied?" — so conflating their shapes into one
-//! stream would make each harder to consume. MCP wraps both.
-//!
-//! Pass-through to N `REQ_GAP` per LLR is a follow-up after MCP
-//! reveals a concrete need.
-//!
-//! The heavy diagnostic-construction logic lives in the sibling
-//! [`builders`] module so this file stays under the workspace 500-line
-//! file-size limit.
 
 mod builders;
+mod view;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+use thiserror::Error;
+
 use crate::bundle::TestOutcome;
+use crate::corpus::{CorpusGraph, EdgeKind, graph_from_trace_files};
 use crate::diagnostic::{Diagnostic, DiagnosticCode, Severity};
 use crate::policy::TracePolicy;
 use crate::trace::read::TraceFiles;
-use crate::trace::selector_check::resolve_test_selectors;
+use crate::trace::selector_check::resolve_selector_inputs;
 
-use builders::{
-    CascadeEntry, aggregate_child_status, build_cascade_diag, build_test_diag,
-    find_toml_path_by_id, hlr_children_of, llr_children_of, test_children_of,
-};
+use builders::{CascadeEntry, build_cascade_diag, build_test_diag, make_diag};
+use view::{ReportRequirement, ReportView};
+
+/// A graph shape that cannot be represented by the requirement report.
+#[derive(Debug, Error)]
+pub enum RequirementReportError {
+    /// A node carries an edge kind that is invalid for its report role.
+    #[error("node {from} carries unsupported {kind:?} edge in requirement report")]
+    UnsupportedEdge {
+        /// Source node uid.
+        from: String,
+        /// Edge kind that cannot be interpreted.
+        kind: EdgeKind,
+    },
+}
 
 /// Closed enum for the three per-requirement codes. Implementing
 /// [`DiagnosticCode`] here registers the codes in the walked registry
 /// so `diagnostic_codes_locked` enforces regex + uniqueness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequirementStatus {
-    /// `REQ_PASS` — the requirement is currently satisfied.
+    /// `REQ_PASS` — the requirement is satisfied.
     Pass,
-    /// `REQ_GAP` — the requirement is currently *not* satisfied.
+    /// `REQ_GAP` — the requirement is not satisfied.
     Gap,
     /// `REQ_SKIP` — the requirement is intentionally excluded from
     /// this run.
@@ -118,162 +108,126 @@ pub(super) enum RequirementKind {
     Llr,
 }
 
-impl RequirementKind {
-    pub(super) fn parent_label(self) -> &'static str {
-        match self {
-            RequirementKind::Sys => "???",
-            RequirementKind::Hlr => "SYS",
-            RequirementKind::Llr => "HLR",
-        }
-    }
-}
-
-/// Walk `trace` and `test_outcomes`, emit one diagnostic per entry.
+/// Adapt `trace` to the corpus graph and emit one diagnostic per node.
 ///
-/// `workspace_root` anchors `resolve_test_selectors` when it walks the
-/// `.rs` source tree. `policy` is only read for its
-/// `require_hlr_sys_trace` flag, matching the same gate that /// `trace --validate` applies.
+/// Graph construction failures become a `REQ_GAP`, so a malformed
+/// trace cannot disappear from the terminal verdict.
 pub fn build_requirement_report(
     trace: &TraceFiles,
     test_outcomes: &BTreeMap<String, TestOutcome>,
     workspace_root: &Path,
     policy: &TracePolicy,
 ) -> Vec<Diagnostic> {
-    let unresolved_selectors: std::collections::BTreeSet<String> =
-        resolve_test_selectors(&trace.tests.tests, workspace_root)
+    let graph = match graph_from_trace_files(trace) {
+        Ok(graph) => graph,
+        Err(error) => return vec![graph_failure(error.to_string())],
+    };
+    match build_corpus_requirement_report(&graph, test_outcomes, workspace_root, policy) {
+        Ok(diagnostics) => diagnostics,
+        Err(error) => vec![graph_failure(error.to_string())],
+    }
+}
+
+/// Emit the canonical requirement report derived from `graph`.
+///
+/// # Errors
+///
+/// Returns [`RequirementReportError`] when a node carries an edge kind
+/// that has no requirement-report interpretation.
+pub fn build_corpus_requirement_report(
+    graph: &CorpusGraph,
+    test_outcomes: &BTreeMap<String, TestOutcome>,
+    workspace_root: &Path,
+    policy: &TracePolicy,
+) -> Result<Vec<Diagnostic>, RequirementReportError> {
+    let view = ReportView::from_graph(graph)?;
+    let unresolved: BTreeSet<String> =
+        resolve_selector_inputs(&view.selector_inputs(), workspace_root)
             .into_iter()
-            .map(|u| u.id)
+            .map(|value| value.id)
             .collect();
-
-    let mut test_status: BTreeMap<String, TestStatus> = BTreeMap::new();
-    let mut diagnostics: Vec<Diagnostic> = Vec::new();
-
-    for t in &trace.tests.tests {
-        let (status, diag) = build_test_diag(t, test_outcomes, &unresolved_selectors);
-        if let Some(uid) = t.uid.as_deref() {
-            test_status.insert(uid.to_string(), status);
-        }
-        diagnostics.push(diag);
+    let mut diagnostics = Vec::new();
+    let mut test_status = BTreeMap::new();
+    for test in &view.tests {
+        let (status, diagnostic) = build_test_diag(test, test_outcomes, &unresolved);
+        test_status.insert(test.uid.clone(), status);
+        diagnostics.push(diagnostic);
     }
+    let llr_status = build_layer(
+        &view.llrs,
+        RequirementKind::Llr,
+        "llr.toml",
+        &view,
+        &test_status,
+        policy,
+        &mut diagnostics,
+    );
+    let hlr_status = build_layer(
+        &view.hlrs,
+        RequirementKind::Hlr,
+        "hlr.toml",
+        &view,
+        &llr_status,
+        policy,
+        &mut diagnostics,
+    );
+    build_layer(
+        &view.sys,
+        RequirementKind::Sys,
+        "sys.toml",
+        &view,
+        &hlr_status,
+        policy,
+        &mut diagnostics,
+    );
+    Ok(diagnostics)
+}
 
-    // LLR cascade: children are TestEntries tracing to this LLR.
-    let llr_ids: Vec<&str> = trace
-        .llr
-        .requirements
-        .iter()
-        .map(|e| e.id.as_str())
-        .collect();
-    for r in &trace.llr.requirements {
-        let children = test_children_of(&trace.tests.tests, r.uid.as_deref());
-        let toml_path = find_toml_path_by_id(&llr_ids, &r.id);
-        diagnostics.push(build_cascade_diag(
+fn build_layer(
+    entries: &[ReportRequirement],
+    kind: RequirementKind,
+    file: &str,
+    view: &ReportView,
+    child_status: &BTreeMap<String, TestStatus>,
+    policy: &TracePolicy,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> BTreeMap<String, TestStatus> {
+    let mut statuses = BTreeMap::new();
+    for (index, entry) in entries.iter().enumerate() {
+        let children: Vec<&str> = view
+            .children_of(&entry.uid)
+            .iter()
+            .map(String::as_str)
+            .collect();
+        let (status, diagnostic) = build_cascade_diag(
             CascadeEntry {
-                kind: RequirementKind::Llr,
-                id: &r.id,
-                uid: r.uid.as_deref(),
-                traces_to: &r.traces_to,
-                toml_path,
-                file: PathBuf::from("llr.toml"),
+                kind,
+                id: &entry.id,
+                uid: &entry.uid,
+                traces_to: &entry.traces_to,
+                verification_methods: &entry.verification_methods,
+                link_gap: entry.link_gap.as_deref(),
+                toml_path: format!("requirements[{index}]"),
+                file: PathBuf::from(file),
             },
-            &children
-                .iter()
-                .filter_map(|t| t.uid.as_deref())
-                .collect::<Vec<_>>(),
-            &test_status,
+            &children,
+            child_status,
             policy,
-        ));
+        );
+        statuses.insert(entry.uid.clone(), status);
+        diagnostics.push(diagnostic);
     }
+    statuses
+}
 
-    // Side table of LLR → status for the HLR cascade.
-    let llr_status: BTreeMap<String, TestStatus> = trace
-        .llr
-        .requirements
-        .iter()
-        .filter_map(|r| {
-            let uid = r.uid.clone()?;
-            let children = test_children_of(&trace.tests.tests, Some(&uid));
-            let status = aggregate_child_status(
-                &children
-                    .iter()
-                    .filter_map(|t| t.uid.as_deref())
-                    .collect::<Vec<_>>(),
-                &test_status,
-            );
-            Some((uid, status))
-        })
-        .collect();
-
-    // HLR cascade: children are LLRs.
-    let hlr_ids: Vec<&str> = trace
-        .hlr
-        .requirements
-        .iter()
-        .map(|e| e.id.as_str())
-        .collect();
-    for r in &trace.hlr.requirements {
-        let children = llr_children_of(&trace.llr.requirements, r.uid.as_deref());
-        let toml_path = find_toml_path_by_id(&hlr_ids, &r.id);
-        diagnostics.push(build_cascade_diag(
-            CascadeEntry {
-                kind: RequirementKind::Hlr,
-                id: &r.id,
-                uid: r.uid.as_deref(),
-                traces_to: &r.traces_to,
-                toml_path,
-                file: PathBuf::from("hlr.toml"),
-            },
-            &children
-                .iter()
-                .filter_map(|l| l.uid.as_deref())
-                .collect::<Vec<_>>(),
-            &llr_status,
-            policy,
-        ));
-    }
-
-    // Side table of HLR → status for the SYS cascade.
-    let hlr_status: BTreeMap<String, TestStatus> = trace
-        .hlr
-        .requirements
-        .iter()
-        .filter_map(|r| {
-            let uid = r.uid.clone()?;
-            let children = llr_children_of(&trace.llr.requirements, Some(&uid));
-            let child_uids: Vec<&str> = children.iter().filter_map(|l| l.uid.as_deref()).collect();
-            Some((uid, aggregate_child_status(&child_uids, &llr_status)))
-        })
-        .collect();
-
-    // SYS entries reuse HlrEntry — their children are HLRs that
-    // trace_to them.
-    let sys_ids: Vec<&str> = trace
-        .sys
-        .requirements
-        .iter()
-        .map(|e| e.id.as_str())
-        .collect();
-    for s in &trace.sys.requirements {
-        let children = hlr_children_of(&trace.hlr.requirements, s.uid.as_deref());
-        let toml_path = find_toml_path_by_id(&sys_ids, &s.id);
-        diagnostics.push(build_cascade_diag(
-            CascadeEntry {
-                kind: RequirementKind::Sys,
-                id: &s.id,
-                uid: s.uid.as_deref(),
-                traces_to: &s.traces_to,
-                toml_path,
-                file: PathBuf::from("sys.toml"),
-            },
-            &children
-                .iter()
-                .filter_map(|h| h.uid.as_deref())
-                .collect::<Vec<_>>(),
-            &hlr_status,
-            policy,
-        ));
-    }
-
-    diagnostics
+fn graph_failure(message: String) -> Diagnostic {
+    make_diag(
+        RequirementStatus::Gap,
+        format!("cannot derive requirement report from corpus graph: {message}"),
+        None,
+        None,
+        None,
+    )
 }
 
 #[cfg(test)]

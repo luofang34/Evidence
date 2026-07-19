@@ -1,50 +1,72 @@
 //! N:M selector aggregation for `build_test_diag`.
 //!
-//! When a TEST entry carries more than one selector (//! additive widening: `test_selectors: Vec<String>` alongside the
-//! legacy `test_selector: Option<String>`), the pass/fail/skip
-//! aggregation rule is strict — the TEST passes iff every selector
-//! matches a run fn AND every matched fn passed. Split into this
-//! sibling file to keep `builders.rs` under the 500-line workspace
-//! file-size limit.
+//! When a TEST entry carries more than one selector through
+//! `test_selectors: Vec<String>` and `test_selector: Option<String>`,
+//! the pass/fail/skip aggregation rule is strict — the TEST passes
+//! iff every selector matches a run function and every matched
+//! function passed.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crate::bundle::TestOutcome;
 use crate::diagnostic::{Diagnostic, FixHint, Location};
-use crate::trace::entries::TestEntry;
 
+use super::super::view::ReportTest;
 use super::super::{RequirementStatus, TestStatus};
 use super::{ends_with_fn, make_diag};
 
 /// Aggregate outcome across every selector in the TEST entry.
-/// Caller guarantees `selectors.len() >= 2` (the 1:1 path is
-/// handled inline in `build_test_diag` for message-compatibility
-/// with-era tests).
+/// Caller guarantees `selectors.len() >= 2`; a single selector uses
+/// the dedicated diagnostic path.
 pub(super) fn status(
-    t: &TestEntry,
+    t: &ReportTest,
     uid: &str,
     selectors: &[String],
     outcomes: &BTreeMap<String, TestOutcome>,
 ) -> (TestStatus, Diagnostic) {
-    let mut unmatched: Vec<String> = Vec::new();
-    let mut failed: Vec<String> = Vec::new();
-    let mut ignored: Vec<String> = Vec::new();
-    let mut ambiguous: Vec<String> = Vec::new();
+    let summary = collect_summary(selectors, outcomes);
+    if !summary.failed.is_empty() {
+        return failed_status(t, uid, &summary.failed);
+    }
+    if !summary.ambiguous.is_empty() {
+        return ambiguous_status(t, uid, &summary.ambiguous);
+    }
+    if !summary.unmatched.is_empty() {
+        return unmatched_status(t, uid, &summary.unmatched);
+    }
+    if !summary.ignored.is_empty() {
+        return ignored_status(t, uid, &summary.ignored);
+    }
+    passed_status(t, uid, selectors.len())
+}
 
+#[derive(Default)]
+struct SelectorSummary {
+    unmatched: Vec<String>,
+    failed: Vec<String>,
+    ignored: Vec<String>,
+    ambiguous: Vec<String>,
+}
+
+fn collect_summary(
+    selectors: &[String],
+    outcomes: &BTreeMap<String, TestOutcome>,
+) -> SelectorSummary {
+    let mut summary = SelectorSummary::default();
     for sel in selectors {
         let matches: Vec<&String> = outcomes
             .keys()
             .filter(|k| k.as_str() == sel.as_str() || ends_with_fn(k, sel))
             .collect();
         match matches.as_slice() {
-            [] => unmatched.push(sel.clone()),
+            [] => summary.unmatched.push(sel.clone()),
             [only] => match outcomes[*only] {
                 TestOutcome::Passed => {}
-                TestOutcome::Failed => failed.push(sel.clone()),
-                TestOutcome::Ignored => ignored.push(sel.clone()),
+                TestOutcome::Failed => summary.failed.push(sel.clone()),
+                TestOutcome::Ignored => summary.ignored.push(sel.clone()),
             },
-            many => ambiguous.push(format!(
+            many => summary.ambiguous.push(format!(
                 "{} matches [{}]",
                 sel,
                 many.iter()
@@ -54,103 +76,96 @@ pub(super) fn status(
             )),
         }
     }
+    summary
+}
 
-    if !failed.is_empty() {
-        return (
-            TestStatus {
-                status: RequirementStatus::Gap,
-                root_cause_uid: Some(uid.to_string()),
-            },
-            make_diag(
-                RequirementStatus::Gap,
-                format!(
-                    "TEST {} failed in this run (selectors failed: [{}])",
-                    t.id,
-                    failed.join(", ")
-                ),
-                Some(Location {
-                    entry_uid: Some(uid.to_string()),
-                    ..Location::default()
-                }),
-                None,
-                None,
+fn failed_status(t: &ReportTest, uid: &str, failed: &[String]) -> (TestStatus, Diagnostic) {
+    (
+        TestStatus {
+            status: RequirementStatus::Gap,
+            root_cause_uid: Some(uid.to_string()),
+        },
+        make_diag(
+            RequirementStatus::Gap,
+            format!(
+                "TEST {} failed in this run (selectors failed: [{}])",
+                t.id,
+                failed.join(", ")
             ),
-        );
-    }
-    if !ambiguous.is_empty() {
-        return (
-            TestStatus {
-                status: RequirementStatus::Gap,
-                root_cause_uid: Some(uid.to_string()),
-            },
-            make_diag(
-                RequirementStatus::Gap,
-                format!(
-                    "TEST {} has ambiguous selector(s): {}",
-                    t.id,
-                    ambiguous.join("; ")
-                ),
-                Some(Location {
-                    file: Some(PathBuf::from("tests.toml")),
-                    entry_uid: Some(uid.to_string()),
-                    ..Location::default()
-                }),
-                Some(FixHint::AddTomlKey {
-                    path: PathBuf::from("tests.toml"),
-                    toml_path: format!("tests[id={}]", t.id),
-                    key: "test_selectors".into(),
-                    value_stub: "<fully-qualified selectors>".into(),
-                }),
-                None,
+            Some(entry_location(uid)),
+            None,
+            None,
+        ),
+    )
+}
+
+fn ambiguous_status(t: &ReportTest, uid: &str, ambiguous: &[String]) -> (TestStatus, Diagnostic) {
+    let fix = FixHint::AddTomlKey {
+        path: PathBuf::from("tests.toml"),
+        toml_path: format!("tests[id={}]", t.id),
+        key: "test_selectors".into(),
+        value_stub: "<fully-qualified selectors>".into(),
+    };
+    (
+        TestStatus {
+            status: RequirementStatus::Gap,
+            root_cause_uid: Some(uid.to_string()),
+        },
+        make_diag(
+            RequirementStatus::Gap,
+            format!(
+                "TEST {} has ambiguous selector(s): {}",
+                t.id,
+                ambiguous.join("; ")
             ),
-        );
-    }
-    if !unmatched.is_empty() {
-        return (
-            TestStatus {
-                status: RequirementStatus::Gap,
-                root_cause_uid: Some(uid.to_string()),
-            },
-            make_diag(
-                RequirementStatus::Gap,
-                format!(
-                    "TEST {}: selector(s) did not run in this session (not in cargo test output): [{}]",
-                    t.id,
-                    unmatched.join(", ")
-                ),
-                Some(Location {
-                    file: Some(PathBuf::from("tests.toml")),
-                    entry_uid: Some(uid.to_string()),
-                    ..Location::default()
-                }),
-                None,
-                None,
+            Some(file_location(uid)),
+            Some(fix),
+            None,
+        ),
+    )
+}
+
+fn unmatched_status(t: &ReportTest, uid: &str, unmatched: &[String]) -> (TestStatus, Diagnostic) {
+    (
+        TestStatus {
+            status: RequirementStatus::Gap,
+            root_cause_uid: Some(uid.to_string()),
+        },
+        make_diag(
+            RequirementStatus::Gap,
+            format!(
+                "TEST {}: selector(s) did not run in this session (not in cargo test output): [{}]",
+                t.id,
+                unmatched.join(", ")
             ),
-        );
-    }
-    if !ignored.is_empty() {
-        return (
-            TestStatus {
-                status: RequirementStatus::Skip,
-                root_cause_uid: None,
-            },
-            make_diag(
-                RequirementStatus::Skip,
-                format!(
-                    "TEST {} skipped — some selectors are #[ignore]'d: [{}]",
-                    t.id,
-                    ignored.join(", ")
-                ),
-                Some(Location {
-                    entry_uid: Some(uid.to_string()),
-                    ..Location::default()
-                }),
-                None,
-                None,
+            Some(file_location(uid)),
+            None,
+            None,
+        ),
+    )
+}
+
+fn ignored_status(t: &ReportTest, uid: &str, ignored: &[String]) -> (TestStatus, Diagnostic) {
+    (
+        TestStatus {
+            status: RequirementStatus::Skip,
+            root_cause_uid: None,
+        },
+        make_diag(
+            RequirementStatus::Skip,
+            format!(
+                "TEST {} skipped — some selectors are #[ignore]'d: [{}]",
+                t.id,
+                ignored.join(", ")
             ),
-        );
-    }
-    // All selectors matched and all passed.
+            Some(entry_location(uid)),
+            None,
+            None,
+        ),
+    )
+}
+
+fn passed_status(t: &ReportTest, uid: &str, count: usize) -> (TestStatus, Diagnostic) {
     (
         TestStatus {
             status: RequirementStatus::Pass,
@@ -160,15 +175,26 @@ pub(super) fn status(
             RequirementStatus::Pass,
             format!(
                 "TEST {} passed ({} selectors resolved and passed)",
-                t.id,
-                selectors.len()
+                t.id, count
             ),
-            Some(Location {
-                entry_uid: Some(uid.to_string()),
-                ..Location::default()
-            }),
+            Some(entry_location(uid)),
             None,
             None,
         ),
     )
+}
+
+fn entry_location(uid: &str) -> Location {
+    Location {
+        entry_uid: Some(uid.to_string()),
+        ..Location::default()
+    }
+}
+
+fn file_location(uid: &str) -> Location {
+    Location {
+        file: Some(PathBuf::from("tests.toml")),
+        entry_uid: Some(uid.to_string()),
+        ..Location::default()
+    }
 }

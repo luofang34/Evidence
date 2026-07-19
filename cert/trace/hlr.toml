@@ -2114,3 +2114,24 @@ non-semantic and shall not change either mapping or verdict.
 """
 verification_methods = ["test"]
 traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]
+
+[[requirements]]
+uid = "8d2878da-a95d-468d-b36e-c6314e3f6f0d"
+id = "HLR-085"
+title = "Requirement gap reports are canonical corpus graph queries"
+owner = "tool"
+scope = "component"
+description = """
+Requirement pass, gap, and skip diagnostics shall be derived from
+canonical `CorpusGraph` nodes and typed edges. Reports shall identify
+missing parent links, missing downstream verification, orphan tests,
+unresolved selectors, missing policy-required verification methods,
+and links that cross inapplicable requirement layers.
+
+Diagnostic identity, ordering, root-cause propagation, and terminal
+status shall be independent of trace file order and outgoing edge
+input order. Graph shapes with an uninterpretable edge kind shall
+fail closed instead of omitting the affected node.
+"""
+verification_methods = ["test"]
+traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]

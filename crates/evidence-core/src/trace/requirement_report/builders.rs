@@ -14,235 +14,236 @@
 mod cascade;
 mod multi_selector;
 
-pub(super) use cascade::{CascadeEntry, aggregate_child_status, build_cascade_diag};
+pub(super) use cascade::{CascadeEntry, build_cascade_diag};
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crate::bundle::TestOutcome;
 use crate::diagnostic::{Diagnostic, DiagnosticCode, FixHint, Location};
-use crate::trace::entries::{HlrEntry, LlrEntry, TestEntry};
 
+use super::view::ReportTest;
 use super::{RequirementStatus, TestStatus};
 
 pub(super) fn build_test_diag(
-    t: &TestEntry,
+    t: &ReportTest,
     outcomes: &BTreeMap<String, TestOutcome>,
     unresolved_ids: &std::collections::BTreeSet<String>,
 ) -> (TestStatus, Diagnostic) {
-    // Missing uid — emit GAP with an AssignUuid FixHint.
-    if t.uid.is_none() {
-        return (
-            TestStatus {
-                status: RequirementStatus::Gap,
-                root_cause_uid: None,
-            },
-            make_diag(
-                RequirementStatus::Gap,
-                format!("TEST {} is missing `uid`", t.id),
-                Some(Location {
-                    file: Some(PathBuf::from("tests.toml")),
-                    ..Location::default()
-                }),
-                Some(FixHint::AssignUuid {
-                    path: PathBuf::from("tests.toml"),
-                    toml_path: format!("tests[id={}]", t.id),
-                }),
-                None,
-            ),
-        );
+    let uid = t.uid.as_str();
+    if let Some(result) = link_gap(t, uid) {
+        return result;
     }
-    let uid = t.uid.as_deref().unwrap_or("?");
-
-    // Unresolvable selector — flagged by `resolve_test_selectors`.
-    if unresolved_ids.contains(&t.id) {
-        let selector = t.all_selectors().join(", ");
-        return (
-            TestStatus {
-                status: RequirementStatus::Gap,
-                root_cause_uid: Some(uid.to_string()),
-            },
-            make_diag(
-                RequirementStatus::Gap,
-                format!(
-                    "TEST {} selector(s) [{}] did not resolve to a real #[test] fn",
-                    t.id, selector
-                ),
-                Some(Location {
-                    file: Some(PathBuf::from("tests.toml")),
-                    entry_uid: Some(uid.to_string()),
-                    ..Location::default()
-                }),
-                Some(FixHint::AddTomlKey {
-                    path: PathBuf::from("tests.toml"),
-                    toml_path: format!("tests[id={}]", t.id),
-                    key: "test_selector".into(),
-                    value_stub: format!(
-                        "<fully-qualified selector; current [{}] did not resolve>",
-                        selector
-                    ),
-                }),
-                None,
-            ),
-        );
+    if let Some(result) = unresolved_gap(t, uid, unresolved_ids) {
+        return result;
     }
-
-    // No selectors — structural but untestable. N:M widening
-    // means a TEST may carry a singular `test_selector` (legacy), a
-    // `test_selectors` Vec, or both; `all_selectors()` merges and
-    // dedupes. An empty result after merge is the untestable case.
-    let selectors = t.all_selectors();
-    if selectors.is_empty() {
-        return (
-            TestStatus {
-                status: RequirementStatus::Gap,
-                root_cause_uid: Some(uid.to_string()),
-            },
-            make_diag(
-                RequirementStatus::Gap,
-                format!("TEST {} has no `test_selector` or `test_selectors`", t.id),
-                Some(Location {
-                    file: Some(PathBuf::from("tests.toml")),
-                    entry_uid: Some(uid.to_string()),
-                    ..Location::default()
-                }),
-                Some(FixHint::AddTomlKey {
-                    path: PathBuf::from("tests.toml"),
-                    toml_path: format!("tests[id={}]", t.id),
-                    key: "test_selector".into(),
-                    value_stub: "<crate>::<module>::<fn_name>".into(),
-                }),
-                None,
-            ),
-        );
+    let selectors = &t.selectors;
+    if let Some(result) = missing_selector_gap(t, uid) {
+        return result;
     }
-
-    // N:M selectors: resolve each against `outcomes`, aggregate by
-    // the strict rule (TEST passes iff every selector matches a run
-    // fn AND every matched fn passed). decision: strict
-    // resolution — laxity defeats the contract of selector
-    // check.
-    //
-    // 1:1 fast path (single selector) preserves the pre-N:M messages
-    // so existing integration tests don't need flipping; the Vec
-    // path aggregates across all selectors.
+    if let Some(result) = orphan_gap(t, uid) {
+        return result;
+    }
     if selectors.len() > 1 {
-        return multi_selector::status(t, uid, &selectors, outcomes);
+        return multi_selector::status(t, uid, selectors, outcomes);
     }
-    let selector = &selectors[0];
+    single_selector_status(t, uid, &selectors[0], outcomes)
+}
+
+fn link_gap(t: &ReportTest, uid: &str) -> Option<(TestStatus, Diagnostic)> {
+    t.link_gap
+        .as_ref()
+        .map(|message| test_gap(t, uid, message.clone(), None))
+}
+
+fn unresolved_gap(
+    t: &ReportTest,
+    uid: &str,
+    unresolved_ids: &std::collections::BTreeSet<String>,
+) -> Option<(TestStatus, Diagnostic)> {
+    if !unresolved_ids.contains(&t.id) {
+        return None;
+    }
+    let selectors = t.selectors.join(", ");
+    let fix = FixHint::AddTomlKey {
+        path: PathBuf::from("tests.toml"),
+        toml_path: format!("tests[id={}]", t.id),
+        key: "test_selector".into(),
+        value_stub: format!("<fully-qualified selector; [{selectors}] did not resolve>"),
+    };
+    Some(test_gap(
+        t,
+        uid,
+        format!(
+            "TEST {} selector(s) [{}] did not resolve to a real #[test] fn",
+            t.id, selectors
+        ),
+        Some(fix),
+    ))
+}
+
+fn missing_selector_gap(t: &ReportTest, uid: &str) -> Option<(TestStatus, Diagnostic)> {
+    if !t.selectors.is_empty() {
+        return None;
+    }
+    let fix = FixHint::AddTomlKey {
+        path: PathBuf::from("tests.toml"),
+        toml_path: format!("tests[id={}]", t.id),
+        key: "test_selector".into(),
+        value_stub: "<crate>::<module>::<fn_name>".into(),
+    };
+    Some(test_gap(
+        t,
+        uid,
+        format!("TEST {} has no `test_selector` or `test_selectors`", t.id),
+        Some(fix),
+    ))
+}
+
+fn orphan_gap(t: &ReportTest, uid: &str) -> Option<(TestStatus, Diagnostic)> {
+    if !t.traces_to.is_empty() {
+        return None;
+    }
+    let fix = FixHint::AddTomlKey {
+        path: PathBuf::from("tests.toml"),
+        toml_path: format!("tests[id={}]", t.id),
+        key: "traces_to".into(),
+        value_stub: "[\"<LLR-uuid>\"]".into(),
+    };
+    Some(test_gap(
+        t,
+        uid,
+        format!("TEST {} is orphaned with no LLR verification edge", t.id),
+        Some(fix),
+    ))
+}
+
+fn test_gap(
+    t: &ReportTest,
+    uid: &str,
+    message: String,
+    fix_hint: Option<FixHint>,
+) -> (TestStatus, Diagnostic) {
+    let status = TestStatus {
+        status: RequirementStatus::Gap,
+        root_cause_uid: Some(uid.to_string()),
+    };
+    let diagnostic = make_diag(
+        RequirementStatus::Gap,
+        message,
+        Some(test_location(t, uid)),
+        fix_hint,
+        None,
+    );
+    (status, diagnostic)
+}
+
+fn single_selector_status(
+    t: &ReportTest,
+    uid: &str,
+    selector: &str,
+    outcomes: &BTreeMap<String, TestOutcome>,
+) -> (TestStatus, Diagnostic) {
     let matches: Vec<&String> = outcomes
         .keys()
-        .filter(|k| k.as_str() == selector.as_str() || ends_with_fn(k, selector))
+        .filter(|k| k.as_str() == selector || ends_with_fn(k, selector))
         .collect();
     match matches.as_slice() {
-        [] => (
-            TestStatus {
-                status: RequirementStatus::Gap,
-                root_cause_uid: Some(uid.to_string()),
-            },
-            make_diag(
-                RequirementStatus::Gap,
-                format!(
-                    "TEST {}: selector '{}' did not run in this session (not in cargo test output)",
-                    t.id, selector
-                ),
-                Some(Location {
-                    file: Some(PathBuf::from("tests.toml")),
-                    entry_uid: Some(uid.to_string()),
-                    ..Location::default()
-                }),
-                None,
-                None,
-            ),
+        [] => selector_did_not_run(t, uid, selector),
+        [only_match] => matched_selector(t, uid, only_match, outcomes[*only_match]),
+        many => ambiguous_selector(t, uid, selector, many),
+    }
+}
+
+fn selector_did_not_run(t: &ReportTest, uid: &str, selector: &str) -> (TestStatus, Diagnostic) {
+    test_gap(
+        t,
+        uid,
+        format!(
+            "TEST {}: selector '{}' did not run in this session (not in cargo test output)",
+            t.id, selector
         ),
-        [only_match] => match outcomes[*only_match] {
-            TestOutcome::Passed => (
-                TestStatus {
-                    status: RequirementStatus::Pass,
-                    root_cause_uid: None,
-                },
-                make_diag(
-                    RequirementStatus::Pass,
-                    format!("TEST {} passed ({})", t.id, only_match),
-                    Some(Location {
-                        entry_uid: Some(uid.to_string()),
-                        ..Location::default()
-                    }),
-                    None,
-                    None,
-                ),
-            ),
-            TestOutcome::Failed => (
-                TestStatus {
-                    status: RequirementStatus::Gap,
-                    root_cause_uid: Some(uid.to_string()),
-                },
-                make_diag(
-                    RequirementStatus::Gap,
-                    format!("TEST {} failed in this run ({})", t.id, only_match),
-                    Some(Location {
-                        entry_uid: Some(uid.to_string()),
-                        ..Location::default()
-                    }),
-                    // No FixHint — fix lives in source.
-                    None,
-                    None,
-                ),
-            ),
-            TestOutcome::Ignored => (
-                TestStatus {
-                    status: RequirementStatus::Skip,
-                    root_cause_uid: None,
-                },
-                make_diag(
-                    RequirementStatus::Skip,
-                    format!("TEST {} was #[ignore]'d in this run", t.id),
-                    Some(Location {
-                        entry_uid: Some(uid.to_string()),
-                        ..Location::default()
-                    }),
-                    None,
-                    None,
-                ),
-            ),
-        },
-        many => (
-            TestStatus {
-                status: RequirementStatus::Gap,
-                root_cause_uid: Some(uid.to_string()),
-            },
-            make_diag(
-                RequirementStatus::Gap,
-                format!(
-                    "TEST {}: selector '{}' is ambiguous — matches {} outcome keys: [{}]",
-                    t.id,
-                    selector,
-                    many.len(),
-                    many.iter()
-                        .map(|s| s.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
-                Some(Location {
-                    file: Some(PathBuf::from("tests.toml")),
-                    entry_uid: Some(uid.to_string()),
-                    ..Location::default()
-                }),
-                Some(FixHint::AddTomlKey {
-                    path: PathBuf::from("tests.toml"),
-                    toml_path: format!("tests[id={}]", t.id),
-                    key: "test_selector".into(),
-                    value_stub: format!(
-                        "<one of: {}>",
-                        many.iter()
-                            .map(|s| s.as_str())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
-                }),
-                None,
-            ),
+        None,
+    )
+}
+
+fn matched_selector(
+    t: &ReportTest,
+    uid: &str,
+    matched: &str,
+    outcome: TestOutcome,
+) -> (TestStatus, Diagnostic) {
+    let (status, root_cause_uid, message) = match outcome {
+        TestOutcome::Passed => (
+            RequirementStatus::Pass,
+            None,
+            format!("TEST {} passed ({matched})", t.id),
         ),
+        TestOutcome::Failed => (
+            RequirementStatus::Gap,
+            Some(uid.to_string()),
+            format!("TEST {} failed in this run ({matched})", t.id),
+        ),
+        TestOutcome::Ignored => (
+            RequirementStatus::Skip,
+            None,
+            format!("TEST {} was #[ignore]'d in this run", t.id),
+        ),
+    };
+    let test_status = TestStatus {
+        status,
+        root_cause_uid,
+    };
+    let diagnostic = make_diag(
+        status,
+        message,
+        Some(Location {
+            entry_uid: Some(uid.to_string()),
+            ..Location::default()
+        }),
+        None,
+        None,
+    );
+    (test_status, diagnostic)
+}
+
+fn ambiguous_selector(
+    t: &ReportTest,
+    uid: &str,
+    selector: &str,
+    matches: &[&String],
+) -> (TestStatus, Diagnostic) {
+    let matched = matches
+        .iter()
+        .map(|value| value.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let fix = FixHint::AddTomlKey {
+        path: PathBuf::from("tests.toml"),
+        toml_path: format!("tests[id={}]", t.id),
+        key: "test_selector".into(),
+        value_stub: format!("<one of: {matched}>"),
+    };
+    test_gap(
+        t,
+        uid,
+        format!(
+            "TEST {}: selector '{}' is ambiguous — matches {} outcome keys: [{}]",
+            t.id,
+            selector,
+            matches.len(),
+            matched
+        ),
+        Some(fix),
+    )
+}
+
+fn test_location(t: &ReportTest, uid: &str) -> Location {
+    Location {
+        file: Some(PathBuf::from("tests.toml")),
+        toml_path: Some(format!("tests[id={}]", t.id)),
+        entry_uid: Some(uid.to_string()),
+        ..Location::default()
     }
 }
 
@@ -262,54 +263,6 @@ pub(super) fn make_diag(
         subcommand: None,
         root_cause_uid,
     }
-}
-
-/// Return entries whose `traces_to` contains `parent_uid`.
-pub(super) fn test_children_of<'a>(
-    entries: &'a [TestEntry],
-    parent_uid: Option<&str>,
-) -> Vec<&'a TestEntry> {
-    let Some(parent) = parent_uid else {
-        return vec![];
-    };
-    entries
-        .iter()
-        .filter(|e| e.traces_to.iter().any(|u| u == parent))
-        .collect()
-}
-
-pub(super) fn llr_children_of<'a>(
-    entries: &'a [LlrEntry],
-    parent_uid: Option<&str>,
-) -> Vec<&'a LlrEntry> {
-    let Some(parent) = parent_uid else {
-        return vec![];
-    };
-    entries
-        .iter()
-        .filter(|e| e.traces_to.iter().any(|u| u == parent))
-        .collect()
-}
-
-pub(super) fn hlr_children_of<'a>(
-    entries: &'a [HlrEntry],
-    parent_uid: Option<&str>,
-) -> Vec<&'a HlrEntry> {
-    let Some(parent) = parent_uid else {
-        return vec![];
-    };
-    entries
-        .iter()
-        .filter(|e| e.traces_to.iter().any(|u| u == parent))
-        .collect()
-}
-
-/// TOML-pointer-style path: `requirements[N]` where N is the 0-based
-/// index of `needle` inside `ids`. Flat `&[&str]` so the function is
-/// entry-type-agnostic.
-pub(super) fn find_toml_path_by_id(ids: &[&str], needle: &str) -> String {
-    let idx = ids.iter().position(|id| *id == needle).unwrap_or(0);
-    format!("requirements[{}]", idx)
 }
 
 /// Does a fully-qualified outcome key end in the given fn-name
@@ -346,7 +299,7 @@ mod tests {
     #[test]
     fn aggregate_empty_children_is_pass() {
         let status: BTreeMap<String, TestStatus> = BTreeMap::new();
-        let agg = aggregate_child_status(&[], &status);
+        let agg = cascade::aggregate_child_status(&[], &status);
         assert_eq!(agg.status, RequirementStatus::Pass);
         assert!(agg.root_cause_uid.is_none());
     }
