@@ -1,5 +1,6 @@
-//! Guardrail: every `.rs` file in the workspace must stay under
-//! [`LIMIT`] lines.
+//! Guardrail: every `.rs` file in the workspace must stay within
+//! [`LIMIT`] lines, and crate roots must stay below
+//! [`CRATE_ROOT_LIMIT`] lines.
 //!
 //! CLAUDE.md sets the limit at 500 lines per `.rs` file — split into
 //! sub-modules when exceeded. The limit is a pushback against files
@@ -45,6 +46,9 @@ mod traversal;
 
 /// Maximum allowed line count per `.rs` file.
 const LIMIT: usize = 500;
+
+/// Exclusive line-count limit for `lib.rs` crate roots.
+const CRATE_ROOT_LIMIT: usize = 100;
 
 /// Files exempted from the size limit with explicit justification.
 ///
@@ -95,8 +99,21 @@ fn count_lines(path: &Path) -> usize {
         .unwrap_or(0)
 }
 
+fn crate_root_exceeds_limit(path: &Path, lines: usize) -> bool {
+    path.file_name().is_some_and(|name| name == "lib.rs") && lines >= CRATE_ROOT_LIMIT
+}
+
 #[test]
 fn rs_files_under_line_limit() {
+    assert!(crate_root_exceeds_limit(
+        Path::new("src/lib.rs"),
+        CRATE_ROOT_LIMIT
+    ));
+    assert!(!crate_root_exceeds_limit(
+        Path::new("src/lib.rs"),
+        CRATE_ROOT_LIMIT - 1
+    ));
+
     let root = workspace_root();
     let crates_dir = root.join("crates");
     assert!(
@@ -110,6 +127,7 @@ fn rs_files_under_line_limit() {
     assert!(!rs_files.is_empty(), "found no .rs files under crates/");
 
     let mut offenders: Vec<(String, usize)> = Vec::new();
+    let mut crate_root_offenders: Vec<(String, usize)> = Vec::new();
     let mut stale_allowlist: Vec<String> = Vec::new();
     let mut over_ceiling: Vec<(String, usize, usize)> = Vec::new();
 
@@ -120,6 +138,10 @@ fn rs_files_under_line_limit() {
             .to_string_lossy()
             .replace('\\', "/");
         let lines = count_lines(path);
+
+        if crate_root_exceeds_limit(path, lines) {
+            crate_root_offenders.push((rel.clone(), lines));
+        }
 
         if let Some((ceiling, _reason)) = allowlist_entry(&rel) {
             if lines <= LIMIT {
@@ -144,6 +166,16 @@ fn rs_files_under_line_limit() {
     }
 
     let mut msg = String::new();
+    if !crate_root_offenders.is_empty() {
+        msg.push_str(&format!(
+            "\n{} crate root(s) are not below {} lines:\n",
+            crate_root_offenders.len(),
+            CRATE_ROOT_LIMIT
+        ));
+        for (rel, lines) in &crate_root_offenders {
+            msg.push_str(&format!("  {}: {} lines\n", rel, lines));
+        }
+    }
     if !offenders.is_empty() {
         msg.push_str(&format!(
             "\n{} .rs file(s) exceed {} lines:\n",
