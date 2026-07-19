@@ -761,6 +761,14 @@ traces_to = ["c3290288-af0f-4177-9ac4-1cfbc6f4de83"]
 test_selectors = ["mcp_surface::initialize_server_info_advertises_evidence_mcp_identity"]
 
 [[tests]]
+uid = "3c38c10a-e399-4712-9b62-41dca06f529e"
+id = "TEST-118"
+title = "initialize handshake pins rmcp protocol negotiation (echoes 2024-11-05; latest supported is 2025-11-25)"
+owner = "tool"
+traces_to = ["c3290288-af0f-4177-9ac4-1cfbc6f4de83"]
+test_selector = "mcp_initialize_surface::initialize_protocol_negotiation_is_pinned"
+
+[[tests]]
 uid = "32fad80a-0d58-46cd-80bc-f52d76ed5ce0"
 id = "TEST-063"
 title = "detect_with_probe + skew_diagnostic normal / robustness / BVA"

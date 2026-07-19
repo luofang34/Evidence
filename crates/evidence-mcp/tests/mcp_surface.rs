@@ -7,9 +7,6 @@
 //! routing, `Parameters<T>` deserialization, `Json<T>` response
 //! serialization — against the exact binary a Claude host would
 //! register.
-//!
-//! Commits 3+ add one tool method per commit; this file grows
-//! correspondingly.
 
 #![allow(
     clippy::unwrap_used,
@@ -153,12 +150,15 @@ fn initialize_server_info_advertises_evidence_mcp_identity() {
         !version.is_empty() && version.chars().any(|c| c.is_ascii_digit()),
         "version must be non-empty and contain at least one digit; got {version:?}"
     );
-    // rmcp's own version (currently 1.5.0) is a common misfire
-    // for the default `from_build_env()` expansion — pin against
-    // it explicitly so a regression to rmcp defaults fires loud.
-    assert_ne!(
-        version, "1.5.0",
-        "version matches rmcp's 1.5.0 — override is not taking effect"
+    // The override must surface evidence-mcp's own version, never
+    // rmcp's default `from_build_env()` expansion (which would leak
+    // rmcp's version). Pin to the crate version: a regression to the
+    // rmcp default fires loud, and the assertion tracks crate bumps
+    // without a hardcoded literal.
+    assert_eq!(
+        version,
+        env!("CARGO_PKG_VERSION"),
+        "serverInfo.version must be evidence-mcp's crate version, not rmcp's default"
     );
 }
 
