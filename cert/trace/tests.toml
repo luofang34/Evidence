@@ -1790,3 +1790,15 @@ title = "graph-derived matrix matches legacy bytes and ignores node and edge inp
 owner = "tool"
 traces_to = ["de536781-44ca-4adc-8036-5e6dd0f7ff76"]
 test_selector = "trace_matrix::corpus_matrix_matches_legacy_and_is_input_order_independent"
+
+[[tests]]
+uid = "4ada778e-ee9e-4055-81c7-da1bfc7e7199"
+id = "TEST-124"
+title = "graph-derived floors preserve counts, reject duplicate identities, and report below-floor values"
+owner = "tool"
+traces_to = ["558eefdf-a737-422b-af28-fc1c8cb1f31b"]
+test_selectors = [
+    "floors_trace_discovery::graph_derived_counts_ignore_record_and_edge_input_order",
+    "floors_trace_discovery::graph_derived_counts_reject_duplicate_identities",
+    "floors_gate::floors_gate_fires_on_below_min_floor",
+]

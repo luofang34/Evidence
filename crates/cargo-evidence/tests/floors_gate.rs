@@ -4,8 +4,8 @@
 //!
 //! 1. The committed `cert/floors.toml` is satisfied by the current
 //!    tree — exit 0, every row reports `status = "pass"`.
-//! 2. A tampered floors.toml (bump `diagnostic_codes` above the
-//!    library's compiled-in RULES count) fires the gate with
+//! 2. A tampered floors.toml (bump `trace_hlr` above the
+//!    graph-derived HLR count) fires the gate with
 //!    `FLOORS_BELOW_MIN` and exit 2.
 //!
 //! The tampered case uses the `--config` flag to point at a tempdir
@@ -62,9 +62,9 @@ fn floors_gate_passes_on_committed_state() {
     assert!(fails.is_empty(), "unexpected failing rows: {:?}", fails);
 }
 
-/// Tampered floor: bump `diagnostic_codes` to 999 (far above RULES
-/// count). The gate must fire FLOORS_BELOW_MIN naming the dimension
-/// and exit 2.
+/// Tampered floor: bump `trace_hlr` above the graph-derived count.
+/// The gate must report the dimension, observed count, and expected
+/// floor, then exit 2.
 #[test]
 fn floors_gate_fires_on_below_min_floor() {
     let tmp = TempDir::new().expect("tempdir");
@@ -72,14 +72,14 @@ fn floors_gate_fires_on_below_min_floor() {
     std::fs::write(
         &tampered,
         r#"[floors]
-diagnostic_codes = 999
+trace_hlr = 999
 "#,
     )
     .expect("write tampered floors.toml");
 
     let out = cargo_evidence()
         .current_dir(workspace_root())
-        .args(["evidence", "floors", "--config"])
+        .args(["evidence", "floors", "--format=jsonl", "--config"])
         .arg(&tampered)
         .output()
         .expect("spawn");
@@ -98,8 +98,13 @@ diagnostic_codes = 999
         stdout
     );
     assert!(
-        stdout.contains("diagnostic_codes"),
+        stdout.contains("trace_hlr"),
         "expected dimension name in output; got:\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("current=") && stdout.contains("limit=999"),
+        "expected observed count and floor in output; got:\n{}",
         stdout
     );
 }

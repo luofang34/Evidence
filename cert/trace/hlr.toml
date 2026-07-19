@@ -2072,3 +2072,24 @@ Parity is mechanically asserted against the tool's own
 """
 verification_methods = ["test"]
 traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]
+
+[[requirements]]
+uid = "5807f55e-ccbf-4f20-823f-af2f456b43fc"
+id = "HLR-083"
+title = "Trace floor dimensions are derived from the canonical corpus graph"
+owner = "tool"
+scope = "component"
+description = """
+`cargo evidence floors` shall compute the existing SYS, HLR, LLR,
+and TEST dimensions from one validated `CorpusGraph` assembled from
+the configured trace roots. Requirement layers determine the three
+requirement dimensions, and test nodes determine the TEST dimension.
+
+A missing root or invalid graph, including a duplicate identity,
+shall report zero for every trace dimension so the floor gate fails
+closed and identifies the dimension, observed count, and expected
+floor. Record layout and edge input order are non-semantic and shall
+not change a valid graph's measurements.
+"""
+verification_methods = ["test"]
+traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]
