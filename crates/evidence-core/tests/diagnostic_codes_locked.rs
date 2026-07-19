@@ -258,42 +258,24 @@ fn every_code_is_claimed_by_an_llr() {
             .expect("workspace path is UTF-8"),
     )
     .expect("cert/trace must load");
+    let graph = evidence_core::corpus::graph_from_trace_files(&trace)
+        .expect("cert/trace must adapt to the corpus graph");
+    let mappings = evidence_core::trace::AssuranceBijections::from_graph(&graph);
+    let rules: Vec<&str> = evidence_core::RULES.iter().map(|rule| rule.code).collect();
+    let diff = mappings.diagnostic_diff(&rules, evidence_core::RESERVED_UNCLAIMED_CODES);
 
-    let rules: std::collections::BTreeSet<&str> =
-        evidence_core::RULES.iter().map(|r| r.code).collect();
-    let reserved: std::collections::BTreeSet<&str> = evidence_core::RESERVED_UNCLAIMED_CODES
-        .iter()
-        .copied()
-        .collect();
-    let claimed: std::collections::BTreeSet<String> = trace
-        .llr
-        .requirements
-        .iter()
-        .flat_map(|l| l.emits.iter().cloned())
-        .collect();
-
-    let dead: Vec<&String> = claimed
-        .iter()
-        .filter(|c| !rules.contains(c.as_str()))
-        .collect();
     assert!(
-        dead.is_empty(),
+        diff.unknown.is_empty(),
         "LLR.emits refers to code(s) not in RULES (typo, stale reference, or \
          the code was deleted and the LLR wasn't updated): {:?}",
-        dead
+        diff.unknown
     );
-
-    let unclaimed: Vec<&str> = evidence_core::RULES
-        .iter()
-        .map(|r| r.code)
-        .filter(|c| !reserved.contains(*c) && !claimed.contains(*c))
-        .collect();
     assert!(
-        unclaimed.is_empty(),
+        diff.unclaimed.is_empty(),
         "RULES code(s) not claimed by any LLR.emits in cert/trace/llr.toml \
          (add the code to an LLR that owns its emit path, or add a \
          RESERVED_UNCLAIMED_CODES entry with written justification): {:?}",
-        unclaimed
+        diff.unclaimed
     );
 }
 
@@ -403,12 +385,9 @@ fn link_error_codes_in_rules_and_claimed() {
             .expect("workspace path is UTF-8"),
     )
     .expect("cert/trace must load");
-    let claimed: std::collections::BTreeSet<String> = trace
-        .llr
-        .requirements
-        .iter()
-        .flat_map(|l| l.emits.iter().cloned())
-        .collect();
+    let graph = evidence_core::corpus::graph_from_trace_files(&trace)
+        .expect("cert/trace must adapt to the corpus graph");
+    let mappings = evidence_core::trace::AssuranceBijections::from_graph(&graph);
 
     let mut missing_from_rules: Vec<&str> = Vec::new();
     let mut unclaimed: Vec<&str> = Vec::new();
@@ -417,7 +396,7 @@ fn link_error_codes_in_rules_and_claimed() {
         if !rules.contains(code) {
             missing_from_rules.push(code);
         }
-        if !claimed.contains(code) {
+        if !mappings.diagnostic_claimants().contains_key(code) {
             unclaimed.push(code);
         }
     }

@@ -28,28 +28,45 @@ struct AdaptedNode {
 /// an entry. Edge resolution is the caller's choice via
 /// [`CorpusGraph::validate`].
 pub fn graph_from_trace_files(files: &TraceFiles) -> Result<CorpusGraph, CorpusError> {
+    graph_from_trace_parts(
+        &files.sys.requirements,
+        &files.hlr.requirements,
+        &files.llr.requirements,
+        &files.tests.tests,
+        files
+            .derived
+            .as_ref()
+            .map_or(&[], |derived| derived.requirements.as_slice()),
+    )
+}
+
+pub(crate) fn graph_from_trace_parts(
+    sys: &[HlrEntry],
+    hlrs: &[HlrEntry],
+    llrs: &[LlrEntry],
+    tests: &[TestEntry],
+    derived: &[DerivedEntry],
+) -> Result<CorpusGraph, CorpusError> {
     let mut graph = CorpusGraph::new();
-    for entry in &files.sys.requirements {
+    for entry in sys {
         insert_adapted(
             &mut graph,
             requirement_from_hlr_entry(entry, RequirementLayer::Sys)?,
         )?;
     }
-    for entry in &files.hlr.requirements {
+    for entry in hlrs {
         insert_adapted(
             &mut graph,
             requirement_from_hlr_entry(entry, RequirementLayer::Hlr)?,
         )?;
     }
-    for entry in &files.llr.requirements {
+    for entry in llrs {
         insert_adapted(&mut graph, requirement_from_llr_entry(entry)?)?;
     }
-    if let Some(derived) = &files.derived {
-        for entry in &derived.requirements {
-            insert_adapted(&mut graph, requirement_from_derived_entry(entry)?)?;
-        }
+    for entry in derived {
+        insert_adapted(&mut graph, requirement_from_derived_entry(entry)?)?;
     }
-    for entry in &files.tests.tests {
+    for entry in tests {
         insert_adapted(&mut graph, test_from_entry(entry)?)?;
     }
     Ok(graph)
@@ -74,14 +91,16 @@ fn requirement_from_hlr_entry(
             layer,
             edges: derives_from_edges(&entry.traces_to),
         }),
-        metadata: TraceMetadata::Requirement(requirement_metadata(
-            entry.ns.clone(),
-            entry.sort_key,
-            entry.scope.clone(),
-            entry.category.clone(),
-            entry.source.clone(),
-            Vec::new(),
-        )),
+        metadata: TraceMetadata::Requirement(RequirementMetadata {
+            namespace: entry.ns.clone(),
+            sort_key: entry.sort_key,
+            scope: entry.scope.clone(),
+            category: entry.category.clone(),
+            source: entry.source.clone(),
+            modules: Vec::new(),
+            surfaces: canonical_claims(&entry.surfaces),
+            emits: Vec::new(),
+        }),
     })
 }
 
@@ -95,14 +114,16 @@ fn requirement_from_llr_entry(entry: &LlrEntry) -> Result<AdaptedNode, CorpusErr
             layer: RequirementLayer::Llr,
             edges: derives_from_edges(&entry.traces_to),
         }),
-        metadata: TraceMetadata::Requirement(requirement_metadata(
-            entry.ns.clone(),
-            entry.sort_key,
-            None,
-            None,
-            entry.source.clone(),
-            entry.modules.clone(),
-        )),
+        metadata: TraceMetadata::Requirement(RequirementMetadata {
+            namespace: entry.ns.clone(),
+            sort_key: entry.sort_key,
+            scope: None,
+            category: None,
+            source: entry.source.clone(),
+            modules: entry.modules.clone(),
+            surfaces: Vec::new(),
+            emits: canonical_claims(&entry.emits),
+        }),
     })
 }
 
@@ -149,24 +170,6 @@ fn test_from_entry(entry: &TestEntry) -> Result<AdaptedNode, CorpusError> {
     })
 }
 
-fn requirement_metadata(
-    namespace: Option<String>,
-    sort_key: Option<i64>,
-    scope: Option<String>,
-    category: Option<String>,
-    source: Option<String>,
-    modules: Vec<String>,
-) -> RequirementMetadata {
-    RequirementMetadata {
-        namespace,
-        sort_key,
-        scope,
-        category,
-        source,
-        modules,
-    }
-}
-
 fn require_uid(uid: Option<&str>, id: &str) -> Result<String, CorpusError> {
     uid.map(str::to_string)
         .ok_or_else(|| CorpusError::LegacyMissingUid { id: id.to_string() })
@@ -177,4 +180,11 @@ fn derives_from_edges(traces_to: &[String]) -> Vec<(EdgeKind, String)> {
         .iter()
         .map(|target| (EdgeKind::DerivesFrom, target.clone()))
         .collect()
+}
+
+fn canonical_claims(claims: &[String]) -> Vec<String> {
+    let mut claims = claims.to_vec();
+    claims.sort();
+    claims.dedup();
+    claims
 }

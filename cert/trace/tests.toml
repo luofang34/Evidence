@@ -1802,3 +1802,17 @@ test_selectors = [
     "floors_trace_discovery::graph_derived_counts_reject_duplicate_identities",
     "floors_gate::floors_gate_fires_on_below_min_floor",
 ]
+
+[[tests]]
+uid = "07645b39-349f-470e-845a-370d8b1ecf77"
+id = "TEST-125"
+title = "graph-derived assurance mappings preserve parity and fail in both bijection directions"
+owner = "tool"
+traces_to = ["f7e9ed92-d71e-4ab4-a810-abb00bda392b"]
+test_selectors = [
+    "assurance_bijections::graph_assurance_mappings_match_legacy_and_ignore_input_order",
+    "assurance_bijections::graph_diagnostic_bijection_reports_unknown_and_unclaimed_codes",
+    "trace_decomposition::surface_unknown_fires_with_typed_code",
+    "trace_decomposition::surface_unclaimed_fires_with_typed_code",
+    "diagnostic_codes_locked::every_code_is_claimed_by_an_llr",
+]

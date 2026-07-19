@@ -2093,3 +2093,24 @@ not change a valid graph's measurements.
 """
 verification_methods = ["test"]
 traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]
+
+[[requirements]]
+uid = "5252323d-c6e1-43df-9646-6966a64e5ab5"
+id = "HLR-084"
+title = "Assurance bijections are derived from canonical corpus graph mappings"
+owner = "tool"
+scope = "component"
+description = """
+HLR-to-surface and RULES-to-LLR coverage shall use canonical claim
+mappings projected from `CorpusGraph` requirement nodes. HLR surface
+claims and LLR diagnostic-code claims remain trace metadata attached
+to their graph identities and do not create a second source of truth.
+
+The HLR surface policy shall retain the existing typed unknown and
+unclaimed diagnostics. RULES coverage shall reject graph claims that
+are absent from RULES and RULES entries with no LLR claimant, except
+for the explicit reserved set. File layout and claim input order are
+non-semantic and shall not change either mapping or verdict.
+"""
+verification_methods = ["test"]
+traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]

@@ -23,7 +23,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use thiserror::Error;
 
+use super::assurance::AssuranceBijections;
 use super::entries::{DerivedEntry, HlrEntry, LlrEntry, TestEntry};
+use crate::corpus::graph_from_trace_parts;
 use crate::diagnostic::{DiagnosticCode, Severity};
 use crate::policy::TracePolicy;
 
@@ -287,26 +289,11 @@ pub fn validate_trace_links_with_policy(
     // any downstream project that hasn't authored surfaces) stay
     // validating.
     if policy.require_hlr_surface_bijection {
-        let known: BTreeSet<&str> = super::surfaces::KNOWN_SURFACES.iter().copied().collect();
-        let mut claimed: BTreeSet<String> = BTreeSet::new();
-        for r in hlrs {
-            for s in &r.surfaces {
-                if !known.contains(s.as_str()) {
-                    errors.push(LinkError::SurfaceUnknown {
-                        hlr_id: r.id.clone(),
-                        surface: s.clone(),
-                    });
-                }
-                claimed.insert(s.clone());
-            }
-        }
-        for k in super::surfaces::KNOWN_SURFACES {
-            if !claimed.contains(*k) {
-                errors.push(LinkError::SurfaceUnclaimed {
-                    surface: (*k).to_string(),
-                });
-            }
-        }
+        let mappings = match graph_from_trace_parts(sys, hlrs, llrs, tests, derived) {
+            Ok(graph) => AssuranceBijections::from_graph(&graph),
+            Err(_) => AssuranceBijections::from_hlr_entries(hlrs),
+        };
+        errors.extend(mappings.surface_errors());
     }
 
     for r in hlrs {
