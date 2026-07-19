@@ -1985,3 +1985,69 @@ on any bundle that recorded a test summary
 """
 verification_methods = ["test"]
 traces_to = ["4ce28d5c-374d-4e96-bcee-e283ff829db9"]
+
+[[requirements]]
+uid = "bdc8bd75-9094-41e4-9102-d52fd2cd395f"
+id = "HLR-079"
+title = "corpus.toml is a strict, layout-agnostic index of linked graph files"
+owner = "tool"
+scope = "component"
+description = """
+`cert/corpus.toml` declares a `schema_version` and per-kind path
+lists naming the files that carry graph entries. A path is either a
+literal file or a `<dir>/**/*.toml` recursive pattern; pattern
+expansion is deterministic (sorted) and never follows symlinks. The
+loader reads every indexed file and unions the entries into one
+graph.
+
+The index fails closed on every degenerate input: unknown fields
+anywhere in the index are rejected; a `schema_version` newer than
+the tool supports refuses to load rather than skipping fields; an
+indexed path or pattern that resolves to no files is an error; a
+kind that is indexed but not yet loadable by this tool version is
+an error, never a silent skip. Splitting the same entries
+differently across indexed files produces an identical graph.
+"""
+verification_methods = ["test"]
+traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]
+
+[[requirements]]
+uid = "5adae145-ba90-4620-8977-a148bfcca2f2"
+id = "HLR-080"
+title = "Corpus graph enforces uid identity and resolvable typed edges"
+owner = "tool"
+scope = "component"
+description = """
+Every corpus node carries a permanent uid that is unique across all
+node kinds; graph construction fails on a duplicate uid, naming it.
+Edges are typed (`derives_from`, `verifies`) and must resolve to an
+existing node — a dangling reference is a construction-time error
+carrying the offending source uid, target uid, and edge kind. Node
+iteration is deterministic, so every derived view is stable across
+runs and hosts.
+
+Corpus-native node kinds use typed-prefix uids; legacy bare-UUID
+uids from `cert/trace` documents remain valid until the corpus
+cutover.
+"""
+verification_methods = ["test"]
+traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]
+
+[[requirements]]
+uid = "4ceaea71-78e8-4813-938c-1bf03b2857bf"
+id = "HLR-081"
+title = "Legacy trace documents load as graph nodes at exact parity"
+owner = "tool"
+scope = "component"
+description = """
+The legacy `cert/trace` documents (sys, hlr, llr, derived, tests)
+load into the corpus graph as requirement and test nodes. The
+adapter preserves the legacy data exactly: the graph's uid set,
+human identifiers, titles, `traces_to` edges, and test selectors
+equal the legacy parser's view of the same files, with no entry
+dropped, added, or rewritten. A legacy entry without a uid is an
+adapter error, not a silently skipped node. Parity is mechanically
+asserted against the tool's own `cert/trace`.
+"""
+verification_methods = ["test"]
+traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]

@@ -1737,3 +1737,43 @@ test_selectors = [
     "cargo_evidence::cli::generate::phases::output_inventory::tests::skip_tests_inventories_only_when_opted_in",
     "cargo_evidence::cli::generate::phases::output_inventory::tests::strict_inventories_even_without_the_flag",
 ]
+
+[[tests]]
+uid = "5120e61a-cb2f-4b07-becd-79d96e20f80d"
+id = "TEST-118"
+title = "corpus.toml index is strict and fails closed on degenerate input"
+owner = "tool"
+traces_to = ["1e6b28ad-913c-414f-b9db-283d064d9cfc"]
+test_selectors = [
+    "evidence_core::corpus::tests::index_parses_minimal",
+    "evidence_core::corpus::tests::index_rejects_unknown_field",
+    "evidence_core::corpus::tests::index_refuses_newer_schema",
+    "evidence_core::corpus::tests::index_empty_resolution_is_error",
+]
+
+[[tests]]
+uid = "026b141c-f99b-4afd-86b2-7182649fbd2b"
+id = "TEST-119"
+title = "corpus graph rejects duplicate uids and dangling edges"
+owner = "tool"
+traces_to = ["bbbadd81-3db1-40c0-8355-c5fe10dc4b7f"]
+test_selectors = [
+    "evidence_core::corpus::tests::graph_rejects_duplicate_uid",
+    "evidence_core::corpus::tests::graph_detects_dangling_edge",
+]
+
+[[tests]]
+uid = "31c3ed6a-3f1c-4eca-b8ca-2b32a89436c1"
+id = "TEST-120"
+title = "legacy trace loads into the corpus graph at exact parity on the tool's own trace"
+owner = "tool"
+traces_to = ["e86a9580-3495-481e-a912-035c2d5c865a"]
+test_selector = "evidence_core::corpus::tests::legacy_parity_on_own_trace"
+
+[[tests]]
+uid = "bd7f7e23-16ec-4792-a658-7ca6c232b2f8"
+id = "TEST-121"
+title = "file layout is non-semantic: any split of the same entries yields an identical graph"
+owner = "tool"
+traces_to = ["1e6b28ad-913c-414f-b9db-283d064d9cfc"]
+test_selector = "evidence_core::corpus::tests::layout_split_produces_identical_graph"

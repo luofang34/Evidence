@@ -2906,3 +2906,70 @@ LLR-095.
 """
 verification_methods = ["test"]
 emits = ["VERIFY_OUTPUT_MANIFEST_EMPTY"]
+
+[[requirements]]
+uid = "1e6b28ad-913c-414f-b9db-283d064d9cfc"
+id = "LLR-097"
+title = "corpus::index parses and resolves the corpus.toml file index"
+owner = "tool"
+traces_to = ["bdc8bd75-9094-41e4-9102-d52fd2cd395f"]
+modules = ["evidence_core::corpus::index"]
+description = """
+`CorpusIndex::load` deserializes `corpus.toml` with strict serde
+(`deny_unknown_fields`) and gates on `schema_version`: a version
+newer than `SUPPORTED_INDEX_SCHEMA` returns
+`CorpusError::IndexSchemaTooNew` carrying both versions. Each
+per-kind entry resolves to concrete files: a `<dir>/**/*.toml`
+pattern expands via `WalkDir::new(dir).follow_links(false)` with
+results sorted for determinism; any other value is a literal path
+that must exist. An entry resolving to zero files returns
+`CorpusError::EmptyIndexEntry` naming the pattern. Kinds whose
+loading this tool version does not implement return
+`CorpusError::UnimplementedKind` when their lists are non-empty.
+"""
+verification_methods = ["test"]
+emits = []
+
+[[requirements]]
+uid = "bbbadd81-3db1-40c0-8355-c5fe10dc4b7f"
+id = "LLR-098"
+title = "corpus::graph owns node identity, typed edges, and dangling detection"
+owner = "tool"
+traces_to = ["5adae145-ba90-4620-8977-a148bfcca2f2"]
+modules = ["evidence_core::corpus::graph"]
+description = """
+`CorpusGraph` stores nodes in a `BTreeMap` keyed by uid, so
+iteration is deterministic by construction. `insert` returns
+`CorpusError::DuplicateUid` when the uid is already present,
+regardless of node kind. Nodes are `Requirement` (with a
+`RequirementLayer`: source, sys, hlr, llr, derived) or `Test`
+(carrying its selectors); each owns its outgoing edges as
+`(EdgeKind, target uid)` pairs with kinds `DerivesFrom` and
+`Verifies`. `validate` walks every edge and returns
+`CorpusError::DanglingEdge` with source uid, target uid, and edge
+kind for any target absent from the graph.
+"""
+verification_methods = ["test"]
+emits = []
+
+[[requirements]]
+uid = "e86a9580-3495-481e-a912-035c2d5c865a"
+id = "LLR-099"
+title = "corpus::legacy adapts the four-file trace into graph nodes"
+owner = "tool"
+traces_to = ["4ceaea71-78e8-4813-938c-1bf03b2857bf"]
+modules = ["evidence_core::corpus::legacy"]
+description = """
+`graph_from_trace_files` maps a parsed `TraceFiles` into a
+`CorpusGraph`: sys, hlr, llr, and derived entries become
+`Requirement` nodes with the matching `RequirementLayer` and their
+`traces_to` lists as `DerivesFrom` edges; test entries become
+`Test` nodes carrying the merged selector set (singular
+`test_selector` unioned with `test_selectors`) and their
+`traces_to` lists as `Verifies` edges. An entry with no uid returns
+`CorpusError::LegacyMissingUid` naming the human id. The adapter
+copies — it never renames, drops, or synthesizes entries, so the
+resulting graph is field-for-field parity with the legacy parser.
+"""
+verification_methods = ["test"]
+emits = []
