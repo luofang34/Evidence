@@ -1,6 +1,4 @@
 //! Shared helpers for the `mcp_surface` integration test file.
-//! Split out via `#[path]` so the parent stays under the 500-line
-//! workspace limit as new tool-surface tests accumulate.
 
 #![allow(
     clippy::unwrap_used,
@@ -148,13 +146,20 @@ pub fn session_in_with_path(
 }
 
 pub fn init_frames() -> Vec<Value> {
+    init_frames_with_protocol("2024-11-05")
+}
+
+/// `init_frames` with an explicit requested `protocolVersion`, for the
+/// rmcp negotiation guardrail (echo a supported version; fall back to
+/// rmcp's latest on an unsupported one).
+pub fn init_frames_with_protocol(protocol_version: &str) -> Vec<Value> {
     vec![
         json!({
             "jsonrpc": "2.0",
             "id": 1,
             "method": "initialize",
             "params": {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": protocol_version,
                 "capabilities": {},
                 "clientInfo": {"name": "mcp-surface-test", "version": "0"}
             }

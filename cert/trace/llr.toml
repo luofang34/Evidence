@@ -1705,23 +1705,13 @@ is read via `env!("CARGO_PKG_VERSION")` at evidence-mcp's
 compile-time, not rmcp's — matches the crate's declared
 Cargo.toml version.
 
-**lib.rs-as-facade split** (the structural half of this LLR):
-pre-split lib.rs bundled the `Server` impl, helper fns, and
-types in a single 269-line file — over the CLAUDE.md
-"lib.rs ≤ 100 lines" rule. The split moves:
+The same `initialize` response carries the negotiated MCP
+`protocolVersion` from rmcp's `ServerHandler` default: a supported
+request is echoed, an unsupported one falls back to the rmcp build's
+latest supported protocol. Both the echo and the fallback are pinned
+so a bump of the `=`-locked `rmcp` dependency that shifts the
+handshake is caught for review rather than shipped silently.
 
-  - `Server` struct + `ServerHandler` impl + `#[tool_router]`
-    tool methods + `prepend_fallback_signal` → `server.rs`
-  - `WorkspaceResolution` enum + `resolve_workspace` +
-    `workspace_fallback_diagnostic` → `workspace.rs`
-  - `lib.rs` becomes crate-docstring + `mod` decls +
-    `pub use server::Server` (facade; ≤80 lines target).
-
-The split isn't purely hygiene: the serverInfo override
-required adding the `name = "evidence-mcp"` macro arg, and
-keeping lib.rs coherent at that addition was the immediate
-trigger. Grouping ServerHandler concerns into `server.rs`
-makes future rmcp-trait changes apply to one file, not two.
 """
 verification_methods = ["test"]
 
