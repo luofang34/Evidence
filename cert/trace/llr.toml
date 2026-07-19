@@ -3030,3 +3030,29 @@ record layout and edge input order irrelevant to the result.
 """
 verification_methods = ["test"]
 emits = []
+
+[[requirements]]
+uid = "f7e9ed92-d71e-4ab4-a810-abb00bda392b"
+id = "LLR-103"
+title = "assurance view indexes graph-derived surface and diagnostic claimants"
+owner = "tool"
+traces_to = ["5252323d-c6e1-43df-9646-6966a64e5ab5"]
+modules = [
+    "evidence_core::trace::assurance::AssuranceBijections",
+    "evidence_core::trace::validation::validate_trace_links_with_policy",
+]
+description = """
+`AssuranceBijections::from_graph` iterates requirement nodes and
+their graph-attached trace metadata. HLR `surfaces` populate a
+surface-to-HLR map, while LLR `emits` populate a diagnostic-code-to-
+LLR map. Both maps use ordered keys and claimant sets, making record
+layout, graph iteration order, claim order, and duplicate claims
+non-semantic.
+
+The surface-policy gate converts graph-derived mapping differences
+into the existing `SurfaceUnknown` and `SurfaceUnclaimed` typed
+errors. The diagnostic bijection compares its graph mapping with
+RULES and the reserved-unclaimed catalog in both directions.
+"""
+verification_methods = ["test"]
+emits = []

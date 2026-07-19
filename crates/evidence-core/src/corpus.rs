@@ -30,6 +30,7 @@ pub use graph::{
 };
 pub use index::{CorpusIndex, SUPPORTED_INDEX_SCHEMA};
 pub use legacy::graph_from_trace_files;
+pub(crate) use legacy::graph_from_trace_parts;
 
 #[cfg(test)]
 mod tests;

@@ -16,6 +16,7 @@
 //! consumer can continue to `use evidence_core::trace::HlrEntry` without
 //! caring about the split.
 
+mod assurance;
 mod discovery;
 mod entries;
 mod matrix;
@@ -27,6 +28,7 @@ mod test_backlinks;
 mod uuid;
 mod validation;
 
+pub use assurance::{AssuranceBijections, BijectionDiff};
 pub use discovery::default_trace_roots;
 pub use entries::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile,

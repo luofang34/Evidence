@@ -60,6 +60,10 @@ pub(crate) struct RequirementMetadata {
     pub(crate) source: Option<String>,
     /// Implementation modules associated with the requirement.
     pub(crate) modules: Vec<String>,
+    /// User-visible surfaces governed by an HLR.
+    pub(crate) surfaces: Vec<String>,
+    /// Diagnostic codes emitted by an LLR.
+    pub(crate) emits: Vec<String>,
 }
 
 /// Trace metadata retained for test-derived views.
