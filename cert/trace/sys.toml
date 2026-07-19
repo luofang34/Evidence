@@ -899,3 +899,25 @@ nothing (`--skip-tests`) legitimately has no outputs.
 """
 verification_methods = ["test", "review"]
 traces_to = []
+
+[[requirements]]
+uid = "9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"
+id = "SYS-035"
+title = "Certification data is a single typed corpus graph"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall represent supported certification artifacts as one
+typed, uid-keyed graph loaded from linked TOML files indexed by
+`cert/corpus.toml`. File layout and input edge order carry no
+semantic meaning: equivalent entries under any indexed arrangement
+produce the same graph. Traceability reports are derived views of
+this graph.
+
+The legacy `cert/trace` adapter loads requirement and test nodes
+with the same uid set, human identifiers, titles, trace edge sets,
+and test selectors as the legacy parser. Graph edge ordering is
+canonical.
+"""
+verification_methods = ["test", "review"]
+traces_to = []

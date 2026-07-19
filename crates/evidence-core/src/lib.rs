@@ -46,6 +46,7 @@ pub mod bundle;
 pub mod cargo_metadata;
 pub mod compliance;
 pub mod context;
+pub mod corpus;
 pub mod coverage;
 pub mod diagnostic;
 pub mod env;
