@@ -13,7 +13,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::entries::{HlrFile, LlrEntry, LlrFile, TestEntry, TestsFile};
+use crate::corpus::CorpusGraph;
+
+use super::entries::{HlrFile, LlrFile, TestsFile};
+
+mod view;
+
+use view::{MatrixRequirement, MatrixTest, MatrixView};
 
 /// Generate a Markdown traceability matrix document.
 ///
@@ -22,6 +28,33 @@ use super::entries::{HlrFile, LlrEntry, LlrFile, TestEntry, TestsFile};
 /// in the pipeline; the generation itself is infallible string
 /// concatenation.
 pub fn generate_traceability_matrix(
+    hlr: &HlrFile,
+    llr: &LlrFile,
+    tests: &TestsFile,
+    doc_id: &str,
+) -> String {
+    let view = MatrixView::from_trace_files(hlr, llr, tests);
+    render_traceability_matrix(&view, hlr, llr, tests, doc_id)
+}
+
+/// Generate the Markdown traceability matrix from a validated corpus
+/// graph.
+///
+/// The file wrappers provide document provenance only; every matrix
+/// row, relationship, count, and gap is queried from `graph`.
+pub fn generate_corpus_traceability_matrix(
+    graph: &CorpusGraph,
+    hlr: &HlrFile,
+    llr: &LlrFile,
+    tests: &TestsFile,
+    doc_id: &str,
+) -> String {
+    let view = MatrixView::from_graph(graph);
+    render_traceability_matrix(&view, hlr, llr, tests, doc_id)
+}
+
+fn render_traceability_matrix(
+    view: &MatrixView,
     hlr: &HlrFile,
     llr: &LlrFile,
     tests: &TestsFile,
@@ -52,37 +85,16 @@ pub fn generate_traceability_matrix(
         tests.schema.version, tests.meta.document_id, tests.meta.revision
     ));
 
-    // Sort by sort_key, then by ID for determinism.
-    let mut hlrs = hlr.requirements.clone();
-    hlrs.sort_by(|a, b| {
-        a.sort_key
-            .unwrap_or(0)
-            .cmp(&b.sort_key.unwrap_or(0))
-            .then_with(|| a.id.cmp(&b.id))
-    });
-
-    let mut llrs = llr.requirements.clone();
-    llrs.sort_by(|a, b| {
-        a.sort_key
-            .unwrap_or(0)
-            .cmp(&b.sort_key.unwrap_or(0))
-            .then_with(|| a.id.cmp(&b.id))
-    });
-
-    let mut ts = tests.tests.clone();
-    ts.sort_by(|a, b| {
-        a.sort_key
-            .unwrap_or(0)
-            .cmp(&b.sort_key.unwrap_or(0))
-            .then_with(|| a.id.cmp(&b.id))
-    });
+    let hlrs = &view.hlrs;
+    let llrs = &view.llrs;
+    let ts = &view.tests;
 
     // HLR -> LLR table.
     s.push_str("## HLR to LLR Traceability\n\n");
     s.push_str("| HLR ID | HLR Title | LLR IDs |\n");
     s.push_str("|--------|-----------|--------|\n");
 
-    for h in &hlrs {
+    for h in hlrs {
         // LLRs that trace to this HLR (strict UUID match).
         let mut linked: Vec<&str> = llrs
             .iter()
@@ -112,7 +124,7 @@ pub fn generate_traceability_matrix(
     s.push_str("| LLR ID | LLR Title | Test IDs |\n");
     s.push_str("|--------|-----------|----------|\n");
 
-    for l in &llrs {
+    for l in llrs {
         let mut linked: Vec<&str> = ts
             .iter()
             .filter(|t| t.traces_to.iter().any(|x| Some(x) == l.uid.as_ref()))
@@ -139,7 +151,7 @@ pub fn generate_traceability_matrix(
     // Reverse trace: Test -> LLR -> HLR.
     // Build lookup: LLR UID -> list of HLR IDs it traces to.
     let mut llr_uid_to_hlr_ids: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for l in &llrs {
+    for l in llrs {
         if let Some(ref uid) = l.uid {
             let mut parent_ids: Vec<String> = Vec::new();
             for link in &l.traces_to {
@@ -161,7 +173,7 @@ pub fn generate_traceability_matrix(
     s.push_str("| Test ID | LLR IDs | HLR IDs |\n");
     s.push_str("|---------|---------|--------|\n");
 
-    for t in &ts {
+    for t in ts {
         // LLR IDs this test traces to.
         let mut llr_ids: Vec<String> = Vec::new();
         let mut hlr_ids_set: BTreeSet<String> = BTreeSet::new();
@@ -212,7 +224,7 @@ pub fn generate_traceability_matrix(
     // Annotations: scope/category/source/modules/test_selector.
     // (Preserves DO-178C metadata that's not shown in the tables above.)
     let mut annotations = String::new();
-    for h in &hlrs {
+    for h in hlrs {
         let mut parts: Vec<String> = Vec::new();
         if let Some(ref v) = h.scope {
             parts.push(format!("scope={}", v));
@@ -227,7 +239,7 @@ pub fn generate_traceability_matrix(
             annotations.push_str(&format!("- HLR {}: {}\n", h.id, parts.join(", ")));
         }
     }
-    for l in &llrs {
+    for l in llrs {
         let mut parts: Vec<String> = Vec::new();
         if let Some(ref v) = l.source {
             parts.push(format!("source={}", v));
@@ -239,7 +251,7 @@ pub fn generate_traceability_matrix(
             annotations.push_str(&format!("- LLR {}: {}\n", l.id, parts.join(", ")));
         }
     }
-    for t in &ts {
+    for t in ts {
         let mut parts: Vec<String> = Vec::new();
         if let Some(ref v) = t.category {
             parts.push(format!("category={}", v));
@@ -264,9 +276,9 @@ pub fn generate_traceability_matrix(
     s.push_str("| HLR ID | HLR Title | Test IDs (via LLR) |\n");
     s.push_str("|--------|-----------|--------------------|\n");
 
-    for h in &hlrs {
+    for h in hlrs {
         // All LLRs that trace to this HLR.
-        let child_llrs: Vec<&LlrEntry> = llrs
+        let child_llrs: Vec<&MatrixRequirement> = llrs
             .iter()
             .filter(|l| l.traces_to.iter().any(|x| Some(x) == h.uid.as_ref()))
             .collect();
@@ -274,7 +286,7 @@ pub fn generate_traceability_matrix(
         // All tests that trace to any of those LLRs.
         let mut test_ids: BTreeSet<String> = BTreeSet::new();
         for l in &child_llrs {
-            for t in &ts {
+            for t in ts {
                 if t.traces_to.iter().any(|x| l.uid.as_ref() == Some(x)) {
                     let display_id = if let Some(ns) = &t.ns {
                         format!("{}:{}", ns, t.id)
@@ -303,7 +315,7 @@ pub fn generate_traceability_matrix(
     }
 
     // Orphan test detection + coverage + gaps.
-    let orphan_tests: Vec<&TestEntry> = ts.iter().filter(|t| t.traces_to.is_empty()).collect();
+    let orphan_tests: Vec<&MatrixTest> = ts.iter().filter(|t| t.traces_to.is_empty()).collect();
 
     let hlr_without_llr: usize = hlrs
         .iter()
@@ -338,7 +350,7 @@ pub fn generate_traceability_matrix(
 
         if hlr_without_llr > 0 {
             s.push_str("### HLRs without LLR coverage\n\n");
-            for h in &hlrs {
+            for h in hlrs {
                 if !llrs
                     .iter()
                     .any(|l| l.traces_to.iter().any(|x| Some(x) == h.uid.as_ref()))
@@ -351,7 +363,7 @@ pub fn generate_traceability_matrix(
 
         if llr_without_test > 0 {
             s.push_str("### LLRs without Test coverage\n\n");
-            for l in &llrs {
+            for l in llrs {
                 if !ts
                     .iter()
                     .any(|t| t.traces_to.iter().any(|x| Some(x) == l.uid.as_ref()))

@@ -701,6 +701,25 @@
       "verification_methods": [
         "test"
       ]
+    },
+    {
+      "id": "LLR-101",
+      "uid": "de536781-44ca-4adc-8036-5e6dd0f7ff76",
+      "layer": "llr",
+      "title": "matrix view projects canonical corpus nodes and edges into the shared renderer",
+      "description": "`generate_corpus_traceability_matrix` constructs the matrix view by\niterating `CorpusGraph`: requirement layers select HLR and LLR rows,\ntest nodes select test rows, and canonical `DerivesFrom` and\n`Verifies` edges supply relationships. Graph nodes retain the\npresentation metadata needed for exact report parity. Both the\nlegacy entry projection and corpus projection feed one renderer, so\nheaders, annotations, tables, coverage counts, gaps, and ordering\ncannot drift between two rendering implementations.\n\nBundle generation adapts the parsed legacy trace into a graph,\nvalidates it, and calls the corpus generator. The existing\n`generate_traceability_matrix` function retains its signature for\ndownstream compatibility.\n",
+      "modules": [
+        "evidence_core::trace::matrix::generate_corpus_traceability_matrix",
+        "evidence_core::trace::matrix::view",
+        "cargo_evidence::cli::generate::phases::copy_trace_and_build_matrix"
+      ],
+      "emits": [],
+      "traces_to": [
+        "7d64b353-db6a-44da-8b10-c901fa8c1b35"
+      ],
+      "verification_methods": [
+        "test"
+      ]
     }
   ],
   "parents": [
@@ -966,6 +985,15 @@
       ]
     },
     {
+      "id": "HLR-082",
+      "uid": "7d64b353-db6a-44da-8b10-c901fa8c1b35",
+      "layer": "hlr",
+      "title": "Traceability matrix rows and relationships are derived from the canonical corpus graph",
+      "traces_to": [
+        "9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"
+      ]
+    },
+    {
       "id": "SYS-002",
       "uid": "0e42b90f-88d7-408f-8843-0a3335279360",
       "layer": "sys",
@@ -1117,6 +1145,13 @@
       "uid": "4ce28d5c-374d-4e96-bcee-e283ff829db9",
       "layer": "sys",
       "title": "Bundle shall record the compiled deliverables of its build; certification fails closed on a build that attested none",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-035",
+      "uid": "9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98",
+      "layer": "sys",
+      "title": "Certification data is a single typed corpus graph",
       "traces_to": []
     }
   ],
@@ -1449,6 +1484,17 @@
       ],
       "traces_to": [
         "89f9de65-c963-4993-ab16-6d153e8c5dd7"
+      ]
+    },
+    {
+      "id": "TEST-123",
+      "uid": "cc46fb7d-e9cc-4e29-aebd-21ce97cecd08",
+      "name": "graph-derived matrix matches legacy bytes and ignores node and edge input order",
+      "selectors": [
+        "trace_matrix::corpus_matrix_matches_legacy_and_is_input_order_independent"
+      ],
+      "traces_to": [
+        "de536781-44ca-4adc-8036-5e6dd0f7ff76"
       ]
     },
     {

@@ -1782,3 +1782,11 @@ traces_to = [
     "bbbadd81-3db1-40c0-8355-c5fe10dc4b7f",
 ]
 test_selector = "evidence_core::corpus::tests::layout_and_edge_order_produce_identical_graph"
+
+[[tests]]
+uid = "cc46fb7d-e9cc-4e29-aebd-21ce97cecd08"
+id = "TEST-123"
+title = "graph-derived matrix matches legacy bytes and ignores node and edge input order"
+owner = "tool"
+traces_to = ["de536781-44ca-4adc-8036-5e6dd0f7ff76"]
+test_selector = "trace_matrix::corpus_matrix_matches_legacy_and_is_input_order_independent"

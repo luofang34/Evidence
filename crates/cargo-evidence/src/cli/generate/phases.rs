@@ -11,9 +11,10 @@ use anyhow::Result;
 use evidence_core::{
     BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
     Profile, build_input_plan_blocking,
+    corpus::graph_from_trace_files,
     git::{check_shallow_clone, is_dirty_or_unknown},
     load_trace_roots, parse_nextest_libtest_json,
-    trace::{generate_traceability_matrix, read_all_trace_files},
+    trace::{generate_corpus_traceability_matrix, read_all_trace_files},
 };
 
 use super::{fail, split_trace_roots_flag};
@@ -370,7 +371,10 @@ pub(super) fn copy_trace_and_build_matrix(
                 }
             }
             let doc_id = &trace_files.hlr.meta.document_id;
-            let matrix_md = generate_traceability_matrix(
+            let graph = graph_from_trace_files(&trace_files)?;
+            graph.validate()?;
+            let matrix_md = generate_corpus_traceability_matrix(
+                &graph,
                 &trace_files.hlr,
                 &trace_files.llr,
                 &trace_files.tests,

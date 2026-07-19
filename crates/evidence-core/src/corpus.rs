@@ -24,6 +24,7 @@ mod legacy;
 mod records;
 
 pub use error::CorpusError;
+pub(crate) use graph::TraceMetadata;
 pub use graph::{
     CorpusGraph, EdgeKind, Node, NodeKind, RequirementLayer, RequirementNode, TestNode,
 };

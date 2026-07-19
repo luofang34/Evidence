@@ -11,8 +11,10 @@
 #[path = "helpers.rs"]
 mod helpers;
 
+use evidence_core::corpus::graph_from_trace_files;
 use evidence_core::trace::{
-    HlrEntry, HlrFile, LlrEntry, LlrFile, TestEntry, TestsFile, generate_traceability_matrix,
+    HlrEntry, HlrFile, LlrEntry, LlrFile, TestEntry, TestsFile,
+    generate_corpus_traceability_matrix, generate_traceability_matrix, read_all_trace_files,
     validate_trace_links,
 };
 
@@ -226,4 +228,56 @@ fn test_orphan_test_detection() {
         matrix.contains("TEST-ORPHAN"),
         "Matrix should list the orphan test by ID"
     );
+}
+
+#[test]
+fn corpus_matrix_matches_legacy_and_is_input_order_independent() {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates directory")
+        .parent()
+        .expect("workspace root")
+        .join("cert/trace");
+    let root = root.to_string_lossy();
+    let files = read_all_trace_files(&root).expect("read own trace");
+    let graph = graph_from_trace_files(&files).expect("adapt own trace");
+    graph.validate().expect("own graph validates");
+
+    let legacy = generate_traceability_matrix(
+        &files.hlr,
+        &files.llr,
+        &files.tests,
+        &files.hlr.meta.document_id,
+    );
+    let corpus = generate_corpus_traceability_matrix(
+        &graph,
+        &files.hlr,
+        &files.llr,
+        &files.tests,
+        &files.hlr.meta.document_id,
+    );
+    assert_eq!(
+        corpus, legacy,
+        "graph-derived matrix must retain exact parity"
+    );
+
+    let mut reordered = read_all_trace_files(&root).expect("read reordered source");
+    reordered.hlr.requirements.reverse();
+    reordered.llr.requirements.reverse();
+    reordered.tests.tests.reverse();
+    for entry in &mut reordered.llr.requirements {
+        entry.traces_to.reverse();
+    }
+    for entry in &mut reordered.tests.tests {
+        entry.traces_to.reverse();
+    }
+    let reordered_graph = graph_from_trace_files(&reordered).expect("adapt reordered trace");
+    let reordered_matrix = generate_corpus_traceability_matrix(
+        &reordered_graph,
+        &reordered.hlr,
+        &reordered.llr,
+        &reordered.tests,
+        &reordered.hlr.meta.document_id,
+    );
+    assert_eq!(corpus, reordered_matrix, "input order must be non-semantic");
 }
