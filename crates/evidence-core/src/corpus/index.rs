@@ -1,5 +1,5 @@
 //! `corpus.toml` — the strict, layout-agnostic index of linked graph
-//! files (HLR-079, LLR-097).
+//! files (HLR-079, LLR-100).
 //!
 //! The index names which files carry graph entries, per node kind. A
 //! path entry is either a literal file or a `<dir>/**/*.toml`

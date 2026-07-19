@@ -1,6 +1,7 @@
 # Corpus model v0.2 — design decisions
 
-Status: accepted. Program tracking: epic issue #157; milestones `v0.2-M1` … `v0.2-M7`.
+Status: accepted. Program tracking: the epic at
+<https://github.com/luofang34/Evidence/issues/157>; milestones `v0.2-M1` … `v0.2-M7`.
 
 v0.2 makes a single typed corpus graph the source of truth for certification
 data: frozen source documents → committed source graph → reviewed

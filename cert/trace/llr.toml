@@ -2909,7 +2909,7 @@ emits = ["VERIFY_OUTPUT_MANIFEST_EMPTY"]
 
 [[requirements]]
 uid = "1e6b28ad-913c-414f-b9db-283d064d9cfc"
-id = "LLR-097"
+id = "LLR-100"
 title = "corpus::index parses and resolves the corpus.toml file index"
 owner = "tool"
 traces_to = ["bdc8bd75-9094-41e4-9102-d52fd2cd395f"]
