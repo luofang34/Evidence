@@ -2483,3 +2483,63 @@ Lifecycle-evaluator failure shall fail closed as a typed error.
 """
 verification_methods = ["test"]
 traces_to = ["1768262e-5524-477b-be35-c479623aa19c"]
+
+[[requirements]]
+uid = "bd2ff320-9f15-432f-bc1b-54c2e6b3116d"
+id = "HLR-098"
+title = "Proposal records carry exactly two representable actions in a strict schema-gated fail-closed TOML schema"
+owner = "tool"
+scope = "component"
+description = """
+Each proposal shall persist as one strict TOML record beneath a
+caller-supplied proposal root, carrying a validated prop_UUIDv4
+identity, a non-empty submitter audit identity that is never
+accepted as proof of authority, an RFC 3339 submission timestamp
+that is metadata and never ordering authority, and exactly one of
+two actions: create_candidate, carrying complete new-candidate
+content plus a store-minted req_UUIDv4, or revise_candidate,
+carrying the base requirement uid, the expected current
+review-content digest for optimistic concurrency, and complete
+replacement content mirroring the v1 review-content projection —
+nothing else, so no uid, human id, owner, sort key, implementation
+module, governed surface, or emitted diagnostic can be smuggled in.
+
+The record schema shall fail closed on everything outside that
+shape: unknown fields, unknown action tags — including approve,
+reject, delete, review mutation, source mutation, baseline
+replacement, and direct file-path writes — a self-declared actor
+field, malformed uids, digests, or timestamps, an empty submitter,
+a newer schema version, and a truncated or partially written file
+shall all be typed read errors naming the path.
+"""
+verification_methods = ["test"]
+traces_to = ["2b6633a7-527b-42d4-9af2-ce22b80eda56"]
+
+[[requirements]]
+uid = "2ba5d4a0-78c9-4e81-aa80-f3781b6547fd"
+id = "HLR-099"
+title = "Proposal append is store-minted, fail-closed, non-overwriting, and confined to a validated proposal root"
+owner = "tool"
+scope = "component"
+description = """
+The proposal store shall validate its root at construction — it
+must exist, be a directory, and not be a symlink — and shall
+canonicalize it before any write. The store shall mint every
+identity itself: the prop_UUIDv4 proposal uid, the req_UUIDv4
+candidate uid for a create action, and the submission timestamp;
+no caller-supplied uid, clock, or path component shall ever reach
+the generated basename. Writes shall use exclusive creation so an
+existing file is never overwritten, a mid-write failure shall
+remove the partial file on a best-effort basis, and concurrent
+submissions shall never overwrite one another.
+
+Before writing a revision the store shall verify that the base
+uid names an existing requirement whose lifecycle is candidate —
+approved, rejected, and stale targets shall be rejected with
+typed context so a proposal can never demote approved content —
+and that the expected digest equals the requirement's current
+review-content digest, failing with the uid and both digests on
+mismatch. Appends shall touch nothing outside the proposal root.
+"""
+verification_methods = ["test"]
+traces_to = ["2b6633a7-527b-42d4-9af2-ce22b80eda56"]
