@@ -254,6 +254,11 @@ pub const RULES: &[RuleEntry] = &[
     r("MCP_VERSION_PROBE_FAILED", Severity::Warning, Domain::Mcp),
     r("MCP_VERSION_SKEW", Severity::Warning, Domain::Mcp),
     r("MCP_WORKSPACE_FALLBACK", Severity::Warning, Domain::Mcp),
+    r(
+        "POLICY_ASSURANCE_SELECTION_MISSING",
+        Severity::Error,
+        Domain::Policy,
+    ),
     r("POLICY_UNKNOWN_DAL", Severity::Error, Domain::Policy),
     r("POLICY_UNKNOWN_PROFILE", Severity::Error, Domain::Policy),
     req_gap("REQ_GAP"),

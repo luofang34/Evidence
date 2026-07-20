@@ -25,7 +25,7 @@ use evidence_core::bundle::parse_cargo_test_output_with_outcomes;
 use evidence_core::diagnostic::{Diagnostic, Severity};
 use evidence_core::policy::TracePolicy;
 use evidence_core::trace::{build_requirement_report, read_all_trace_files};
-use evidence_core::{BoundaryConfig, EvidencePolicy};
+use evidence_core::{AssuranceSelection, BoundaryConfig, EvidencePolicy};
 
 use super::args::{CheckMode, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFormat};
 use super::output::emit_jsonl;
@@ -256,17 +256,15 @@ fn cmd_check_source(workspace_root: &Path, format: OutputFormat, quiet: bool) ->
                 .into_owned()
         });
 
-    // Phase 4: policy. DAL-derived default + same `require_hlr_sys_trace`
-    // behavior as `trace --validate` so `check` enforces the same
-    // contract.
-    let boundary = BoundaryConfig::load_or_default(&workspace_root.join("cert/boundary.toml"));
-    let dal = boundary
-        .dal_map()
-        .values()
-        .copied()
-        .max()
-        .unwrap_or_default();
-    let mut policy = EvidencePolicy::for_dal(dal).trace;
+    // Phase 4: policy. Explicit assurance selection (LLR-109) +
+    // same `require_hlr_sys_trace` behavior as `trace --validate`
+    // so `check` enforces the same contract. No usable selection →
+    // unclassified (least-strict policy row), never a silent DAL.
+    let selection = BoundaryConfig::load(&workspace_root.join("cert/boundary.toml"))
+        .ok()
+        .and_then(|cfg| cfg.assurance_selection())
+        .unwrap_or_else(AssuranceSelection::unclassified);
+    let mut policy = EvidencePolicy::for_dal(selection.level.effective_policy_dal()).trace;
     policy.require_hlr_sys_trace = true;
     policy.require_hlr_surface_bijection = true;
 

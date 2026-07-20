@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use evidence_core::FloorsConfig;
 use evidence_core::floors::{LoadOutcome, current_measurements, per_crate_measurements};
-use evidence_core::policy::{BoundaryConfig, Dal, EvidencePolicy};
+use evidence_core::policy::{AssuranceLevel, BoundaryConfig, Dal, EvidencePolicy};
 use evidence_core::trace::{TraceEvidenceState, evaluate_trace_evidence};
 
 use super::CheckResult;
@@ -148,13 +148,25 @@ fn adoption_detail(
 
 /// Trace-policy DAL across per-crate overrides. See LLR-060.
 /// Returns `(dal, boundary_loadable)`; `false` ⇒ DAL-D fallback.
+/// Doctor is an advisory development surface: with no claimed level
+/// the least-strict policy row applies (LLR-109), and the
+/// load-failure note names the assumption.
 pub(super) fn load_max_dal(workspace: &Path) -> (Dal, bool) {
     let path = workspace.join("cert").join("boundary.toml");
     let Ok(cfg) = BoundaryConfig::load(&path) else {
         return (Dal::D, false);
     };
-    let dal = cfg.dal_map().values().copied().max();
-    (dal.unwrap_or(cfg.dal.default_dal), true)
+    let dal = cfg
+        .dal_map()
+        .values()
+        .copied()
+        .max()
+        .map(AssuranceLevel::effective_policy_dal);
+    (
+        dal.or(cfg.dal.and_then(|d| d.default_dal))
+            .unwrap_or(Dal::D),
+        true,
+    )
 }
 
 pub(super) fn check_floors(workspace: &Path) -> CheckResult {

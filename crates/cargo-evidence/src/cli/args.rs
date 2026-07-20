@@ -134,22 +134,24 @@ pub enum CheckMode {
 ///
 /// Controls the structural-coverage phase that runs between
 /// `cargo test` and `finalize` when enabled. See HLR-053.
+/// Captured percentages are engineering metrics only — no
+/// percentage alone closes a DO-178C A-7 objective (LLR-108).
 ///
 /// Default is resolved at runtime by profile: `Dev` → `None`
-/// (fast iteration), `Cert`/`Record` → `Branch` (DAL-B minimum
-/// for DO-178C A-7 Obj-6). Passing `--coverage` explicitly
-/// always wins.
+/// (fast iteration), `Cert`/`Record` → `Branch` (the broadest
+/// approximation the tool captures for named-claim profiles).
+/// Passing `--coverage` explicitly always wins.
 #[derive(Clone, Copy, Default, PartialEq, Eq, ValueEnum, Debug)]
 pub enum CoverageChoice {
     /// Do not run `cargo llvm-cov`; bundle carries no coverage
     /// artifact. Dev-profile default.
     #[default]
     None,
-    /// Line / statement coverage only (DO-178C A-7 Obj-5
-    /// minimum at DAL-C).
+    /// Line / statement coverage only (A-7 Obj-5 dimension,
+    /// engineering metric).
     Line,
-    /// LLVM branch coverage (Obj-6 minimum at DAL-B). Cert/
-    /// record default.
+    /// LLVM branch coverage — an approximation of decision
+    /// coverage (A-7 Obj-6 dimension). Cert/record default.
     Branch,
     /// Emit both `line` and `branch` measurements from the
     /// same instrumented test pass.

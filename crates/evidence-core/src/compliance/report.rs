@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::policy::StandardsPack;
+
 /// Verdict for a single DO-178C objective.
 ///
 /// Distinct variants for `NotMet` vs `ManualReviewRequired` matter on
@@ -95,8 +97,24 @@ pub struct ComplianceSummary {
 pub struct ComplianceReport {
     /// Crate name
     pub crate_name: String,
-    /// Declared DAL level
+    /// Assurance level label: the DAL letter (`"A"`–`"D"`) for DAL
+    /// claims, `"QM"`, or `"unclassified"` for development reports.
+    /// Cross-checked against `index.json` `dal_map` by the bundle
+    /// verifier, so the two always agree.
     pub dal: String,
+    /// Standard the objective mapping claims (`"DO-178C"`).
+    pub standard: String,
+    /// Edition of the claimed standard (`"C"`).
+    pub standard_edition: String,
+    /// Assurance level, snake_case wire string (`"dal_a"`–`"dal_d"`,
+    /// `"qm"`, `"unclassified"`).
+    pub assurance_level: String,
+    /// Versioned standards pack the objective mapping is bound to
+    /// (LLR-110). Deserialization restores the pack this build binds
+    /// — reports are verified via the bundle's hash chain, not by
+    /// trusting a parsed pack field.
+    #[serde(skip_deserializing, default = "StandardsPack::do_178c")]
+    pub standards_pack: StandardsPack,
     /// Schema version of this compliance report
     pub schema_version: String,
     /// List of objectives with their status
@@ -146,6 +164,15 @@ pub struct CrateEvidence {
     /// Aggregate branch-coverage percentage. Same semantics as
     /// [`Self::coverage_statement_percent`] for A-7 Obj-6.
     pub coverage_branch_percent: Option<f64>,
+    /// Documented analysis/disposition of uncovered structure — the
+    /// DO-178C A-7 Obj-5/6 resolution record (e.g. a pointer to the
+    /// project's coverage-analysis review record). This is a separate
+    /// evidence kind from the raw percentage: the metric informs, the
+    /// disposition closes. `None` means no disposition was recorded,
+    /// which caps A7-8 at `ManualReviewRequired` (LLR-108). The
+    /// generate pipeline plumbs `None` until a disposition artifact
+    /// exists; downstream producers construct the field directly.
+    pub coverage_disposition: Option<String>,
 }
 
 #[cfg(test)]
@@ -158,17 +185,35 @@ pub struct CrateEvidence {
 mod tests {
     use super::super::generator::generate_compliance_report;
     use super::*;
-    use crate::policy::Dal;
+    use crate::policy::AssuranceLevel;
 
     #[test]
     fn test_compliance_report_serialization() {
         let evidence = CrateEvidence::default();
-        let report = generate_compliance_report("test-crate", Dal::C, &evidence);
+        let report = generate_compliance_report("test-crate", AssuranceLevel::DalC, &evidence);
         let json = serde_json::to_string_pretty(&report).unwrap();
         assert!(json.contains("\"crate_name\": \"test-crate\""));
         assert!(json.contains("\"dal\": \"C\""));
+        // Standards-pack binding + assurance naming (LLR-110).
+        assert!(json.contains("\"standard\": \"DO-178C\""));
+        assert!(json.contains("\"standard_edition\": \"C\""));
+        assert!(json.contains("\"assurance_level\": \"dal_c\""));
+        assert!(json.contains("\"id\": \"do-178c-ac20-115d\""));
+        assert!(json.contains("\"version\": \"1.0.0\""));
         // Should deserialize back
         let _: ComplianceReport = serde_json::from_str(&json).unwrap();
+    }
+
+    /// Development reports name the level `unclassified` — never a
+    /// DAL letter — while still binding the same standards pack.
+    #[test]
+    fn test_unclassified_report_names_no_dal() {
+        let evidence = CrateEvidence::default();
+        let report =
+            generate_compliance_report("dev-crate", AssuranceLevel::Unclassified, &evidence);
+        assert_eq!(report.dal, "unclassified");
+        assert_eq!(report.assurance_level, "unclassified");
+        assert_eq!(report.standards_pack.id, "do-178c-ac20-115d");
     }
 
     /// Pin the wire format: each variant must serialize to the

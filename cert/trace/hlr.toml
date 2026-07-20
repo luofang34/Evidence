@@ -1152,9 +1152,10 @@ cert/record profile (missing coverage data is a cert-grade
 blocker). Parse failures emit `COVERAGE_PARSE_FAILED` (Error).
 
 Default coverage level follows the active profile: dev →
-`none` (fast iteration), cert/record → `branch` (branch
-coverage is required for DAL-B; statement is a subset).
-Explicit `--coverage=` on the command line overrides.
+`none` (fast iteration), cert/record → `branch` (the broadest
+approximation the tool captures for named-claim profiles;
+statement is a subset). Explicit `--coverage=` on the command
+line overrides.
 
 The schema reserves the four-value `level` enum — `statement`,
 `branch`, `pattern_decision`, `mcdc` — so a future PR adding
@@ -1216,34 +1217,37 @@ surfaces = ["trace"]
 [[requirements]]
 uid = "bebe9227-5f47-4eb8-89a7-f2157fb96e6c"
 id = "HLR-056"
-title = "generate compares per-level coverage aggregate against Dal::coverage_thresholds"
+title = "generate compares per-level coverage aggregate against the DAL engineering gates"
 owner = "tool"
 scope = "component"
 description = """
 On `cmd_generate` with `Profile::Cert` or `Profile::Record`
 and `CoverageChoice != None`, after the typed `CoverageReport`
-is built, the threshold-enforcement surface runs:
+is built, the engineering-gate enforcement surface runs:
 
-  1. Compute the max DAL across per-crate overrides (see
-     `load_max_dal` mirror in `cli/check.rs` — doctor does
+  1. Compute the max assurance level across per-crate overrides
+     (see `load_max_dal` mirror in `cli/check.rs` — doctor does
      the same thing for the downstream case).
   2. Pull `Dal::coverage_thresholds() -> DalCoverageThresholds
      {statement_percent: Option<u8>, branch_percent: Option<u8>}`
-     for that DAL. DAL-D returns `{None, None}`; DAL-C sets
-     statement = 90; DAL-B adds branch = 85; DAL-A tightens
-     branch to 90.
-  3. For each `(level, Some(threshold))` pair, if a measurement
-     of that level exists, invoke the level-appropriate
-     aggregator (`aggregate_lines_percent` for Statement,
+     for that level's policy row. These are engineering quality
+     gates owned by this tool, NOT DO-178C-mandated acceptance
+     thresholds: structural-coverage objectives close only with
+     documented analysis/disposition of uncovered structure plus
+     tool qualification evidence (see HLR-088 for the verdict
+     truth table).
+  3. For each `(level, Some(gate))` pair, if a measurement of
+     that level exists, invoke the level-appropriate aggregator
+     (`aggregate_lines_percent` for Statement,
      `aggregate_branches_percent` for Branch) and compare
-     `current < f64::from(threshold)`. Comparison is strict
-     `<` — DO-178C minima are stated inclusively, so equality
-     passes.
+     `current < f64::from(gate)`. Comparison is strict `<` —
+     equality passes the gate.
   4. Each shortfall emits `COVERAGE_BELOW_THRESHOLD {
      dimension: "statement" | "branch", current: f64,
      threshold: u8 }`. The CLI translates any violation into
      exit 2 (`EXIT_CERT_REQUIREMENT_UNMET`), refusing to
-     finalize a bundle that can't back its A-7 Obj-5/6 claim.
+     finalize a bundle that carries unexplained uncovered
+     structure above the agreed engineering bar.
 
 Dev profile surfaces the report but skips the enforcement
 block entirely — the `enforce_thresholds` flag gates on
@@ -2181,3 +2185,64 @@ leave the gates off so adoption stays incremental.
 """
 verification_methods = ["test"]
 traces_to = ["3782184e-8bc6-40d2-bfba-60803fb2d1f2"]
+
+[[requirements]]
+uid = "8ecf1de8-f7cb-4e17-a7d4-9f98b0097a98"
+id = "HLR-088"
+title = "Coverage verdicts map engineering metrics to honest A-7 statuses with separate disposition evidence"
+owner = "tool"
+scope = "component"
+description = """
+The compliance evaluator shall map a structural-coverage aggregate
+to a DO-178C Table A-7 objective status by this truth table: no
+coverage data yields NotMet; an aggregate below the level's
+engineering gate yields Partial and the note requires documented
+analysis and disposition of the uncovered structure; an aggregate
+at or above the gate without a recorded analysis/disposition
+yields ManualReviewRequired, because the percentage is an
+engineering metric and the objective closes only with documented
+disposition of uncovered structure plus tool qualification
+evidence; an aggregate at or above the gate with a recorded
+analysis/disposition yields Met for statement coverage only.
+Branch coverage is an LLVM approximation of decision coverage and
+caps at ManualReviewRequired even with a disposition, since
+approximate evidence cannot close the semantic decision-coverage
+objective. When no engineering gate applies at the selected
+assurance level the verdict is ManualReviewRequired: a percentage
+alone still cannot close the objective. The analysis/disposition
+record is carried as a field separate from the raw metric so the
+two evidence kinds stay distinct. MC/DC (A7-10) remains NotMet
+without auxiliary qualified-tool evidence.
+"""
+verification_methods = ["test"]
+traces_to = ["7cee4f62-6321-439b-96da-9d73511aad0b"]
+
+[[requirements]]
+uid = "f5b3e685-06d9-42fc-a045-0478d5f661d0"
+id = "HLR-089"
+title = "Cert and record evaluation fails closed without an explicit assurance selection; reports bind a versioned standards pack"
+owner = "tool"
+scope = "component"
+description = """
+A named-claim evaluation — bundle generation under the cert or
+record profile — shall resolve an explicit assurance selection
+from cert/boundary.toml before any tolerant default loading: a
+loadable boundary file with a [dal] section declaring
+default_dal and a non-empty scope.in_scope. A missing,
+unreadable, or unparseable boundary, an absent [dal] section, or
+an empty in-scope set fails the run with
+POLICY_ASSURANCE_SELECTION_MISSING and a non-zero exit.
+Development surfaces construct the unclassified selection
+explicitly; the unclassified level maps to the least-strict
+policy row (the former DAL-D flag set) but is named unclassified
+in every diagnostic and report, never silently DAL-D or QM.
+
+Every per-crate compliance report shall record the standard, its
+edition, the crate's assurance level, and the standards pack
+{id, version, review_record} the objective mapping is bound to.
+The pack is a versioned code-level constant whose review record
+points at the applicability and tailoring document
+(cert/QUALIFICATION.md).
+"""
+verification_methods = ["test"]
+traces_to = ["7cee4f62-6321-439b-96da-9d73511aad0b"]

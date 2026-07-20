@@ -13,11 +13,13 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum CoverageLevel {
     /// Line/statement executed at least once under the test suite.
-    /// DAL-C minimum (DO-178C A-7 Obj-5).
+    /// Engineering metric for the A-7 Obj-5 dimension; gated at
+    /// DAL ≥ C by this tool (not a DO-178C acceptance threshold).
     Statement,
     /// LLVM branch coverage: every `if` / `match` arm entered.
-    /// Approximation of DO-178C decision coverage. DAL-B minimum
-    /// (A-7 Obj-6).
+    /// Approximation of DO-178C decision coverage (A-7 Obj-6
+    /// dimension); gated at DAL ≥ B by this tool. The approximation
+    /// cannot close the semantic objective.
     Branch,
     /// Rust pattern-match refutability class coverage per arXiv
     /// 2409.08708 Section 4. Reserved — not emitted until rustc's

@@ -549,34 +549,37 @@ traces_to = []
 [[requirements]]
 uid = "895097b2-6d08-4ef7-9305-143a87424684"
 id = "SYS-024"
-title = "Tool shall enforce DO-178C A-7 minimum coverage percentages per DAL"
+title = "Tool shall treat coverage percentages as engineering metrics and gate cert bundles on uncovered structure"
 owner = "soi"
 scope = "soi"
 description = """
 SYS-021 requires a coverage artifact to land in the bundle.
-That ensures the auditor can see the numbers; it does not
-ensure the numbers meet DAL minima. Without mechanical
-enforcement, a bundle can claim DAL-B compliance while
-carrying 50% branch coverage — the auditor is expected to
-catch the gap by hand, which degrades back to verbal
-assertion.
+That ensures the auditor can see the numbers; it does not make
+the numbers a compliance verdict. DO-178C structural coverage
+objectives are objective-driven: uncovered structure requires
+analysis and disposition, and no fixed percentage closes an
+objective. The tool shall therefore treat statement/branch
+percentages as engineering metrics only.
 
-SYS-024 closes that gap: on `Profile::Cert` / `Profile::Record`,
-the tool compares each measurement level's aggregate against
-`Dal::coverage_thresholds()` and refuses to finalize the
-bundle when any level falls short. The structured diagnostic
+On `Profile::Cert` / `Profile::Record`, the tool compares each
+measurement level's aggregate against the DAL engineering gates
+in `Dal::coverage_thresholds()` and refuses to finalize the
+bundle when any level falls short — an engineering gate that
+keeps unexplained uncovered structure out of a cert bundle,
+never a compliance determination. The structured diagnostic
 `COVERAGE_BELOW_THRESHOLD { dimension, current, threshold }`
-carries enough detail that the operator can see which
-specific minimum was missed, without reading the full
-coverage JSON. Dev profile continues to emit the artifact but
-never blocks, so downstream exploratory runs keep working.
+carries enough detail that the operator can see which specific
+gate was missed. Dev profile continues to emit the artifact but
+never blocks.
 
-The pre-#82 `[dal.objectives]` override design was rejected in
-favour of this surface (see plan Q2) because per-objective
-manual overrides let downstream forks silently relax A-7;
-SYS-024 keeps the minima centralized in `Dal::coverage_thresholds`
-and the enforcement path in a single `threshold_violations`
-dispatcher.
+Before any A-7 objective may report `Met`, the tool shall
+require separate evidence: documented analysis/disposition of
+uncovered structure, tool identity and qualification, and
+manual or independent review. Approximate or unqualified
+coverage evidence (LLVM branch coverage approximating decision
+coverage) shall yield `ManualReviewRequired`, never `Met`.
+Cert/record claims shall require an explicit assurance
+selection (SYS-037); a missing selection fails closed.
 """
 verification_methods = ["test"]
 traces_to = []
@@ -956,6 +959,46 @@ requested assurance claim over no evidence. Development-mode
 surfaces may report an explicit non-success adoption diagnostic so
 iteration stays unblocked, but the diagnostic shall name the
 adoption state rather than report validity.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []
+
+[[requirements]]
+uid = "7cee4f62-6321-439b-96da-9d73511aad0b"
+id = "SYS-037"
+title = "Coverage percentages are engineering metrics, never compliance proof; cert claims require explicit assurance selection"
+owner = "soi"
+scope = "soi"
+description = """
+Structural-coverage percentages (statement, branch) are engineering
+quality metrics, not DO-178C compliance verdicts. The structural
+coverage objectives of DO-178C Annex A Table A-7 are
+objective-driven: uncovered structure requires analysis and
+disposition, and no fixed percentage closes an objective (FAA
+AC 20-115D / DO-178C A-7). LLVM branch coverage approximates
+decision coverage; approximate evidence cannot be silently
+promoted to semantic decision or MC/DC evidence.
+
+The tool shall record coverage metrics, uncovered items,
+analysis/disposition records, tool identity and qualification, and
+manual or independent review outcomes as separate evidence kinds,
+and shall never map a percentage alone to a satisfied A-7
+objective: approximate or unqualified evidence yields a
+manual-review or unsupported verdict, never Met.
+
+Certification and record evaluation shall require an explicit
+assurance selection — a standard edition and an assurance level
+recorded in cert/boundary.toml — and shall fail closed when that
+selection is missing. Development-mode evaluation shall name
+itself unclassified rather than silently assuming the least
+stringent assurance level, so a missing configuration can never
+weaken an intended claim unnoticed. Every standard-to-objective
+mapping the tool applies shall be bound to a versioned,
+expert-reviewed standards pack with an applicability and
+tailoring record.
 """
 verification_methods = [
     "test",

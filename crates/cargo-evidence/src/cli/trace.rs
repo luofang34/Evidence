@@ -6,7 +6,7 @@ use anyhow::Result;
 
 use evidence_core::diagnostic::{Diagnostic, DiagnosticCode, Location, Severity};
 use evidence_core::{
-    BoundaryConfig, EvidencePolicy, backfill_uuids,
+    AssuranceSelection, BoundaryConfig, EvidencePolicy, backfill_uuids,
     trace::{
         LinkError, TraceEvidenceEval, TraceEvidenceState, TraceReadError, TraceValidationError,
         evaluate_trace_evidence, read_all_trace_files, resolve_test_selectors,
@@ -72,12 +72,14 @@ pub fn cmd_trace(
 
     // Validate trace links
     if do_validate {
-        // Load DAL config from boundary.toml for DAL-driven validation.
-        // Missing/malformed file → default config (DAL-D everywhere).
-        let boundary_config = BoundaryConfig::load_or_default(&PathBuf::from("cert/boundary.toml"));
-        let dal_map = boundary_config.dal_map();
-        let dal = dal_map.values().copied().max().unwrap_or_default();
-        let mut evidence_policy = EvidencePolicy::for_dal(dal);
+        // DAL-driven validation derives from the explicit assurance
+        // selection (LLR-109); no usable selection → unclassified
+        // (least-strict policy row), never a silent DAL-D.
+        let selection = BoundaryConfig::load(&PathBuf::from("cert/boundary.toml"))
+            .ok()
+            .and_then(|cfg| cfg.assurance_selection())
+            .unwrap_or_else(AssuranceSelection::unclassified);
+        let mut evidence_policy = EvidencePolicy::for_dal(selection.level.effective_policy_dal());
         // CLI flag overrides the DAL-derived default. Opt-in: external
         // projects without a SYS layer keep passing by default; the
         // tool's own CI enables the flag to make SYS coverage

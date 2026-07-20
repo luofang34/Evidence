@@ -63,7 +63,9 @@ forbid_proc_macros = false
 
 [dal]
 # Default Design Assurance Level for all in-scope crates (A, B, C, or D).
-# D is the least stringent (default if omitted).
+# D is the least stringent. Omit the whole [dal] section for
+# unclassified development; cert/record profiles fail closed without
+# an explicit default_dal here (POLICY_ASSURANCE_SELECTION_MISSING).
 default_dal = "D"
 
 # Per-crate DAL overrides

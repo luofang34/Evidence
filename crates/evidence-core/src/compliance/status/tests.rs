@@ -20,7 +20,7 @@ use super::{
     a7_1_2_hlr_testing, a7_3_4_llr_testing, a7_5_target_compatibility, a7_6_hlr_test_coverage,
     a7_7_llr_test_coverage, a7_10_mcdc_coverage,
 };
-use crate::policy::Dal;
+use crate::policy::AssuranceLevel;
 
 /// Baseline evidence: trace + tests + per-test outcomes all
 /// present and green. Individual tests override fields to
@@ -35,6 +35,7 @@ fn evidence_all_green() -> CrateEvidence {
         has_per_test_outcomes: true,
         coverage_statement_percent: None,
         coverage_branch_percent: None,
+        coverage_disposition: None,
     }
 }
 
@@ -225,7 +226,7 @@ fn test_failing_tests_mark_all_a7_objectives_not_met() {
         has_per_test_outcomes: false,
         ..CrateEvidence::default()
     };
-    let report = generate_compliance_report("failing-crate", Dal::A, &evidence);
+    let report = generate_compliance_report("failing-crate", AssuranceLevel::DalA, &evidence);
 
     for id in ["A7-1", "A7-2", "A7-3", "A7-4", "A7-5"] {
         let obj = report
@@ -258,7 +259,7 @@ fn test_missing_tests_passed_data_marks_a7_not_met() {
         has_per_test_outcomes: false,
         ..CrateEvidence::default()
     };
-    let report = generate_compliance_report("no-tests-crate", Dal::A, &evidence);
+    let report = generate_compliance_report("no-tests-crate", AssuranceLevel::DalA, &evidence);
 
     for id in ["A7-1", "A7-2", "A7-3", "A7-4", "A7-5"] {
         let obj = report
@@ -290,7 +291,7 @@ fn test_passing_tests_earn_a7_partial_or_met() {
         has_per_test_outcomes: false,
         ..CrateEvidence::default()
     };
-    let report = generate_compliance_report("passing-crate", Dal::A, &evidence);
+    let report = generate_compliance_report("passing-crate", AssuranceLevel::DalA, &evidence);
 
     for id in ["A7-1", "A7-2", "A7-3", "A7-4"] {
         let obj = report
@@ -330,7 +331,7 @@ fn test_a3_a4_a5_a6_default_to_manual_review_at_dal_a() {
         has_per_test_outcomes: false,
         ..CrateEvidence::default()
     };
-    let report = generate_compliance_report("review-crate", Dal::A, &evidence);
+    let report = generate_compliance_report("review-crate", AssuranceLevel::DalA, &evidence);
 
     let expected_manual = |id: &str, table: &str| {
         matches!(table, "Table A-3" | "Table A-4" | "Table A-5" | "Table A-6")
@@ -361,7 +362,12 @@ fn test_a3_a4_a5_a6_default_to_manual_review_at_dal_a() {
 /// generator's match-over-enum.
 #[test]
 fn summary_buckets_cover_every_applicable_objective() {
-    for dal in [Dal::A, Dal::B, Dal::C, Dal::D] {
+    for dal in [
+        AssuranceLevel::DalA,
+        AssuranceLevel::DalB,
+        AssuranceLevel::DalC,
+        AssuranceLevel::DalD,
+    ] {
         let evidence = CrateEvidence {
             has_trace_data: true,
             trace_validation_passed: true,
@@ -396,7 +402,7 @@ fn a7_3_upgrades_to_met_with_per_test_outcomes() {
         has_per_test_outcomes: false,
         ..CrateEvidence::default()
     };
-    let report_without = generate_compliance_report("u", Dal::C, &without);
+    let report_without = generate_compliance_report("u", AssuranceLevel::DalC, &without);
     let a7_3_without = report_without
         .objectives
         .iter()
@@ -412,7 +418,7 @@ fn a7_3_upgrades_to_met_with_per_test_outcomes() {
         has_per_test_outcomes: true,
         ..without
     };
-    let report_with = generate_compliance_report("u", Dal::C, &with);
+    let report_with = generate_compliance_report("u", AssuranceLevel::DalC, &with);
     let a7_3_with = report_with
         .objectives
         .iter()
@@ -423,7 +429,7 @@ fn a7_3_upgrades_to_met_with_per_test_outcomes() {
         ObjectiveStatusKind::Met,
         "per-test outcomes must upgrade A7-3 to Met"
     );
-    let report_b = generate_compliance_report("u", Dal::B, &with);
+    let report_b = generate_compliance_report("u", AssuranceLevel::DalB, &with);
     let a7_4_b = report_b
         .objectives
         .iter()

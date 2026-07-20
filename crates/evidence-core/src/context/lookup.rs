@@ -16,7 +16,7 @@ use super::report::{
 };
 use super::resolver::{ResolvedSelector, discover_workspace_crates};
 use crate::floors::{FloorsConfig, LoadOutcome, current_measurements, per_crate_measurements};
-use crate::policy::BoundaryConfig;
+use crate::policy::{AssuranceLevel, BoundaryConfig};
 use crate::trace::{HlrEntry, LlrEntry, TestEntry, TraceFiles, read_all_trace_files};
 
 /// Top-level entry point — compose the report for `selector`.
@@ -271,13 +271,18 @@ fn collect_emits(llrs: &[LlrEntry]) -> Vec<String> {
     set.into_iter().collect()
 }
 
-/// Resolve the effective DAL for `crate_name`. Falls back to the
-/// `default_dal` when the crate isn't in `dal.crate_overrides`.
+/// Resolve the effective assurance-level label for `crate_name`:
+/// the crate's override, else `default_dal`, else `unclassified`
+/// when no level is claimed (LLR-109).
 fn dal_for_crate(boundary: &BoundaryConfig, crate_name: Option<&str>) -> String {
-    let dal = crate_name
-        .and_then(|name| boundary.dal.crate_overrides.get(name).copied())
-        .unwrap_or(boundary.dal.default_dal);
-    format!("{:?}", dal)
+    let claimed = boundary.dal.as_ref().and_then(|dal| {
+        crate_name
+            .and_then(|name| dal.crate_overrides.get(name).copied())
+            .or(dal.default_dal)
+    });
+    claimed
+        .map_or(AssuranceLevel::Unclassified, AssuranceLevel::from_dal)
+        .to_string()
 }
 
 /// Per-crate floor rows applicable to the selector. Workspace-wide

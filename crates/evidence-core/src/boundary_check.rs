@@ -319,7 +319,7 @@ fn find_out_of_scope_deps(
 /// hard fail (cert / record profile) or a warning (dev profile).
 /// The library function is policy-free — it just returns the fact.
 pub fn check_dal_a_mcdc_evidence(
-    dal_map: &std::collections::BTreeMap<String, crate::policy::Dal>,
+    dal_map: &std::collections::BTreeMap<String, crate::policy::AssuranceLevel>,
     auxiliary_mcdc_tool: Option<&crate::policy::AuxiliaryMcdcTool>,
 ) -> Result<(), BoundaryCheckError> {
     if auxiliary_mcdc_tool.is_some() {
@@ -327,7 +327,7 @@ pub fn check_dal_a_mcdc_evidence(
     }
     let mut dal_a_crates: Vec<String> = dal_map
         .iter()
-        .filter(|(_, dal)| **dal == crate::policy::Dal::A)
+        .filter(|(_, level)| **level == crate::policy::AssuranceLevel::DalA)
         .map(|(name, _)| name.clone())
         .collect();
     if dal_a_crates.is_empty() {

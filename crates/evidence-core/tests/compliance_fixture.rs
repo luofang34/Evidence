@@ -37,7 +37,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use evidence_core::{CrateEvidence, Dal, ObjectiveStatusKind, generate_compliance_report};
+use evidence_core::{
+    AssuranceLevel, CrateEvidence, ObjectiveStatusKind, generate_compliance_report,
+};
 
 const FIXTURE_PATH: &str = "tests/fixtures/compliance/dal_b_mixed_evidence.json";
 
@@ -57,13 +59,15 @@ fn canonical_evidence() -> CrateEvidence {
         has_per_test_outcomes: false,
         coverage_statement_percent: None,
         coverage_branch_percent: None,
+        coverage_disposition: None,
     }
 }
 
 /// Render the canonical report as the exact bytes written to disk by
 /// `cmd_generate` (`serde_json::to_string_pretty` + trailing LF).
 fn render_canonical_report() -> String {
-    let report = generate_compliance_report("fixture-crate", Dal::B, &canonical_evidence());
+    let report =
+        generate_compliance_report("fixture-crate", AssuranceLevel::DalB, &canonical_evidence());
     let mut json = serde_json::to_string_pretty(&report).expect("serialize report");
     json.push('\n');
     json
@@ -117,7 +121,8 @@ fn generated_report_matches_committed_fixture() {
 /// shield — this test fails loudly instead.
 #[test]
 fn canonical_report_exercises_every_variant() {
-    let report = generate_compliance_report("fixture-crate", Dal::B, &canonical_evidence());
+    let report =
+        generate_compliance_report("fixture-crate", AssuranceLevel::DalB, &canonical_evidence());
 
     let seen = |k: ObjectiveStatusKind| report.objectives.iter().any(|o| o.status == k);
 

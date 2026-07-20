@@ -111,10 +111,13 @@ on `level == "statement"` or `level == "branch"`.
 `FileMeasurement` also carries a `branches: Option<BranchCoverage {
 covered, total }>` field sibling to `lines`, populated on
 `level == "branch"` and `None` on `level == "statement"`. This is
-the structural source for A-7 Obj-6 decision-coverage threshold
-enforcement — aggregation over a Branch measurement reads
-`branches`, never `lines`, so the compliance gate cannot be
-accidentally satisfied by line coverage.
+the structural source for the A-7 Obj-6 dimension's *engineering
+gate* — aggregation over a Branch measurement reads
+`branches`, never `lines`, so the gate cannot be
+accidentally satisfied by line coverage. The gate is an
+engineering quality check, not a compliance determination:
+passing it never closes the decision-coverage objective (see the
+credit table below).
 
 ## Rust-specific pattern-decision semantics
 
@@ -175,8 +178,16 @@ reject any claim that extends the C-style const exemption to immutable
 | A-4 Obj-6 (LLR traceability)   | Mechanical when trace present    | `trace/llr.toml`, `trace/matrix.md`        |
 | A-6 Obj-5 (source-to-LLR)      | Partial (needs `test_selectors`) | `trace/llr.toml`                           |
 | A-7 Obj-3 (test cases)         | Mechanical + per-test artifact   | `tests/test_outcomes.jsonl`                |
-| A-7 Obj-5 (statement coverage) | Mechanical when thresholds met   | `coverage/coverage_summary.json`           |
-| A-7 Obj-6 (decision coverage)  | Approximation via LLVM branches  | `coverage/coverage_summary.json`, `lcov.info` |
+| A-7 Obj-5 (statement coverage) | Metric + engineering gate only — `Met` requires a recorded analysis/disposition of uncovered structure | `coverage/coverage_summary.json`           |
+| A-7 Obj-6 (decision coverage)  | Approximation via LLVM branches — caps at `ManualReviewRequired`, never mechanically `Met` | `coverage/coverage_summary.json`, `lcov.info` |
+
+Coverage percentages are **engineering metrics, not compliance
+evidence**. The metrics inform the objective; what closes it is
+documented analysis/disposition of uncovered structure, tool
+identity and qualification evidence, and manual/independent review —
+each recorded as a separate evidence kind. Approximate (LLVM branch)
+or otherwise unqualified coverage evidence yields
+`ManualReviewRequired`, never `Met`.
 
 Objectives not in this table default to `ManualReviewRequired`: the
 tool emits the bundle but the human reviewer must confirm the

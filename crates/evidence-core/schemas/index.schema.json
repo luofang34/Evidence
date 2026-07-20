@@ -154,9 +154,9 @@
       "type": "object",
       "additionalProperties": {
         "type": "string",
-        "enum": ["A", "B", "C", "D"]
+        "enum": ["A", "B", "C", "D", "QM", "unclassified"]
       },
-      "description": "Per-crate DAL (Design Assurance Level) assignments. Key is crate name, value is DAL level."
+      "description": "Per-crate assurance-level assignments. Key is crate name, value is the DAL letter for DAL claims, QM, or unclassified for crates with no claimed level (development mode)."
     },
     "boundary_policy": {
       "type": "object",

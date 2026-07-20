@@ -19,10 +19,32 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use evidence_core::{BoundaryPolicy, Profile};
+use evidence_core::{BoundaryPolicy, DiagnosticCode, Profile};
 
 use super::fail;
 use super::phases::BoundaryDerived;
+
+/// Assurance-selection gate (LLR-109): refuse a cert/record
+/// named-claim run whose boundary config carries no explicit
+/// assurance selection — a loadable `boundary.toml` with a `[dal]`
+/// section declaring `default_dal` and a non-empty `scope.in_scope`.
+/// The orchestrator calls this before the doctor precheck so the
+/// typed `POLICY_ASSURANCE_SELECTION_MISSING` root cause surfaces
+/// first; development profiles never reach it (they construct
+/// `AssuranceSelection::unclassified()` downstream instead).
+///
+/// Returns `Ok(None)` when the selection resolves, `Ok(Some(code))`
+/// after emitting the standard failure envelope on refusal.
+pub(super) fn enforce_assurance_selection(
+    boundary_path: &Path,
+    profile: Profile,
+    json_output: bool,
+) -> Result<Option<i32>> {
+    match evidence_core::AssuranceSelection::require_for_named_claim(boundary_path) {
+        Ok(_) => Ok(None),
+        Err(e) => fail(json_output, profile, format!("{}: {e}", e.code())).map(Some),
+    }
+}
 
 /// Refuse a run when `boundary.toml` enables a rule this release
 /// doesn't implement. Returns `Ok(Some(EXIT_ERROR))` with the

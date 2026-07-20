@@ -285,13 +285,28 @@ fn downstream_dal_a_fixture_catches_missing_sys() {
 
 #[test]
 fn cert_generate_blocks_on_doctor_fail() {
-    // Sloppy fixture: no trace, no floors, no boundary.
+    // Sloppy fixture: no trace, no floors — but an explicit,
+    // loadable boundary with a `[dal]` section so the
+    // assurance-selection gate (LLR-109) passes and the doctor
+    // precheck remains the observable failure. (Without `[dal]`
+    // the run fails earlier, on POLICY_ASSURANCE_SELECTION_MISSING
+    // — that layering is pinned in tests/assurance_selection.rs.)
     let tmp = TempDir::new().expect("tempdir");
     // A minimal Cargo.toml so `generate`'s preflight + profile resolution
     // doesn't fail on something upstream of the doctor precheck.
     fs::write(
         tmp.path().join("Cargo.toml"),
         "[workspace]\nmembers = []\nresolver = \"2\"\n",
+    )
+    .unwrap();
+    fs::create_dir_all(tmp.path().join("cert")).expect("cert dir");
+    fs::write(
+        tmp.path().join("cert/boundary.toml"),
+        format!(
+            "[schema]\nversion = \"{}\"\n\n[scope]\nin_scope = [\"dummy\"]\n\n\
+             [policy]\nno_out_of_scope_deps = false\n\n[dal]\ndefault_dal = \"D\"\n",
+            evidence_core::schema_versions::BOUNDARY
+        ),
     )
     .unwrap();
 

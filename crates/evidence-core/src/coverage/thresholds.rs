@@ -42,9 +42,13 @@ pub struct CoverageThresholdViolation {
 /// Branch level) are silently skipped — that's a generate-time
 /// invariant the caller has already enforced.
 ///
-/// Comparison is strict `<`, not `<=`. DO-178C A-7 minima are
-/// stated inclusively ("statement coverage shall be ≥ 90% at
-/// DAL-C"), so equality is compliant. The corresponding
+/// Comparison is strict `<`, not `<=`. These are **engineering
+/// quality gates**, not DO-178C A-7 acceptance minima: the
+/// cert/record refusal below the gate is an engineering check
+/// (uncovered structure above an agreed bar blocks the bundle),
+/// never a compliance determination — uncovered structure still
+/// requires analysis and disposition before any A-7 objective
+/// closes (LLR-108). Equality passes the gate; the
 /// `threshold_bva_exact_equality_passes` test pins this.
 pub fn evaluate_thresholds(
     report: &CoverageReport,
