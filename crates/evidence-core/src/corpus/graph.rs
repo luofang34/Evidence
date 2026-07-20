@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::digest::ReviewContentDigest;
 use super::error::CorpusError;
@@ -30,7 +30,7 @@ pub enum EdgeKind {
 }
 
 /// Requirement decomposition layer within the graph.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RequirementLayer {
     /// Extracted directly from a frozen source document.
