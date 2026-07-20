@@ -9,18 +9,19 @@
 //! # v1 projection membership
 //!
 //! Included: title; decomposition layer; description; rationale;
-//! scope; category; source reference; verification methods; and the
-//! canonical `derives_from` target uids. Excluded: the uid (bound
-//! separately), the human id and namespace (renameable under DD-4),
-//! owner, `sort_key`, implementation modules, governed surfaces,
-//! emitted diagnostic codes, file path, TOML layout, file order,
-//! and record order — an approved requirement can acquire
-//! implementation and test mappings without invalidating approval.
+//! scope; category; source reference; verification methods; the
+//! canonical `derives_from` target uids; and a derived requirement's
+//! `safety_impact` — normative assurance content, so changing it
+//! must stale an approval. Excluded: the uid (bound separately),
+//! the human id and namespace (renameable under DD-4), owner,
+//! `sort_key`, implementation modules, governed surfaces, emitted
+//! diagnostic codes, file path, TOML layout, file order, record
+//! order, and which loader (native records or the legacy adapter)
+//! produced the node — an approved requirement can acquire
+//! implementation and test mappings without invalidating approval,
+//! and equivalent records from either source digest identically.
 //! `Verifies` edges are test mappings and never enter the
-//! projection. Derived requirements' `safety_impact` is assurance
-//! metadata the v1 projection does not bind; a future projection
-//! version may bind it, as may fields for modality or precise
-//! source bindings that change the normative statement.
+//! projection.
 //!
 //! # Canonical byte format (v1)
 //!
@@ -33,6 +34,7 @@
 //! || opt(category) || opt(source)
 //! || u64_be(verification_methods.len()) || str(each method, sorted)
 //! || u64_be(derives_from.len())         || str(each target, sorted)
+//! || opt(safety_impact)
 //! ```
 //!
 //! where `str(s)` is `u64_be(byte length of s) || s`'s exact UTF-8
@@ -40,12 +42,14 @@
 //! `opt(o)` is the all-ones sentinel `0xFFFFFFFFFFFFFFFF`
 //! (`u64::MAX`, unreachable as a real byte length) for `None`, or
 //! `str(v)` for `Some(v)`. `layer` encodes as its serde snake_case
-//! wire string ([`RequirementLayer::as_str`]). All lengths and
-//! counts are unsigned 64-bit big-endian; the length-prefix framing
-//! (the `envelope_bytes` precedent) prevents field-boundary
-//! collisions, and the domain/version tag keeps v1 bytes disjoint
-//! from every other encoding. Changing this contract requires a new
-//! projection version, never a silent change of existing digests.
+//! wire string ([`RequirementLayer::as_str`]). `safety_impact` is
+//! the last field: populated for derived requirements, the `None`
+//! sentinel for other layers. All lengths and counts are unsigned
+//! 64-bit big-endian; the length-prefix framing (the
+//! `envelope_bytes` precedent) prevents field-boundary collisions,
+//! and the domain/version tag keeps v1 bytes disjoint from every
+//! other encoding. Changing this contract requires a new projection
+//! version, never a silent change of existing digests.
 //!
 //! Both set-like lists are sorted and duplicate-free before
 //! encoding — enforced here, so no construction path can affect the
@@ -91,6 +95,10 @@ pub struct RequirementReviewContentV1 {
     /// Canonical `derives_from` target uids — sorted and
     /// duplicate-free.
     pub derives_from: Vec<String>,
+    /// Derived requirement's safety impact — normative assurance
+    /// content, bound so changing it stales an approval. `None` for
+    /// non-derived layers.
+    pub safety_impact: Option<String>,
 }
 
 impl RequirementReviewContentV1 {
@@ -114,6 +122,7 @@ impl RequirementReviewContentV1 {
                 .filter(|(kind, _)| *kind == EdgeKind::DerivesFrom)
                 .map(|(_, target)| target.clone())
                 .collect(),
+            safety_impact: node.safety_impact.clone(),
         };
         content.canonicalize();
         content
@@ -167,6 +176,7 @@ pub fn canonical_bytes_v1(content: &RequirementReviewContentV1) -> Vec<u8> {
     for target in &targets {
         push_str(&mut out, target);
     }
+    push_opt(&mut out, content.safety_impact.as_deref());
     out
 }
 
@@ -224,6 +234,7 @@ mod tests {
             source: Some("SRS-1".to_string()),
             verification_methods: vec!["review".to_string(), "test".to_string()],
             derives_from: vec!["req_a".to_string(), "req_b".to_string()],
+            safety_impact: Some("low".to_string()),
         };
         content.canonicalize();
         content
@@ -235,7 +246,7 @@ mod tests {
     fn included_field_changes_move_the_digest() {
         type Mutation = (&'static str, fn(&mut RequirementReviewContentV1));
         let base_digest = review_content_digest_v1(&base());
-        let cases: [Mutation; 11] = [
+        let cases: [Mutation; 13] = [
             ("title", |c| c.title.push_str(" updated")),
             ("layer", |c| c.layer = RequirementLayer::Llr),
             ("description", |c| {
@@ -259,6 +270,10 @@ mod tests {
             ("derives_from removed", |c| {
                 c.derives_from.retain(|target| target != "req_a");
             }),
+            ("safety_impact", |c| {
+                c.safety_impact = Some("high".to_string());
+            }),
+            ("safety_impact removed", |c| c.safety_impact = None),
         ];
         for (name, mutate) in cases {
             let mut changed = base();
@@ -341,6 +356,7 @@ mod tests {
             category: base.category,
             source: base.source,
             verification_methods: base.verification_methods,
+            safety_impact: base.safety_impact,
         }
     }
 

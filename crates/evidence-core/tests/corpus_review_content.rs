@@ -4,11 +4,14 @@
 //! The fixture root under `fixtures/corpus/review_content/` holds a
 //! native record corpus (`native/`) and an equivalent legacy
 //! four-file trace (`legacy/`) whose excluded fields (ns, owner,
-//! sort_key, surfaces, modules, emits) deliberately differ. The
-//! committed `review_content_v1.golden` byte-locks the v1 canonical
-//! encoding and digest of the HLR fixture projection: line 1 is
-//! `hex(canonical_bytes_v1(..))`, line 2 the lowercase hex SHA-256
-//! digest. Regenerate with `EVIDENCE_UPDATE_FIXTURES=1`.
+//! sort_key, surfaces, modules, emits, disposition) deliberately
+//! differ. The committed `review_content_v1.golden` byte-locks the
+//! v1 canonical encoding and digest of the HLR and derived fixture
+//! projections: lines 1-2 are `hex(canonical_bytes_v1(..))` and the
+//! lowercase hex SHA-256 digest for the HLR record, lines 3-4 the
+//! same pair for the derived record, so the lock covers a populated
+//! `safety_impact` frame. Regenerate with
+//! `EVIDENCE_UPDATE_FIXTURES=1`.
 
 #![allow(
     clippy::unwrap_used,
@@ -21,14 +24,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use evidence_core::corpus::{
-    CorpusGraph, CorpusIndex, RequirementLayer, canonical_bytes_v1, graph_from_trace_files,
-    review_content_digest_v1,
+    CorpusGraph, CorpusIndex, RequirementLayer, ReviewContentDigest, canonical_bytes_v1,
+    graph_from_trace_files, review_content_digest_v1,
 };
 use evidence_core::trace::{TraceFiles, read_all_trace_files};
 
 const SYS_UID: &str = "req_00000000-0000-4000-8000-00000000000a";
 const HLR_UID: &str = "req_00000000-0000-4000-8000-00000000000b";
 const LLR_UID: &str = "req_00000000-0000-4000-8000-00000000000c";
+const DERIVED_UID: &str = "req_00000000-0000-4000-8000-00000000000f";
 
 fn fixture_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/corpus/review_content")
@@ -50,17 +54,23 @@ fn legacy_graph() -> CorpusGraph {
 
 #[test]
 fn golden_fixture_byte_locks_canonical_encoding_and_digest() {
-    let content = native_graph()
-        .review_content(HLR_UID)
-        .expect("fixture HLR projects review content");
-    let digest = review_content_digest_v1(&content);
-    let rendered = format!("{}\n{digest}\n", hex::encode(canonical_bytes_v1(&content)));
+    let native = native_graph();
+    let mut rendered = String::new();
+    for uid in [HLR_UID, DERIVED_UID] {
+        let content = native
+            .review_content(uid)
+            .expect("fixture record projects review content");
+        rendered.push_str(&format!(
+            "{}\n{}\n",
+            hex::encode(canonical_bytes_v1(&content)),
+            review_content_digest_v1(&content)
+        ));
+    }
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/corpus/review_content_v1.golden");
 
     if std::env::var_os("EVIDENCE_UPDATE_FIXTURES").is_some() {
         fs::write(&path, &rendered).expect("write fixture");
-        eprintln!("updated fixture: {}", path.display());
         return;
     }
 
@@ -77,22 +87,28 @@ fn golden_fixture_byte_locks_canonical_encoding_and_digest() {
          an intentional change requires a new projection version"
     );
 
-    // The equivalent legacy record rebuilds the same bytes.
-    let legacy = legacy_graph()
-        .review_content(HLR_UID)
-        .expect("legacy fixture HLR projects review content");
-    assert_eq!(
-        review_content_digest_v1(&legacy),
-        digest,
-        "native and legacy fixture records must digest identically"
-    );
+    // The equivalent legacy records rebuild the same digests.
+    let legacy = legacy_graph();
+    for uid in [HLR_UID, DERIVED_UID] {
+        let from_native = native
+            .review_content(uid)
+            .expect("native fixture record projects");
+        let from_legacy = legacy
+            .review_content(uid)
+            .expect("legacy fixture record projects review content");
+        assert_eq!(
+            review_content_digest_v1(&from_legacy),
+            review_content_digest_v1(&from_native),
+            "native and legacy fixture records must digest identically"
+        );
+    }
 }
 
 #[test]
 fn native_and_legacy_projections_match_for_equivalent_records() {
     let native = native_graph();
     let legacy = legacy_graph();
-    for uid in [SYS_UID, HLR_UID, LLR_UID] {
+    for uid in [SYS_UID, HLR_UID, LLR_UID, DERIVED_UID] {
         let from_native = native
             .review_content(uid)
             .expect("native record projects review content");
@@ -137,6 +153,45 @@ fn native_and_legacy_projections_match_for_equivalent_records() {
     assert_eq!(
         llr.rationale, None,
         "absent optional fields stay None on both loaders"
+    );
+
+    let derived = native
+        .review_content(DERIVED_UID)
+        .expect("native derived projects");
+    assert_eq!(derived.layer, RequirementLayer::Derived);
+    assert_eq!(
+        derived.safety_impact.as_deref(),
+        Some("high"),
+        "the derived record's safety_impact projects from the native record"
+    );
+    let legacy_derived = legacy
+        .review_content(DERIVED_UID)
+        .expect("legacy derived projects");
+    assert_eq!(
+        legacy_derived.safety_impact, derived.safety_impact,
+        "safety_impact projects identically from native and legacy sources"
+    );
+}
+
+/// A derived record's `safety_impact` is bound review content: the
+/// same native record digests differently with and without it — the
+/// `None` sentinel is not interchangeable with a value (LLR-111).
+#[test]
+fn derived_record_safety_impact_presence_moves_the_digest() {
+    const SENTINEL_UID: &str = "req_00000000-0000-4000-8000-000000000010";
+    const RECORD: &str = r#"
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-000000000010"
+id = "DER-SENTINEL"
+layer = "derived"
+title = "sentinel coverage"
+description = "same prose"
+"#;
+    let with_impact = format!("{RECORD}safety_impact = \"high\"\n");
+    assert_ne!(
+        native_digest_of(&with_impact, SENTINEL_UID),
+        native_digest_of(RECORD, SENTINEL_UID),
+        "a populated safety_impact must digest differently from the None sentinel"
     );
 }
 
@@ -274,4 +329,24 @@ fn write(path: &Path, content: &str) {
         fs::create_dir_all(parent).expect("create parent");
     }
     fs::write(path, content).expect("write file");
+}
+
+/// Load a one-record native corpus from `record_body` and digest the
+/// projection of `uid`.
+fn native_digest_of(record_body: &str, uid: &str) -> ReviewContentDigest {
+    let dir = tempfile::tempdir().expect("tempdir");
+    write(
+        &dir.path().join("all/records.toml"),
+        &format!("schema_version = 1\n{record_body}"),
+    );
+    write(
+        &dir.path().join("corpus.toml"),
+        "schema_version = 1\nrequirements = [\"all/**/*.toml\"]\n",
+    );
+    let graph = CorpusIndex::load_graph(&dir.path().join("corpus.toml")).expect("load corpus");
+    review_content_digest_v1(
+        &graph
+            .review_content(uid)
+            .expect("record projects review content"),
+    )
 }

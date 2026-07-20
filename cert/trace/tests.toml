@@ -1918,4 +1918,5 @@ test_selectors = [
     "corpus_review_content::golden_fixture_byte_locks_canonical_encoding_and_digest",
     "corpus_review_content::native_and_legacy_projections_match_for_equivalent_records",
     "corpus_review_content::excluded_changes_leave_the_digest_unchanged",
+    "corpus_review_content::derived_record_safety_impact_presence_moves_the_digest",
 ]

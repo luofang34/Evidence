@@ -5,9 +5,10 @@
 //! and selectors match the legacy parser; graph insertion canonicalizes
 //! edge order and applies the same invariants as native records. The
 //! review-sensitive content fields (description, rationale, scope,
-//! category, source, verification methods) are retained on the node
-//! as normative content, so a legacy entry and an equivalent native
-//! record expose the same review-content projection (LLR-113).
+//! category, source, verification methods, and derived requirements'
+//! safety impact) are retained on the node as normative content, so a
+//! legacy entry and an equivalent native record expose the same
+//! review-content projection (LLR-113).
 
 use crate::trace::{DerivedEntry, HlrEntry, LlrEntry, TestEntry, TraceFiles};
 
@@ -100,6 +101,7 @@ fn requirement_from_hlr_entry(
             category: entry.category.clone(),
             source: entry.source.clone(),
             verification_methods: canonical_strings(&entry.verification_methods),
+            safety_impact: None,
         }),
         metadata: TraceMetadata::Requirement(RequirementMetadata {
             namespace: entry.ns.clone(),
@@ -130,6 +132,7 @@ fn requirement_from_llr_entry(entry: &LlrEntry) -> Result<AdaptedNode, CorpusErr
             category: None,
             source: entry.source.clone(),
             verification_methods: canonical_strings(&entry.verification_methods),
+            safety_impact: None,
         }),
         metadata: TraceMetadata::Requirement(RequirementMetadata {
             namespace: entry.ns.clone(),
@@ -146,9 +149,9 @@ fn requirement_from_llr_entry(entry: &LlrEntry) -> Result<AdaptedNode, CorpusErr
 }
 
 /// Derived requirements have no parent by definition — no edges.
-/// `safety_impact` is assurance metadata the v1 review-content
-/// projection deliberately does not bind; a future projection
-/// version may bind it (LLR-113).
+/// Their `safety_impact` is normative assurance content the v1
+/// review-content projection binds, so a legacy derived entry and an
+/// equivalent native record expose it identically (LLR-113).
 fn requirement_from_derived_entry(entry: &DerivedEntry) -> Result<AdaptedNode, CorpusError> {
     let uid = require_uid(entry.uid.as_deref(), &entry.id)?;
     Ok(AdaptedNode {
@@ -164,6 +167,7 @@ fn requirement_from_derived_entry(entry: &DerivedEntry) -> Result<AdaptedNode, C
             category: None,
             source: entry.source.clone(),
             verification_methods: Vec::new(),
+            safety_impact: entry.safety_impact.clone(),
         }),
         metadata: TraceMetadata::Requirement(RequirementMetadata {
             sort_key: entry.sort_key,

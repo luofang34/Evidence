@@ -2,8 +2,9 @@
 //!
 //! Native requirement records project identity, layer, title,
 //! normative content (description, rationale, scope, category,
-//! source, verification methods), and decomposition edges into the
-//! graph (LLR-113). `schema_version` gates the accepted shape.
+//! source, verification methods, safety impact), and decomposition
+//! edges into the graph (LLR-113). `schema_version` gates the
+//! accepted shape.
 
 use std::path::Path;
 
@@ -33,6 +34,9 @@ struct RequirementFile {
 
 /// One native requirement record. The optional fields are the
 /// review-sensitive normative content the graph retains (LLR-113).
+/// `safety_impact` is meaningful for `layer = "derived"` records
+/// and tolerated as `None` on other layers, whose source entries
+/// carry no such field.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RequirementRecord {
@@ -54,6 +58,8 @@ struct RequirementRecord {
     source: Option<String>,
     #[serde(default)]
     verification_methods: Vec<String>,
+    #[serde(default)]
+    safety_impact: Option<String>,
 }
 
 /// Parse the native requirement file at `path` and insert its records
@@ -103,6 +109,7 @@ pub(super) fn load_requirements_into(
             category: record.category,
             source: record.source,
             verification_methods: canonical_strings(&record.verification_methods),
+            safety_impact: record.safety_impact,
         }))?;
     }
     Ok(())

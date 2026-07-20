@@ -40,3 +40,13 @@ description = "A domain tag and length-prefixed fields fix the encoding."
 source = "design"
 verification_methods = ["test"]
 derives_from = ["req_00000000-0000-4000-8000-00000000000b"]
+
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000f"
+id = "DER-REVIEW-1"
+layer = "derived"
+title = "Derived requirement safety impact is review content"
+description = "A derived requirement carries normative assurance content."
+rationale = "Issued from the system safety assessment."
+source = "SSA-3"
+safety_impact = "high"

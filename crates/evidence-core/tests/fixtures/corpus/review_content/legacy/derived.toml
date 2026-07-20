@@ -1,0 +1,22 @@
+# Legacy equivalent of the native derived fixture record (LLR-113).
+# owner/sort_key/disposition are excluded fields: they deliberately
+# differ from anything the native schema expresses — the digest must
+# not see them. safety_impact matches the native record exactly.
+[schema]
+version = "0.0.1"
+
+[meta]
+document_id = "FIXTURE-DERIVED"
+revision = "1.0"
+
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000f"
+id = "DER-REVIEW-1"
+title = "Derived requirement safety impact is review content"
+owner = "tool"
+sort_key = 5
+source = "SSA-3"
+description = "A derived requirement carries normative assurance content."
+rationale = "Issued from the system safety assessment."
+safety_impact = "high"
+disposition = "Recorded in the fixture safety assessment."

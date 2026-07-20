@@ -3272,12 +3272,15 @@ traces_to = ["a6b6cdf2-0810-4c68-8e8c-19d49dddc07c"]
 modules = ["evidence_core::corpus::review_content"]
 description = """
 `RequirementReviewContentV1` carries title, layer, description,
-rationale, scope, category, source, verification_methods, and
-derives_from. Its constructors sort and deduplicate the two
-set-like lists, matching the existing metadata-list contract;
-duplicate typed edges remain a hard error at graph insertion.
-`from_node` pulls the content fields from a `RequirementNode` and
-the canonical targets of its `DerivesFrom` edges only — `Verifies`
+rationale, scope, category, source, verification_methods,
+derives_from, and safety_impact. A derived requirement's safety
+impact is normative assurance content, so the v1 projection binds
+it: changing safety impact from low to high must stale an existing
+approval. Its constructors sort and deduplicate the two set-like
+lists, matching the existing metadata-list contract; duplicate
+typed edges remain a hard error at graph insertion. `from_node`
+pulls the content fields from a `RequirementNode` and the
+canonical targets of its `DerivesFrom` edges only — `Verifies`
 edges are test mappings and excluded. `CorpusGraph::review_content`
 is the pure, non-I/O convenience accessor.
 
@@ -3286,10 +3289,10 @@ is the pure, non-I/O convenience accessor.
 the fields in a fixed documented order — title, layer as its serde
 snake_case string, description, rationale, scope, category, source,
 verification method count and entries, derives_from count and
-entries — each framed as `u64_be(len) || bytes` with `None` encoded
-as the all-ones `u64` sentinel, so the format is independently
-re-implementable and the framing prevents field-boundary
-collisions.
+entries, and safety_impact last — each framed as
+`u64_be(len) || bytes` with `None` encoded as the all-ones `u64`
+sentinel, so the format is independently re-implementable and the
+framing prevents field-boundary collisions.
 """
 verification_methods = ["test"]
 
@@ -3328,16 +3331,19 @@ modules = [
 ]
 description = """
 `RequirementNode` gains description, rationale, scope, category,
-source, and canonicalized verification_methods as normative content
-fields, documented as outside node identity. The native record
-schema accepts the same optional fields under its strict
+source, canonicalized verification_methods, and safety_impact as
+normative content fields, documented as outside node identity.
+safety_impact is populated for derived requirements — other layers'
+source entries carry no such field and leave it None. The native
+record schema accepts the same optional fields under its strict
 unknown-field policy and projects every one of them into the node —
 description is no longer parsed and discarded. The legacy adapter
 populates the same node fields from SYS/HLR/LLR/derived/test
 entries (description and rationale included, scope/category/source/
-verification-methods from where they already parse). TraceMetadata
-keeps its copies for report rendering unchanged. Duplicate set-like
-values in these lists canonicalize silently at construction per the
-metadata-list contract; the bytes hashed are never host-dependent.
+verification-methods from where they already parse, safety_impact
+from the derived entry). TraceMetadata keeps its copies for report
+rendering unchanged. Duplicate set-like values in these lists
+canonicalize silently at construction per the metadata-list
+contract; the bytes hashed are never host-dependent.
 """
 verification_methods = ["test"]

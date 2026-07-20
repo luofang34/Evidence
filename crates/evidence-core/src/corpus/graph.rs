@@ -135,6 +135,11 @@ pub struct RequirementNode {
     /// Verification methods, sorted and deduplicated at load
     /// (review content).
     pub verification_methods: Vec<String>,
+    /// Safety impact of a derived requirement — normative assurance
+    /// content the v1 review-content projection binds (review
+    /// content). `None` for non-derived layers, whose source
+    /// entries carry no such field.
+    pub safety_impact: Option<String>,
 }
 
 impl RequirementNode {
@@ -159,6 +164,7 @@ impl RequirementNode {
             category: None,
             source: None,
             verification_methods: Vec::new(),
+            safety_impact: None,
         }
     }
 }
