@@ -6,6 +6,8 @@
 //! |-------------|--------------------------------------------------------|
 //! | `profile`   | `Profile` enum + `ParseProfileError` + FromStr/Display |
 //! | `dal`       | `Dal` enum + `DalConfig` + `ParseDalError`             |
+//! | `assurance` | `AssuranceLevel` + `AssuranceSelection` (fail-closed)  |
+//! | `standards` | `StandardsPack` versioned objective-mapping binding    |
 //! | `boundary`  | `BoundaryConfig` + `Schema` + scope/policy + loaders   |
 //! | `evidence`  | `EvidencePolicy::for_dal` + `TracePolicy`              |
 //!
@@ -13,11 +15,14 @@
 //! continue to `use evidence_core::policy::{Profile, Dal, BoundaryConfig,
 //! …}` without caring about the split.
 
+mod assurance;
 mod boundary;
 mod dal;
 mod evidence;
 mod profile;
+mod standards;
 
+pub use assurance::{AssuranceLevel, AssuranceSelection, AssuranceSelectionError, StandardEdition};
 pub use boundary::{
     BoundaryConfig, BoundaryInputs, BoundaryPolicy, BoundaryScope, LoadBoundaryError, Schema,
     load_trace_roots,
@@ -25,3 +30,4 @@ pub use boundary::{
 pub use dal::{AuxiliaryMcdcTool, Dal, DalConfig, DalCoverageThresholds, ParseDalError};
 pub use evidence::{EvidencePolicy, TracePolicy};
 pub use profile::{ParseProfileError, Profile};
+pub use standards::{DO_178C_PACK, StandardsPack, a7_applicability};

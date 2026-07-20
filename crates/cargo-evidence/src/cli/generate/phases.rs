@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 
 use evidence_core::{
-    BoundaryConfig, BoundaryPolicy, Dal, EnvFingerprint, EvidenceBuildConfig, EvidenceBuilder,
-    Profile, build_input_plan_blocking,
+    AssuranceLevel, BoundaryConfig, BoundaryPolicy, EnvFingerprint, EvidenceBuildConfig,
+    EvidenceBuilder, Profile, build_input_plan_blocking,
     corpus::graph_from_trace_files,
     git::{check_shallow_clone, is_dirty_or_unknown},
     load_trace_roots, parse_nextest_libtest_json,
@@ -29,8 +29,10 @@ pub(super) struct BoundaryDerived {
     /// git-tracked (generated code), failing closed if absent.
     pub(super) required_inputs: Vec<String>,
     pub(super) trace_roots: Vec<String>,
-    pub(super) dal_map: BTreeMap<String, Dal>,
-    pub(super) max_dal: Dal,
+    pub(super) dal_map: BTreeMap<String, AssuranceLevel>,
+    /// Highest assurance level in scope; `Unclassified` when nothing
+    /// is claimed (never a silent DAL-D — LLR-109).
+    pub(super) max_dal: AssuranceLevel,
     /// Raw policy flags, carried so the policy-implementability
     /// check can fire before the builder is constructed.
     pub(super) policy: BoundaryPolicy,
@@ -71,7 +73,9 @@ pub(super) fn preflight(profile: Profile, json_output: bool) -> Result<Option<i3
 /// Load `boundary.toml` (default on absent/malformed — matches old
 /// hand-rolled CLI behavior), merge the `--trace-roots` flag, and
 /// produce both the [`EvidenceBuildConfig`] the builder needs and a
-/// [`BoundaryDerived`] snapshot the remaining phases consume.
+/// [`BoundaryDerived`] snapshot the remaining phases consume. On the
+/// default path nothing is claimed: crates map to `Unclassified` and
+/// cert/record has already failed closed upstream (LLR-109).
 pub(super) fn build_config(
     profile: Profile,
     output_root: PathBuf,
@@ -86,9 +90,16 @@ pub(super) fn build_config(
     let in_scope_crates = boundary_config.scope.in_scope.clone();
     let required_inputs = boundary_config.inputs.required.clone();
     let dal_map = boundary_config.dal_map();
-    let max_dal = dal_map.values().copied().max().unwrap_or_default();
+    let max_dal = dal_map
+        .values()
+        .copied()
+        .max()
+        .unwrap_or(AssuranceLevel::Unclassified);
     let policy = boundary_config.policy.clone();
-    let auxiliary_mcdc_tool = boundary_config.dal.auxiliary_mcdc_tool.clone();
+    let auxiliary_mcdc_tool = boundary_config
+        .dal
+        .as_ref()
+        .and_then(|dal| dal.auxiliary_mcdc_tool.clone());
     let strict = matches!(profile, Profile::Cert | Profile::Record);
     let config = EvidenceBuildConfig {
         output_root,
@@ -396,10 +407,13 @@ pub(super) fn copy_trace_and_build_matrix(
 /// Generate `compliance/<crate>.json` for each crate in `dal_map`.
 /// Run before finalize so the files are included in `SHA256SUMS`.
 /// `builder.tests_passed()` is the authoritative verdict (reads the
-/// recorded TestSummary's `failed == 0`).
+/// recorded TestSummary's `failed == 0`). No disposition artifact
+/// exists in the pipeline yet, so `coverage_disposition` plumbs
+/// `None` — A7-8 caps at `ManualReviewRequired` until a producer
+/// records the analysis record (LLR-108).
 pub(super) fn write_compliance_reports(
     builder: &EvidenceBuilder,
-    dal_map: &BTreeMap<String, Dal>,
+    dal_map: &BTreeMap<String, AssuranceLevel>,
     trace_roots: &[String],
     trace_validation_passed: bool,
     quiet: bool,
@@ -418,7 +432,7 @@ pub(super) fn write_compliance_reports(
     let has_coverage_data =
         coverage_statement_percent.is_some() || coverage_branch_percent.is_some();
     let has_trace_data = trace_roots.iter().any(|r| Path::new(r).exists());
-    for (crate_name, dal) in dal_map {
+    for (crate_name, level) in dal_map {
         let crate_evidence = evidence_core::CrateEvidence {
             has_trace_data,
             trace_validation_passed,
@@ -428,14 +442,15 @@ pub(super) fn write_compliance_reports(
             has_per_test_outcomes,
             coverage_statement_percent,
             coverage_branch_percent,
+            coverage_disposition: None,
         };
-        let report = evidence_core::generate_compliance_report(crate_name, *dal, &crate_evidence);
+        let report = evidence_core::generate_compliance_report(crate_name, *level, &crate_evidence);
         let report_path = compliance_dir.join(format!("{}.json", crate_name));
         fs::write(&report_path, serde_json::to_string_pretty(&report)?)?;
         if !quiet && !json_output {
             println!(
-                "evidence: compliance report for '{}' (DAL-{}): {}/{} objectives met",
-                crate_name, dal, report.summary.met, report.summary.applicable
+                "evidence: compliance report for '{}' (assurance {}): {}/{} objectives met",
+                crate_name, report.assurance_level, report.summary.met, report.summary.applicable
             );
         }
     }

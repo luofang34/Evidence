@@ -246,9 +246,9 @@ fn threshold_robustness_measurement_absent_no_violation() {
     assert!(v.is_empty());
 }
 
-/// BVA: `current == threshold` passes. DO-178C A-7 minima are
-/// stated inclusively ("shall be ≥ 85%"), so equality is
-/// compliant. Strict `<` at the call-site.
+/// BVA: `current == threshold` passes. The engineering gates are
+/// applied inclusively (`current == gate` passes), so equality
+/// does not fire. Strict `<` at the call-site.
 #[test]
 fn threshold_bva_exact_equality_passes() {
     let report = mk_report(vec![mk_measurement(

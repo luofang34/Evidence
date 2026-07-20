@@ -372,7 +372,7 @@ fn out_of_scope_proc_macro_does_not_fire() {
 // LLR-073 / TEST-080: DAL-A MC/DC qualification gate
 // ============================================================================
 
-use crate::policy::{AuxiliaryMcdcTool, Dal};
+use crate::policy::{AssuranceLevel, AuxiliaryMcdcTool};
 use std::collections::BTreeMap;
 
 fn aux_tool() -> AuxiliaryMcdcTool {
@@ -386,16 +386,16 @@ fn aux_tool() -> AuxiliaryMcdcTool {
 #[test]
 fn dal_a_mcdc_check_passes_when_no_dal_a_in_scope() {
     let mut dal_map = BTreeMap::new();
-    dal_map.insert("crate_b".into(), Dal::B);
-    dal_map.insert("crate_d".into(), Dal::D);
+    dal_map.insert("crate_b".into(), AssuranceLevel::DalB);
+    dal_map.insert("crate_d".into(), AssuranceLevel::DalD);
     assert!(check_dal_a_mcdc_evidence(&dal_map, None).is_ok());
 }
 
 #[test]
 fn dal_a_mcdc_check_passes_when_auxiliary_tool_set() {
     let mut dal_map = BTreeMap::new();
-    dal_map.insert("crate_a1".into(), Dal::A);
-    dal_map.insert("crate_a2".into(), Dal::A);
+    dal_map.insert("crate_a1".into(), AssuranceLevel::DalA);
+    dal_map.insert("crate_a2".into(), AssuranceLevel::DalA);
     let tool = aux_tool();
     assert!(check_dal_a_mcdc_evidence(&dal_map, Some(&tool)).is_ok());
 }
@@ -404,9 +404,9 @@ fn dal_a_mcdc_check_passes_when_auxiliary_tool_set() {
 fn dal_a_mcdc_check_fires_on_dal_a_without_tool() {
     let mut dal_map = BTreeMap::new();
     // Insert in non-sorted order to verify the error sorts offenders.
-    dal_map.insert("zeta_crate".into(), Dal::A);
-    dal_map.insert("alpha_crate".into(), Dal::A);
-    dal_map.insert("dal_b_crate".into(), Dal::B);
+    dal_map.insert("zeta_crate".into(), AssuranceLevel::DalA);
+    dal_map.insert("alpha_crate".into(), AssuranceLevel::DalA);
+    dal_map.insert("dal_b_crate".into(), AssuranceLevel::DalB);
     let err = check_dal_a_mcdc_evidence(&dal_map, None).unwrap_err();
     match err {
         BoundaryCheckError::DalAMissingAuxiliaryMcdc {
@@ -423,7 +423,7 @@ fn dal_a_mcdc_check_fires_on_dal_a_without_tool() {
 #[test]
 fn dal_a_mcdc_error_message_lists_crates_and_cites_upstream() {
     let mut dal_map = BTreeMap::new();
-    dal_map.insert("flight_core".into(), Dal::A);
+    dal_map.insert("flight_core".into(), AssuranceLevel::DalA);
     let err = check_dal_a_mcdc_evidence(&dal_map, None).unwrap_err();
     let msg = err.to_string();
     assert!(

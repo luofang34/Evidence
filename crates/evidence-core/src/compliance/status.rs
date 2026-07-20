@@ -8,7 +8,7 @@
 //! A-5/A-6 mostly yield `ManualReviewRequired`; the tool only
 //! mechanically checks traceability links (A3-6, A4-6, A6-5).
 
-use super::coverage_verdict::coverage_verdict;
+use super::coverage_verdict::{CoverageDimension, coverage_verdict};
 use super::objective::Objective;
 use super::report::{CrateEvidence, ObjectiveStatusKind};
 use crate::policy::Dal;
@@ -257,25 +257,29 @@ fn a7_7_llr_test_coverage(evidence: &CrateEvidence) -> Verdict {
     }
 }
 
-/// A7-8: statement coverage. Upgrades to Met when the aggregate
-/// percent from `coverage/coverage_summary.json` meets the
-/// DO-178C threshold for this DAL.
+/// A7-8: statement coverage. `Met` requires the aggregate percent
+/// from `coverage/coverage_summary.json` to meet the engineering
+/// gate AND a recorded analysis/disposition of uncovered structure
+/// (LLR-108); the metric alone caps at `ManualReviewRequired`.
 fn a7_8_statement_coverage(dal: Dal, evidence: &CrateEvidence) -> Verdict {
     coverage_verdict(
         evidence.coverage_statement_percent,
         dal.coverage_thresholds().statement_percent,
-        "statement",
+        CoverageDimension::Statement,
+        evidence.coverage_disposition.as_deref(),
     )
 }
 
 /// A7-9: decision coverage — LLVM branch coverage is our
 /// approximation (see `cert/QUALIFICATION.md` for the semantic
-/// gap statement).
+/// gap statement), so the verdict caps at `ManualReviewRequired`
+/// even when the gate is met and a disposition is recorded.
 fn a7_9_decision_coverage(dal: Dal, evidence: &CrateEvidence) -> Verdict {
     coverage_verdict(
         evidence.coverage_branch_percent,
         dal.coverage_thresholds().branch_percent,
-        "branch",
+        CoverageDimension::Branch,
+        evidence.coverage_disposition.as_deref(),
     )
 }
 

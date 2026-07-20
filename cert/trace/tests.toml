@@ -1867,7 +1867,7 @@ test_selectors = [
     "compliance_coverage_upgrade::a7_8_not_met_when_no_coverage_report",
     "compliance_coverage_upgrade::a7_9_manual_review_when_branch_coverage_meets_gate_with_disposition",
     "compliance_coverage_upgrade::a7_9_manual_review_when_branch_coverage_meets_gate_without_disposition",
-    "compliance_coverage_upgrade::a7_9_manual_review_when_no_engineering_gate_applies",
+    "compliance_coverage_upgrade::a7_9_partial_when_branch_coverage_below_gate",
 ]
 
 [[tests]]

@@ -26,8 +26,7 @@ use closure::generator_closure;
 use evidence_core::diagnostic::{Diagnostic, Severity};
 use evidence_core::{EvidencePolicy, Profile};
 
-use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, detect_profile};
-use super::output::emit_json;
+use super::args::{EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, detect_profile};
 
 // ============================================================================
 // Output envelope (shared with phases.rs)
@@ -42,43 +41,10 @@ pub(super) struct GenerateOutput {
     pub(super) error: Option<String>,
 }
 
-/// Emit a failure envelope and return EXIT_ERROR.
-///
-/// Collapses the `if json { emit_json(...) } else { eprintln!(...) }`
-/// pattern that preflight / strict trace-validation branches share.
-/// Lives here (not in phases.rs) because the pure helpers and the
-/// orchestrator both reference it.
-pub(super) fn fail(json_output: bool, profile: Profile, msg: impl Into<String>) -> Result<i32> {
-    let msg = msg.into();
-    if json_output {
-        emit_json(&GenerateOutput {
-            success: false,
-            bundle_path: None,
-            profile: profile.to_string(),
-            git_sha: None,
-            error: Some(msg),
-        })?;
-    } else {
-        eprintln!("error: {}", msg);
-    }
-    Ok(EXIT_ERROR)
-}
-
-/// JSONL-mode `fail`: emit a single `GENERATE_FAIL` terminal with the
-/// failure message so agents see the outcome + reason.
-pub(super) fn fail_jsonl(profile: Profile, msg: impl Into<String>) -> Result<i32> {
-    use super::output::emit_jsonl;
-    emit_jsonl(&Diagnostic {
-        code: "GENERATE_FAIL".to_string(),
-        severity: Severity::Error,
-        message: format!("generate failed (profile={}): {}", profile, msg.into()),
-        location: None,
-        fix_hint: None,
-        subcommand: Some("generate".to_string()),
-        root_cause_uid: None,
-    })?;
-    Ok(EXIT_ERROR)
-}
+// Failure-envelope helpers live in `envelope.rs` alongside the
+// success builder; re-exported so `phases` / `policy` / `closure`
+// keep their `use super::{fail, fail_jsonl}` imports.
+pub(super) use envelope::{fail, fail_jsonl};
 
 // ============================================================================
 // CLI argument group
@@ -168,8 +134,8 @@ pub(super) fn split_trace_roots_flag(s: &str) -> Vec<String> {
 /// preflight checks (profile, shallow clone, dirty tree, boundary
 /// config), collects env/git/test fingerprints, and writes the bundle
 /// to `args.out_dir`. Returns
-/// [`EXIT_SUCCESS`] or
-/// [`EXIT_ERROR`].
+/// [`EXIT_SUCCESS`] or `EXIT_ERROR` (via the failure-envelope helpers
+/// in [`envelope`]).
 pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     let GenerateArgs {
         profile_arg,
@@ -204,6 +170,17 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     };
 
     let profile = resolve_profile(profile_arg.as_deref())?;
+    let boundary_path = boundary.unwrap_or_else(|| PathBuf::from("cert/boundary.toml"));
+    // Assurance-selection gate (LLR-109): cert/record named-claim
+    // evaluation fails closed when the boundary carries no explicit
+    // selection. Runs BEFORE the doctor precheck so the operator
+    // sees the configuration root cause, not a downstream symptom.
+    if matches!(profile, Profile::Cert | Profile::Record)
+        && let Some(code) =
+            policy::enforce_assurance_selection(&boundary_path, profile, json_output)?
+    {
+        return Ok(code);
+    }
     // Doctor precheck gates cert / record profile bundle generation —
     // downstream projects can't produce audit evidence without
     // passing the rigor checklist (trace validity, floors config,
@@ -231,7 +208,6 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         );
     };
 
-    let boundary_path = boundary.unwrap_or_else(|| PathBuf::from("cert/boundary.toml"));
     let (config, derived) =
         phases::build_config(profile, output_root, &boundary_path, trace_roots_arg);
     if let Some(code) = policy::enforce_boundary_policy(&derived, profile, json_output)? {
@@ -304,7 +280,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         _ => {}
     }
 
-    let policy = EvidencePolicy::for_dal(derived.max_dal);
+    let policy = EvidencePolicy::for_dal(derived.max_dal.effective_policy_dal());
     let trace_validation = phases::validate_trace_links_phase(
         &derived.trace_roots,
         &policy,

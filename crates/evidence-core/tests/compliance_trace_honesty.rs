@@ -26,7 +26,9 @@
     reason = "test setup failures should panic immediately"
 )]
 
-use evidence_core::{CrateEvidence, Dal, ObjectiveStatusKind, generate_compliance_report};
+use evidence_core::{
+    AssuranceLevel, CrateEvidence, ObjectiveStatusKind, generate_compliance_report,
+};
 
 fn evidence(trace_data: bool, trace_validated: bool) -> CrateEvidence {
     CrateEvidence {
@@ -38,11 +40,12 @@ fn evidence(trace_data: bool, trace_validated: bool) -> CrateEvidence {
         has_per_test_outcomes: false,
         coverage_statement_percent: None,
         coverage_branch_percent: None,
+        coverage_disposition: None,
     }
 }
 
 fn status_for(evidence: &CrateEvidence, obj_id: &str) -> ObjectiveStatusKind {
-    let report = generate_compliance_report("fixture-crate", Dal::B, evidence);
+    let report = generate_compliance_report("fixture-crate", AssuranceLevel::DalB, evidence);
     report
         .objectives
         .iter()
@@ -98,7 +101,7 @@ fn a4_6_robustness_warned_continuing_is_partial() {
 #[test]
 fn a3_6_partial_carries_reason_naming_the_gap() {
     let e = evidence(true, false);
-    let report = generate_compliance_report("fixture-crate", Dal::B, &e);
+    let report = generate_compliance_report("fixture-crate", AssuranceLevel::DalB, &e);
     let a3_6 = report
         .objectives
         .iter()
@@ -138,7 +141,7 @@ fn a3_6_bva_no_trace_data_is_notmet_even_when_passed_false() {
 #[test]
 fn a3_6_notmet_reason_is_no_trace_data_not_validation_failure() {
     let e = evidence(false, true);
-    let report = generate_compliance_report("fixture-crate", Dal::B, &e);
+    let report = generate_compliance_report("fixture-crate", AssuranceLevel::DalB, &e);
     let a3_6 = report
         .objectives
         .iter()

@@ -1,13 +1,14 @@
 //! `Dal` — DO-178C Design Assurance Level + per-crate `DalConfig`.
 //!
-//! `Dal::D` is the `Default` on purpose: a missing `[dal]` section in
-//! `boundary.toml` must never silently *lower* cert requirements
-//! below what was intended. A crate that inherits D (the least
-//! stringent) on a misconfigured run is obvious; a crate that
-//! inherits A on a misconfigured run would silently demand evidence
-//! nobody knows to produce. The `#[derive(Ord)]` sort order (D < C <
-//! B < A) matches this — later variants are *more* stringent, so
-//! `max()` over a `dal_map` gives the highest required rigor.
+//! `Dal` deliberately has no `Default` impl: an assurance level is a
+//! claim, and a missing `[dal]` section in `boundary.toml` must never
+//! silently *become* one. Development surfaces that previously fell
+//! back to `Dal::D` now construct
+//! [`crate::policy::AssuranceSelection::unclassified`] — the same
+//! least-strict policy row, named honestly. The `#[derive(Ord)]`
+//! sort order (D < C < B < A) means later variants are *more*
+//! stringent, so `max()` over a `dal_map` gives the highest required
+//! rigor.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -15,15 +16,11 @@ use std::collections::BTreeMap;
 use crate::diagnostic::{DiagnosticCode, Severity};
 
 /// Design Assurance Level per DO-178C.
-/// A is most stringent, D is least. Default is D (safest: missing config
-/// never accidentally lowers requirements below what was intended).
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+/// A is most stringent, D is least. No `Default`: selecting a DAL is
+/// always an explicit act (see module rustdoc).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Dal {
-    /// Lowest-rigor DO-178C level; default when no boundary config
-    /// is present so an empty config never downgrades cert requirements.
-    #[default]
+    /// Lowest-rigor DO-178C level.
     D,
     /// DO-178C Level C.
     C,
@@ -78,33 +75,45 @@ impl std::str::FromStr for Dal {
     }
 }
 
-/// Minimum structural-coverage percentages per DO-178C Annex A
-/// Table A-7 Obj-5 (statement) + Obj-6 (decision/branch). A
-/// `None` means the dimension is not required at this DAL.
+/// Engineering quality-gate percentages per DO-178C Annex A
+/// Table A-7 dimension (statement / branch). A `None` means the
+/// dimension is not gated at this DAL.
+///
+/// These are **engineering gates used by this tool, NOT
+/// DO-178C-mandated acceptance thresholds**. The standard's
+/// structural-coverage objectives are objective-driven: uncovered
+/// structure requires analysis and disposition, and no percentage
+/// alone closes an objective (FAA AC 20-115D / DO-178C A-7).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct DalCoverageThresholds {
-    /// Minimum statement coverage percentage (Obj-5). Required
-    /// at DAL ≥ C; absent at D.
+    /// Statement-coverage engineering gate (Obj-5 dimension).
+    /// Gated at DAL ≥ C; absent at D.
     pub statement_percent: Option<u8>,
-    /// Minimum branch coverage percentage (approximation of
-    /// Obj-6 decision coverage — LLVM branch coverage, not
-    /// MC/DC). Required at DAL ≥ B; absent at C and D.
+    /// Branch-coverage engineering gate (Obj-6 dimension — LLVM
+    /// branch coverage, an approximation of decision coverage, not
+    /// MC/DC). Gated at DAL ≥ B; absent at C and D.
     pub branch_percent: Option<u8>,
 }
 
 impl Dal {
-    /// DO-178C-mandated minimum coverage percentages at this DAL.
+    /// Engineering quality gates for this DAL, used by this tool to
+    /// refuse a cert/record bundle whose structural coverage falls
+    /// below an agreed bar. **Not DO-178C-mandated acceptance
+    /// thresholds**: meeting the gate never closes an A-7 objective
+    /// by itself — uncovered structure still requires documented
+    /// analysis/disposition, and approximate (LLVM branch) evidence
+    /// caps at manual review (see `compliance::coverage_verdict`,
+    /// LLR-108).
     ///
-    /// These are hardcoded DO-178C defaults. A downstream
-    /// project can override via `cert/boundary.toml.[dal.coverage]`
-    /// in a future schema extension; today the defaults are the
-    /// single source of truth.
+    /// A downstream project can override via
+    /// `cert/boundary.toml.[dal.coverage]` in a future schema
+    /// extension; today the gates are the single source of truth.
     ///
-    /// - D: no thresholds (info-only).
-    /// - C: statement ≥ 90% (Obj-5).
-    /// - B: statement ≥ 95% + branch ≥ 85% (Obj-5 + 6).
-    /// - A: statement ≥ 95% + branch ≥ 90% (Obj-5 + 6, plus
-    ///   MC/DC handled by an auxiliary tool — see
+    /// - D: no gates (info-only).
+    /// - C: statement ≥ 90% (Obj-5 dimension).
+    /// - B: statement ≥ 95% + branch ≥ 85% (Obj-5 + 6 dimensions).
+    /// - A: statement ≥ 95% + branch ≥ 90% (Obj-5 + 6 dimensions,
+    ///   plus MC/DC handled by an auxiliary tool — see
     ///   `cert/QUALIFICATION.md`).
     pub fn coverage_thresholds(self) -> DalCoverageThresholds {
         match self {
@@ -132,8 +141,11 @@ impl Dal {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DalConfig {
     /// Default DAL for all in-scope crates without explicit override.
-    #[serde(default)]
-    pub default_dal: Dal,
+    /// Absent ⇒ no project-wide DAL is claimed; crates resolve to
+    /// `unclassified` unless individually overridden, and cert/record
+    /// evaluation fails closed (LLR-109).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_dal: Option<Dal>,
     /// Per-crate DAL overrides. Key is crate name.
     #[serde(default)]
     pub crate_overrides: BTreeMap<String, Dal>,
@@ -183,9 +195,11 @@ pub struct AuxiliaryMcdcTool {
 }
 
 impl Default for DalConfig {
+    /// No claimed level by default: `default_dal` is `None`
+    /// (unclassified), never a silent DAL-D.
     fn default() -> Self {
         Self {
-            default_dal: Dal::D,
+            default_dal: None,
             crate_overrides: BTreeMap::new(),
             auxiliary_mcdc_tool: None,
         }
@@ -221,20 +235,28 @@ mod tests {
     }
 
     #[test]
-    fn test_dal_default_is_d() {
-        assert_eq!(Dal::default(), Dal::D);
-    }
-
-    #[test]
-    fn test_dal_config_default() {
+    fn test_dal_has_no_implicit_default() {
+        // The Default derive was removed: an assurance level is a
+        // claim, never a fallback. Development mode constructs
+        // `AssuranceSelection::unclassified()` instead (LLR-109).
         let config = DalConfig::default();
-        assert_eq!(config.default_dal, Dal::D);
+        assert_eq!(config.default_dal, None);
         assert!(config.crate_overrides.is_empty());
     }
 
-    /// Pins DO-178C A-7 Obj-5/6 thresholds. Changing a number
-    /// here is a cert-contract change; bump the `COMPLIANCE`
-    /// schema version in the same PR.
+    #[test]
+    fn test_dal_config_explicit_default_round_trips() {
+        let config: DalConfig = toml::from_str(r#"default_dal = "C""#).unwrap();
+        assert_eq!(config.default_dal, Some(Dal::C));
+        let absent: DalConfig = toml::from_str("").unwrap();
+        assert_eq!(absent.default_dal, None);
+    }
+
+    /// Pins the engineering-gate percentages per DAL (the values are
+    /// the tool's quality gates, not DO-178C acceptance thresholds —
+    /// see `coverage_thresholds` rustdoc). Changing a number here is
+    /// a cert-contract change; bump the `COMPLIANCE` schema version
+    /// in the same PR.
     #[test]
     fn coverage_thresholds_by_dal() {
         assert_eq!(

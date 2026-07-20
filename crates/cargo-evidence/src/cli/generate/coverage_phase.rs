@@ -17,7 +17,7 @@ use std::process::{Command, Stdio};
 use anyhow::{Context, Result};
 use evidence_core::bundle::EvidenceBuilder;
 use evidence_core::{
-    CoverageLevel, Dal, Diagnostic, Location, Profile, Severity, parse_llvm_cov_export,
+    AssuranceLevel, CoverageLevel, Diagnostic, Location, Profile, Severity, parse_llvm_cov_export,
 };
 use tempfile::TempDir;
 
@@ -64,7 +64,7 @@ pub fn run_coverage_phase(
     builder: &mut EvidenceBuilder,
     choice: CoverageChoice,
     profile: Profile,
-    max_dal: Dal,
+    max_dal: AssuranceLevel,
     quiet: bool,
     jsonl_output: bool,
 ) -> Result<CoverageOutcome> {
@@ -140,7 +140,7 @@ pub fn run_coverage_phase(
     // profile surfaces the report but never blocks on it).
     let enforce_thresholds = matches!(profile, Profile::Cert | Profile::Record);
     if enforce_thresholds {
-        let thresholds = max_dal.coverage_thresholds();
+        let thresholds = max_dal.effective_policy_dal().coverage_thresholds();
         let violations = evidence_core::evaluate_thresholds(&report, thresholds);
         if !violations.is_empty() {
             for v in &violations {

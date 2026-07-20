@@ -1,8 +1,8 @@
 //! `generate_compliance_report` — the top-level entry point that
-//! walks the objectives table for a given crate/DAL pair and collates
-//! per-objective verdicts into a `ComplianceReport`.
+//! walks the objectives table for a given crate/assurance-level pair
+//! and collates per-objective verdicts into a `ComplianceReport`.
 
-use crate::policy::Dal;
+use crate::policy::{AssuranceLevel, StandardEdition, StandardsPack};
 
 use super::applicability::Applicability;
 use super::objectives_table::OBJECTIVES;
@@ -11,12 +11,16 @@ use super::report::{
 };
 use super::status::determine_objective_status;
 
-/// Generate a compliance report for a single crate.
+/// Generate a compliance report for a single crate. `level` is the
+/// crate's assurance level; objective applicability uses its policy
+/// row (`unclassified`/`qm` map to the least-strict row — named
+/// honestly in the report, never as a DAL claim).
 pub fn generate_compliance_report(
     crate_name: &str,
-    dal: Dal,
+    level: AssuranceLevel,
     evidence: &CrateEvidence,
 ) -> ComplianceReport {
+    let dal = level.effective_policy_dal();
     let mut objectives = Vec::new();
     let mut met = 0u32;
     let mut not_met = 0u32;
@@ -66,7 +70,11 @@ pub fn generate_compliance_report(
 
     ComplianceReport {
         crate_name: crate_name.to_string(),
-        dal: dal.to_string(),
+        dal: level.to_string(),
+        standard: StandardEdition::Do178c.standard_name().to_string(),
+        standard_edition: StandardEdition::Do178c.edition().to_string(),
+        assurance_level: level.as_str().to_string(),
+        standards_pack: StandardsPack::do_178c(),
         schema_version: crate::schema_versions::COMPLIANCE.to_string(),
         objectives,
         summary: ComplianceSummary {
@@ -93,7 +101,7 @@ mod tests {
     #[test]
     fn test_compliance_report_dal_a_no_evidence() {
         let evidence = CrateEvidence::default();
-        let report = generate_compliance_report("my-crate", Dal::A, &evidence);
+        let report = generate_compliance_report("my-crate", AssuranceLevel::DalA, &evidence);
         assert_eq!(report.crate_name, "my-crate");
         assert_eq!(report.dal, "A");
         assert_eq!(report.summary.total_objectives, 35);
@@ -113,8 +121,9 @@ mod tests {
             has_per_test_outcomes: false,
             coverage_statement_percent: None,
             coverage_branch_percent: None,
+            coverage_disposition: None,
         };
-        let report = generate_compliance_report("util-crate", Dal::D, &evidence);
+        let report = generate_compliance_report("util-crate", AssuranceLevel::DalD, &evidence);
         assert_eq!(report.dal, "D");
         // DAL-D has fewer applicable objectives
         assert!(report.summary.applicable < report.summary.total_objectives);

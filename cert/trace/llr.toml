@@ -1577,10 +1577,13 @@ over each `(level, Option<u8>)` threshold entry:
      `ThresholdViolation { dimension, current_percent,
      threshold_percent }`.
 
-Comparison is strict `<`, not `<=`. DO-178C A-7 minima are
-stated inclusively ("statement coverage shall be ≥ 90% at
-DAL-C"), so equality is compliant. This is a BVA case the
-test triplet pins — `current == threshold` must not fire.
+Comparison is strict `<`, not `<=`: the DAL engineering gates
+are applied inclusively (`current == gate` passes), matching
+how the tool states the gates. This is a BVA case the test
+triplet pins — `current == threshold` must not fire. The gates
+are engineering quality bars owned by this tool, not DO-178C
+acceptance minima — no percentage closes an A-7 objective
+(LLR-108).
 
 The two-level dispatch (statement uses
 `aggregate_lines_percent`, branch uses

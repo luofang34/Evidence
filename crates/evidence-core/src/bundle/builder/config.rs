@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use crate::policy::{BoundaryPolicy, Dal, Profile};
+use crate::policy::{AssuranceLevel, BoundaryPolicy, Profile};
 
 /// Configuration for evidence bundle generation.
 #[derive(Debug, Clone)]
@@ -23,8 +23,10 @@ pub struct EvidenceBuildConfig {
     pub require_clean_git: bool,
     /// Whether to fail on dirty git
     pub fail_on_dirty: bool,
-    /// Resolved per-crate DAL map (crate_name -> Dal).
-    pub dal_map: BTreeMap<String, Dal>,
+    /// Resolved per-crate assurance-level map (crate_name -> level).
+    /// Serialized into `index.json` `dal_map` via the level's
+    /// `Display` label (`A`–`D`, `QM`, `unclassified`).
+    pub dal_map: BTreeMap<String, AssuranceLevel>,
     /// Boundary policy flags as captured from `cert/boundary.toml`.
     /// Recorded into `index.json` so verify-time can replay the
     /// rules the bundle claimed without consulting the verifier's

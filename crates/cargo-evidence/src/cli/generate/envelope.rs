@@ -11,9 +11,47 @@
 
 use std::path::Path;
 
+use anyhow::Result;
+use evidence_core::diagnostic::{Diagnostic, Severity};
 use evidence_core::{EnvFingerprint, Profile};
 
 use super::GenerateOutput;
+use crate::cli::output::{emit_json, emit_jsonl};
+
+/// Emit a failure envelope and return EXIT_ERROR.
+///
+/// Collapses the `if json { emit_json(...) } else { eprintln!(...) }`
+/// pattern that preflight / strict trace-validation branches share.
+pub(crate) fn fail(json_output: bool, profile: Profile, msg: impl Into<String>) -> Result<i32> {
+    let msg = msg.into();
+    if json_output {
+        emit_json(&GenerateOutput {
+            success: false,
+            bundle_path: None,
+            profile: profile.to_string(),
+            git_sha: None,
+            error: Some(msg),
+        })?;
+    } else {
+        eprintln!("error: {}", msg);
+    }
+    Ok(crate::cli::args::EXIT_ERROR)
+}
+
+/// JSONL-mode `fail`: emit a single `GENERATE_FAIL` terminal with the
+/// failure message so agents see the outcome + reason.
+pub(crate) fn fail_jsonl(profile: Profile, msg: impl Into<String>) -> Result<i32> {
+    emit_jsonl(&Diagnostic {
+        code: "GENERATE_FAIL".to_string(),
+        severity: Severity::Error,
+        message: format!("generate failed (profile={}): {}", profile, msg.into()),
+        location: None,
+        fix_hint: None,
+        subcommand: Some("generate".to_string()),
+        root_cause_uid: None,
+    })?;
+    Ok(crate::cli::args::EXIT_ERROR)
+}
 
 /// Build the JSON success envelope for a completed generate run.
 /// `success = recorded_failures == 0`; when non-zero,

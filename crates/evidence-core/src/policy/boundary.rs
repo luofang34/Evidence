@@ -2,11 +2,12 @@
 //! `LoadBoundaryError` enum and the `load_trace_roots` free function.
 //!
 //! `BoundaryConfig::load_or_default` is the tolerant loader CLI code
-//! reaches for: a missing or malformed file yields an empty scope +
-//! DAL-D. The strict `load` is for callers that want to surface a
-//! typed IO / parse error. `load_trace_roots` lives alongside as a
-//! side-channel reader for the historical `scope.trace_roots` field
-//! that isn't on the typed `BoundaryScope` struct.
+//! reaches for: a missing or malformed file yields an empty scope and
+//! no claimed assurance level (`dal: None`). The strict `load` is for
+//! callers that want to surface a typed IO / parse error.
+//! `load_trace_roots` lives alongside as a side-channel reader for
+//! the historical `scope.trace_roots` field that isn't on the typed
+//! `BoundaryScope` struct.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -15,7 +16,8 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
-use super::dal::{Dal, DalConfig};
+use super::assurance::{AssuranceLevel, AssuranceSelection, StandardEdition};
+use super::dal::DalConfig;
 use crate::diagnostic::{DiagnosticCode, Location, Severity};
 
 /// Errors returned by [`BoundaryConfig::load`].
@@ -186,9 +188,11 @@ pub struct BoundaryConfig {
     /// [`BoundaryInputs`]). Defaults to empty.
     #[serde(default)]
     pub inputs: BoundaryInputs,
-    /// DAL configuration. If absent, all crates default to DAL-D.
-    #[serde(default)]
-    pub dal: DalConfig,
+    /// DAL configuration. Absent ⇒ no assurance level is claimed:
+    /// crates resolve to `unclassified` and cert/record evaluation
+    /// fails closed (LLR-109).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dal: Option<DalConfig>,
 }
 
 impl BoundaryConfig {
@@ -216,18 +220,19 @@ impl BoundaryConfig {
     }
 
     /// Best-effort load. Returns a default-populated config (empty
-    /// scope, default DAL-D) when the file is absent, unreadable, or
-    /// unparseable. Used by CLI code paths that want to keep running
-    /// when the user hasn't initialized a boundary yet.
+    /// scope, no claimed assurance level) when the file is absent,
+    /// unreadable, or unparseable. Used by CLI code paths that want
+    /// to keep running when the user hasn't initialized a boundary
+    /// yet.
     pub fn load_or_default(path: &Path) -> Self {
         Self::load(path).unwrap_or_else(|_| Self::default_empty())
     }
 
-    /// A blank boundary config: empty scope, empty policy, DAL-D
-    /// default. This is the shape `load_or_default` returns when the
-    /// file is absent or unparseable — every field at its lowest-
-    /// rigor value so a missing config cannot silently downgrade
-    /// cert requirements.
+    /// A blank boundary config: empty scope, empty policy, no `[dal]`
+    /// section. This is the shape `load_or_default` returns when the
+    /// file is absent or unparseable — nothing is claimed, so a
+    /// missing config cannot silently become a DAL claim; development
+    /// surfaces name the result `unclassified` (LLR-109).
     pub fn default_empty() -> Self {
         Self {
             schema: Schema {
@@ -244,27 +249,54 @@ impl BoundaryConfig {
             },
             forbidden_external: BTreeMap::new(),
             inputs: BoundaryInputs::default(),
-            dal: DalConfig::default(),
+            dal: None,
         }
     }
 
-    /// Resolve the per-crate DAL map from the `[dal]` section plus
-    /// the in-scope list. Each in-scope crate maps to its override if
-    /// one exists, otherwise to `dal.default_dal`.
-    pub fn dal_map(&self) -> BTreeMap<String, Dal> {
+    /// Resolve the per-crate assurance-level map from the `[dal]`
+    /// section plus the in-scope list. Each in-scope crate maps to
+    /// its override if one exists, otherwise to `dal.default_dal`;
+    /// a crate with neither is `unclassified` — an explicit
+    /// non-claim, never a silent DAL-D (LLR-109).
+    pub fn dal_map(&self) -> BTreeMap<String, AssuranceLevel> {
         self.scope
             .in_scope
             .iter()
             .map(|name| {
-                let dal = self
+                let claimed = self
                     .dal
-                    .crate_overrides
-                    .get(name)
-                    .copied()
-                    .unwrap_or(self.dal.default_dal);
-                (name.clone(), dal)
+                    .as_ref()
+                    .and_then(|dal| dal.crate_overrides.get(name).copied().or(dal.default_dal));
+                let level = claimed.map_or(AssuranceLevel::Unclassified, AssuranceLevel::from_dal);
+                (name.clone(), level)
             })
             .collect()
+    }
+
+    /// The explicit assurance selection this config claims, if any
+    /// (LLR-109). `Some` only when all of these hold:
+    ///
+    /// - a `[dal]` section is present,
+    /// - it declares an explicit `default_dal`,
+    /// - `scope.in_scope` is non-empty.
+    ///
+    /// The selection's level is the highest rigor in scope (max over
+    /// the per-crate map). Cert/record evaluation requires `Some`
+    /// and fails closed otherwise; development surfaces use
+    /// [`AssuranceSelection::unclassified`] on `None`.
+    pub fn assurance_selection(&self) -> Option<AssuranceSelection> {
+        let dal = self.dal.as_ref()?;
+        dal.default_dal?;
+        if self.scope.in_scope.is_empty() {
+            return None;
+        }
+        // `default_dal` is Some, so every in-scope crate resolves to
+        // a DAL level and the map is non-empty.
+        let level = self.dal_map().values().copied().max()?;
+        Some(AssuranceSelection {
+            standard: StandardEdition::Do178c,
+            level,
+        })
     }
 
     /// `scope.trace_roots` with fallback. Reads an `additional_roots`
@@ -321,107 +353,8 @@ pub fn load_trace_roots(path: &Path) -> Vec<String> {
 }
 
 #[cfg(test)]
-#[allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    reason = "test setup failures should panic immediately"
-)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_boundary_config_without_dal_section() {
-        let toml_str = format!(
-            r#"
-[schema]
-version = "{ver}"
-
-[scope]
-in_scope = ["my-crate"]
-
-[policy]
-no_out_of_scope_deps = true
-"#,
-            ver = crate::schema_versions::BOUNDARY
-        );
-        let config: BoundaryConfig = toml::from_str(&toml_str).unwrap();
-        assert_eq!(config.dal.default_dal, Dal::D);
-        assert!(config.dal.crate_overrides.is_empty());
-    }
-
-    #[test]
-    fn test_boundary_config_with_dal_section() {
-        let toml_str = format!(
-            r#"
-[schema]
-version = "{ver}"
-
-[scope]
-in_scope = ["flight-core", "telemetry"]
-
-[policy]
-no_out_of_scope_deps = true
-
-[dal]
-default_dal = "C"
-
-[dal.crate_overrides]
-"flight-core" = "A"
-"#,
-            ver = crate::schema_versions::BOUNDARY
-        );
-        let config: BoundaryConfig = toml::from_str(&toml_str).unwrap();
-        assert_eq!(config.dal.default_dal, Dal::C);
-        assert_eq!(config.dal.crate_overrides["flight-core"], Dal::A);
-    }
-
-    fn policy_all(
-        no_out_of_scope_deps: bool,
-        forbid_build_rs: bool,
-        forbid_proc_macros: bool,
-    ) -> BoundaryPolicy {
-        BoundaryPolicy {
-            no_out_of_scope_deps,
-            forbid_build_rs,
-            forbid_proc_macros,
-        }
-    }
-
-    #[test]
-    fn unimplemented_enabled_rules_empty_when_all_disabled() {
-        let p = policy_all(false, false, false);
-        assert!(p.unimplemented_enabled_rules().is_empty());
-    }
-
-    #[test]
-    fn unimplemented_enabled_rules_is_empty_for_every_combination() {
-        // Every `BoundaryPolicy` flag now has real enforcement in
-        // `evidence_core::boundary_check`. The preflight refusal
-        // surface is empty — the library-level checks fire on
-        // violations directly. If a future flag lands without
-        // enforcement, this test fires immediately.
-        for (a, b, c) in [
-            (false, false, false),
-            (true, false, false),
-            (false, true, false),
-            (false, false, true),
-            (true, true, true),
-        ] {
-            assert!(
-                policy_all(a, b, c).unimplemented_enabled_rules().is_empty(),
-                "expected empty for ({a}, {b}, {c})"
-            );
-        }
-    }
-
-    /// default_empty() must never trip the preflight — that would
-    /// mean `cargo evidence generate` fails cold on a workspace
-    /// without a `cert/boundary.toml`, which is exactly the path
-    /// `load_or_default` exists to support.
-    #[test]
-    fn unimplemented_enabled_rules_empty_for_default_empty_config() {
-        let cfg = BoundaryConfig::default_empty();
-        assert!(cfg.policy.unimplemented_enabled_rules().is_empty());
-    }
-}
+// Tests live in the sibling `boundary/tests.rs` via `#[path]` so
+// this file stays under the 500-line workspace limit.
+#[cfg(test)]
+#[path = "boundary/tests.rs"]
+mod tests;

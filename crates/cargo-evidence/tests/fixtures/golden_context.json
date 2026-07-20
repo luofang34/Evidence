@@ -413,7 +413,7 @@
       "uid": "b1377fb5-f879-4edc-9c50-46c5e67c71ad",
       "layer": "llr",
       "title": "threshold_violations dispatches to level-appropriate aggregator; strict < comparison",
-      "description": "`threshold_violations(report: &CoverageReport, thresholds:\nDalCoverageThresholds) -> Vec<ThresholdViolation>` iterates\nover each `(level, Option<u8>)` threshold entry:\n\n  1. Skip if `thresholds.<level>_percent` is `None` (DAL-D or\n     dev). No violation recorded.\n  2. Skip if no `Measurement` of that level exists in the\n     report. No violation recorded — \"measurement absent\" is\n     a config-layer issue, not a coverage-layer failure.\n     Treating absence as 0% would mask the true problem\n     (auditor gets COVERAGE_BELOW_THRESHOLD when they\n     should have gotten a \"configure your coverage=branch\n     flag\" signal).\n  3. Compute `current = aggregate_<level>_percent(m)`.\n  4. If `current < f64::from(threshold)`, append a\n     `ThresholdViolation { dimension, current_percent,\n     threshold_percent }`.\n\nComparison is strict `<`, not `<=`. DO-178C A-7 minima are\nstated inclusively (\"statement coverage shall be ≥ 90% at\nDAL-C\"), so equality is compliant. This is a BVA case the\ntest triplet pins — `current == threshold` must not fire.\n\nThe two-level dispatch (statement uses\n`aggregate_lines_percent`, branch uses\n`aggregate_branches_percent`) is what enforces the level/\nfield binding at the policy layer. The dispatcher is the\nonly place in the threshold-enforcement chain where that\nbinding is decided; changing it to use a shared aggregator\nwould be the regression path.\n",
+      "description": "`threshold_violations(report: &CoverageReport, thresholds:\nDalCoverageThresholds) -> Vec<ThresholdViolation>` iterates\nover each `(level, Option<u8>)` threshold entry:\n\n  1. Skip if `thresholds.<level>_percent` is `None` (DAL-D or\n     dev). No violation recorded.\n  2. Skip if no `Measurement` of that level exists in the\n     report. No violation recorded — \"measurement absent\" is\n     a config-layer issue, not a coverage-layer failure.\n     Treating absence as 0% would mask the true problem\n     (auditor gets COVERAGE_BELOW_THRESHOLD when they\n     should have gotten a \"configure your coverage=branch\n     flag\" signal).\n  3. Compute `current = aggregate_<level>_percent(m)`.\n  4. If `current < f64::from(threshold)`, append a\n     `ThresholdViolation { dimension, current_percent,\n     threshold_percent }`.\n\nComparison is strict `<`, not `<=`: the DAL engineering gates\nare applied inclusively (`current == gate` passes), matching\nhow the tool states the gates. This is a BVA case the test\ntriplet pins — `current == threshold` must not fire. The gates\nare engineering quality bars owned by this tool, not DO-178C\nacceptance minima — no percentage closes an A-7 objective\n(LLR-108).\n\nThe two-level dispatch (statement uses\n`aggregate_lines_percent`, branch uses\n`aggregate_branches_percent`) is what enforces the level/\nfield binding at the policy layer. The dispatcher is the\nonly place in the threshold-enforcement chain where that\nbinding is decided; changing it to use a shared aggregator\nwould be the regression path.\n",
       "modules": [
         "cargo_evidence::cli::generate::coverage_phase::threshold_violations"
       ],
@@ -741,6 +741,28 @@
       "verification_methods": [
         "test"
       ]
+    },
+    {
+      "id": "LLR-109",
+      "uid": "d3ba013c-425c-4dc7-a27e-b17a31a120fa",
+      "layer": "llr",
+      "title": "AssuranceSelection resolution and the fail-closed named-claim gate",
+      "description": "`AssuranceLevel` (DalA..DalD, Qm, Unclassified; snake_case wire\nstrings) plus `StandardEdition` and `AssuranceSelection` model an\nexplicit assurance claim. `AssuranceSelection::unclassified()` is\nthe development-mode selection: it maps to the least-strict\npolicy row (the former DAL-D flag set) via\n`AssuranceLevel::effective_policy_dal` but is named unclassified\nin every diagnostic and report.\n\n`BoundaryConfig.dal` becomes `Option<DalConfig>` and\n`DalConfig.default_dal` becomes `Option<Dal>` so explicit\npresence is detectable; `Dal` loses its Default derive.\n`BoundaryConfig::assurance_selection` returns Some only when the\n[dal] section is present with an explicit default_dal and\nscope.in_scope is non-empty. `AssuranceSelection::require_for_\nnamed_claim` loads the boundary and fails with\nPOLICY_ASSURANCE_SELECTION_MISSING on any gap: missing,\nunreadable, or unparseable file, absent [dal], absent\ndefault_dal, or empty in-scope set. The generate orchestrator\nruns this gate before the doctor precheck on cert/record\nprofiles; per-crate dal_map entries carry AssuranceLevel through\nto index.json so an unclassified crate is recorded by name.\nDevelopment surfaces (check, trace, dev generate) construct the\nunclassified selection explicitly instead of a silent Dal\ndefault.\n",
+      "modules": [
+        "evidence_core::policy::assurance",
+        "evidence_core::policy::boundary::BoundaryConfig",
+        "evidence_core::policy::dal::DalConfig",
+        "cargo_evidence::cli::generate::policy"
+      ],
+      "emits": [
+        "POLICY_ASSURANCE_SELECTION_MISSING"
+      ],
+      "traces_to": [
+        "f5b3e685-06d9-42fc-a045-0478d5f661d0"
+      ],
+      "verification_methods": [
+        "test"
+      ]
     }
   ],
   "parents": [
@@ -901,7 +923,7 @@
       "id": "HLR-056",
       "uid": "bebe9227-5f47-4eb8-89a7-f2157fb96e6c",
       "layer": "hlr",
-      "title": "generate compares per-level coverage aggregate against Dal::coverage_thresholds",
+      "title": "generate compares per-level coverage aggregate against the DAL engineering gates",
       "traces_to": [
         "895097b2-6d08-4ef7-9305-143a87424684"
       ]
@@ -1024,6 +1046,15 @@
       ]
     },
     {
+      "id": "HLR-089",
+      "uid": "f5b3e685-06d9-42fc-a045-0478d5f661d0",
+      "layer": "hlr",
+      "title": "Cert and record evaluation fails closed without an explicit assurance selection; reports bind a versioned standards pack",
+      "traces_to": [
+        "7cee4f62-6321-439b-96da-9d73511aad0b"
+      ]
+    },
+    {
       "id": "SYS-002",
       "uid": "0e42b90f-88d7-408f-8843-0a3335279360",
       "layer": "sys",
@@ -1125,7 +1156,7 @@
       "id": "SYS-024",
       "uid": "895097b2-6d08-4ef7-9305-143a87424684",
       "layer": "sys",
-      "title": "Tool shall enforce DO-178C A-7 minimum coverage percentages per DAL",
+      "title": "Tool shall treat coverage percentages as engineering metrics and gate cert bundles on uncovered structure",
       "traces_to": []
     },
     {
@@ -1189,6 +1220,13 @@
       "uid": "3782184e-8bc6-40d2-bfba-60803fb2d1f2",
       "layer": "sys",
       "title": "Absence of assurance evidence is an adoption state, never a verification success",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-037",
+      "uid": "7cee4f62-6321-439b-96da-9d73511aad0b",
+      "layer": "sys",
+      "title": "Coverage percentages are engineering metrics, never compliance proof; cert claims require explicit assurance selection",
       "traces_to": []
     }
   ],
@@ -1527,6 +1565,24 @@
       ]
     },
     {
+      "id": "TEST-130",
+      "uid": "008a3795-7cf8-481e-9bcc-d7aacc956236",
+      "name": "explicit assurance selection gates cert profiles and development mode names unclassified",
+      "selectors": [
+        "assurance_selection::generate_cert_without_boundary_fails_closed",
+        "assurance_selection::generate_cert_without_dal_section_fails_closed",
+        "assurance_selection::generate_dev_without_dal_section_names_unclassified_in_compliance_report",
+        "evidence_core::policy::assurance::tests::dal_round_trip_preserves_levels",
+        "evidence_core::policy::assurance::tests::unclassified_maps_to_least_strict_policy_row",
+        "evidence_core::policy::assurance::tests::wire_strings_are_snake_case",
+        "evidence_core::policy::boundary::tests::assurance_selection_requires_explicit_dal_and_scope"
+      ],
+      "traces_to": [
+        "d3ba013c-425c-4dc7-a27e-b17a31a120fa",
+        "4e5e1e62-2913-4587-aba9-694199a6e9fc"
+      ]
+    },
+    {
       "id": "TEST-115",
       "uid": "c610d1fc-683d-43b9-b2d4-75f21532f4c8",
       "name": "generator closure blocks the right verify findings per profile",
@@ -1831,6 +1887,7 @@
     "KEYGEN_FAIL",
     "KEYGEN_KEY_EXISTS",
     "KEYGEN_OK",
+    "POLICY_ASSURANCE_SELECTION_MISSING",
     "SCHEMA_COMPILE_FAILED",
     "SCHEMA_INSTANCE_INVALID",
     "SCHEMA_PARSE_FAILED",
@@ -1862,8 +1919,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 185,
-      "floor": 185
+      "current": 188,
+      "floor": 188
     }
   ],
   "boundary": {

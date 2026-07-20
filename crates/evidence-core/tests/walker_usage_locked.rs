@@ -77,6 +77,9 @@ const ALLOWED_READ_DIR_FILES: &[&str] = &[
     "tests/check_bundle_mode.rs",
     // Single-dir bundle-finder — same pattern, coverage e2e.
     "tests/coverage_e2e.rs",
+    // Single-dir bundle-finder — same pattern, assurance-selection
+    // gate tests.
+    "tests/assurance_selection.rs",
     // Single-dir listing of `.github/workflows/*.yml` for the
     // action-version lock gate. Not a recursive walk.
     "tests/workflow_action_versions_locked.rs",

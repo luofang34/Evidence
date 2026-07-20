@@ -669,7 +669,9 @@ remains open with no active reimplementation.
 - A DAL-A project running `cargo evidence generate --profile cert` will
   produce a bundle whose `compliance/<crate>.json` reports DO-178C objective
   A7-10 (MC/DC coverage) as `NotMet`. The bundle's terminal can still be
-  `VERIFY_OK` because branch coverage was met. **A careful auditor reads the
+  `VERIFY_OK` because the terminal does not read compliance verdicts — and
+  branch coverage, an LLVM approximation, caps A7-9 at
+  `manual_review_required` even at 100%. **A careful auditor reads the
   A7-10 line and rejects the submission; a careless one signs off.** This
   asymmetry is a known sharp edge — see the 0.2 backlog item
   *"DAL-A fail-loud on missing MC/DC."*

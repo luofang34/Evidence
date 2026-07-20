@@ -1,6 +1,14 @@
 {
   "crate_name": "fixture-crate",
   "dal": "B",
+  "standard": "DO-178C",
+  "standard_edition": "C",
+  "assurance_level": "dal_b",
+  "standards_pack": {
+    "id": "do-178c-ac20-115d",
+    "version": "1.0.0",
+    "review_record": "cert/QUALIFICATION.md — DO-178C applicability, tailoring, and tool-qualification review record"
+  },
   "schema_version": "0.0.1",
   "objectives": [
     {
