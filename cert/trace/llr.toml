@@ -3347,3 +3347,77 @@ canonicalize silently at construction per the metadata-list
 contract; the bytes hashed are never host-dependent.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "44f42343-45d6-48fa-a9c7-f2017d6883eb"
+id = "LLR-114"
+title = "corpus::review_records parses strict review files and validates every record field closed"
+owner = "tool"
+traces_to = ["31c3ae60-1b17-429a-b222-ce64a98d3816"]
+modules = ["evidence_core::corpus::review_records"]
+description = """
+`ReviewFile` / `ReviewRecord` mirror the requirement-record
+conventions: `deny_unknown_fields`, `schema_version` gated by
+`SUPPORTED_REVIEW_SCHEMA`, and per-record validation in
+`load_reviews_into`. The review uid and the optional supersession
+pointer carry the `rev_` prefix and pass the corpus-native
+`req_`/`rev_` UUIDv4 validation (the requirement-uid validator
+generalized over the typed prefix); `reviewed_content_sha256`
+deserializes through the validating `ReviewContentDigest`;
+`content_schema` must equal `SUPPORTED_REVIEW_CONTENT_SCHEMA`;
+`reviewed_at` must parse as RFC 3339 via the workspace's chrono
+dependency; reviewer and human id must be non-empty after
+trimming; and a reject decision without a non-empty rationale
+fails. Each failure returns a typed `CorpusError` naming the file
+path plus the record id and uid; valid records insert a
+`ReviewNode` carrying a `Reviews` edge to the requirement and an
+optional `Supersedes` edge to the predecessor review.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "3f7c8e17-f56e-42f7-be13-2955609b2d6b"
+id = "LLR-115"
+title = "The corpus graph types review nodes and edges and validates supersession chains deterministically"
+owner = "tool"
+traces_to = ["ac1e1019-f2ad-4061-ba29-a42edad03389"]
+modules = ["evidence_core::corpus::graph"]
+description = """
+`NodeKind::Review`, `ReviewDecision` (serde snake_case `approve` /
+`reject`), and `ReviewNode` — uid, human id, requirement uid,
+content schema, typed reviewed-content digest, decision, reviewer,
+RFC 3339 timestamp, optional rationale, and typed edges — join the
+graph alongside requirements and tests. `EdgeKind::Reviews`
+accepts only Review-to-Requirement and `EdgeKind::Supersedes`
+only Review-to-Review; every other combination fails with
+`InvalidEdgeKinds`. `CorpusGraph::validate` runs supersession
+validation after edge resolution: per edge it rejects
+self-supersession and any reviewer, requirement-uid, or digest
+mismatch against the predecessor with distinct errors naming both
+uids; it then rejects forks (more than one incoming supersession
+per review) and cycles found by walking the supersession chain,
+all in uid-sorted order so results are independent of load order.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "b6cf3b0f-5349-444c-adb8-631e340fa3ec"
+id = "LLR-116"
+title = "The corpus index resolves review files through the same deterministic mechanism and loads requirements first"
+owner = "tool"
+traces_to = ["31c3ae60-1b17-429a-b222-ce64a98d3816"]
+modules = ["evidence_core::corpus::index"]
+description = """
+`CorpusIndex` gains `review_files`, resolved from the index's
+`reviews` entries through the same literal-or-`<dir>/**/*.toml`
+WalkDir expansion as requirement files — sorted output, never
+following symlinks, an empty resolution an error — while the
+remaining indexed-but-unsupported kinds stay fail-closed.
+`load_graph` loads every requirement file before any review file,
+so review records validate against present requirement nodes and
+requirement errors surface before review errors in deterministic
+order. Review file layout and load order remain non-semantic:
+equivalent review sets split or reordered across files load to
+equal graphs.
+"""
+verification_methods = ["test"]

@@ -1920,3 +1920,35 @@ test_selectors = [
     "corpus_review_content::excluded_changes_leave_the_digest_unchanged",
     "corpus_review_content::derived_record_safety_impact_presence_moves_the_digest",
 ]
+
+[[tests]]
+uid = "54bb8ed7-5f39-4a3d-a8b5-9ce27d710d4b"
+id = "TEST-133"
+title = "review records round-trip into typed nodes and edges, and every strict-schema and supersession violation fails closed"
+owner = "tool"
+traces_to = [
+    "44f42343-45d6-48fa-a9c7-f2017d6883eb",
+    "3f7c8e17-f56e-42f7-be13-2955609b2d6b",
+]
+test_selectors = [
+    "evidence_core::corpus::review_records::tests::approve_and_reject_records_round_trip",
+    "evidence_core::corpus::review_records::tests::strict_schema_violations_fail_closed",
+    "evidence_core::corpus::review_records::tests::malformed_record_fields_fail_closed",
+    "evidence_core::corpus::review_records::tests::review_edges_enforce_endpoint_kinds",
+    "evidence_core::corpus::review_records::tests::supersession_validation_rejects_invalid_chains",
+]
+
+[[tests]]
+uid = "0898a922-6a3a-490a-9f9c-9aceb5ae1f61"
+id = "TEST-134"
+title = "review graphs are layout-independent, preserve independent reviewers, and the index loads requirements before reviews"
+owner = "tool"
+traces_to = [
+    "3f7c8e17-f56e-42f7-be13-2955609b2d6b",
+    "b6cf3b0f-5349-444c-adb8-631e340fa3ec",
+]
+test_selectors = [
+    "evidence_core::corpus::review_records::tests::layout_and_record_order_produce_identical_graphs",
+    "evidence_core::corpus::review_records::tests::independent_reviews_of_one_digest_are_preserved",
+    "evidence_core::corpus::review_records::tests::index_resolves_reviews_and_loads_requirements_first",
+]
