@@ -1848,5 +1848,5 @@ test_selectors = [
     "trace_decomposition::derived_missing_disposition_fires_with_typed_code",
     "trace_decomposition::derived_unreviewed_fires_with_typed_code",
     "trace_cmd_jsonl::trace_validate_jsonl_empty_root_fails_closed",
-    "doctor_cmd::dal_d_empty_trace_warns_no_evidence",
+    "doctor_cmd::adoption::dal_d_empty_trace_warns_no_evidence",
 ]
