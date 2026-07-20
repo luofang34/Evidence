@@ -2246,3 +2246,67 @@ points at the applicability and tailoring document
 """
 verification_methods = ["test"]
 traces_to = ["7cee4f62-6321-439b-96da-9d73511aad0b"]
+
+[[requirements]]
+uid = "a6b6cdf2-0810-4c68-8e8c-19d49dddc07c"
+id = "HLR-090"
+title = "Review approval binds a versioned canonical requirement-content projection with a stable typed digest"
+owner = "tool"
+scope = "component"
+description = """
+The content a review approves shall be a versioned projection,
+`RequirementReviewContentV1`, covering exactly: title; decomposition
+layer; description; rationale; scope; category; source reference;
+verification methods; and canonical `derives_from` target uids. The
+projection excludes the uid (bound separately by the review record),
+the human id and namespace, owner, sort_key, modules, surfaces,
+emitted diagnostic codes, file path, TOML layout, file order, and
+record order; test mappings (`verifies` edges) are excluded as
+implementation mapping, not normative content. Fields that change
+the normative statement in the future — modality or precise source
+bindings — join a later projection version.
+
+Every set-like list shall be sorted and duplicate-free before
+encoding, and parsed strings shall be hashed exactly with no
+whitespace or Unicode normalization. The projection shall be encoded
+as one documented canonical byte format — a domain/version tag
+followed by the fields in a fixed order, each framed with an
+explicit length prefix — and digested as lowercase hexadecimal
+SHA-256. The digest operation shall be pure (no I/O) and return a
+typed digest value that validates length and character set at
+construction, rejecting malformed input closed. Changing the
+encoding contract requires a new projection version, never a silent
+change of existing digests. No candidate/approved/rejected/stale
+lifecycle state is stored or derived by the digest.
+"""
+verification_methods = ["test"]
+traces_to = ["e8c91756-c711-41be-869f-1b6e94e0968d"]
+
+[[requirements]]
+uid = "2cb3e5e3-6a90-449e-9c3c-5a9f02af2201"
+id = "HLR-091"
+title = "Native and legacy requirements retain review-sensitive content and expose the same projection"
+owner = "tool"
+scope = "component"
+description = """
+Requirement description, rationale, scope, category, source
+reference, and verification methods are normative content, not
+disposable parse by-products: the corpus graph shall retain them on
+requirement nodes, and both the native record loader and the legacy
+`cert/trace` adapter shall populate them, so equivalent native and
+legacy records expose the same review-content projection. Extraction
+provenance remains audit metadata, not normative content, and
+derived requirements' safety impact is assurance metadata that the
+v1 projection does not bind; a future projection version may bind
+it.
+
+Trace-report metadata (namespace, sort_key, surfaces, modules,
+emitted codes) stays a side channel for report rendering. An
+approved requirement shall be able to acquire implementation modules
+and test mappings, move between files, and reorder records or
+set-like fields without changing its review-content digest, while a
+change to any included field — description and rationale included —
+shall change the digest.
+"""
+verification_methods = ["test"]
+traces_to = ["e8c91756-c711-41be-869f-1b6e94e0968d"]

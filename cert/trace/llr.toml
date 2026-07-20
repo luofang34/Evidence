@@ -3262,3 +3262,82 @@ string, "unclassified" for development reports), and
 rather than a bare DAL.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "9668a720-3edf-4aee-8835-55899be843bd"
+id = "LLR-111"
+title = "corpus::review_content projects the v1 normative content and encodes canonical bytes"
+owner = "tool"
+traces_to = ["a6b6cdf2-0810-4c68-8e8c-19d49dddc07c"]
+modules = ["evidence_core::corpus::review_content"]
+description = """
+`RequirementReviewContentV1` carries title, layer, description,
+rationale, scope, category, source, verification_methods, and
+derives_from. Its constructors sort and deduplicate the two
+set-like lists, matching the existing metadata-list contract;
+duplicate typed edges remain a hard error at graph insertion.
+`from_node` pulls the content fields from a `RequirementNode` and
+the canonical targets of its `DerivesFrom` edges only — `Verifies`
+edges are test mappings and excluded. `CorpusGraph::review_content`
+is the pure, non-I/O convenience accessor.
+
+`canonical_bytes_v1` emits the domain tag
+`evidence/requirement-review-content/v1`, one 0x00 separator, then
+the fields in a fixed documented order — title, layer as its serde
+snake_case string, description, rationale, scope, category, source,
+verification method count and entries, derives_from count and
+entries — each framed as `u64_be(len) || bytes` with `None` encoded
+as the all-ones `u64` sentinel, so the format is independently
+re-implementable and the framing prevents field-boundary
+collisions.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "492e8010-6f20-48d3-b9fd-32bedbb8a088"
+id = "LLR-112"
+title = "corpus::digest types the lowercase SHA-256 review-content digest and fails closed on malformed input"
+owner = "tool"
+traces_to = ["a6b6cdf2-0810-4c68-8e8c-19d49dddc07c"]
+modules = ["evidence_core::corpus::digest"]
+description = """
+`ReviewContentDigest` is a newtype over a validated 64-character
+lowercase hexadecimal SHA-256 string. `from_hex` rejects empty,
+short, overlong, uppercase, mixed-case, and non-hex input with
+`CorpusError::InvalidDigest` naming the length and character-set
+expectations; equality, ordering, hashing, and `Display` are derived
+over the validated value, and serde deserialization goes through the
+validating constructor so malformed stored digests fail closed.
+`review_content_digest_v1` hashes the `canonical_bytes_v1` output
+with the shared SHA-256 utility. The type carries no lifecycle
+state: candidate, approved, rejected, and stale are neither stored
+nor derived here.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "014c6b65-6f77-432f-b2be-30f779586b9d"
+id = "LLR-113"
+title = "Requirement nodes and both loaders retain the review-sensitive content fields"
+owner = "tool"
+traces_to = ["2cb3e5e3-6a90-449e-9c3c-5a9f02af2201"]
+modules = [
+    "evidence_core::corpus::graph::RequirementNode",
+    "evidence_core::corpus::records",
+    "evidence_core::corpus::legacy",
+]
+description = """
+`RequirementNode` gains description, rationale, scope, category,
+source, and canonicalized verification_methods as normative content
+fields, documented as outside node identity. The native record
+schema accepts the same optional fields under its strict
+unknown-field policy and projects every one of them into the node —
+description is no longer parsed and discarded. The legacy adapter
+populates the same node fields from SYS/HLR/LLR/derived/test
+entries (description and rationale included, scope/category/source/
+verification-methods from where they already parse). TraceMetadata
+keeps its copies for report rendering unchanged. Duplicate set-like
+values in these lists canonicalize silently at construction per the
+metadata-list contract; the bytes hashed are never host-dependent.
+"""
+verification_methods = ["test"]

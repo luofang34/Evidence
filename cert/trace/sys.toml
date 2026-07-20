@@ -1005,3 +1005,40 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "e8c91756-c711-41be-869f-1b6e94e0968d"
+id = "SYS-038"
+title = "Approval binds versioned canonical normative requirement content, never identity or presentation"
+owner = "soi"
+scope = "soi"
+description = """
+A human approval of a requirement shall bind the requirement's
+normative content — its title, decomposition layer, description,
+rationale, scope, category, source reference, verification methods,
+and canonical decomposition targets — through a versioned canonical
+projection and a stable SHA-256 digest of that projection, never the
+short title alone while normative prose or assurance-relevant
+metadata silently changes underneath.
+
+The requirement's permanent uid is bound separately by the review
+record and is not part of the digest. Identity and presentation
+concerns are excluded from the approved content: the human
+identifier and namespace (renameable under DD-4), owner, sort_key,
+implementation modules, governed surfaces, emitted diagnostic
+codes, file path, TOML layout, file order, and record order. An
+approved requirement can acquire implementation and test mappings
+without invalidating its approval.
+
+Every set-like list is sorted and duplicate-free before encoding,
+and parsed strings are hashed exactly as written with no whitespace
+or Unicode normalization. The projection is encoded in one
+documented canonical byte format behind a domain/version tag;
+changing the encoding contract requires a new projection version,
+never a silent change of existing digests.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

@@ -1888,3 +1888,34 @@ test_selectors = [
     "evidence_core::policy::assurance::tests::wire_strings_are_snake_case",
     "evidence_core::policy::boundary::tests::assurance_selection_requires_explicit_dal_and_scope",
 ]
+
+[[tests]]
+uid = "9b31bf2c-0b94-4449-bdf2-fda7270c36e7"
+id = "TEST-131"
+title = "review-content digest moves on every normative field, canonicalizes set-like lists, and rejects malformed digest strings"
+owner = "tool"
+traces_to = [
+    "9668a720-3edf-4aee-8835-55899be843bd",
+    "492e8010-6f20-48d3-b9fd-32bedbb8a088",
+]
+test_selectors = [
+    "evidence_core::corpus::review_content::tests::included_field_changes_move_the_digest",
+    "evidence_core::corpus::review_content::tests::set_like_lists_canonicalize_before_encoding",
+    "evidence_core::corpus::digest::tests::from_hex_rejects_malformed_input",
+    "evidence_core::corpus::digest::tests::digest_round_trips_through_serde",
+]
+
+[[tests]]
+uid = "71c37388-a975-4a71-9a3e-aa8e72ff8c8b"
+id = "TEST-132"
+title = "native and legacy projections agree, presentation changes are non-semantic, and a golden fixture byte-locks the v1 encoding"
+owner = "tool"
+traces_to = [
+    "9668a720-3edf-4aee-8835-55899be843bd",
+    "014c6b65-6f77-432f-b2be-30f779586b9d",
+]
+test_selectors = [
+    "corpus_review_content::golden_fixture_byte_locks_canonical_encoding_and_digest",
+    "corpus_review_content::native_and_legacy_projections_match_for_equivalent_records",
+    "corpus_review_content::excluded_changes_leave_the_digest_unchanged",
+]
