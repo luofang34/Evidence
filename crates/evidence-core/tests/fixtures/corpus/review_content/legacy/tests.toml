@@ -1,0 +1,14 @@
+[schema]
+version = "0.0.1"
+
+[meta]
+document_id = "FIXTURE-TESTS"
+revision = "1.0"
+
+[[tests]]
+uid = "req_00000000-0000-4000-8000-000000000009"
+id = "TEST-REVIEW-1"
+title = "Fixture test mapping"
+owner = "tool"
+traces_to = ["req_00000000-0000-4000-8000-00000000000c"]
+test_selector = "corpus_review_content::fixture_mapping_selector"

@@ -1,8 +1,9 @@
 //! Corpus-native record file schemas.
 //!
-//! Native requirement records project identity, layer, title, and
-//! decomposition edges into the graph. Record descriptions remain
-//! file metadata; `schema_version` gates the accepted shape.
+//! Native requirement records project identity, layer, title,
+//! normative content (description, rationale, scope, category,
+//! source, verification methods), and decomposition edges into the
+//! graph (LLR-113). `schema_version` gates the accepted shape.
 
 use std::path::Path;
 
@@ -10,7 +11,9 @@ use serde::Deserialize;
 use uuid::{Uuid, Variant, Version};
 
 use super::error::CorpusError;
-use super::graph::{CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementNode};
+use super::graph::{
+    CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementNode, canonical_strings,
+};
 
 /// Highest requirement-record schema version this tool loads.
 const SUPPORTED_RECORDS_SCHEMA: u32 = 1;
@@ -28,7 +31,8 @@ struct RequirementFile {
     requirements: Vec<RequirementRecord>,
 }
 
-/// One native requirement record.
+/// One native requirement record. The optional fields are the
+/// review-sensitive normative content the graph retains (LLR-113).
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RequirementRecord {
@@ -39,11 +43,17 @@ struct RequirementRecord {
     #[serde(default)]
     derives_from: Vec<String>,
     #[serde(default)]
-    #[allow(
-        dead_code,
-        reason = "record metadata is outside the graph identity projection"
-    )]
     description: Option<String>,
+    #[serde(default)]
+    rationale: Option<String>,
+    #[serde(default)]
+    scope: Option<String>,
+    #[serde(default)]
+    category: Option<String>,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    verification_methods: Vec<String>,
 }
 
 /// Parse the native requirement file at `path` and insert its records
@@ -87,6 +97,12 @@ pub(super) fn load_requirements_into(
             title: record.title,
             layer: record.layer,
             edges,
+            description: record.description,
+            rationale: record.rationale,
+            scope: record.scope,
+            category: record.category,
+            source: record.source,
+            verification_methods: canonical_strings(&record.verification_methods),
         }))?;
     }
     Ok(())
@@ -108,4 +124,75 @@ fn validate_requirement_uid(uid: &str) -> Result<(), CorpusError> {
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+mod tests {
+    use super::*;
+
+    fn load_single_record(content: &str) -> Result<CorpusGraph, CorpusError> {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("records.toml");
+        std::fs::write(&path, content).expect("write records");
+        let mut graph = CorpusGraph::new();
+        load_requirements_into(&path, &mut graph)?;
+        Ok(graph)
+    }
+
+    /// A newer `schema_version` still fails closed — the loader
+    /// refuses rather than silently skipping unknown structure.
+    #[test]
+    fn records_refuse_newer_schema() {
+        let err = load_single_record("schema_version = 999\n")
+            .expect_err("newer schema must fail closed");
+        assert!(
+            matches!(err, CorpusError::RecordSchemaTooNew { found: 999, .. }),
+            "expected RecordSchemaTooNew, got: {err:?}"
+        );
+    }
+
+    /// The record's review-sensitive content fields land on the node
+    /// in canonical form (LLR-113).
+    #[test]
+    fn records_project_review_content_fields() {
+        let graph = load_single_record(
+            r#"
+schema_version = 1
+
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000a"
+id = "R-A"
+layer = "hlr"
+title = "content carrier"
+description = "Normative prose."
+rationale = "Why it exists."
+scope = "component"
+category = "functional"
+source = "SRS-1"
+verification_methods = ["test", "review", "test"]
+"#,
+        )
+        .expect("load record");
+
+        let Some(Node::Requirement(node)) = graph.get("req_00000000-0000-4000-8000-00000000000a")
+        else {
+            panic!("requirement node missing");
+        };
+        assert_eq!(node.description.as_deref(), Some("Normative prose."));
+        assert_eq!(node.rationale.as_deref(), Some("Why it exists."));
+        assert_eq!(node.scope.as_deref(), Some("component"));
+        assert_eq!(node.category.as_deref(), Some("functional"));
+        assert_eq!(node.source.as_deref(), Some("SRS-1"));
+        assert_eq!(
+            node.verification_methods,
+            vec!["review".to_string(), "test".to_string()],
+            "set-like lists load sorted and duplicate-free"
+        );
+    }
 }

@@ -1,0 +1,20 @@
+[schema]
+version = "0.0.1"
+
+[meta]
+document_id = "FIXTURE-LLR"
+revision = "1.0"
+
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000c"
+id = "LLR-REVIEW-1"
+title = "The projection encodes to canonical bytes"
+owner = "tool"
+sort_key = 21
+traces_to = ["req_00000000-0000-4000-8000-00000000000b"]
+source = "design"
+# Implementation mapping: excluded from review content.
+modules = ["evidence_core::corpus::review_content"]
+description = "A domain tag and length-prefixed fields fix the encoding."
+verification_methods = ["test"]
+emits = ["VERIFY_HASH_MISMATCH"]

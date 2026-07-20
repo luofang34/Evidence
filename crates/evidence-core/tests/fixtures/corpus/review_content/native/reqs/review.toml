@@ -1,0 +1,42 @@
+# Fixture records for the v1 requirement review-content encoding
+# (LLR-111). This content is byte-locked by
+# tests/fixtures/corpus/review_content_v1.golden — edit only with
+# EVIDENCE_UPDATE_FIXTURES=1 regeneration (tests/corpus_review_content.rs).
+schema_version = 1
+
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000a"
+id = "SYS-REVIEW-1"
+layer = "sys"
+title = "Review binds canonical normative content"
+description = "Approval binds the versioned projection, never the title alone."
+rationale = "Normative prose changes must invalidate prior approval."
+scope = "soi"
+category = "functional"
+source = "CONOPS-7"
+# Deliberately unsorted: set-like lists canonicalize before encoding.
+verification_methods = ["test", "review"]
+
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000b"
+id = "HLR-REVIEW-1"
+layer = "hlr"
+title = "Review content projects from the corpus graph"
+description = "Native and legacy records expose the same projection."
+rationale = "Equivalent records must approve identically."
+scope = "component"
+category = "functional"
+source = "SYS-REVIEW-1"
+verification_methods = ["test"]
+derives_from = ["req_00000000-0000-4000-8000-00000000000a"]
+
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000c"
+id = "LLR-REVIEW-1"
+layer = "llr"
+title = "The projection encodes to canonical bytes"
+description = "A domain tag and length-prefixed fields fix the encoding."
+# No rationale/scope/category: None exercises the all-ones sentinel.
+source = "design"
+verification_methods = ["test"]
+derives_from = ["req_00000000-0000-4000-8000-00000000000b"]

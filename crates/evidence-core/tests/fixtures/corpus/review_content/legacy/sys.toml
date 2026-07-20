@@ -1,0 +1,27 @@
+# Legacy equivalent of the native fixture records (LLR-113). The
+# excluded fields (ns, owner, sort_key, surfaces) deliberately
+# differ from anything the native schema can express — the digest
+# must not see them.
+[schema]
+version = "0.0.1"
+
+[meta]
+document_id = "FIXTURE-SYS"
+revision = "1.0"
+
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000a"
+ns = "FIX"
+id = "SYS-REVIEW-1"
+title = "Review binds canonical normative content"
+owner = "soi"
+scope = "soi"
+sort_key = 7
+category = "functional"
+source = "CONOPS-7"
+description = "Approval binds the versioned projection, never the title alone."
+rationale = "Normative prose changes must invalidate prior approval."
+# Reversed vs the native record: canonicalization must absorb order.
+verification_methods = ["review", "test"]
+traces_to = []
+surfaces = ["doctor"]
