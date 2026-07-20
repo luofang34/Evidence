@@ -1500,7 +1500,7 @@
       "uid": "85dfddd2-d3ce-438a-9830-bf34b43654e5",
       "name": "derived completeness gates and no-evidence surfaces fire typed diagnostics",
       "selectors": [
-        "doctor_cmd::dal_d_empty_trace_warns_no_evidence",
+        "doctor_cmd::adoption::dal_d_empty_trace_warns_no_evidence",
         "trace_cmd_jsonl::trace_validate_jsonl_empty_root_fails_closed",
         "trace_decomposition::derived_missing_disposition_fires_with_typed_code",
         "trace_decomposition::derived_unreviewed_fires_with_typed_code"
