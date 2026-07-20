@@ -19,6 +19,8 @@
 //!   normative content a review approves (LLR-111)
 //! - `digest` — typed lowercase SHA-256 review-content digest
 //!   (LLR-112)
+//! - `lifecycle` — deterministic per-requirement lifecycle
+//!   evaluation over digest-bound review heads (LLR-117)
 //!
 //! Design record:
 //! `docs/superpowers/specs/2026-07-18-corpus-model-v0.2-design.md`.
@@ -28,6 +30,7 @@ mod error;
 mod graph;
 mod index;
 mod legacy;
+mod lifecycle;
 mod records;
 mod review_content;
 mod review_records;
@@ -42,6 +45,10 @@ pub use graph::{
 pub use index::{CorpusIndex, SUPPORTED_INDEX_SCHEMA};
 pub use legacy::graph_from_trace_files;
 pub(crate) use legacy::graph_from_trace_parts;
+pub use lifecycle::{
+    LifecycleError, LifecycleEvaluation, RequirementLifecycle, evaluate_all_lifecycles,
+    evaluate_lifecycle,
+};
 pub use review_content::{
     RequirementReviewContentV1, canonical_bytes_v1, review_content_digest_v1,
 };
