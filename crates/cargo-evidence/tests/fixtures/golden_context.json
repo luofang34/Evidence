@@ -720,6 +720,27 @@
       "verification_methods": [
         "test"
       ]
+    },
+    {
+      "id": "LLR-107",
+      "uid": "75300bff-0ffc-4977-ba33-37a0ceb84911",
+      "layer": "llr",
+      "title": "doctor and bundle verify fail closed on missing or empty trace evidence",
+      "description": "Doctor's trace-validity check consumes the shared evaluation once\nand partitions on the project's DAL: an active claim (DAL-C and\nabove) fails with the existing error-severity empty diagnostic\nwhose message names the actual state, while development mode\n(DAL-D) reports explicit warning-severity adoption diagnostics —\none for missing roots, one for zero requirements — and keeps its\nzero exit code.\n\nBundle verification reuses the same two semantic codes: a cert- or\nrecord-profile bundle that ships no trace requirement files fails\nwith the not-adopted code, and one whose trace set contains zero\nrequirements fails with the empty code. Development-profile bundles\nkeep their existing skip semantics.\n",
+      "modules": [
+        "cargo_evidence::cli::doctor::checks::check_trace",
+        "evidence_core::verify::trace_evidence"
+      ],
+      "emits": [
+        "DOCTOR_TRACE_NOT_ADOPTED",
+        "DOCTOR_TRACE_NO_EVIDENCE"
+      ],
+      "traces_to": [
+        "4636d326-4cc8-4efd-aadc-4a7e5e4d821e"
+      ],
+      "verification_methods": [
+        "test"
+      ]
     }
   ],
   "parents": [
@@ -994,6 +1015,15 @@
       ]
     },
     {
+      "id": "HLR-086",
+      "uid": "4636d326-4cc8-4efd-aadc-4a7e5e4d821e",
+      "layer": "hlr",
+      "title": "One shared trace-evidence evaluation classifies adoption states and every consumer fails closed",
+      "traces_to": [
+        "3782184e-8bc6-40d2-bfba-60803fb2d1f2"
+      ]
+    },
+    {
       "id": "SYS-002",
       "uid": "0e42b90f-88d7-408f-8843-0a3335279360",
       "layer": "sys",
@@ -1152,6 +1182,13 @@
       "uid": "9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98",
       "layer": "sys",
       "title": "Certification data is a single typed corpus graph",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-036",
+      "uid": "3782184e-8bc6-40d2-bfba-60803fb2d1f2",
+      "layer": "sys",
+      "title": "Absence of assurance evidence is an adoption state, never a verification success",
       "traces_to": []
     }
   ],
@@ -1456,6 +1493,21 @@
       ],
       "traces_to": [
         "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
+      ]
+    },
+    {
+      "id": "TEST-128",
+      "uid": "85dfddd2-d3ce-438a-9830-bf34b43654e5",
+      "name": "derived completeness gates and no-evidence surfaces fire typed diagnostics",
+      "selectors": [
+        "doctor_cmd::dal_d_empty_trace_warns_no_evidence",
+        "trace_cmd_jsonl::trace_validate_jsonl_empty_root_fails_closed",
+        "trace_decomposition::derived_missing_disposition_fires_with_typed_code",
+        "trace_decomposition::derived_unreviewed_fires_with_typed_code"
+      ],
+      "traces_to": [
+        "33e25394-8ff2-4114-8dad-f60701bab8fd",
+        "75300bff-0ffc-4977-ba33-37a0ceb84911"
       ]
     },
     {
@@ -1769,6 +1821,8 @@
     "DOCTOR_QUALIFICATION_MISSING",
     "DOCTOR_TRACE_EMPTY",
     "DOCTOR_TRACE_INVALID",
+    "DOCTOR_TRACE_NOT_ADOPTED",
+    "DOCTOR_TRACE_NO_EVIDENCE",
     "ENV_ENGINE_RELEASE_PROVENANCE",
     "FLOORS_BELOW_MIN",
     "FLOORS_DIMENSION_OK",
@@ -1808,8 +1862,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 179,
-      "floor": 179
+      "current": 185,
+      "floor": 185
     }
   ],
   "boundary": {

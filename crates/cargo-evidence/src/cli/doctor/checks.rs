@@ -9,40 +9,17 @@ use std::path::{Path, PathBuf};
 use evidence_core::FloorsConfig;
 use evidence_core::floors::{LoadOutcome, current_measurements, per_crate_measurements};
 use evidence_core::policy::{BoundaryConfig, Dal, EvidencePolicy};
-use evidence_core::trace::{read_all_trace_files, validate_trace_links_with_policy};
+use evidence_core::trace::{TraceEvidenceState, evaluate_trace_evidence};
 
 use super::CheckResult;
 use crate::cli::trace::default_trace_roots;
 
 pub(super) fn check_trace(workspace: &Path) -> CheckResult {
-    // Iterate every configured trace root from the boundary's
-    // `scope.trace_roots` or the auto-discovered convention.
+    // One semantic evaluation shared with `trace --validate`,
+    // `check`, `generate`, and bundle verify (LLR-105).
     // `default_trace_roots` rebases relative paths against
     // `workspace`.
     let roots = default_trace_roots(workspace);
-    let mut sys_reqs = Vec::new();
-    let mut hlr_reqs = Vec::new();
-    let mut llr_reqs = Vec::new();
-    let mut tests = Vec::new();
-    let mut derived = Vec::new();
-    for root in &roots {
-        let files = match read_all_trace_files(root) {
-            Ok(f) => f,
-            Err(e) => {
-                return CheckResult::Fail(
-                    "DOCTOR_TRACE_INVALID",
-                    format!("could not load trace root {}: {}", root, e),
-                );
-            }
-        };
-        sys_reqs.extend(files.sys.requirements);
-        hlr_reqs.extend(files.hlr.requirements);
-        llr_reqs.extend(files.llr.requirements);
-        tests.extend(files.tests.tests);
-        if let Some(d) = files.derived {
-            derived.extend(d.requirements);
-        }
-    }
 
     // DAL drives TracePolicy — hardcoding strict flags would
     // block every real downstream cert build (KNOWN_SURFACES
@@ -60,41 +37,112 @@ pub(super) fn check_trace(workspace: &Path) -> CheckResult {
             .to_string()
     };
 
+    let eval = evaluate_trace_evidence(&roots, &policy);
+
     // DAL ≥ C gate: a fully-empty trace tree passes
     // `validate_trace_links_with_policy` vacuously — no HLR
     // for DAL-A's `require_hlr_sys_trace` flag to fail on.
     // Fire explicitly so cert-grade targets can't silent-pass
-    // on zero data.
-    if sys_reqs.is_empty()
-        && hlr_reqs.is_empty()
-        && llr_reqs.is_empty()
-        && tests.is_empty()
-        && derived.is_empty()
-        && dal >= Dal::C
-    {
-        return CheckResult::Fail(
-            "DOCTOR_TRACE_EMPTY",
-            format!(
-                "no trace data found at {} for DAL-{:?}{}; cert-grade DAL \
-                 requires a populated trace tree.",
-                roots.join(", "),
-                dal,
-                fallback_note
+    // on zero data. The message names the actual adoption state
+    // (missing roots vs zero requirements) so the auditor can
+    // tell "not adopted yet" apart from "adopted but empty".
+    if dal >= Dal::C {
+        return match &eval.state {
+            TraceEvidenceState::Valid => CheckResult::Pass,
+            TraceEvidenceState::Invalid => CheckResult::Fail(
+                "DOCTOR_TRACE_INVALID",
+                format!(
+                    "trace validation failed at DAL-{:?}{}: {}",
+                    dal,
+                    fallback_note,
+                    invalid_detail(&eval)
+                ),
             ),
-        );
+            no_evidence => CheckResult::Fail(
+                "DOCTOR_TRACE_EMPTY",
+                format!(
+                    "no usable trace data found at {} for DAL-{:?}{}; cert-grade DAL \
+                     requires a populated trace tree ({})",
+                    roots.join(", "),
+                    dal,
+                    fallback_note,
+                    adoption_detail(no_evidence, &eval)
+                ),
+            ),
+        };
     }
 
-    match validate_trace_links_with_policy(
-        &sys_reqs, &hlr_reqs, &llr_reqs, &tests, &derived, &policy,
-    ) {
-        Ok(()) => CheckResult::Pass,
-        Err(e) => CheckResult::Fail(
+    // Development mode (DAL-D): absence of evidence is an adoption
+    // state, reported as an explicit warning-severity adoption
+    // diagnostic — never a silent pass, never a hard fail.
+    match &eval.state {
+        TraceEvidenceState::Valid => CheckResult::Pass,
+        TraceEvidenceState::Invalid => CheckResult::Fail(
             "DOCTOR_TRACE_INVALID",
             format!(
                 "trace validation failed at DAL-{:?}{}: {}",
-                dal, fallback_note, e
+                dal,
+                fallback_note,
+                invalid_detail(&eval)
             ),
         ),
+        TraceEvidenceState::NotAdopted { missing_roots } => CheckResult::Fail(
+            "DOCTOR_TRACE_NOT_ADOPTED",
+            format!(
+                "trace root(s) configured but missing on disk: {} — trace evidence \
+                 is not adopted yet{}",
+                missing_roots.join(", "),
+                fallback_note
+            ),
+        ),
+        // `Empty` and `NotConfigured` both mean "zero requirements
+        // to audit"; when the boundary is unloadable the sibling
+        // `check_boundary` check already names the config-side
+        // root cause (DOCTOR_BOUNDARY_MISSING).
+        TraceEvidenceState::Empty | TraceEvidenceState::NotConfigured => CheckResult::Fail(
+            "DOCTOR_TRACE_NO_EVIDENCE",
+            format!(
+                "trace evidence holds zero requirements at {}{} — an adoption \
+                 state, not valid evidence",
+                roots.join(", "),
+                fallback_note
+            ),
+        ),
+    }
+}
+
+/// Render the failure detail for an `Invalid` evaluation: the
+/// typed validation error when validation ran, otherwise the
+/// read/parse failure that prevented loading.
+fn invalid_detail(eval: &evidence_core::trace::TraceEvidenceEval) -> String {
+    if let Some(validation) = &eval.validation {
+        validation.to_string()
+    } else if let Some(read_error) = &eval.read_error {
+        format!("could not load trace files: {}", read_error)
+    } else {
+        "unknown validation failure".to_string()
+    }
+}
+
+/// Render the adoption-state detail for a no-evidence evaluation
+/// under an active claim (DAL ≥ C): distinguishes "roots missing"
+/// from "zero requirements" from "no roots configured".
+fn adoption_detail(
+    state: &TraceEvidenceState,
+    eval: &evidence_core::trace::TraceEvidenceEval,
+) -> String {
+    match state {
+        TraceEvidenceState::NotAdopted { .. } => format!(
+            "trace root(s) missing on disk: {}",
+            eval.missing_roots.join(", ")
+        ),
+        TraceEvidenceState::Empty => {
+            "trace roots present but zero requirements across all layers".to_string()
+        }
+        TraceEvidenceState::NotConfigured => {
+            "no trace roots configured or discoverable".to_string()
+        }
+        TraceEvidenceState::Invalid | TraceEvidenceState::Valid => String::new(),
     }
 }
 

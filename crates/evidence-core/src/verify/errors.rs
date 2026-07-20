@@ -222,6 +222,26 @@ pub enum VerifyError {
     /// workspace — but `outputs_hashes.json` is empty. A build that
     /// produced deliverables must attest them.
     OutputManifestEmpty,
+    /// A cert/record-profile bundle ships no trace requirement
+    /// files at all. Trace evidence was never adopted for this
+    /// bundle, so its traceability claim has zero backing — the
+    /// same semantic state `TraceEvidenceState::NotAdopted` names
+    /// at the source end, reported under the same code.
+    TraceEvidenceNotAdopted {
+        /// Profile read from `index.json` — always `"cert"` or
+        /// `"record"` when this error fires (dev-profile bundles
+        /// legitimately skip trace capture).
+        profile: String,
+    },
+    /// A cert/record-profile bundle ships trace files whose
+    /// requirement lists total zero entries. An empty trace set is
+    /// an adoption state, not evidence: the bundle's traceability
+    /// claim cannot be satisfied by it.
+    TraceEvidenceEmpty {
+        /// Profile read from `index.json` — always `"cert"` or
+        /// `"record"` when this error fires.
+        profile: String,
+    },
 }
 
 impl DiagnosticCode for VerifyError {
@@ -260,6 +280,8 @@ impl DiagnosticCode for VerifyError {
             VerifyError::SourceBaselineEmpty               => "VERIFY_SOURCE_BASELINE_EMPTY",
             VerifyError::TestIdentityUnknown { .. }         => "VERIFY_TEST_IDENTITY_UNKNOWN",
             VerifyError::OutputManifestEmpty               => "VERIFY_OUTPUT_MANIFEST_EMPTY",
+            VerifyError::TraceEvidenceNotAdopted { .. }    => "TRACE_EVIDENCE_NOT_ADOPTED",
+            VerifyError::TraceEvidenceEmpty { .. }         => "TRACE_EVIDENCE_EMPTY",
         }
     }
 
@@ -297,6 +319,8 @@ impl DiagnosticCode for VerifyError {
                 Some(PathBuf::from("tests/test_outcomes.jsonl"))
             }
             VerifyError::OutputManifestEmpty => Some(PathBuf::from("outputs_hashes.json")),
+            VerifyError::TraceEvidenceNotAdopted { .. }
+            | VerifyError::TraceEvidenceEmpty { .. } => Some(PathBuf::from("trace/")),
             // The remaining variants are bundle-wide invariants; no
             // single file "owns" the failure.
             VerifyError::SignatureInvalid

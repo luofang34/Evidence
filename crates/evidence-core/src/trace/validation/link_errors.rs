@@ -150,6 +150,36 @@ pub enum LinkError {
         llr_id: String,
     },
 
+    /// Derived requirement without a non-empty `safety_impact`
+    /// assessment under the `require_derived_safety_impact` policy
+    /// gate (DAL-C+). Field name matches the other derived variants.
+    #[error("derived requirement {derived_id} missing non-empty safety_impact")]
+    DerivedMissingSafetyImpact {
+        /// Derived entry's human ID.
+        derived_id: String,
+    },
+
+    /// Derived requirement without a non-empty `disposition`
+    /// (systems disposition / notification record) under the
+    /// `require_derived_disposition` policy gate (DAL-C+). A derived
+    /// requirement has no parent to inherit acceptance from, so its
+    /// systems-level disposition must be recorded explicitly.
+    #[error("derived requirement {derived_id} missing non-empty disposition")]
+    DerivedMissingDisposition {
+        /// Derived entry's human ID.
+        derived_id: String,
+    },
+
+    /// Derived requirement whose `reviewed` attestation is absent
+    /// or not `true` under the `require_derived_reviewed` policy
+    /// gate (DAL-C+). The gate fails closed: an unattested derived
+    /// requirement is unreviewed, not "review unknown".
+    #[error("derived requirement {derived_id} is not attested as reviewed")]
+    DerivedUnreviewed {
+        /// Derived entry's human ID.
+        derived_id: String,
+    },
+
     /// Catch-all for Link-phase prose-only errors that a future
     /// refactor should convert to a dedicated variant. Emits
     /// `TRACE_LINK_OTHER`. A regression test in `validation.rs`
@@ -176,6 +206,9 @@ impl DiagnosticCode for LinkError {
             LinkError::DuplicateTraceLink { .. } => "TRACE_DUPLICATE_TRACE_LINK",
             LinkError::LlrMissingParentLinks { .. } => "TRACE_LLR_MISSING_PARENT_LINKS",
             LinkError::DerivedMissingRationale { .. } => "TRACE_DERIVED_MISSING_RATIONALE",
+            LinkError::DerivedMissingSafetyImpact { .. } => "TRACE_DERIVED_MISSING_SAFETY_IMPACT",
+            LinkError::DerivedMissingDisposition { .. } => "TRACE_DERIVED_MISSING_DISPOSITION",
+            LinkError::DerivedUnreviewed { .. } => "TRACE_DERIVED_UNREVIEWED",
             LinkError::Other { .. } => "TRACE_LINK_OTHER",
         }
     }
@@ -253,6 +286,15 @@ mod tests {
             },
             LinkError::DerivedMissingRationale {
                 llr_id: "DERIVED-1".into(),
+            },
+            LinkError::DerivedMissingSafetyImpact {
+                derived_id: "DERIVED-1".into(),
+            },
+            LinkError::DerivedMissingDisposition {
+                derived_id: "DERIVED-1".into(),
+            },
+            LinkError::DerivedUnreviewed {
+                derived_id: "DERIVED-1".into(),
             },
             LinkError::Other {
                 message: "anything".into(),

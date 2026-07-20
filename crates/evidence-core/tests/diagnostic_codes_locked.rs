@@ -369,6 +369,15 @@ fn link_error_codes_in_rules_and_claimed() {
         LinkError::DerivedMissingRationale {
             llr_id: "DERIVED-1".into(),
         },
+        LinkError::DerivedMissingSafetyImpact {
+            derived_id: "DERIVED-1".into(),
+        },
+        LinkError::DerivedMissingDisposition {
+            derived_id: "DERIVED-1".into(),
+        },
+        LinkError::DerivedUnreviewed {
+            derived_id: "DERIVED-1".into(),
+        },
         LinkError::Other {
             message: "anything".into(),
         },

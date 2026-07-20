@@ -86,6 +86,8 @@ fn assign_valid_uuids_derived_rewrites_invalid() {
             description: None,
             rationale: None,
             safety_impact: None,
+            disposition: None,
+            reviewed: None,
             sort_key: None,
         },
         DerivedEntry {
@@ -97,6 +99,8 @@ fn assign_valid_uuids_derived_rewrites_invalid() {
             description: None,
             rationale: None,
             safety_impact: None,
+            disposition: None,
+            reviewed: None,
             sort_key: None,
         },
     ];

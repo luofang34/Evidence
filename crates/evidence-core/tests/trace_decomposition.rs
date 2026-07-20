@@ -9,6 +9,12 @@
 //! - Derived LLR without rationale
 //!   → `LinkError::DerivedMissingRationale`
 //!   (`TRACE_DERIVED_MISSING_RATIONALE`).
+//! - Derived completeness gates (DAL-C+, LLR-106)
+//!   → `LinkError::DerivedMissingSafetyImpact`
+//!   (`TRACE_DERIVED_MISSING_SAFETY_IMPACT`),
+//!   `LinkError::DerivedMissingDisposition`
+//!   (`TRACE_DERIVED_MISSING_DISPOSITION`),
+//!   `LinkError::DerivedUnreviewed` (`TRACE_DERIVED_UNREVIEWED`).
 //!
 //! Assertions match on `err.code()` returns.
 
@@ -22,7 +28,7 @@
 use evidence_core::TracePolicy;
 use evidence_core::diagnostic::DiagnosticCode;
 use evidence_core::trace::{
-    HlrEntry, LinkError, LlrEntry, TestEntry, TraceValidationError,
+    DerivedEntry, HlrEntry, LinkError, LlrEntry, TestEntry, TraceValidationError,
     validate_trace_links_with_policy,
 };
 
@@ -255,3 +261,123 @@ test_selectors = ["foo::single", "foo::extra"]
 // Equivalent end-to-end coverage of the DerivedEntry pathway lives
 // in `crates/cargo-evidence/tests/derived_trace_validation.rs`
 // (TEST-055).
+
+/// Build a `DerivedEntry` with every completeness field populated;
+/// individual tests clear one field to fire its gate.
+fn complete_derived() -> DerivedEntry {
+    DerivedEntry {
+        uid: Some("aaaaaaaa-0000-4000-8000-0000000000dd".into()),
+        id: "DERIVED-1".into(),
+        title: "derived requirement".into(),
+        owner: Some("tool".into()),
+        source: Some("design".into()),
+        description: None,
+        rationale: Some("no parent covers this choice".into()),
+        safety_impact: Some("low".into()),
+        disposition: Some("notified to systems process; recorded here".into()),
+        reviewed: Some(true),
+        sort_key: None,
+    }
+}
+
+/// Run the derived-only validation under a policy with every
+/// derived gate enabled (mirrors DAL-C+), returning the LinkError
+/// vec. The fixture feeds no other entries so the only errors that
+/// can fire are the derived gates.
+fn validate_derived(entry: &DerivedEntry) -> Vec<LinkError> {
+    let policy = TracePolicy {
+        require_derived_rationale: true,
+        require_derived_safety_impact: true,
+        require_derived_disposition: true,
+        require_derived_reviewed: true,
+        ..TracePolicy::default()
+    };
+    let err =
+        validate_trace_links_with_policy(&[], &[], &[], &[], std::slice::from_ref(entry), &policy)
+            .expect_err("fixture must fail exactly one derived gate");
+    match err {
+        TraceValidationError::Link { errors } => errors,
+        other => panic!("expected Link-phase errors, got {other:?}"),
+    }
+}
+
+/// DAL-C+ policy + derived entry without `disposition` →
+/// `TRACE_DERIVED_MISSING_DISPOSITION` (typed, payload carries the
+/// derived id).
+#[test]
+fn derived_missing_disposition_fires_with_typed_code() {
+    let mut entry = complete_derived();
+    entry.disposition = None;
+    let errors = validate_derived(&entry);
+    let payload = errors.iter().find_map(|e| match e {
+        LinkError::DerivedMissingDisposition { derived_id } => Some(derived_id.clone()),
+        _ => None,
+    });
+    assert_eq!(
+        payload,
+        Some("DERIVED-1".to_string()),
+        "expected DerivedMissingDisposition for DERIVED-1; got errors:\n{errors:?}"
+    );
+    let codes: Vec<&str> = errors.iter().map(|e| e.code()).collect();
+    assert!(
+        codes.contains(&"TRACE_DERIVED_MISSING_DISPOSITION"),
+        "typed code must be emitted; got {codes:?}"
+    );
+}
+
+/// DAL-C+ policy + derived entry with `reviewed = false` →
+/// `TRACE_DERIVED_UNREVIEWED`. The gate fails closed on anything
+/// but an explicit `reviewed = true`.
+#[test]
+fn derived_unreviewed_fires_with_typed_code() {
+    let mut entry = complete_derived();
+    entry.reviewed = Some(false);
+    let errors = validate_derived(&entry);
+    let payload = errors.iter().find_map(|e| match e {
+        LinkError::DerivedUnreviewed { derived_id } => Some(derived_id.clone()),
+        _ => None,
+    });
+    assert_eq!(
+        payload,
+        Some("DERIVED-1".to_string()),
+        "expected DerivedUnreviewed for DERIVED-1; got errors:\n{errors:?}"
+    );
+}
+
+/// DAL-C+ policy + derived entry without `safety_impact` →
+/// `TRACE_DERIVED_MISSING_SAFETY_IMPACT`.
+#[test]
+fn derived_missing_safety_impact_fires_with_typed_code() {
+    let mut entry = complete_derived();
+    entry.safety_impact = None;
+    let errors = validate_derived(&entry);
+    let payload = errors.iter().find_map(|e| match e {
+        LinkError::DerivedMissingSafetyImpact { derived_id } => Some(derived_id.clone()),
+        _ => None,
+    });
+    assert_eq!(
+        payload,
+        Some("DERIVED-1".to_string()),
+        "expected DerivedMissingSafetyImpact for DERIVED-1; got errors:\n{errors:?}"
+    );
+}
+
+/// Control: the fully-populated derived entry passes every gate
+/// under the same DAL-C+ policy — proves each gate keys on its own
+/// field and the negative tests above aren't failing vacuously.
+#[test]
+fn derived_complete_entry_passes_all_gates() {
+    let entry = complete_derived();
+    let policy = TracePolicy {
+        require_derived_rationale: true,
+        require_derived_safety_impact: true,
+        require_derived_disposition: true,
+        require_derived_reviewed: true,
+        ..TracePolicy::default()
+    };
+    assert!(
+        validate_trace_links_with_policy(&[], &[], &[], &[], std::slice::from_ref(&entry), &policy)
+            .is_ok(),
+        "complete derived entry must pass all gates"
+    );
+}

@@ -275,6 +275,8 @@ pub fn cmd_verify(
                     VE::SourceBaselineEmpty             => "source_baseline_empty",
                     VE::TestIdentityUnknown { .. }      => "test_identity_unknown",
                     VE::OutputManifestEmpty             => "output_manifest_empty",
+                    VE::TraceEvidenceNotAdopted { .. }  => "trace_evidence_not_adopted",
+                    VE::TraceEvidenceEmpty { .. }       => "trace_evidence_empty",
                 };
                 checks.push(VerifyCheck {
                     name: name.to_string(),

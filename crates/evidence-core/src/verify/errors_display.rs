@@ -199,6 +199,22 @@ impl std::fmt::Display for VerifyError {
                      attested"
                 )
             }
+            VerifyError::TraceEvidenceNotAdopted { profile } => {
+                write!(
+                    f,
+                    "profile='{profile}' bundle ships no trace requirement files — \
+                     trace evidence was never adopted, so the bundle's \
+                     traceability claim has zero backing"
+                )
+            }
+            VerifyError::TraceEvidenceEmpty { profile } => {
+                write!(
+                    f,
+                    "profile='{profile}' bundle ships trace files with zero \
+                     requirements — an empty trace set is an adoption state, \
+                     not evidence"
+                )
+            }
         }
     }
 }

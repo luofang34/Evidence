@@ -72,10 +72,13 @@ fn rigorous_fixture_passes() {
 fn sloppy_fixture_fails_with_named_codes() {
     // Empty tempdir — no cert/trace, no cert/, no .github/, no README.
     // With DAL-D as the implicit default (boundary missing), the
-    // trace check is lenient and an empty trace directory passes
-    // (link-validity on zero links trivially holds). The sloppy
-    // contract is now "floors + boundary missing fires" — the trace
-    // check is covered separately in `downstream_dal_a_fixture_*`.
+    // trace check reports the explicit adoption diagnostic
+    // `DOCTOR_TRACE_NOT_ADOPTED` (warning severity — development
+    // mode never silent-passes but also never hard-fails on
+    // adoption state, LLR-107).. The sloppy error-severity contract is
+    // "floors + boundary missing fires" — the cert-grade trace
+    // states are covered separately in `downstream_dal_a_fixture_*`
+    // and `dal_a_empty_trace_fires_doctor_trace_empty`.
     let tmp = TempDir::new().expect("tempdir");
     let (exit, diags) = run_doctor(tmp.path());
     assert_eq!(exit, 2, "sloppy fixture should exit 2; diags={:?}", diags);
@@ -88,6 +91,12 @@ fn sloppy_fixture_fails_with_named_codes() {
     assert!(
         codes.contains(&"DOCTOR_BOUNDARY_MISSING"),
         "expected DOCTOR_BOUNDARY_MISSING in codes={:?}",
+        codes
+    );
+    assert!(
+        codes.contains(&"DOCTOR_TRACE_NOT_ADOPTED"),
+        "dev mode must name the not-adopted state explicitly (discovery falls \
+         back to the cert/trace convention root, which is absent); codes={:?}",
         codes
     );
     assert_eq!(
@@ -405,89 +414,9 @@ fn current_workspace_passes_doctor() {
     );
 }
 
-/// **DAL-A empty-trace silent-pass gate.** `check_trace` used to
-/// load only `<workspace>/cert/trace`, and
-/// `validate_trace_links_with_policy` on an empty-everything tree
-/// is trivially valid (no HLR to iterate → DAL-A's
-/// `require_hlr_sys_trace` has nothing to fail on). Result:
-/// `[✓] trace validity` + `DOCTOR_OK` on a DAL-A project with zero
-/// trace data. The explicit DAL ≥ C empty-trace gate fires
-/// `DOCTOR_TRACE_EMPTY` instead, so a cert-grade target without
-/// trace data cannot silently-pass.
-#[test]
-fn dal_a_empty_trace_fires_doctor_trace_empty() {
-    let tmp = TempDir::new().expect("tempdir");
-    let root = tmp.path();
-
-    // Populate `cert/trace/` with valid TOML but zero requirements.
-    // This is the scenario commit 4 specifically catches — a
-    // readable but empty trace tree, distinct from
-    // `DOCTOR_TRACE_INVALID` which fires on unreadable / missing
-    // roots.
-    fs::create_dir_all(root.join("cert").join("trace")).unwrap();
-    for (name, content) in [
-        (
-            "hlr.toml",
-            "requirements = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
-             [meta]\ndocument_id = \"DS-HLR\"\nrevision = \"1.0\"\n",
-        ),
-        (
-            "sys.toml",
-            "requirements = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
-             [meta]\ndocument_id = \"DS-SYS\"\nrevision = \"1.0\"\n",
-        ),
-        (
-            "llr.toml",
-            "requirements = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
-             [meta]\ndocument_id = \"DS-LLR\"\nrevision = \"1.0\"\n",
-        ),
-        (
-            "tests.toml",
-            "tests = []\n\n[schema]\nversion = \"0.0.1\"\n\n\
-             [meta]\ndocument_id = \"DS-TESTS\"\nrevision = \"1.0\"\n",
-        ),
-    ] {
-        fs::write(root.join("cert").join("trace").join(name), content).unwrap();
-    }
-
-    // DAL-A boundary.
-    fs::create_dir_all(root.join("cert")).unwrap();
-    fs::write(
-        root.join("cert").join("boundary.toml"),
-        "[schema]\nversion = \"0.0.1\"\n\n[scope]\nin_scope = [\"downstream\"]\n\
-         trace_roots = [\"cert/trace\"]\n\n[policy]\nno_out_of_scope_deps = false\n\
-         forbid_build_rs = false\nforbid_proc_macros = false\n\n\
-         [dal]\ndefault_dal = \"A\"\n",
-    )
-    .unwrap();
-    fs::write(
-        root.join("cert").join("floors.toml"),
-        "schema_version = 1\n\n[floors]\n\n[per_crate.downstream]\n",
-    )
-    .unwrap();
-    fs::create_dir_all(root.join(".github").join("workflows")).unwrap();
-    fs::write(
-        root.join(".github").join("workflows").join("ci.yml"),
-        "name: CI\non: push\njobs:\n  check:\n    runs-on: ubuntu-latest\n    \
-         steps:\n      - run: cargo evidence check\n",
-    )
-    .unwrap();
-    fs::write(
-        root.join("README.md"),
-        "# Downstream\n\n`Override-Deterministic-Baseline: <reason>` in PR body for overrides.\n",
-    )
-    .unwrap();
-
-    let (exit, diags) = run_doctor(root);
-    let codes: Vec<&str> = diags.iter().map(|d| d["code"].as_str().unwrap()).collect();
-    assert!(
-        codes.contains(&"DOCTOR_TRACE_EMPTY"),
-        "DAL-A + empty trace must fire DOCTOR_TRACE_EMPTY; codes={:?}",
-        codes
-    );
-    assert_ne!(
-        exit, 0,
-        "DAL-A + empty trace must fail doctor; diags={:?}",
-        diags
-    );
-}
+// The adoption-state tests (DAL-A empty tree, DAL-D empty tree,
+// DAL-D missing roots) live in a sibling file pulled in via
+// `#[path]` so this parent stays under the 500-line workspace
+// file-size limit.
+#[path = "doctor_cmd/adoption.rs"]
+mod adoption;

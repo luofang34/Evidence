@@ -108,6 +108,126 @@ fn trace_validate_jsonl_happy_path() {
     );
 }
 
+/// Empty-root path (LLR-105): `trace --validate --format=jsonl` over a
+/// trace root that exists but holds zero requirements must NOT
+/// terminate `VERIFY_OK` — absence of evidence is an adoption
+/// state, not valid evidence. The stream carries one typed
+/// `TRACE_EVIDENCE_EMPTY` event plus a `VERIFY_FAIL` terminal, and
+/// the process exits 2 (the jsonl verification-failure code).
+#[test]
+fn trace_validate_jsonl_empty_root_fails_closed() {
+    let tmp = TempDir::new().expect("tempdir");
+    for (name, list_key) in [
+        ("sys.toml", "requirements"),
+        ("hlr.toml", "requirements"),
+        ("llr.toml", "requirements"),
+        ("tests.toml", "tests"),
+    ] {
+        std::fs::write(
+            tmp.path().join(name),
+            format!(
+                "{} = []\n\n[schema]\nversion = \"0.0.1\"\n\n[meta]\ndocument_id = \"DS\"\nrevision = \"1.0\"\n",
+                list_key
+            ),
+        )
+        .expect("write empty trace file");
+    }
+    let out = cargo_evidence()
+        .current_dir(workspace_root())
+        .args(["evidence", "--format=jsonl", "trace", "--validate"])
+        .arg("--trace-roots")
+        .arg(tmp.path())
+        .output()
+        .expect("spawn");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "empty trace root must exit 2 (verification failure); stdout={}\nstderr={}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8(out.stdout).expect("utf-8");
+    let lines: Vec<Value> = stdout
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).expect("each line is JSON"))
+        .collect();
+    let codes: Vec<&str> = lines
+        .iter()
+        .filter_map(|l| l.get("code").and_then(Value::as_str))
+        .collect();
+    assert!(
+        codes.contains(&"TRACE_EVIDENCE_EMPTY"),
+        "expected typed TRACE_EVIDENCE_EMPTY event; got codes:\n{:?}",
+        codes
+    );
+    assert_eq!(
+        codes.last().copied(),
+        Some("VERIFY_FAIL"),
+        "last event must be VERIFY_FAIL, never VERIFY_OK over no evidence; got codes:\n{:?}",
+        codes
+    );
+    // The adoption event names the root so an agent can locate it.
+    let gap = lines
+        .iter()
+        .find(|l| l.get("code").and_then(Value::as_str) == Some("TRACE_EVIDENCE_EMPTY"))
+        .expect("gap event present");
+    assert!(
+        gap.get("location")
+            .and_then(|l| l.get("file"))
+            .and_then(Value::as_str)
+            .is_some_and(|s| !s.is_empty()),
+        "TRACE_EVIDENCE_EMPTY must carry location.file; got:\n{}",
+        gap
+    );
+}
+
+/// Missing-root path (LLR-105): `trace --validate --format=jsonl`
+/// over a configured-but-absent trace root must fail closed with
+/// `TRACE_EVIDENCE_NOT_ADOPTED` + `VERIFY_FAIL` (exit 2) — the
+/// pre-fix behavior skipped the root with a warning and could
+/// still terminate `VERIFY_OK`.
+#[test]
+fn trace_validate_jsonl_missing_root_fails_closed() {
+    let tmp = TempDir::new().expect("tempdir");
+    let missing = tmp.path().join("no-such-root");
+    let out = cargo_evidence()
+        .current_dir(workspace_root())
+        .args(["evidence", "--format=jsonl", "trace", "--validate"])
+        .arg("--trace-roots")
+        .arg(&missing)
+        .output()
+        .expect("spawn");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "missing trace root must exit 2; stdout={}\nstderr={}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8(out.stdout).expect("utf-8");
+    let lines: Vec<Value> = stdout
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).expect("each line is JSON"))
+        .collect();
+    let codes: Vec<&str> = lines
+        .iter()
+        .filter_map(|l| l.get("code").and_then(Value::as_str))
+        .collect();
+    assert!(
+        codes.contains(&"TRACE_EVIDENCE_NOT_ADOPTED"),
+        "expected typed TRACE_EVIDENCE_NOT_ADOPTED event; got codes:\n{:?}",
+        codes
+    );
+    assert_eq!(
+        codes.last().copied(),
+        Some("VERIFY_FAIL"),
+        "last event must be VERIFY_FAIL; got codes:\n{:?}",
+        codes
+    );
+}
+
 /// Tampered path: `trace --validate --format=jsonl` over a trace
 /// with a bad surface emits one `TRACE_HLR_SURFACE_UNKNOWN` event,
 /// one `TRACE_HLR_SURFACE_UNCLAIMED` event, and a `VERIFY_FAIL`

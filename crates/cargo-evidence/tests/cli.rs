@@ -99,6 +99,9 @@ fn test_trace_no_action_errors() {
 
 #[test]
 fn test_trace_validate_missing_root_warns() {
+    // LLR-105: a missing trace root is an adoption state, not a
+    // skippable warning — the run must fail closed with the typed
+    // adoption diagnostic (human mode: non-zero exit + `[✗]` line).
     let tmp = TempDir::new().unwrap();
     cargo_evidence()
         .arg("evidence")
@@ -108,8 +111,9 @@ fn test_trace_validate_missing_root_warns() {
         .arg("nonexistent/trace")
         .current_dir(tmp.path())
         .assert()
-        .success()
-        .stderr(predicate::str::contains("does not exist"));
+        .failure()
+        .stderr(predicate::str::contains("TRACE_EVIDENCE_NOT_ADOPTED"))
+        .stderr(predicate::str::contains("nonexistent/trace"));
 }
 
 #[test]
