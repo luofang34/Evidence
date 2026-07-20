@@ -9,15 +9,23 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
+use super::digest::ReviewContentDigest;
 use super::error::CorpusError;
 
+mod supersession;
+
 /// Typed edge kinds supported by the corpus graph.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EdgeKind {
     /// Requirement → parent requirement it decomposes.
     DerivesFrom,
     /// Test → requirement it verifies.
     Verifies,
+    /// Review → requirement whose content it decides on (LLR-115).
+    Reviews,
+    /// Review → earlier review it corrects (LLR-115).
+    Supersedes,
 }
 
 /// Requirement decomposition layer within the graph.
@@ -51,12 +59,31 @@ impl RequirementLayer {
 }
 
 /// Coarse node kind, for kind-filtered queries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum NodeKind {
     /// A requirement at any [`RequirementLayer`].
     Requirement,
     /// A test case.
     Test,
+    /// A human review decision record (LLR-115).
+    Review,
+}
+
+/// A human review decision over a requirement's exact reviewed
+/// content (LLR-115).
+///
+/// The decision is audit data only: computing an effective lifecycle
+/// state from decisions is a derived view, and `reviewed_at` never
+/// picks a winner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewDecision {
+    /// The reviewer approves the reviewed content.
+    Approve,
+    /// The reviewer rejects the reviewed content; the record
+    /// carries a non-empty rationale.
+    Reject,
 }
 
 /// Trace metadata retained for requirement-derived views.
@@ -184,6 +211,40 @@ pub struct TestNode {
     pub edges: Vec<(EdgeKind, String)>,
 }
 
+/// A human review decision node (LLR-115).
+///
+/// One record of a reviewer approving or rejecting one requirement's
+/// exact reviewed content. The `reviewer` and `reviewed_at` fields
+/// are audit metadata: the reviewer identity is recorded, never
+/// accepted as proof that a caller is human, and the timestamp
+/// never chooses an effective decision. Edges carry
+/// [`EdgeKind::Reviews`] → `requirement_uid` and, for a correcting
+/// review, [`EdgeKind::Supersedes`] → the predecessor review uid.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewNode {
+    /// Permanent identity, unique across all node kinds.
+    pub uid: String,
+    /// Human-readable identifier (e.g. `REV-001`).
+    pub id: String,
+    /// Uid of the requirement whose content was reviewed.
+    pub requirement_uid: String,
+    /// Review-content projection version the digest covers.
+    pub content_schema: u32,
+    /// Exact digest of the reviewed canonical content.
+    pub reviewed_content_sha256: ReviewContentDigest,
+    /// The recorded decision.
+    pub decision: ReviewDecision,
+    /// Organization-stable reviewer identity (audit metadata).
+    pub reviewer: String,
+    /// RFC 3339 review timestamp (audit metadata only).
+    pub reviewed_at: String,
+    /// Why the decision was made; required and non-empty for
+    /// rejections.
+    pub rationale: Option<String>,
+    /// Outgoing typed edges `(kind, target uid)`.
+    pub edges: Vec<(EdgeKind, String)>,
+}
+
 /// A corpus graph node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
@@ -191,6 +252,8 @@ pub enum Node {
     Requirement(RequirementNode),
     /// A test case.
     Test(TestNode),
+    /// A human review decision.
+    Review(ReviewNode),
 }
 
 impl Node {
@@ -199,6 +262,7 @@ impl Node {
         match self {
             Node::Requirement(r) => &r.uid,
             Node::Test(t) => &t.uid,
+            Node::Review(r) => &r.uid,
         }
     }
 
@@ -207,6 +271,7 @@ impl Node {
         match self {
             Node::Requirement(_) => NodeKind::Requirement,
             Node::Test(_) => NodeKind::Test,
+            Node::Review(_) => NodeKind::Review,
         }
     }
 
@@ -215,6 +280,7 @@ impl Node {
         match self {
             Node::Requirement(r) => &r.id,
             Node::Test(t) => &t.id,
+            Node::Review(r) => &r.id,
         }
     }
 
@@ -223,6 +289,7 @@ impl Node {
         match self {
             Node::Requirement(r) => &r.edges,
             Node::Test(t) => &t.edges,
+            Node::Review(r) => &r.edges,
         }
     }
 
@@ -230,6 +297,7 @@ impl Node {
         match self {
             Node::Requirement(r) => &mut r.edges,
             Node::Test(t) => &mut t.edges,
+            Node::Review(r) => &mut r.edges,
         }
     }
 }
@@ -307,7 +375,8 @@ impl CorpusGraph {
     }
 
     /// Check every edge resolves and obeys its source/target kind
-    /// contract.
+    /// contract, then validate review supersession chains
+    /// (LLR-115).
     pub fn validate(&self) -> Result<(), CorpusError> {
         for node in self.nodes.values() {
             for (kind, target) in node.edges() {
@@ -330,7 +399,7 @@ impl CorpusGraph {
                 }
             }
         }
-        Ok(())
+        supersession::validate_review_supersession(self)
     }
 }
 
@@ -366,5 +435,7 @@ fn edge_kinds_match(source: NodeKind, edge: EdgeKind, target: NodeKind) -> bool 
             EdgeKind::DerivesFrom,
             NodeKind::Requirement
         ) | (NodeKind::Test, EdgeKind::Verifies, NodeKind::Requirement)
+            | (NodeKind::Review, EdgeKind::Reviews, NodeKind::Requirement)
+            | (NodeKind::Review, EdgeKind::Supersedes, NodeKind::Review)
     )
 }

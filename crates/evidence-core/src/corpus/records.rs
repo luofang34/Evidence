@@ -20,7 +20,7 @@ use super::graph::{
 const SUPPORTED_RECORDS_SCHEMA: u32 = 1;
 
 /// Typed uid prefix for corpus-native requirement records (HLR-080).
-const REQUIREMENT_UID_PREFIX: &str = "req_";
+pub(super) const REQUIREMENT_UID_PREFIX: &str = "req_";
 
 /// On-disk shape of a native requirement record file. Strict: unknown
 /// fields are a parse error.
@@ -116,12 +116,19 @@ pub(super) fn load_requirements_into(
 }
 
 fn validate_requirement_uid(uid: &str) -> Result<(), CorpusError> {
-    let suffix =
-        uid.strip_prefix(REQUIREMENT_UID_PREFIX)
-            .ok_or_else(|| CorpusError::NativeUidPrefix {
-                uid: uid.to_string(),
-                expected: REQUIREMENT_UID_PREFIX,
-            })?;
+    validate_native_uid(uid, REQUIREMENT_UID_PREFIX)
+}
+
+/// Validate a corpus-native uid: the kind's typed prefix followed
+/// by an RFC 9562 UUIDv4. Shared by every native record kind
+/// (LLR-114).
+pub(super) fn validate_native_uid(uid: &str, expected: &'static str) -> Result<(), CorpusError> {
+    let suffix = uid
+        .strip_prefix(expected)
+        .ok_or_else(|| CorpusError::NativeUidPrefix {
+            uid: uid.to_string(),
+            expected,
+        })?;
     let valid_v4 = Uuid::parse_str(suffix).is_ok_and(|parsed| {
         parsed.get_version() == Some(Version::Random) && parsed.get_variant() == Variant::RFC4122
     });

@@ -1934,8 +1934,8 @@ test_selectors = [
     "evidence_core::corpus::review_records::tests::approve_and_reject_records_round_trip",
     "evidence_core::corpus::review_records::tests::strict_schema_violations_fail_closed",
     "evidence_core::corpus::review_records::tests::malformed_record_fields_fail_closed",
-    "evidence_core::corpus::review_records::tests::review_edges_enforce_endpoint_kinds",
-    "evidence_core::corpus::review_records::tests::supersession_validation_rejects_invalid_chains",
+    "evidence_core::corpus::graph::supersession::tests::review_edges_enforce_endpoint_kinds",
+    "evidence_core::corpus::graph::supersession::tests::supersession_validation_rejects_invalid_chains",
 ]
 
 [[tests]]
@@ -1950,5 +1950,5 @@ traces_to = [
 test_selectors = [
     "evidence_core::corpus::review_records::tests::layout_and_record_order_produce_identical_graphs",
     "evidence_core::corpus::review_records::tests::independent_reviews_of_one_digest_are_preserved",
-    "evidence_core::corpus::review_records::tests::index_resolves_reviews_and_loads_requirements_first",
+    "evidence_core::corpus::index::tests::index_resolves_reviews_and_loads_requirements_first",
 ]
