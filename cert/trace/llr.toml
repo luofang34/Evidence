@@ -3502,3 +3502,84 @@ lifecycle fields. Both entry points are pure functions of the
 graph: no I/O, no environment reads, no statics.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "a81bbe08-6260-4f03-934d-984418dd79c6"
+id = "LLR-119"
+title = "corpus::approval_boundary types make the enforcement policy explicit with no default and no silent weakening"
+owner = "tool"
+traces_to = ["38941e91-e8a1-4977-8c19-38b5640ef5cf"]
+modules = ["evidence_core::corpus::approval_boundary"]
+description = """
+`LifecycleEnforcement` is the explicit policy input: a single
+`Required` variant, no `Default`, no serde — callers must name
+the policy in code, and an exhaustive match in the module's own
+tests pins the variant set so a weaker policy cannot appear
+unnoticed. `ApprovalBoundaryViolation` carries the requirement
+uid, the human-readable id, the evaluated
+`RequirementLifecycle` (candidate, rejected, or stale — never
+approved), and the `ReferringArtifact`: `Test` (test uid and
+id), `ImplementationModules` (claimed modules), or
+`EmittedDiagnostics` (claimed codes); its `Ord` derivation
+documents the deterministic sort — test violations first, then
+module claims, then emitted-diagnostic claims, payload fields
+breaking ties. `ApprovalBoundaryError` is a flat thiserror enum:
+`Violations` aggregating every violation with a one-line-per-
+violation uid-sorted `Display`, and `Lifecycle` wrapping a
+`LifecycleError` for fail-closed evaluator failures.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "45cb08f4-9051-4780-86fa-9e0adbfcd61f"
+id = "LLR-120"
+title = "validate_approval_boundary scans verifies edges and metadata claims against evaluated lifecycles in deterministic order"
+owner = "tool"
+traces_to = ["db587696-1d94-451f-a275-0b504af4f6aa"]
+modules = ["evidence_core::corpus::approval_boundary"]
+description = """
+`validate_approval_boundary` runs `evaluate_all_lifecycles`
+once — wrapping any evaluator failure as
+`ApprovalBoundaryError::Lifecycle` so invalid review data fails
+closed — then scans every test node's `Verifies` edge: a target
+whose evaluated state is not `Approved` yields a
+`ReferringArtifact::Test` violation naming the test uid and id,
+and a target naming no requirement node fails closed with
+`LifecycleError::RequirementMissing` (every loader runs
+`CorpusGraph::validate`, which rejects such edges first). For
+every requirement node it reads the graph's trace metadata and
+gates legacy-populated claims: non-empty `modules` yields an
+`ImplementationModules` violation and non-empty `emits` an
+`EmittedDiagnostics` violation when the requirement is not
+approved — two distinct violation kinds, one node may produce
+both. Violations aggregate and sort by requirement uid then
+referring artifact; approved targets pass silently;
+`DerivesFrom` edges are never scanned. The function is pure:
+no I/O, no environment reads, no statics.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "398e24ac-9e53-4181-b3f4-63990270a93d"
+id = "LLR-121"
+title = "the approval boundary fails closed over zero reviews and never grandfathers legacy graphs"
+owner = "tool"
+traces_to = ["db587696-1d94-451f-a275-0b504af4f6aa"]
+modules = ["evidence_core::corpus::approval_boundary"]
+description = """
+A graph with no review nodes evaluates every requirement as
+`Candidate` (missing reviews are never implicitly approved), so
+under explicit enforcement every would-be-gated claim — each
+verifies edge and each module or emitted-diagnostic claim —
+produces a violation: an explicitly requested approval claim
+over zero reviews can never succeed. The module rustdoc states
+the compatibility boundary: legacy graphs are not grandfathered
+inside the validator — callers that have not adopted corpus
+lifecycle simply do not call it — and native requirement records
+carry no modules or emits fields, so the implementation-claim
+gate applies to claims present in the graph (populated by the
+legacy adapter); native-record support is a documented non-goal.
+Candidate decomposition stays usable because `DerivesFrom`
+edges are never gated.
+"""
+verification_methods = ["test"]

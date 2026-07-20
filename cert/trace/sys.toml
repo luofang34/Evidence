@@ -1119,3 +1119,43 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "1768262e-5524-477b-be35-c479623aa19c"
+id = "SYS-041"
+title = "Implementation and verification evidence may claim only approved requirements under explicit lifecycle enforcement"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall provide a strict validation policy that prevents
+implementation or verification evidence from claiming an
+unapproved requirement: when lifecycle enforcement is explicitly
+required, every test-to-requirement verifies edge shall target an
+approved requirement, and every requirement that claims
+implementation modules or emitted implementation diagnostics
+shall be approved.
+
+The enforcement decision shall be explicit: the caller shall name
+the policy through a dedicated input, and strictness shall never
+be inferred from an implicit design-assurance fallback. A caller
+that has not adopted corpus lifecycle simply does not request
+this policy; legacy nodes shall never be grandfathered as
+approved inside the evaluator, and the distinction shall be
+explicit in the API rather than detected from file paths.
+
+When enforcement is required, candidate, rejected, and stale
+targets shall each produce distinct typed non-success diagnostics
+carrying the requirement uid, the human-readable identifier, the
+lifecycle state, and the referring artifact or test. Missing
+reviews shall be treated as candidate, never implicitly approved,
+and an empty lifecycle review set shall never satisfy an
+explicitly requested approval claim. Requirement decomposition
+edges shall remain structurally valid for candidate authoring:
+this policy gates implementation and verification consumption,
+not the ability to draft a requirement hierarchy.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

@@ -1993,3 +1993,37 @@ test_selectors = [
     "evidence_core::corpus::lifecycle::adversarial_tests::unsupported_content_schema_fails_closed",
     "evidence_core::corpus::lifecycle::adversarial_tests::supersession_cycle_fails_closed",
 ]
+
+[[tests]]
+uid = "bb27c292-f361-4f91-88c2-9db1af58b72a"
+id = "TEST-137"
+title = "the approval boundary admits approved claims and rejects candidate, rejected, and stale targets with distinct deterministic diagnostics"
+owner = "tool"
+traces_to = [
+    "a81bbe08-6260-4f03-934d-984418dd79c6",
+    "45cb08f4-9051-4780-86fa-9e0adbfcd61f",
+]
+test_selectors = [
+    "evidence_core::corpus::approval_boundary::tests::approved_requirement_accepts_test_and_implementation_claims",
+    "evidence_core::corpus::approval_boundary::tests::candidate_requirement_rejects_verifying_test",
+    "evidence_core::corpus::approval_boundary::tests::rejected_requirement_rejects_modules_claim",
+    "evidence_core::corpus::approval_boundary::tests::stale_requirement_rejects_emits_claim",
+    "evidence_core::corpus::approval_boundary::tests::unapproved_states_produce_distinct_diagnostics",
+    "evidence_core::corpus::approval_boundary::tests::candidate_decomposition_remains_usable",
+    "evidence_core::corpus::approval_boundary::tests::zero_review_graph_fails_closed",
+    "evidence_core::corpus::approval_boundary::tests::enforcement_is_explicit_single_variant",
+    "evidence_core::corpus::approval_boundary::tests::lifecycle_evaluation_error_fails_closed",
+    "evidence_core::corpus::approval_boundary::tests::violations_are_deterministically_ordered",
+    "evidence_core::corpus::approval_boundary::tests::multiple_violations_aggregate_in_one_error",
+]
+
+[[tests]]
+uid = "6ed97e45-e0d1-4917-ac7e-4e7e38c41539"
+id = "TEST-138"
+title = "native corpora pass without gated claims and the legacy trace is gated rather than grandfathered under explicit enforcement"
+owner = "tool"
+traces_to = ["398e24ac-9e53-4181-b3f4-63990270a93d"]
+test_selectors = [
+    "corpus_approval_boundary::native_corpus_without_gated_claims_passes",
+    "corpus_approval_boundary::legacy_trace_gates_every_claim_when_requested",
+]
