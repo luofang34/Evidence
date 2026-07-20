@@ -2368,3 +2368,59 @@ be preserved as independent nodes.
 """
 verification_methods = ["test"]
 traces_to = ["e6e5c8b3-d429-460f-bdfc-3020ff1cfebf"]
+
+[[requirements]]
+uid = "6f9137b9-00ea-4cc2-9794-ea0e145a9203"
+id = "HLR-094"
+title = "Lifecycle evaluation derives one deterministic state per requirement from effective digest-bound review heads"
+owner = "tool"
+scope = "component"
+description = """
+For each requirement the tool shall compute the current
+review-content digest and collect the requirement's effective
+review heads — every review of that requirement minus any review
+that is the target of a supersession edge — and derive exactly
+one lifecycle state: rejected when any effective rejection binds
+the current digest, fail-closed and taking precedence over
+approval; approved when at least one effective approval binds the
+current digest and no effective current-digest rejection exists;
+stale when no effective decision binds the current digest but an
+effective approval exists for an older digest of the same
+requirement; and candidate otherwise, including a requirement
+with no reviews and revised content whose only older decisions
+were rejections.
+
+A well-formed approval whose digest differs from the current
+content shall produce at most stale, never approved. A review
+whose requirement uid names no requirement node in the graph
+shall fail closed as invalid graph data. The evaluation shall be
+pure — no I/O, no environment reads, no mutable module state —
+and review timestamps shall never pick a winner.
+"""
+verification_methods = ["test"]
+traces_to = ["9612ccb9-294a-4682-88b3-b78cbd34e7e6"]
+
+[[requirements]]
+uid = "62e50814-47ca-4da7-bd29-9926bcfbd346"
+id = "HLR-095"
+title = "Lifecycle state is an evaluated-only view reported deterministically by requirement uid"
+owner = "tool"
+scope = "component"
+description = """
+Lifecycle state shall be an evaluated value only: no lifecycle or
+staleness field shall be serialized on requirement nodes, and no
+caller shall toggle a stale flag — a content change shall turn
+approval into stale mechanically through the digest comparison
+alone.
+
+Bulk evaluation shall return every requirement's evaluation keyed
+by requirement uid with deterministic iteration order, and each
+evaluation shall expose the current content digest and the sorted
+uids of the effective review heads used to reach the result.
+Evaluation errors shall be typed and shall carry the requirement
+uid, the review uid, and the offending digest where applicable.
+Equivalent corpora split or reordered across files shall evaluate
+identically on any host.
+"""
+verification_methods = ["test"]
+traces_to = ["9612ccb9-294a-4682-88b3-b78cbd34e7e6"]
