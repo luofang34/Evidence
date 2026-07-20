@@ -962,3 +962,43 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "7cee4f62-6321-439b-96da-9d73511aad0b"
+id = "SYS-037"
+title = "Coverage percentages are engineering metrics, never compliance proof; cert claims require explicit assurance selection"
+owner = "soi"
+scope = "soi"
+description = """
+Structural-coverage percentages (statement, branch) are engineering
+quality metrics, not DO-178C compliance verdicts. The structural
+coverage objectives of DO-178C Annex A Table A-7 are
+objective-driven: uncovered structure requires analysis and
+disposition, and no fixed percentage closes an objective (FAA
+AC 20-115D / DO-178C A-7). LLVM branch coverage approximates
+decision coverage; approximate evidence cannot be silently
+promoted to semantic decision or MC/DC evidence.
+
+The tool shall record coverage metrics, uncovered items,
+analysis/disposition records, tool identity and qualification, and
+manual or independent review outcomes as separate evidence kinds,
+and shall never map a percentage alone to a satisfied A-7
+objective: approximate or unqualified evidence yields a
+manual-review or unsupported verdict, never Met.
+
+Certification and record evaluation shall require an explicit
+assurance selection — a standard edition and an assurance level
+recorded in cert/boundary.toml — and shall fail closed when that
+selection is missing. Development-mode evaluation shall name
+itself unclassified rather than silently assuming the least
+stringent assurance level, so a missing configuration can never
+weaken an intended claim unnoticed. Every standard-to-objective
+mapping the tool applies shall be bound to a versioned,
+expert-reviewed standards pack with an applicability and
+tailoring record.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

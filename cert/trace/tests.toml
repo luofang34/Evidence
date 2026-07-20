@@ -1843,10 +1843,48 @@ uid = "85dfddd2-d3ce-438a-9830-bf34b43654e5"
 id = "TEST-128"
 title = "derived completeness gates and no-evidence surfaces fire typed diagnostics"
 owner = "tool"
-traces_to = ["33e25394-8ff2-4114-8dad-f60701bab8fd", "75300bff-0ffc-4977-ba33-37a0ceb84911"]
+traces_to = [
+    "33e25394-8ff2-4114-8dad-f60701bab8fd",
+    "75300bff-0ffc-4977-ba33-37a0ceb84911",
+]
 test_selectors = [
     "trace_decomposition::derived_missing_disposition_fires_with_typed_code",
     "trace_decomposition::derived_unreviewed_fires_with_typed_code",
     "trace_cmd_jsonl::trace_validate_jsonl_empty_root_fails_closed",
     "doctor_cmd::adoption::dal_d_empty_trace_warns_no_evidence",
+]
+
+[[tests]]
+uid = "e70c0946-c2ca-44a6-8077-f09d12f93a58"
+id = "TEST-129"
+title = "coverage verdict truth table: disposition closes statement only, approximation caps at review"
+owner = "tool"
+traces_to = ["0294658f-7c3b-4df7-b4c5-0a9f6431296a"]
+test_selectors = [
+    "compliance_coverage_upgrade::a7_8_met_when_statement_coverage_meets_gate_with_disposition",
+    "compliance_coverage_upgrade::a7_8_manual_review_when_statement_coverage_meets_gate_without_disposition",
+    "compliance_coverage_upgrade::a7_8_partial_when_statement_coverage_below_gate",
+    "compliance_coverage_upgrade::a7_8_not_met_when_no_coverage_report",
+    "compliance_coverage_upgrade::a7_9_manual_review_when_branch_coverage_meets_gate_with_disposition",
+    "compliance_coverage_upgrade::a7_9_manual_review_when_branch_coverage_meets_gate_without_disposition",
+    "compliance_coverage_upgrade::a7_9_manual_review_when_no_engineering_gate_applies",
+]
+
+[[tests]]
+uid = "008a3795-7cf8-481e-9bcc-d7aacc956236"
+id = "TEST-130"
+title = "explicit assurance selection gates cert profiles and development mode names unclassified"
+owner = "tool"
+traces_to = [
+    "d3ba013c-425c-4dc7-a27e-b17a31a120fa",
+    "4e5e1e62-2913-4587-aba9-694199a6e9fc",
+]
+test_selectors = [
+    "assurance_selection::generate_cert_without_boundary_fails_closed",
+    "assurance_selection::generate_cert_without_dal_section_fails_closed",
+    "assurance_selection::generate_dev_without_dal_section_names_unclassified_in_compliance_report",
+    "evidence_core::policy::assurance::tests::unclassified_maps_to_least_strict_policy_row",
+    "evidence_core::policy::assurance::tests::dal_round_trip_preserves_levels",
+    "evidence_core::policy::assurance::tests::wire_strings_are_snake_case",
+    "evidence_core::policy::boundary::tests::assurance_selection_requires_explicit_dal_and_scope",
 ]
