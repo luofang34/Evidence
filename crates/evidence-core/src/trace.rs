@@ -7,6 +7,7 @@
 //! |--------------|-----------------------------------------------------------|
 //! | `entries`        | TOML data types (`HlrEntry`, `LlrEntry`, `TestEntry`, …)  |
 //! | `read`           | Reading TOML files into those types                       |
+//! | `evidence_state` | Shared adoption-state evaluation behind an assurance claim |
 //! | `uuid`           | Assigning + back-filling UUIDs on entries                 |
 //! | `validation`     | Cross-tier link validation with policy gates              |
 //! | `selector_check` | Optional resolution of `test_selector` vs workspace source |
@@ -19,6 +20,7 @@
 mod assurance;
 mod discovery;
 mod entries;
+mod evidence_state;
 mod matrix;
 mod read;
 mod requirement_report;
@@ -34,6 +36,7 @@ pub use entries::{
     DerivedEntry, DerivedFile, HlrEntry, HlrFile, LlrEntry, LlrFile, Schema, TestEntry, TestsFile,
     TraceMeta,
 };
+pub use evidence_state::{TraceEvidenceEval, TraceEvidenceState, evaluate_trace_evidence};
 pub use matrix::{generate_corpus_traceability_matrix, generate_traceability_matrix};
 pub use read::{TraceFiles, TraceReadError, read_all_trace_files, read_toml};
 pub use requirement_report::{

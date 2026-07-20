@@ -10,7 +10,10 @@
 //!
 //! Two cases assert the fix:
 //! - positive: DAL-A workspace with derived rationale present
-//!   → validation passes (`VERIFY_OK`).
+//!   → validation passes (`VERIFY_OK`). The fixture populates
+//!   the full derived-completeness set (rationale + safety
+//!   impact + disposition + reviewed) because the derived-completeness work gates each
+//!   of them at DAL-C+.
 //! - negative: DAL-A workspace with derived rationale missing
 //!   → validation fails with `TRACE_DERIVED_MISSING_RATIONALE`.
 
@@ -175,6 +178,8 @@ id = "derived-example"
 title = "Derived requirement"
 owner = "team@example.com"
 {rationale_line}safety_impact = "none"
+disposition = "notified to systems process; recorded in this entry"
+reviewed = true
 "#
         ),
     )

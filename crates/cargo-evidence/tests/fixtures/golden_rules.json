@@ -392,6 +392,20 @@
     "terminal": false
   },
   {
+    "code": "DOCTOR_TRACE_NOT_ADOPTED",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "DOCTOR_TRACE_NO_EVIDENCE",
+    "severity": "warning",
+    "domain": "doctor",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "ENV_ENGINE_RELEASE_PROVENANCE",
     "severity": "warning",
     "domain": "env",
@@ -805,6 +819,13 @@
     "terminal": false
   },
   {
+    "code": "TRACE_DERIVED_MISSING_DISPOSITION",
+    "severity": "error",
+    "domain": "trace",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "TRACE_DERIVED_MISSING_RATIONALE",
     "severity": "error",
     "domain": "trace",
@@ -812,7 +833,42 @@
     "terminal": false
   },
   {
+    "code": "TRACE_DERIVED_MISSING_SAFETY_IMPACT",
+    "severity": "error",
+    "domain": "trace",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "TRACE_DERIVED_UNREVIEWED",
+    "severity": "error",
+    "domain": "trace",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "TRACE_DUPLICATE_TRACE_LINK",
+    "severity": "error",
+    "domain": "trace",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "TRACE_EVIDENCE_EMPTY",
+    "severity": "error",
+    "domain": "trace",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "TRACE_EVIDENCE_NOT_ADOPTED",
+    "severity": "error",
+    "domain": "trace",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
+    "code": "TRACE_EVIDENCE_NOT_CONFIGURED",
     "severity": "error",
     "domain": "trace",
     "has_fix_hint": false,

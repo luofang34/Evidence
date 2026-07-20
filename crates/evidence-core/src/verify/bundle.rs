@@ -105,6 +105,12 @@ pub fn verify_bundle_with_key(
         &mut verify_errors,
     );
 
+    // 3a'''''. Fail closed on absent or empty trace evidence in a
+    // cert/record-profile bundle — a traceability claim over zero
+    // requirements is an adoption state, not evidence. Dev-profile
+    // bundles keep their skip semantics.
+    super::trace_evidence::check_trace_evidence(bundle, &index.profile, &mut verify_errors);
+
     // 3b. Validate index.json field formats (semantic checks beyond serde)
     validate_index_fields(&index, &mut verify_errors);
 

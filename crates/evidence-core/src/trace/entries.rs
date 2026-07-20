@@ -284,6 +284,18 @@ pub struct DerivedEntry {
     /// Safety impact level (`none`, `low`, `medium`, `high`).
     #[serde(default)]
     pub safety_impact: Option<String>,
+    /// Systems disposition / notification record for the derived
+    /// requirement (DO-178C §5.2.4 expects derived requirements to
+    /// be notified to the systems process for disposition). A short
+    /// sentence recording where the disposition lives is enough.
+    #[serde(default)]
+    pub disposition: Option<String>,
+    /// Pre-M2 human-review attestation: `true` records that a
+    /// reviewer accepted the rationale / safety impact /
+    /// disposition set. M2 replaces this bool with digest-bound
+    /// review records; until then the attestation is this field.
+    #[serde(default)]
+    pub reviewed: Option<bool>,
     /// Sort key for deterministic ordering.
     #[serde(default)]
     pub sort_key: Option<i64>,

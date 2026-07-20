@@ -1326,9 +1326,6 @@ id = "TEST-086"
 title = "every workspace crate ships a lean-layered CLAUDE.md"
 owner = "tool"
 traces_to = ["288c920a-c667-4f84-9d0b-f4e8419ac141"]
-test_selectors = [
-    "layered_claude_md_doctrine::every_workspace_crate_has_lean_layered_claude_md",
-]
 description = """
 Walks crates/* and accumulates per-crate violations: missing
 CLAUDE.md, fewer than 10 non-blank lines, more than 80 lines, or
@@ -1336,6 +1333,7 @@ missing the literal `cargo test -p <crate-name>` scoped command.
 Asserts the accumulated failure list is empty. Failure message
 joins every offending crate so a single run names them all.
 """
+test_selectors = ["layered_claude_md_doctrine::every_workspace_crate_has_lean_layered_claude_md"]
 
 [[tests]]
 uid = "27d05430-5ccf-4b77-a303-d6c0555c19c9"
@@ -1447,9 +1445,7 @@ JSON object whose `selector.kind` is `"workspace"`. `exit_code ==
 path plumbing end-to-end without depending on a specific
 requirements count.
 """
-test_selectors = [
-    "context_roundtrip::evidence_context_workspace_overview_returns_report",
-]
+test_selectors = ["context_roundtrip::evidence_context_workspace_overview_returns_report"]
 
 [[tests]]
 uid = "86f4d5a7-852e-4bdf-96ab-7dd0dcb8474f"
@@ -1827,4 +1823,30 @@ test_selectors = [
     "corpus_gap_reports::corpus_gap_report_matches_adapter_and_ignores_input_order",
     "corpus_gap_reports::corpus_gap_report_covers_structural_and_execution_gaps",
     "corpus_gap_reports::corpus_gap_report_rejects_unsupported_edge_kinds",
+]
+
+[[tests]]
+uid = "1ef5feb6-b848-46b9-9bb1-17097536762a"
+id = "TEST-127"
+title = "trace evidence evaluation truth table and the empty-valid boundary"
+owner = "tool"
+traces_to = ["68338cc4-53c8-4e75-a644-f5e73e885b36"]
+test_selectors = [
+    "evidence_core::trace::evidence_state::tests::no_roots_is_not_configured",
+    "evidence_core::trace::evidence_state::tests::zero_requirements_is_empty",
+    "evidence_core::trace::evidence_state::tests::minimal_linked_graph_is_valid",
+    "evidence_core::trace::evidence_state::tests::root_order_is_non_semantic",
+]
+
+[[tests]]
+uid = "85dfddd2-d3ce-438a-9830-bf34b43654e5"
+id = "TEST-128"
+title = "derived completeness gates and no-evidence surfaces fire typed diagnostics"
+owner = "tool"
+traces_to = ["33e25394-8ff2-4114-8dad-f60701bab8fd", "75300bff-0ffc-4977-ba33-37a0ceb84911"]
+test_selectors = [
+    "trace_decomposition::derived_missing_disposition_fires_with_typed_code",
+    "trace_decomposition::derived_unreviewed_fires_with_typed_code",
+    "trace_cmd_jsonl::trace_validate_jsonl_empty_root_fails_closed",
+    "doctor_cmd::adoption::dal_d_empty_trace_warns_no_evidence",
 ]

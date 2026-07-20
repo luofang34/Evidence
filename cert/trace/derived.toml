@@ -49,6 +49,14 @@ be a sorted Vec or a custom B-tree without violating HLR-008;
 BTreeMap was selected for ergonomics + zero new dep cost.
 """
 safety_impact = "medium"
+disposition = """
+Notified to the systems process and dispositioned as a
+tool-internal design choice: the container mechanism is recorded
+here in the rationale, needs no upstream requirement change, and
+is reviewed with every change to the deterministic-output paths it
+governs.
+"""
+reviewed = true
 
 [[requirements]]
 uid = "99a3a9bf-83c4-418d-8686-bc68fed9e0c7"
@@ -106,6 +114,13 @@ satisfied by a custom walker; walkdir was chosen for ergonomics
 + being an existing workspace dep.
 """
 safety_impact = "high"
+disposition = """
+Notified to the systems process and dispositioned as a
+tool-internal design choice: the walker primitive is recorded here
+in the rationale, needs no upstream requirement change, and is
+mechanically enforced by the `walker_usage_locked` test.
+"""
+reviewed = true
 
 [[requirements]]
 uid = "fe7560a4-101d-4fcb-9bd1-6c1e410ee954"
@@ -150,3 +165,10 @@ or 10s would not violate HLR-060 — it would land here as a
 DERIVED-003 revision with an updated rationale.
 """
 safety_impact = "low"
+disposition = """
+Notified to the systems process and dispositioned as a
+tool-internal design choice: the probe timeout value is recorded
+here in the rationale, needs no upstream requirement change, and
+is revisited whenever the MCP startup contract changes.
+"""
+reviewed = true

@@ -2620,9 +2620,7 @@ id = "LLR-085"
 title = "ContextRequest / ContextToolResponse define the evidence_context wire shape"
 owner = "tool"
 traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
-modules = [
-    "evidence_mcp::schema",
-]
+modules = ["evidence_mcp::schema"]
 description = """
 Two new `schemars::JsonSchema`-derived types in `crates/evidence-
 mcp/src/schema.rs`.
@@ -2653,9 +2651,7 @@ id = "LLR-086"
 title = "context_roundtrip integration test pins the MCP wire shape against the CLI"
 owner = "tool"
 traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
-modules = [
-    "evidence_mcp::server::Server::evidence_context",
-]
+modules = ["evidence_mcp::server::Server::evidence_context"]
 description = """
 `crates/evidence-mcp/tests/context_roundtrip.rs` spawns the built
 `evidence-mcp` binary via `assert_cmd`, drives an MCP `tools/call`
@@ -2755,9 +2751,7 @@ id = "LLR-092"
 title = "verify fails closed on an empty source baseline"
 owner = "tool"
 traces_to = ["2f043730-58ae-4528-aec7-6b30eed81fcf"]
-modules = [
-    "evidence_core::verify::source_baseline::check_source_baseline",
-]
+modules = ["evidence_core::verify::source_baseline::check_source_baseline"]
 description = """
 `check_source_baseline` runs inside `verify_bundle_with_key`
 only when the bundle declares in-scope packages (`index.dal_map`
@@ -2811,9 +2805,7 @@ id = "LLR-094"
 title = "verify fails closed on lost test-execution identity"
 owner = "tool"
 traces_to = ["d7fd101f-ff38-4bb1-87c1-4ba486fd3714"]
-modules = [
-    "evidence_core::verify::test_identity::check_test_identity",
-]
+modules = ["evidence_core::verify::test_identity::check_test_identity"]
 description = """
 `check_test_identity` scans `tests/test_outcomes.jsonl` inside
 `verify_bundle_with_key` and pushes
@@ -2892,9 +2884,7 @@ id = "LLR-096"
 title = "verify fails closed on an empty output manifest when a build ran"
 owner = "tool"
 traces_to = ["a4b1c88d-2f16-4086-86d7-1a7a8094055f"]
-modules = [
-    "evidence_core::verify::output_manifest::check_output_manifest",
-]
+modules = ["evidence_core::verify::output_manifest::check_output_manifest"]
 description = """
 `check_output_manifest` runs inside `verify_bundle_with_key` when
 the bundle records a test summary (`index.test_summary.is_some()`
@@ -2928,7 +2918,6 @@ indexed kinds return `CorpusError::UnsupportedKind` when their
 lists are non-empty.
 """
 verification_methods = ["test"]
-emits = []
 
 [[requirements]]
 uid = "de536781-44ca-4adc-8036-5e6dd0f7ff76"
@@ -2957,7 +2946,6 @@ validates it, and calls the corpus generator. The existing
 downstream compatibility.
 """
 verification_methods = ["test"]
-emits = []
 
 [[requirements]]
 uid = "bbbadd81-3db1-40c0-8355-c5fe10dc4b7f"
@@ -2983,7 +2971,6 @@ test→`Verifies`→requirement with `CorpusError::InvalidEdgeKinds`.
 Every edge error carries its source uid, target uid, and edge kind.
 """
 verification_methods = ["test"]
-emits = []
 
 [[requirements]]
 uid = "e86a9580-3495-481e-a912-035c2d5c865a"
@@ -3006,7 +2993,6 @@ edge sets, and selectors match the legacy parser, while graph edge
 vectors use canonical order.
 """
 verification_methods = ["test"]
-emits = []
 
 [[requirements]]
 uid = "558eefdf-a737-422b-af28-fc1c8cb1f31b"
@@ -3029,7 +3015,6 @@ increments the TEST dimension. Canonical graph insertion makes
 record layout and edge input order irrelevant to the result.
 """
 verification_methods = ["test"]
-emits = []
 
 [[requirements]]
 uid = "f7e9ed92-d71e-4ab4-a810-abb00bda392b"
@@ -3055,7 +3040,6 @@ errors. The diagnostic bijection compares its graph mapping with
 RULES and the reserved-unclaimed catalog in both directions.
 """
 verification_methods = ["test"]
-emits = []
 
 [[requirements]]
 uid = "f3b6a143-1b94-4423-9274-a44e9454f3a3"
@@ -3081,4 +3065,94 @@ entry API adapts through the graph and converts graph construction or
 unsupported-edge failures into a terminal-driving `REQ_GAP`.
 """
 verification_methods = ["test"]
-emits = []
+
+[[requirements]]
+uid = "68338cc4-53c8-4e75-a644-f5e73e885b36"
+id = "LLR-105"
+title = "evaluate_trace_evidence classifies trace roots into one semantic adoption state"
+owner = "tool"
+traces_to = ["4636d326-4cc8-4efd-aadc-4a7e5e4d821e"]
+modules = ["evidence_core::trace::evidence_state"]
+description = """
+`evaluate_trace_evidence` resolves each configured trace root,
+reads every present root, counts requirements across the SYS, HLR,
+LLR, TEST, and DERIVED layers, and runs the shared link validator
+when the count is nonzero. The result classifies into
+`NotConfigured` (no roots given), `NotAdopted` (every root missing
+on disk), `Empty` (zero requirements), `Invalid` (read, parse, or
+link-validation failure), or `Valid`. The evaluation carries the
+root list, the missing-root list, the requirement count, and any
+validation error so every CLI surface, doctor, generation, and the
+bundle verifier report the same state. Root list order is
+non-semantic.
+"""
+verification_methods = ["test"]
+emits = [
+    "TRACE_EVIDENCE_NOT_CONFIGURED",
+    "TRACE_EVIDENCE_NOT_ADOPTED",
+    "TRACE_EVIDENCE_EMPTY",
+]
+
+[[requirements]]
+uid = "33e25394-8ff2-4114-8dad-f60701bab8fd"
+id = "LLR-106"
+title = "derived completeness policy gates disposition, review, and safety impact"
+owner = "tool"
+traces_to = ["4aa1fd1f-4080-4cdc-991a-ff6217d9c6c2"]
+modules = [
+    "evidence_core::trace::validation::validate_trace_links_with_policy",
+    "evidence_core::trace::entries::DerivedEntry",
+    "evidence_core::policy::evidence::TracePolicy",
+]
+description = """
+`DerivedEntry` carries optional `disposition` (the systems
+disposition or notification record) and `reviewed` (the pre-M2
+human-review attestation) fields alongside `rationale` and
+`safety_impact`. `TracePolicy` grows one gate per field, enabled
+by `EvidencePolicy::for_dal` for DAL-C and above wherever derived
+rationale is already required.
+
+The link validator checks each derived entry against the active
+gates and emits one typed `LinkError` variant per missing field —
+`DerivedMissingDisposition`, `DerivedUnreviewed`, and
+`DerivedMissingSafetyImpact` — each with its own stable diagnostic
+code, so a derived requirement with an absent parent is never
+silently accepted under a claim-grade policy.
+"""
+verification_methods = ["test"]
+emits = [
+    "TRACE_DERIVED_MISSING_DISPOSITION",
+    "TRACE_DERIVED_UNREVIEWED",
+    "TRACE_DERIVED_MISSING_SAFETY_IMPACT",
+]
+
+[[requirements]]
+uid = "75300bff-0ffc-4977-ba33-37a0ceb84911"
+id = "LLR-107"
+title = "doctor and bundle verify fail closed on missing or empty trace evidence"
+owner = "tool"
+traces_to = ["4636d326-4cc8-4efd-aadc-4a7e5e4d821e"]
+modules = [
+    "cargo_evidence::cli::doctor::checks::check_trace",
+    "evidence_core::verify::trace_evidence",
+]
+description = """
+Doctor's trace-validity check consumes the shared evaluation once
+and partitions on the project's DAL: an active claim (DAL-C and
+above) fails with the existing error-severity empty diagnostic
+whose message names the actual state, while development mode
+(DAL-D) reports explicit warning-severity adoption diagnostics —
+one for missing roots, one for zero requirements — and keeps its
+zero exit code.
+
+Bundle verification reuses the same two semantic codes: a cert- or
+record-profile bundle that ships no trace requirement files fails
+with the not-adopted code, and one whose trace set contains zero
+requirements fails with the empty code. Development-profile bundles
+keep their existing skip semantics.
+"""
+verification_methods = ["test"]
+emits = [
+    "DOCTOR_TRACE_NOT_ADOPTED",
+    "DOCTOR_TRACE_NO_EVIDENCE",
+]

@@ -386,13 +386,39 @@ pub fn validate_trace_links_with_policy(
 
     // Derived top-level entries. Shares the `DerivedMissingRationale`
     // code with LLR-derived entries — same semantic, different source
-    // stream; agents keyed on `code` see both.
+    // stream; agents keyed on `code` see both. The disposition /
+    // review / safety-impact gates (DAL-C+) close the rest of the
+    // derived-completeness surface: a derived requirement has no
+    // parent to inherit acceptance from, so each field is gated
+    // individually with its own typed variant.
     for d in derived {
         if policy.require_derived_rationale
             && d.rationale.as_ref().map(|s| s.is_empty()).unwrap_or(true)
         {
             errors.push(LinkError::DerivedMissingRationale {
                 llr_id: d.id.clone(),
+            });
+        }
+        if policy.require_derived_safety_impact
+            && d.safety_impact
+                .as_ref()
+                .map(|s| s.is_empty())
+                .unwrap_or(true)
+        {
+            errors.push(LinkError::DerivedMissingSafetyImpact {
+                derived_id: d.id.clone(),
+            });
+        }
+        if policy.require_derived_disposition
+            && d.disposition.as_ref().map(|s| s.is_empty()).unwrap_or(true)
+        {
+            errors.push(LinkError::DerivedMissingDisposition {
+                derived_id: d.id.clone(),
+            });
+        }
+        if policy.require_derived_reviewed && d.reviewed != Some(true) {
+            errors.push(LinkError::DerivedUnreviewed {
+                derived_id: d.id.clone(),
             });
         }
     }

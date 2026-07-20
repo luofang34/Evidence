@@ -31,6 +31,16 @@ use super::args::{CheckMode, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputForm
 use super::output::emit_jsonl;
 use super::verify::cmd_verify;
 
+// The no-evidence gate and the presentation helpers live in
+// sibling files pulled in via `#[path]` so this facade stays under
+// the 500-line limit.
+#[path = "check/no_evidence.rs"]
+mod no_evidence;
+#[path = "check/render.rs"]
+mod render;
+
+use render::{render_human_diagnostics, terminal_check_fail, terminal_check_ok};
+
 /// `cargo evidence check [--mode=auto|source|bundle] [PATH]`.
 ///
 /// PATH defaults to `.`. See the module docstring for mode semantics
@@ -245,8 +255,6 @@ fn cmd_check_source(workspace_root: &Path, format: OutputFormat, quiet: bool) ->
                 .to_string_lossy()
                 .into_owned()
         });
-    let trace = read_all_trace_files(&trace_root)
-        .with_context(|| format!("reading trace files under '{}'", trace_root))?;
 
     // Phase 4: policy. DAL-derived default + same `require_hlr_sys_trace`
     // behavior as `trace --validate` so `check` enforces the same
@@ -261,6 +269,19 @@ fn cmd_check_source(workspace_root: &Path, format: OutputFormat, quiet: bool) ->
     let mut policy = EvidencePolicy::for_dal(dal).trace;
     policy.require_hlr_sys_trace = true;
     policy.require_hlr_surface_bijection = true;
+
+    // No-evidence gate (LLR-105): a missing root or a zero-requirement
+    // trace tree is an adoption state, not evidence — the run must
+    // not terminate VERIFY_OK with "0 requirement(s) satisfied".
+    // `Invalid` keeps flowing to the report path below, which
+    // surfaces the structural problems as REQ_GAP diagnostics. The
+    // gate lives in the sibling `check/no_evidence.rs` module.
+    if let Some(exit) = no_evidence::no_evidence_gate(&trace_root, &policy, machine)? {
+        return Ok(exit);
+    }
+
+    let trace = read_all_trace_files(&trace_root)
+        .with_context(|| format!("reading trace files under '{}'", trace_root))?;
 
     // Phase 5: build + emit per-requirement diagnostics.
     if show_progress {
@@ -295,34 +316,6 @@ fn cmd_check_source(workspace_root: &Path, format: OutputFormat, quiet: bool) ->
     } else {
         Ok(EXIT_SUCCESS)
     }
-}
-
-/// Render per-requirement diagnostics as `[✓]` / `[⚠]` / `[✗]`
-/// tagged lines on stdout, followed by the terminal's message as
-/// a final summary line. Invoked when `format == Human`.
-///
-/// Requirement ID (`TEST-NNN` / `HLR-NNN` / …) is extracted from
-/// the diagnostic's message prefix when available — the message
-/// shape is `"TEST TEST-050 passed (selector…)"` for REQ_PASS and
-/// `"TEST TEST-050: selector(s) did not run…"` for REQ_GAP. If
-/// parsing fails (e.g. CLI_INVALID_ARGUMENT on an empty-dir run)
-/// the whole message becomes the line.
-fn render_human_diagnostics(diagnostics: &[Diagnostic], terminal: &Diagnostic) {
-    for diag in diagnostics {
-        let tag = match diag.severity {
-            Severity::Info => "[✓]",
-            Severity::Warning => "[⚠]",
-            Severity::Error => "[✗]",
-        };
-        println!("{} {}", tag, diag.message);
-    }
-    println!();
-    let tag = match terminal.severity {
-        Severity::Info => "check:",
-        Severity::Warning => "check (warning):",
-        Severity::Error => "check: FAIL —",
-    };
-    println!("{} {}", tag, terminal.message);
 }
 
 /// Captured output + exit status from the `cargo test` subprocess.
@@ -399,30 +392,6 @@ fn check_test_runtime_failure_diagnostic(run: &CargoTestRun) -> Diagnostic {
              `test result:` line — build failure or runtime crash. Tail of \
              combined stdout+stderr:\n{tail}"
         ),
-        location: None,
-        fix_hint: None,
-        subcommand: Some("check".to_string()),
-        root_cause_uid: None,
-    }
-}
-
-fn terminal_check_ok(message: &str) -> Diagnostic {
-    Diagnostic {
-        code: "VERIFY_OK".to_string(),
-        severity: Severity::Info,
-        message: message.to_string(),
-        location: None,
-        fix_hint: None,
-        subcommand: Some("check".to_string()),
-        root_cause_uid: None,
-    }
-}
-
-fn terminal_check_fail(message: &str) -> Diagnostic {
-    Diagnostic {
-        code: "VERIFY_FAIL".to_string(),
-        severity: Severity::Error,
-        message: message.to_string(),
         location: None,
         fix_hint: None,
         subcommand: Some("check".to_string()),

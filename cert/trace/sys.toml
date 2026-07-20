@@ -846,7 +846,10 @@ nothing cannot back a source-baseline or reproducibility claim.
 A bundle that declares no scope has no baseline to capture and
 is not rejected on this basis.
 """
-verification_methods = ["test", "review"]
+verification_methods = [
+    "test",
+    "review",
+]
 traces_to = []
 
 [[requirements]]
@@ -871,7 +874,10 @@ binary identity, and the release verifier run against a freshly
 generated bundle shall resolve every test-verified requirement to
 at least one executed result.
 """
-verification_methods = ["test", "review"]
+verification_methods = [
+    "test",
+    "review",
+]
 traces_to = []
 
 [[requirements]]
@@ -897,7 +903,10 @@ rejects an empty output manifest on a bundle that recorded a test
 summary (which implies a build ran). A bundle that compiled
 nothing (`--skip-tests`) legitimately has no outputs.
 """
-verification_methods = ["test", "review"]
+verification_methods = [
+    "test",
+    "review",
+]
 traces_to = []
 
 [[requirements]]
@@ -919,5 +928,37 @@ with the same uid set, human identifiers, titles, trace edge sets,
 and test selectors as the legacy parser. Graph edge ordering is
 canonical.
 """
-verification_methods = ["test", "review"]
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []
+
+[[requirements]]
+uid = "3782184e-8bc6-40d2-bfba-60803fb2d1f2"
+id = "SYS-036"
+title = "Absence of assurance evidence is an adoption state, never a verification success"
+owner = "soi"
+scope = "soi"
+description = """
+Every assurance claim the tool evaluates — a requested trace
+validation, a cert or record bundle generation, a source check, or
+a bundle verification — is a claim about evidence that must exist.
+A missing trace root, an empty trace tree, or a requirement set
+with zero in-scope entries is an adoption state of the project
+under audit, not evidence satisfying the claim.
+
+The tool shall distinguish not-configured, not-adopted, empty,
+invalid, and valid evidence states, and shall fail closed on every
+state that carries no evidence: no command, doctor check,
+generation phase, or verifier shall emit a success terminal for a
+requested assurance claim over no evidence. Development-mode
+surfaces may report an explicit non-success adoption diagnostic so
+iteration stays unblocked, but the diagnostic shall name the
+adoption state rather than report validity.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
 traces_to = []

@@ -202,6 +202,16 @@ pub const RULES: &[RuleEntry] = &[
     r("DOCTOR_TRACE_EMPTY", Severity::Error, Domain::Doctor),
     r("DOCTOR_TRACE_INVALID", Severity::Error, Domain::Doctor),
     r(
+        "DOCTOR_TRACE_NOT_ADOPTED",
+        Severity::Warning,
+        Domain::Doctor,
+    ),
+    r(
+        "DOCTOR_TRACE_NO_EVIDENCE",
+        Severity::Warning,
+        Domain::Doctor,
+    ),
+    r(
         "ENV_ENGINE_RELEASE_PROVENANCE",
         Severity::Warning,
         Domain::Env,
@@ -277,11 +287,29 @@ pub const RULES: &[RuleEntry] = &[
     ),
     r("TRACE_DANGLING_LINK", Severity::Error, Domain::Trace),
     r(
+        "TRACE_DERIVED_MISSING_DISPOSITION",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r(
         "TRACE_DERIVED_MISSING_RATIONALE",
         Severity::Error,
         Domain::Trace,
     ),
+    r(
+        "TRACE_DERIVED_MISSING_SAFETY_IMPACT",
+        Severity::Error,
+        Domain::Trace,
+    ),
+    r("TRACE_DERIVED_UNREVIEWED", Severity::Error, Domain::Trace),
     r("TRACE_DUPLICATE_TRACE_LINK", Severity::Error, Domain::Trace),
+    r("TRACE_EVIDENCE_EMPTY", Severity::Error, Domain::Trace),
+    r("TRACE_EVIDENCE_NOT_ADOPTED", Severity::Error, Domain::Trace),
+    r(
+        "TRACE_EVIDENCE_NOT_CONFIGURED",
+        Severity::Error,
+        Domain::Trace,
+    ),
     r(
         "TRACE_HLR_SURFACE_UNCLAIMED",
         Severity::Error,

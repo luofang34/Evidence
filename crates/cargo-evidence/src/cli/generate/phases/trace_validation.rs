@@ -14,14 +14,18 @@
 //! - Strict profile (Cert/Record) treats the first failure as
 //!   short-circuit: emits a JSON failure envelope via the
 //!   `fail` helper and returns the exit code in `short_circuit`.
-
-use std::path::Path;
+//!
+//! Every root is classified by the shared
+//! [`evaluate_trace_evidence`] (LLR-105): a missing root or
+//! a zero-requirement tree is an adoption state and counts as
+//! non-success exactly like a validation failure — strict
+//! short-circuits, non-strict warns with `passed = false`.
 
 use anyhow::Result;
 
 use evidence_core::{
     EvidencePolicy, Profile,
-    trace::{TraceFiles, read_all_trace_files, validate_trace_links_with_policy},
+    trace::{TraceEvidenceState, evaluate_trace_evidence},
 };
 
 use crate::cli::generate::fail;
@@ -34,9 +38,13 @@ pub(in crate::cli::generate) struct TraceValidationResult {
     pub(in crate::cli::generate) short_circuit: Option<i32>,
 }
 
-/// Phase 6 — validate trace links. Strict mode: first failure
-/// emits JSON failure envelope + sets `short_circuit`. Non-
-/// strict: warnings record `passed = false` and continue.
+/// Phase 6 — validate trace links. Every root goes through the
+/// shared [`evaluate_trace_evidence`] classification (LLR-105), so a
+/// missing root or a zero-requirement tree counts as non-success
+/// exactly like a validation failure: strict mode (cert/record)
+/// emits the JSON failure envelope + sets `short_circuit`;
+/// non-strict records `passed = false` and warns. Only `Valid`
+/// roots keep the historical pass print.
 pub(in crate::cli::generate) fn validate_trace_links_phase(
     trace_roots: &[String],
     policy: &EvidencePolicy,
@@ -47,41 +55,20 @@ pub(in crate::cli::generate) fn validate_trace_links_phase(
 ) -> Result<TraceValidationResult> {
     let mut passed = true;
     for root in trace_roots {
-        let root_path = Path::new(root);
-        if !root_path.exists() {
-            if !quiet && !json_output {
-                eprintln!(
-                    "warning: trace root '{}' does not exist, skipping validation",
-                    root
-                );
+        let eval = evaluate_trace_evidence(std::slice::from_ref(root), &policy.trace);
+        match &eval.state {
+            TraceEvidenceState::Valid => {
+                if !quiet && !json_output {
+                    println!("evidence: trace links valid in '{}'", root);
+                }
             }
-            continue;
-        }
-        match read_all_trace_files(root) {
-            Ok(TraceFiles {
-                sys,
-                hlr,
-                llr,
-                tests,
-                derived,
-            }) => {
-                let derived_reqs = derived
-                    .as_ref()
-                    .map(|d| d.requirements.as_slice())
-                    .unwrap_or(&[]);
-                if let Err(e) = validate_trace_links_with_policy(
-                    &sys.requirements,
-                    &hlr.requirements,
-                    &llr.requirements,
-                    &tests.tests,
-                    derived_reqs,
-                    &policy.trace,
-                ) {
+            TraceEvidenceState::Invalid => {
+                if let Some(validation) = &eval.validation {
                     if strict {
                         let code = fail(
                             json_output,
                             profile,
-                            format!("Trace validation failed in '{}': {}", root, e),
+                            format!("Trace validation failed in '{}': {}", root, validation),
                         )?;
                         return Ok(TraceValidationResult {
                             passed: false,
@@ -89,18 +76,51 @@ pub(in crate::cli::generate) fn validate_trace_links_phase(
                         });
                     }
                     passed = false;
-                    eprintln!("warning: trace validation failed in '{}': {}", root, e);
-                } else if !quiet && !json_output {
-                    println!("evidence: trace links valid in '{}'", root);
+                    eprintln!(
+                        "warning: trace validation failed in '{}': {}",
+                        root, validation
+                    );
+                } else if let Some(read_error) = &eval.read_error {
+                    if strict {
+                        return Err(anyhow::anyhow!("{}", read_error)
+                            .context(format!("reading trace files from '{}'", root)));
+                    }
+                    passed = false;
+                    eprintln!(
+                        "warning: could not read trace files from '{}': {}",
+                        root, read_error
+                    );
                 }
             }
-            Err(e) => {
+            no_evidence => {
+                // Missing roots / zero-requirement trees are
+                // adoption states, not evidence — the requested
+                // trace claim behind this bundle cannot succeed
+                // over them (LLR-107).
+                let detail = match no_evidence {
+                    TraceEvidenceState::NotAdopted { missing_roots } => format!(
+                        "not adopted (root(s) missing on disk: {})",
+                        missing_roots.join(", ")
+                    ),
+                    TraceEvidenceState::Empty => {
+                        "empty (zero requirements across all layers)".to_string()
+                    }
+                    TraceEvidenceState::NotConfigured => "not configured".to_string(),
+                    TraceEvidenceState::Invalid | TraceEvidenceState::Valid => String::new(),
+                };
+                let message = format!(
+                    "trace evidence {} in '{}'; the requested trace claim has no evidence",
+                    detail, root
+                );
                 if strict {
-                    return Err(anyhow::Error::new(e)
-                        .context(format!("reading trace files from '{}'", root)));
+                    let code = fail(json_output, profile, message)?;
+                    return Ok(TraceValidationResult {
+                        passed: false,
+                        short_circuit: Some(code),
+                    });
                 }
                 passed = false;
-                eprintln!("warning: could not read trace files from '{}': {}", root, e);
+                eprintln!("warning: {}", message);
             }
         }
     }

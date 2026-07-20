@@ -44,6 +44,9 @@ impl EvidencePolicy {
                     require_derived_rationale: true,
                     require_hlr_sys_trace: true,
                     require_hlr_surface_bijection: false,
+                    require_derived_safety_impact: true,
+                    require_derived_disposition: true,
+                    require_derived_reviewed: true,
                 },
                 require_structural_coverage: true,
                 coverage_level: Some("MC/DC".to_string()),
@@ -58,6 +61,9 @@ impl EvidencePolicy {
                     require_derived_rationale: true,
                     require_hlr_sys_trace: true,
                     require_hlr_surface_bijection: false,
+                    require_derived_safety_impact: true,
+                    require_derived_disposition: true,
+                    require_derived_reviewed: true,
                 },
                 require_structural_coverage: true,
                 coverage_level: Some("decision".to_string()),
@@ -72,6 +78,9 @@ impl EvidencePolicy {
                     require_derived_rationale: true,
                     require_hlr_sys_trace: true,
                     require_hlr_surface_bijection: false,
+                    require_derived_safety_impact: true,
+                    require_derived_disposition: true,
+                    require_derived_reviewed: true,
                 },
                 require_structural_coverage: true,
                 coverage_level: Some("statement".to_string()),
@@ -86,6 +95,9 @@ impl EvidencePolicy {
                     require_derived_rationale: false,
                     require_hlr_sys_trace: false,
                     require_hlr_surface_bijection: false,
+                    require_derived_safety_impact: false,
+                    require_derived_disposition: false,
+                    require_derived_reviewed: false,
                 },
                 require_structural_coverage: false,
                 coverage_level: None,
@@ -133,6 +145,24 @@ pub struct TracePolicy {
     /// `cargo evidence trace --validate`.
     #[serde(default)]
     pub require_hlr_surface_bijection: bool,
+    /// Require derived requirements to carry a non-empty
+    /// `safety_impact` assessment. Defaults to `false`; enabled by
+    /// `EvidencePolicy::for_dal` for DAL-C and above, alongside
+    /// `require_derived_rationale` (HLR-087).
+    #[serde(default)]
+    pub require_derived_safety_impact: bool,
+    /// Require derived requirements to carry a non-empty
+    /// `disposition` (systems disposition / notification record).
+    /// Defaults to `false`; enabled by `EvidencePolicy::for_dal`
+    /// for DAL-C and above (HLR-087).
+    #[serde(default)]
+    pub require_derived_disposition: bool,
+    /// Require derived requirements to carry `reviewed = true`
+    /// (the pre-M2 human-review attestation). Defaults to `false`;
+    /// enabled by `EvidencePolicy::for_dal` for DAL-C and above
+    /// (HLR-087).
+    #[serde(default)]
+    pub require_derived_reviewed: bool,
 }
 
 fn default_true() -> bool {
@@ -157,6 +187,9 @@ mod tests {
         assert!(policy.trace.require_hlr_verification_methods);
         assert!(policy.trace.require_llr_verification_methods);
         assert!(policy.trace.require_derived_rationale);
+        assert!(policy.trace.require_derived_safety_impact);
+        assert!(policy.trace.require_derived_disposition);
+        assert!(policy.trace.require_derived_reviewed);
         assert!(policy.require_structural_coverage);
         assert_eq!(policy.coverage_level.as_deref(), Some("MC/DC"));
         assert!(policy.require_independent_verification);
@@ -170,6 +203,9 @@ mod tests {
         assert!(!policy.trace.require_hlr_verification_methods);
         assert!(!policy.trace.require_llr_verification_methods);
         assert!(!policy.trace.require_derived_rationale);
+        assert!(!policy.trace.require_derived_safety_impact);
+        assert!(!policy.trace.require_derived_disposition);
+        assert!(!policy.trace.require_derived_reviewed);
         assert!(!policy.require_structural_coverage);
         assert!(policy.coverage_level.is_none());
         assert!(!policy.require_independent_verification);
@@ -180,6 +216,9 @@ mod tests {
         let policy = EvidencePolicy::for_dal(Dal::C);
         assert!(policy.trace.require_hlr_verification_methods);
         assert!(!policy.trace.require_llr_verification_methods); // Relaxed for C
+        assert!(policy.trace.require_derived_disposition);
+        assert!(policy.trace.require_derived_reviewed);
+        assert!(policy.trace.require_derived_safety_impact);
         assert!(!policy.require_independent_verification);
         assert_eq!(policy.coverage_level.as_deref(), Some("statement"));
     }

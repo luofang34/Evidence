@@ -2135,3 +2135,49 @@ fail closed instead of omitting the affected node.
 """
 verification_methods = ["test"]
 traces_to = ["9b00e1b0-9b21-42c8-a24a-9ae5d44e0c98"]
+
+[[requirements]]
+uid = "4636d326-4cc8-4efd-aadc-4a7e5e4d821e"
+id = "HLR-086"
+title = "One shared trace-evidence evaluation classifies adoption states and every consumer fails closed"
+owner = "tool"
+scope = "component"
+description = """
+A single shared evaluation shall classify the trace evidence
+behind a requested assurance claim as not-configured (no trace
+roots), not-adopted (configured roots missing on disk), empty
+(roots present, zero requirements across every layer), invalid
+(non-empty, validation failed), or valid (non-empty, validation
+passed). Only the valid state satisfies the claim.
+
+Trace validation, source check, doctor, bundle generation, and
+bundle verification shall consume this one semantic result. Missing
+roots, empty files, zero in-scope requirements, and validation
+failures each produce stable non-success diagnostics; evaluation
+shall not depend on trace root list order. No warning stream may
+terminate in a success terminal when the requested claim has no
+evidence.
+"""
+verification_methods = ["test"]
+traces_to = ["3782184e-8bc6-40d2-bfba-60803fb2d1f2"]
+
+[[requirements]]
+uid = "4aa1fd1f-4080-4cdc-991a-ff6217d9c6c2"
+id = "HLR-087"
+title = "Derived requirements carry disposition and review completeness enforced under policy"
+owner = "tool"
+scope = "component"
+description = """
+A derived requirement records a design decision with no parent
+requirement, so its acceptance cannot be inherited from an upward
+trace. Each derived entry shall carry a rationale, a safety impact
+assessment, a systems disposition or notification record, and a
+human review attestation.
+
+Under the DAL-C-and-above trace policy the link validator shall
+fail closed with a typed diagnostic per missing field instead of
+silently accepting the absent parent. Lower strictness levels
+leave the gates off so adoption stays incremental.
+"""
+verification_methods = ["test"]
+traces_to = ["3782184e-8bc6-40d2-bfba-60803fb2d1f2"]

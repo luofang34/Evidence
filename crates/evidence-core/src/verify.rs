@@ -29,6 +29,7 @@ mod paths;
 mod runtime_error;
 mod source_baseline;
 mod test_identity;
+mod trace_evidence;
 
 pub use bundle::{verify_bundle, verify_bundle_with_key};
 pub use errors::{VerifyError, VerifyResult};
