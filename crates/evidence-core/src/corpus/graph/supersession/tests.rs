@@ -3,7 +3,7 @@
 
 use crate::corpus::{
     CorpusError, CorpusGraph, EdgeKind, Node, NodeKind, RequirementLayer, RequirementNode,
-    ReviewContentDigest, ReviewDecision, ReviewNode, TestNode,
+    ReviewContentDigest, ReviewDecision, ReviewError, ReviewNode, TestNode,
 };
 
 const REQ_A: &str = "req_00000000-0000-4000-8000-00000000000a";
@@ -71,7 +71,12 @@ fn graph_node(kind: NodeKind, uid: &str, edges: Vec<(EdgeKind, String)>) -> Node
         NodeKind::Review => Node::Review(ReviewNode {
             uid: uid.to_string(),
             id: format!("id of {uid}"),
-            requirement_uid: REQ_A.to_string(),
+            // Field/edge agreement: the requirement field names the
+            // `Reviews` edge target when the fixture carries one.
+            requirement_uid: edges
+                .iter()
+                .find(|(kind, _)| *kind == EdgeKind::Reviews)
+                .map_or_else(|| REQ_A.to_string(), |(_, target)| target.clone()),
             content_schema: 1,
             reviewed_content_sha256: ReviewContentDigest::from_hex(&"a".repeat(64)).unwrap(),
             decision: ReviewDecision::Approve,
@@ -83,21 +88,31 @@ fn graph_node(kind: NodeKind, uid: &str, edges: Vec<(EdgeKind, String)>) -> Node
     }
 }
 
-/// Build a two-node graph with one edge and report whether
-/// `validate` accepts it. `review_node` gives source and target a
-/// matching reviewer, requirement, and digest, so a well-kinded
-/// `Supersedes` edge satisfies the binding contract.
+/// Build a graph with one edge under test and report whether
+/// `validate` accepts it. Review nodes also carry the `Reviews`
+/// edge their per-node invariants require (the edge under test
+/// doubles as it when it is itself a `Reviews` edge), and both
+/// reviews share reviewer, requirement, and digest, so only the
+/// endpoint contract of the edge under test decides the outcome.
 fn edge_contract_holds(source: NodeKind, edge: EdgeKind, target: NodeKind) -> bool {
+    let fixture_edges = |kind: NodeKind| match kind {
+        NodeKind::Review => vec![(EdgeKind::Reviews, REQ_A.to_string())],
+        _ => Vec::new(),
+    };
     let mut graph = CorpusGraph::new();
     graph
-        .insert(graph_node(target, "target", Vec::new()))
+        .insert(graph_node(NodeKind::Requirement, REQ_A, Vec::new()))
         .unwrap();
     graph
-        .insert(graph_node(
-            source,
-            "source",
-            vec![(edge, "target".to_string())],
-        ))
+        .insert(graph_node(target, "target", fixture_edges(target)))
+        .unwrap();
+    let mut source_edges = match (source, edge) {
+        (NodeKind::Review, EdgeKind::Reviews) => Vec::new(),
+        _ => fixture_edges(source),
+    };
+    source_edges.push((edge, "target".to_string()));
+    graph
+        .insert(graph_node(source, "source", source_edges))
         .unwrap();
     graph.validate().is_ok()
 }
@@ -213,7 +228,10 @@ fn supersession_validation_rejects_invalid_chains() {
     let self_loop = chain_graph(vec![review_node(REV_1, "REV-001", Some(REV_1))]);
     let err = self_loop.validate().unwrap_err();
     assert!(
-        matches!(err, CorpusError::ReviewSupersessionSelf { ref uid } if uid == REV_1),
+        matches!(
+            err,
+            CorpusError::Review(ReviewError::ReviewSupersessionSelf { ref uid }) if uid == REV_1
+        ),
         "self-supersession, got: {err:?}"
     );
 
@@ -223,7 +241,10 @@ fn supersession_validation_rejects_invalid_chains() {
     ]);
     let err = cycle.validate().unwrap_err();
     assert!(
-        matches!(err, CorpusError::ReviewSupersessionCycle { ref uid } if uid == REV_1),
+        matches!(
+            err,
+            CorpusError::Review(ReviewError::ReviewSupersessionCycle { ref uid }) if uid == REV_1
+        ),
         "two-node cycle, got: {err:?}"
     );
 
@@ -236,11 +257,11 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::ReviewSupersessionFork {
+            CorpusError::Review(ReviewError::ReviewSupersessionFork {
                 ref uid,
                 ref first_uid,
                 ref second_uid,
-            } if uid == REV_1 && first_uid == REV_2 && second_uid == REV_3
+            }) if uid == REV_1 && first_uid == REV_2 && second_uid == REV_3
         ),
         "fork names the superseded review and both successors, got: {err:?}"
     );
@@ -260,10 +281,10 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::ReviewSupersessionReviewer {
+            CorpusError::Review(ReviewError::ReviewSupersessionReviewer {
                 ref uid,
                 ref predecessor_uid,
-            } if uid == REV_2 && predecessor_uid == REV_1
+            }) if uid == REV_2 && predecessor_uid == REV_1
         ),
         "cross-reviewer supersession, got: {err:?}"
     );
@@ -283,10 +304,10 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::ReviewSupersessionRequirement {
+            CorpusError::Review(ReviewError::ReviewSupersessionRequirement {
                 ref uid,
                 ref predecessor_uid,
-            } if uid == REV_2 && predecessor_uid == REV_1
+            }) if uid == REV_2 && predecessor_uid == REV_1
         ),
         "cross-requirement supersession, got: {err:?}"
     );
@@ -306,10 +327,10 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::ReviewSupersessionDigest {
+            CorpusError::Review(ReviewError::ReviewSupersessionDigest {
                 ref uid,
                 ref predecessor_uid,
-            } if uid == REV_2 && predecessor_uid == REV_1
+            }) if uid == REV_2 && predecessor_uid == REV_1
         ),
         "cross-digest supersession, got: {err:?}"
     );

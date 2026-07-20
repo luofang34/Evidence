@@ -1924,7 +1924,7 @@ test_selectors = [
 [[tests]]
 uid = "54bb8ed7-5f39-4a3d-a8b5-9ce27d710d4b"
 id = "TEST-133"
-title = "review records round-trip into typed nodes and edges, and every strict-schema and supersession violation fails closed"
+title = "review records round-trip into typed nodes and edges, and every strict-schema, node-invariant, and supersession violation fails closed"
 owner = "tool"
 traces_to = [
     "44f42343-45d6-48fa-a9c7-f2017d6883eb",
@@ -1936,6 +1936,13 @@ test_selectors = [
     "evidence_core::corpus::review_records::tests::malformed_record_fields_fail_closed",
     "evidence_core::corpus::graph::supersession::tests::review_edges_enforce_endpoint_kinds",
     "evidence_core::corpus::graph::supersession::tests::supersession_validation_rejects_invalid_chains",
+    "evidence_core::corpus::graph::review_invariants::tests::review_node_with_mismatched_requirement_field_and_edge_is_rejected",
+    "evidence_core::corpus::graph::review_invariants::tests::programmatic_review_with_unsupported_content_schema_is_rejected",
+    "evidence_core::corpus::graph::review_invariants::tests::review_node_without_reviews_edge_is_rejected",
+    "evidence_core::corpus::graph::review_invariants::tests::review_node_with_two_reviews_edges_is_rejected",
+    "evidence_core::corpus::graph::review_invariants::tests::supersession_cycle_remains_rejected_after_invariants",
+    "evidence_core::corpus::graph::review_invariants::tests::malformed_review_node_fails_before_chain_validation",
+    "evidence_core::corpus::graph::review_invariants::tests::programmatically_built_valid_graph_validates",
 ]
 
 [[tests]]

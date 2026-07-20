@@ -45,6 +45,7 @@ pub(crate) use legacy::graph_from_trace_parts;
 pub use review_content::{
     RequirementReviewContentV1, canonical_bytes_v1, review_content_digest_v1,
 };
+pub use review_records::error::ReviewError;
 
 #[cfg(test)]
 mod tests;

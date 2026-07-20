@@ -1,11 +1,14 @@
 //! Typed errors for corpus index parsing, graph construction, and the
-//! legacy trace adapter.
+//! legacy trace adapter. Review record loading and review graph
+//! validation report through [`ReviewError`], wrapped here by
+//! [`CorpusError::Review`] (LLR-114, LLR-115).
 
 use std::path::PathBuf;
 
 use thiserror::Error;
 
 use super::graph::{EdgeKind, NodeKind};
+use super::review_records::error::ReviewError;
 
 /// Errors from loading, building, or validating the corpus graph.
 ///
@@ -170,6 +173,11 @@ pub enum CorpusError {
         /// Actual target node kind.
         target_kind: NodeKind,
     },
+    /// A review record failed to load or a review graph invariant
+    /// failed validation (LLR-114, LLR-115). Display forwards to the
+    /// wrapped review error unchanged.
+    #[error(transparent)]
+    Review(#[from] ReviewError),
     /// A legacy trace entry has no uid; every corpus node requires a
     /// permanent identity, so the adapter refuses rather than skips.
     #[error("legacy trace entry {id} has no uid; corpus nodes require one")]
@@ -186,130 +194,5 @@ pub enum CorpusError {
     InvalidDigest {
         /// The offending digest string.
         input: String,
-    },
-    /// A review record's human identifier is empty; every record
-    /// needs one for audit cross-reference (LLR-114).
-    #[error("review record with uid {uid} in {path} has an empty human id")]
-    ReviewHumanId {
-        /// Review file path.
-        path: PathBuf,
-        /// The record's uid.
-        uid: String,
-    },
-    /// A review record declares a content schema other than the
-    /// supported review-content projection version (LLR-114).
-    #[error(
-        "review record {id:?} ({uid}) in {path} declares content_schema {found}; \
-         this tool supports {supported}"
-    )]
-    ReviewContentSchema {
-        /// Review file path.
-        path: PathBuf,
-        /// The record's uid.
-        uid: String,
-        /// The record's human identifier.
-        id: String,
-        /// Declared `content_schema`.
-        found: u32,
-        /// The content schema this tool loads.
-        supported: u32,
-    },
-    /// A review record's `reviewed_at` does not parse as an
-    /// RFC 3339 timestamp (LLR-114).
-    #[error(
-        "review record {id:?} ({uid}) in {path} has reviewed_at {value:?}, \
-         which is not an RFC 3339 timestamp"
-    )]
-    ReviewTimestamp {
-        /// Review file path.
-        path: PathBuf,
-        /// The record's uid.
-        uid: String,
-        /// The record's human identifier.
-        id: String,
-        /// The offending timestamp string.
-        value: String,
-    },
-    /// A review record names an empty reviewer identity; the
-    /// reviewer is audit metadata and must be present (LLR-114).
-    #[error("review record {id:?} ({uid}) in {path} names an empty reviewer identity")]
-    ReviewReviewer {
-        /// Review file path.
-        path: PathBuf,
-        /// The record's uid.
-        uid: String,
-        /// The record's human identifier.
-        id: String,
-    },
-    /// A rejected review carries no non-empty rationale; rejections
-    /// require one (LLR-114).
-    #[error("rejected review record {id:?} ({uid}) in {path} requires a non-empty rationale")]
-    ReviewRationale {
-        /// Review file path.
-        path: PathBuf,
-        /// The record's uid.
-        uid: String,
-        /// The record's human identifier.
-        id: String,
-    },
-    /// A review supersedes itself (LLR-115).
-    #[error("review {uid} supersedes itself")]
-    ReviewSupersessionSelf {
-        /// The self-referential review's uid.
-        uid: String,
-    },
-    /// A superseding review names a different reviewer than its
-    /// predecessor; supersession corrects one reviewer's own
-    /// earlier decision (LLR-115).
-    #[error(
-        "superseding review {uid} names a different reviewer than its predecessor {predecessor_uid}"
-    )]
-    ReviewSupersessionReviewer {
-        /// The superseding review's uid.
-        uid: String,
-        /// The superseded review's uid.
-        predecessor_uid: String,
-    },
-    /// A superseding review covers a different requirement than its
-    /// predecessor (LLR-115).
-    #[error(
-        "superseding review {uid} covers a different requirement than its predecessor {predecessor_uid}"
-    )]
-    ReviewSupersessionRequirement {
-        /// The superseding review's uid.
-        uid: String,
-        /// The superseded review's uid.
-        predecessor_uid: String,
-    },
-    /// A superseding review covers different reviewed content than
-    /// its predecessor (LLR-115).
-    #[error(
-        "superseding review {uid} covers different reviewed content than its predecessor {predecessor_uid}"
-    )]
-    ReviewSupersessionDigest {
-        /// The superseding review's uid.
-        uid: String,
-        /// The superseded review's uid.
-        predecessor_uid: String,
-    },
-    /// A review is superseded by more than one review; supersession
-    /// is a chain, not a tree (LLR-115).
-    #[error(
-        "review {uid} is superseded by both {first_uid} and {second_uid}; \
-         a review may be superseded at most once"
-    )]
-    ReviewSupersessionFork {
-        /// The superseded review's uid.
-        uid: String,
-        /// Uid of the first superseding review (uid order).
-        first_uid: String,
-        /// Uid of the second superseding review (uid order).
-        second_uid: String,
-    },
-    /// Supersession edges form a cycle (LLR-115).
-    #[error("supersession chain cycles back to review {uid}")]
-    ReviewSupersessionCycle {
-        /// Uid at which the walk revisits a review.
-        uid: String,
     },
 }

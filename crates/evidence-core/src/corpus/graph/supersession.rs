@@ -17,10 +17,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{CorpusError, CorpusGraph, EdgeKind, Node};
+use super::super::review_records::error::ReviewError;
+use super::{CorpusGraph, EdgeKind, Node};
 
 /// Validate every review supersession chain in `graph`.
-pub(super) fn validate_review_supersession(graph: &CorpusGraph) -> Result<(), CorpusError> {
+pub(super) fn validate_review_supersession(graph: &CorpusGraph) -> Result<(), ReviewError> {
     let mut superseded_by: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for node in graph.nodes.values() {
         let Node::Review(review) = node else {
@@ -31,7 +32,7 @@ pub(super) fn validate_review_supersession(graph: &CorpusGraph) -> Result<(), Co
                 continue;
             }
             if target == &review.uid {
-                return Err(CorpusError::ReviewSupersessionSelf {
+                return Err(ReviewError::ReviewSupersessionSelf {
                     uid: review.uid.clone(),
                 });
             }
@@ -41,19 +42,19 @@ pub(super) fn validate_review_supersession(graph: &CorpusGraph) -> Result<(), Co
                 continue;
             };
             if review.reviewer != predecessor.reviewer {
-                return Err(CorpusError::ReviewSupersessionReviewer {
+                return Err(ReviewError::ReviewSupersessionReviewer {
                     uid: review.uid.clone(),
                     predecessor_uid: predecessor.uid.clone(),
                 });
             }
             if review.requirement_uid != predecessor.requirement_uid {
-                return Err(CorpusError::ReviewSupersessionRequirement {
+                return Err(ReviewError::ReviewSupersessionRequirement {
                     uid: review.uid.clone(),
                     predecessor_uid: predecessor.uid.clone(),
                 });
             }
             if review.reviewed_content_sha256 != predecessor.reviewed_content_sha256 {
-                return Err(CorpusError::ReviewSupersessionDigest {
+                return Err(ReviewError::ReviewSupersessionDigest {
                     uid: review.uid.clone(),
                     predecessor_uid: predecessor.uid.clone(),
                 });
@@ -71,10 +72,10 @@ pub(super) fn validate_review_supersession(graph: &CorpusGraph) -> Result<(), Co
 /// A fork is a review with more than one incoming supersession.
 /// Successors were collected in uid order, so the named pair is
 /// deterministic.
-fn reject_forks(superseded_by: &BTreeMap<&str, Vec<&str>>) -> Result<(), CorpusError> {
+fn reject_forks(superseded_by: &BTreeMap<&str, Vec<&str>>) -> Result<(), ReviewError> {
     for (predecessor, successors) in superseded_by {
         if let [first, second, ..] = successors.as_slice() {
-            return Err(CorpusError::ReviewSupersessionFork {
+            return Err(ReviewError::ReviewSupersessionFork {
                 uid: (*predecessor).to_string(),
                 first_uid: (*first).to_string(),
                 second_uid: (*second).to_string(),
@@ -88,7 +89,7 @@ fn reject_forks(superseded_by: &BTreeMap<&str, Vec<&str>>) -> Result<(), CorpusE
 /// cycle. Forks are already rejected, so supersession indegree is at
 /// most one and distinct walks cannot reconverge — a `path` hit is
 /// always a true cycle.
-fn reject_cycles(graph: &CorpusGraph) -> Result<(), CorpusError> {
+fn reject_cycles(graph: &CorpusGraph) -> Result<(), ReviewError> {
     let mut done: BTreeSet<&str> = BTreeSet::new();
     for node in graph.nodes.values() {
         let Node::Review(review) = node else {
@@ -101,7 +102,7 @@ fn reject_cycles(graph: &CorpusGraph) -> Result<(), CorpusError> {
         let mut frontier: Vec<&str> = vec![review.uid.as_str()];
         while let Some(current) = frontier.pop() {
             if path.contains(&current) {
-                return Err(CorpusError::ReviewSupersessionCycle {
+                return Err(ReviewError::ReviewSupersessionCycle {
                     uid: current.to_string(),
                 });
             }
@@ -124,8 +125,6 @@ fn reject_cycles(graph: &CorpusGraph) -> Result<(), CorpusError> {
     Ok(())
 }
 
-// Tests live in a sibling file pulled in via `#[path]` so this
-// facade stays under the 500-line workspace limit.
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

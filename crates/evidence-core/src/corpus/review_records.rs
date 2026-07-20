@@ -5,9 +5,9 @@
 //! reviewer's decision to a requirement uid and the exact
 //! reviewed-content digest — the typed [`ReviewContentDigest`] of the
 //! canonical v1 projection (LLR-111). Everything degenerate fails
-//! closed with a typed error naming the file path and the record's
-//! id and uid: unknown fields, a newer file or content schema,
-//! malformed uids, digests, or timestamps, an empty reviewer
+//! closed with a typed [`ReviewError`] naming the file path and the
+//! record's id and uid: unknown fields, a newer file or content
+//! schema, malformed uids, digests, or timestamps, an empty reviewer
 //! identity or human id, and a rejection without a rationale.
 //!
 //! `reviewer` and `reviewed_at` are audit metadata: the reviewer
@@ -20,9 +20,11 @@ use std::path::Path;
 use serde::Deserialize;
 
 use super::digest::ReviewContentDigest;
-use super::error::CorpusError;
 use super::graph::{CorpusGraph, EdgeKind, Node, ReviewDecision, ReviewNode};
 use super::records::{REQUIREMENT_UID_PREFIX, validate_native_uid};
+use error::ReviewError;
+
+pub(super) mod error;
 
 /// Highest review-file schema version this tool loads.
 pub const SUPPORTED_REVIEW_SCHEMA: u32 = 1;
@@ -88,17 +90,17 @@ pub struct ReviewRecord {
 /// Fails closed on unreadable/malformed input, a newer
 /// `schema_version`, any invalid record field (naming the file path
 /// and the record's id and uid), or a graph identity collision.
-pub(super) fn load_reviews_into(path: &Path, graph: &mut CorpusGraph) -> Result<(), CorpusError> {
-    let raw = std::fs::read_to_string(path).map_err(|source| CorpusError::RecordRead {
+pub(super) fn load_reviews_into(path: &Path, graph: &mut CorpusGraph) -> Result<(), ReviewError> {
+    let raw = std::fs::read_to_string(path).map_err(|source| ReviewError::RecordRead {
         path: path.to_path_buf(),
         source,
     })?;
-    let file: ReviewFile = toml::from_str(&raw).map_err(|source| CorpusError::RecordParse {
+    let file: ReviewFile = toml::from_str(&raw).map_err(|source| ReviewError::RecordParse {
         path: path.to_path_buf(),
         source,
     })?;
     if file.schema_version > SUPPORTED_REVIEW_SCHEMA {
-        return Err(CorpusError::RecordSchemaTooNew {
+        return Err(ReviewError::RecordSchemaTooNew {
             path: path.to_path_buf(),
             found: file.schema_version,
             supported: SUPPORTED_REVIEW_SCHEMA,
@@ -110,35 +112,42 @@ pub(super) fn load_reviews_into(path: &Path, graph: &mut CorpusGraph) -> Result<
         if let Some(target) = &record.supersedes_review_uid {
             edges.push((EdgeKind::Supersedes, target.clone()));
         }
-        graph.insert(Node::Review(ReviewNode {
-            uid: record.uid,
-            id: record.id,
-            requirement_uid: record.requirement_uid,
-            content_schema: record.content_schema,
-            reviewed_content_sha256: record.reviewed_content_sha256,
-            decision: record.decision,
-            reviewer: record.reviewer,
-            reviewed_at: record.reviewed_at,
-            rationale: record.rationale,
-            edges,
-        }))?;
+        graph
+            .insert(Node::Review(ReviewNode {
+                uid: record.uid,
+                id: record.id,
+                requirement_uid: record.requirement_uid,
+                content_schema: record.content_schema,
+                reviewed_content_sha256: record.reviewed_content_sha256,
+                decision: record.decision,
+                reviewer: record.reviewer,
+                reviewed_at: record.reviewed_at,
+                rationale: record.rationale,
+                edges,
+            }))
+            .map_err(ReviewError::from_insert)?;
     }
     Ok(())
 }
 
 /// Validate one record's fields in declaration order; the first
 /// failure wins, so error precedence is deterministic (LLR-114).
-fn validate_record(path: &Path, record: &ReviewRecord) -> Result<(), CorpusError> {
+fn validate_record(path: &Path, record: &ReviewRecord) -> Result<(), ReviewError> {
     validate_review_uid(&record.uid)?;
     if record.id.trim().is_empty() {
-        return Err(CorpusError::ReviewHumanId {
+        return Err(ReviewError::ReviewHumanId {
             path: path.to_path_buf(),
             uid: record.uid.clone(),
         });
     }
-    validate_native_uid(&record.requirement_uid, REQUIREMENT_UID_PREFIX)?;
+    validate_native_uid(
+        &record.requirement_uid,
+        REQUIREMENT_UID_PREFIX,
+        |uid, expected| ReviewError::NativeUidPrefix { uid, expected },
+        |uid| ReviewError::NativeUidUuidV4 { uid },
+    )?;
     if record.content_schema != SUPPORTED_REVIEW_CONTENT_SCHEMA {
-        return Err(CorpusError::ReviewContentSchema {
+        return Err(ReviewError::ReviewContentSchema {
             path: path.to_path_buf(),
             uid: record.uid.clone(),
             id: record.id.clone(),
@@ -147,14 +156,14 @@ fn validate_record(path: &Path, record: &ReviewRecord) -> Result<(), CorpusError
         });
     }
     if record.reviewer.trim().is_empty() {
-        return Err(CorpusError::ReviewReviewer {
+        return Err(ReviewError::ReviewReviewer {
             path: path.to_path_buf(),
             uid: record.uid.clone(),
             id: record.id.clone(),
         });
     }
     if chrono::DateTime::parse_from_rfc3339(&record.reviewed_at).is_err() {
-        return Err(CorpusError::ReviewTimestamp {
+        return Err(ReviewError::ReviewTimestamp {
             path: path.to_path_buf(),
             uid: record.uid.clone(),
             id: record.id.clone(),
@@ -167,7 +176,7 @@ fn validate_record(path: &Path, record: &ReviewRecord) -> Result<(), CorpusError
             .as_deref()
             .is_none_or(|rationale| rationale.trim().is_empty())
     {
-        return Err(CorpusError::ReviewRationale {
+        return Err(ReviewError::ReviewRationale {
             path: path.to_path_buf(),
             uid: record.uid.clone(),
             id: record.id.clone(),
@@ -182,8 +191,13 @@ fn validate_record(path: &Path, record: &ReviewRecord) -> Result<(), CorpusError
 /// A review uid is `rev_` followed by an RFC 9562 UUIDv4 — the
 /// corpus-native uid contract with the review kind's prefix
 /// (LLR-114).
-fn validate_review_uid(uid: &str) -> Result<(), CorpusError> {
-    validate_native_uid(uid, REVIEW_UID_PREFIX)
+fn validate_review_uid(uid: &str) -> Result<(), ReviewError> {
+    validate_native_uid(
+        uid,
+        REVIEW_UID_PREFIX,
+        |uid, expected| ReviewError::NativeUidPrefix { uid, expected },
+        |uid| ReviewError::NativeUidUuidV4 { uid },
+    )
 }
 
 #[cfg(test)]

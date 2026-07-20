@@ -12,6 +12,7 @@ use serde::Deserialize;
 use super::digest::ReviewContentDigest;
 use super::error::CorpusError;
 
+mod review_invariants;
 mod supersession;
 
 /// Typed edge kinds supported by the corpus graph.
@@ -375,8 +376,11 @@ impl CorpusGraph {
     }
 
     /// Check every edge resolves and obeys its source/target kind
-    /// contract, then validate review supersession chains
-    /// (LLR-115).
+    /// contract, then enforce the per-node review invariants
+    /// (exactly one `Reviews` edge agreeing with `requirement_uid`,
+    /// supported content schema), then validate review supersession
+    /// chains (LLR-115). Review failures surface as
+    /// [`CorpusError::Review`] wrapping the typed review error.
     pub fn validate(&self) -> Result<(), CorpusError> {
         for node in self.nodes.values() {
             for (kind, target) in node.edges() {
@@ -399,7 +403,9 @@ impl CorpusGraph {
                 }
             }
         }
-        supersession::validate_review_supersession(self)
+        review_invariants::validate_review_nodes(self)?;
+        supersession::validate_review_supersession(self)?;
+        Ok(())
     }
 }
 

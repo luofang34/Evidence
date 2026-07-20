@@ -5,7 +5,8 @@
 use std::path::Path;
 
 use crate::corpus::{
-    CorpusError, CorpusGraph, CorpusIndex, EdgeKind, Node, NodeKind, ReviewDecision, ReviewNode,
+    CorpusError, CorpusGraph, CorpusIndex, EdgeKind, Node, NodeKind, ReviewDecision, ReviewError,
+    ReviewNode,
 };
 
 const REQ_A: &str = "req_00000000-0000-4000-8000-00000000000a";
@@ -133,6 +134,14 @@ fn expect_review<'g>(graph: &'g CorpusGraph, uid: &str) -> &'g ReviewNode {
     }
 }
 
+/// Unwrap the review error a failed review load must surface.
+fn review_err(err: &CorpusError) -> &ReviewError {
+    match err {
+        CorpusError::Review(review_err) => review_err,
+        other => panic!("expected a review error, got: {other:?}"),
+    }
+}
+
 /// Valid approve and reject records become typed nodes and edges; a
 /// superseding correction validates (TEST-133).
 #[test]
@@ -188,8 +197,8 @@ fn approve_and_reject_records_round_trip() {
     );
     assert!(
         matches!(
-            duplicate_id,
-            CorpusError::DuplicateHumanId {
+            review_err(&duplicate_id),
+            ReviewError::DuplicateHumanId {
                 kind: NodeKind::Review,
                 ..
             }
@@ -211,18 +220,18 @@ fn strict_schema_violations_fail_closed() {
     let mut zero_content = approve(REV_1, "REV-001");
     zero_content.content_schema = 0;
 
-    type SchemaCase = (&'static str, String, fn(&CorpusError) -> bool);
+    type SchemaCase = (&'static str, String, fn(&ReviewError) -> bool);
     let cases: [SchemaCase; 5] = [
         ("unknown record field", unknown_field, |err| {
-            matches!(err, CorpusError::RecordParse { .. })
+            matches!(err, ReviewError::RecordParse { .. })
         }),
         ("unknown top-level field", unknown_top_level, |err| {
-            matches!(err, CorpusError::RecordParse { .. })
+            matches!(err, ReviewError::RecordParse { .. })
         }),
         ("newer file schema", newer_file_schema, |err| {
             matches!(
                 err,
-                CorpusError::RecordSchemaTooNew {
+                ReviewError::RecordSchemaTooNew {
                     found: 2,
                     supported: 1,
                     ..
@@ -235,7 +244,7 @@ fn strict_schema_violations_fail_closed() {
             |err| {
                 matches!(
                     err,
-                    CorpusError::ReviewContentSchema {
+                    ReviewError::ReviewContentSchema {
                         found: 2,
                         supported: 1,
                         ..
@@ -246,7 +255,7 @@ fn strict_schema_violations_fail_closed() {
         ("zero content schema", review_file(&[zero_content]), |err| {
             matches!(
                 err,
-                CorpusError::ReviewContentSchema {
+                ReviewError::ReviewContentSchema {
                     found: 0,
                     supported: 1,
                     ..
@@ -257,7 +266,7 @@ fn strict_schema_violations_fail_closed() {
     for (name, content, matches_expectation) in cases {
         let err = expect_load_err(load_corpus(&[("records", content.as_str())]), name);
         assert!(
-            matches_expectation(&err),
+            matches_expectation(review_err(&err)),
             "{name} produced the wrong error: {err:?}"
         );
     }
@@ -276,7 +285,7 @@ fn strict_schema_violations_fail_closed() {
 /// ids, rationales, and supersession pointers fail closed (TEST-133).
 #[test]
 fn malformed_record_fields_fail_closed() {
-    type Case = (&'static str, fn(&mut RecordSpec), fn(&CorpusError) -> bool);
+    type Case = (&'static str, fn(&mut RecordSpec), fn(&ReviewError) -> bool);
     let cases: [Case; 14] = [
         (
             "review uid without prefix",
@@ -286,7 +295,7 @@ fn malformed_record_fields_fail_closed() {
             |err| {
                 matches!(
                     err,
-                    CorpusError::NativeUidPrefix {
+                    ReviewError::NativeUidPrefix {
                         expected: "rev_",
                         ..
                     }
@@ -298,14 +307,14 @@ fn malformed_record_fields_fail_closed() {
             |spec| {
                 spec.uid = "rev_00000000-0000-1000-8000-0000000000a1".to_string();
             },
-            |err| matches!(err, CorpusError::NativeUidUuidV4 { .. }),
+            |err| matches!(err, ReviewError::NativeUidUuidV4 { .. }),
         ),
         (
             "review uid not RFC 4122",
             |spec| {
                 spec.uid = "rev_00000000-0000-4000-c000-0000000000a1".to_string();
             },
-            |err| matches!(err, CorpusError::NativeUidUuidV4 { .. }),
+            |err| matches!(err, ReviewError::NativeUidUuidV4 { .. }),
         ),
         (
             "requirement uid without prefix",
@@ -315,7 +324,7 @@ fn malformed_record_fields_fail_closed() {
             |err| {
                 matches!(
                     err,
-                    CorpusError::NativeUidPrefix {
+                    ReviewError::NativeUidPrefix {
                         expected: "req_",
                         ..
                     }
@@ -325,45 +334,45 @@ fn malformed_record_fields_fail_closed() {
         (
             "uppercase digest",
             |spec| spec.digest = "A".repeat(64),
-            |err| matches!(err, CorpusError::RecordParse { .. }),
+            |err| matches!(err, ReviewError::RecordParse { .. }),
         ),
         (
             "short digest",
             |spec| spec.digest = "a".repeat(63),
-            |err| matches!(err, CorpusError::RecordParse { .. }),
+            |err| matches!(err, ReviewError::RecordParse { .. }),
         ),
         (
             "garbage timestamp",
             |spec| {
                 spec.reviewed_at = "yesterday".to_string();
             },
-            |err| matches!(err, CorpusError::ReviewTimestamp { value, .. } if value == "yesterday"),
+            |err| matches!(err, ReviewError::ReviewTimestamp { value, .. } if value == "yesterday"),
         ),
         (
             "date-only timestamp",
             |spec| {
                 spec.reviewed_at = "2026-07-01".to_string();
             },
-            |err| matches!(err, CorpusError::ReviewTimestamp { .. }),
+            |err| matches!(err, ReviewError::ReviewTimestamp { .. }),
         ),
         (
             "whitespace reviewer",
             |spec| {
                 spec.reviewer = "   ".to_string();
             },
-            |err| matches!(err, CorpusError::ReviewReviewer { .. }),
+            |err| matches!(err, ReviewError::ReviewReviewer { .. }),
         ),
         (
             "empty human id",
             |spec| spec.id = String::new(),
-            |err| matches!(err, CorpusError::ReviewHumanId { .. }),
+            |err| matches!(err, ReviewError::ReviewHumanId { .. }),
         ),
         (
             "reject without rationale",
             |spec| {
                 spec.decision = "reject".to_string();
             },
-            |err| matches!(err, CorpusError::ReviewRationale { .. }),
+            |err| matches!(err, ReviewError::ReviewRationale { .. }),
         ),
         (
             "reject with whitespace rationale",
@@ -371,14 +380,14 @@ fn malformed_record_fields_fail_closed() {
                 spec.decision = "reject".to_string();
                 spec.rationale = Some("  ".to_string());
             },
-            |err| matches!(err, CorpusError::ReviewRationale { .. }),
+            |err| matches!(err, ReviewError::ReviewRationale { .. }),
         ),
         (
             "supersedes uid not a uuid",
             |spec| {
                 spec.supersedes = Some("rev_not-a-uuid".to_string());
             },
-            |err| matches!(err, CorpusError::NativeUidUuidV4 { .. }),
+            |err| matches!(err, ReviewError::NativeUidUuidV4 { .. }),
         ),
         (
             "supersedes uid wrong prefix",
@@ -388,7 +397,7 @@ fn malformed_record_fields_fail_closed() {
             |err| {
                 matches!(
                     err,
-                    CorpusError::NativeUidPrefix {
+                    ReviewError::NativeUidPrefix {
                         expected: "rev_",
                         ..
                     }
@@ -401,7 +410,7 @@ fn malformed_record_fields_fail_closed() {
         mutate(&mut spec);
         let err = expect_load_err(load_with_reviews(&[spec]), name);
         assert!(
-            matches_expectation(&err),
+            matches_expectation(review_err(&err)),
             "{name} produced the wrong error: {err:?}"
         );
     }

@@ -178,8 +178,8 @@ fn resolve_entry(root: &Path, entry: &str) -> Result<Vec<PathBuf>, CorpusError> 
     }
 }
 
-// Tests live in a sibling file pulled in via `#[path]` so this
-// facade stays under the 500-line workspace limit.
+// Index resolution and load-order tests live in a sibling file
+// pulled in via `#[path]`.
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
