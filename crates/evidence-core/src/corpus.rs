@@ -21,10 +21,14 @@
 //!   (LLR-112)
 //! - `lifecycle` — deterministic per-requirement lifecycle
 //!   evaluation over digest-bound review heads (LLR-117)
+//! - `approval_boundary` — strict validation that implementation and
+//!   verification evidence claims only approved requirements under
+//!   explicit lifecycle enforcement (LLR-119)
 //!
 //! Design record:
 //! `docs/superpowers/specs/2026-07-18-corpus-model-v0.2-design.md`.
 
+mod approval_boundary;
 mod digest;
 mod error;
 mod graph;
@@ -35,6 +39,10 @@ mod records;
 mod review_content;
 mod review_records;
 
+pub use approval_boundary::{
+    ApprovalBoundaryError, ApprovalBoundaryViolation, LifecycleEnforcement, ReferringArtifact,
+    validate_approval_boundary,
+};
 pub use digest::ReviewContentDigest;
 pub use error::CorpusError;
 pub(crate) use graph::TraceMetadata;

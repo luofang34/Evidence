@@ -2424,3 +2424,62 @@ identically on any host.
 """
 verification_methods = ["test"]
 traces_to = ["9612ccb9-294a-4682-88b3-b78cbd34e7e6"]
+
+[[requirements]]
+uid = "38941e91-e8a1-4977-8c19-38b5640ef5cf"
+id = "HLR-096"
+title = "Approval enforcement is an explicit caller-named policy with no default and no assurance-level inference"
+owner = "tool"
+scope = "component"
+description = """
+The validation entry point shall take an explicit
+lifecycle-enforcement input that names the policy; there shall be
+no default value, no configuration or environment fallback, and
+no inference of strictness from an implicit design-assurance
+level. The input type shall carry exactly one policy — required
+— so selecting enforcement is always a deliberate caller action
+pinned by exhaustive matches, and tests shall prove the choice
+cannot silently default to a weaker assurance level.
+
+Legacy graphs shall not be grandfathered: a corpus with zero
+review records is never treated as implicitly approved inside
+the validator, and callers that have not adopted corpus
+lifecycle simply do not request the policy. The distinction
+shall be explicit in the API and tests, never detected from
+file paths. Making enforcement mandatory for certification and
+record corpus claims is integration work above this layer; the
+validator itself stays policy-neutral.
+"""
+verification_methods = ["test"]
+traces_to = ["1768262e-5524-477b-be35-c479623aa19c"]
+
+[[requirements]]
+uid = "db587696-1d94-451f-a275-0b504af4f6aa"
+id = "HLR-097"
+title = "Explicit enforcement gates test verifies edges and implementation claims to approved requirements with distinct typed diagnostics"
+owner = "tool"
+scope = "component"
+description = """
+When enforcement is required, the validator shall evaluate every
+requirement's lifecycle and reject two kinds of claims against
+any target that is not approved: every test-to-requirement
+verifies edge, and every requirement trace-metadata claim of
+implementation modules or emitted diagnostic codes. Candidate,
+rejected, and stale targets shall produce distinct typed
+non-success diagnostics, each carrying the requirement uid, the
+human-readable identifier, the lifecycle state, and the
+referring artifact — the verifying test, the claimed modules,
+or the claimed codes.
+
+An approved target shall pass silently. Missing reviews shall
+evaluate as candidate, so a graph with no review records at all
+shall fail closed: an explicitly requested approval claim over
+zero reviews can never succeed. Violations shall aggregate into
+one error rather than failing on the first, shall iterate in a
+deterministic order — requirement uid, then referring artifact —
+and requirement-decomposition edges shall never be gated, so
+candidate requirements remain decomposable before approval.
+Lifecycle-evaluator failure shall fail closed as a typed error.
+"""
+verification_methods = ["test"]
+traces_to = ["1768262e-5524-477b-be35-c479623aa19c"]
