@@ -315,13 +315,11 @@ fn lifecycle_evaluation_error_fails_closed() {
         .expect("insert stray review");
 
     let err = validate(&graph).expect_err("invalid review data must fail closed");
-    let ApprovalBoundaryError::Lifecycle(LifecycleError::InvalidGraph(CorpusError::DanglingEdge {
-        from,
-        to,
-        kind,
-    })) = &err
-    else {
+    let ApprovalBoundaryError::Lifecycle(LifecycleError::InvalidGraph(inner)) = &err else {
         panic!("expected the typed validation error chain, got: {err:?}");
+    };
+    let CorpusError::DanglingEdge { from, to, kind } = inner.as_ref() else {
+        panic!("expected the preserved DanglingEdge source, got: {inner:?}");
     };
     assert_eq!(from, REV_1);
     assert_eq!(to, "req_gone");
