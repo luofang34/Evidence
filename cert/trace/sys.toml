@@ -1320,3 +1320,50 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "e895b27c-6fe8-4f35-9e65-cfd8b6e6771f"
+id = "SYS-046"
+title = "The material behind each effective source revision is verifiable offline with honest per-capture assurance states"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall validate the material behind each effective source
+revision without network access and without overstating what each
+capture mode proves. Verification shall report deterministic typed
+states distinguishing: vendored bytes read and matched against the
+locked digest (byte-verified); hash-only content whose declared
+digest is valid but for which no local bytes exist (digest
+declared); external-controlled content with a valid immutable
+control identity and declared digest but no local byte claim
+(externally controlled); and explicitly unavailable material
+carrying its recorded reason. Only the first state shall be local
+byte verification; schema-valid, locked, and byte-verified shall
+remain separate facts, and unavailable material shall be reportable
+and lintable but shall never satisfy a byte-verified policy.
+
+Vendored verification shall resolve the canonical relative vendored
+path beneath the fixed `<corpus-root>/sources/` payload root —
+never against an arbitrary caller-selected directory — and shall
+reject missing paths, non-files, symlink payload roots, symlink
+path components, and any filesystem resolution escaping the payload
+root before hashing the exact raw bytes and comparing them against
+the source revision and `sources.lock` digests, with typed errors
+carrying the source uid, document key, path, and digests. Graph
+validation, lock parsing and canonicality, and graph-lock equality
+shall be global prerequisites whose failure stops payload
+verification; after they pass, every effective head shall produce
+exactly one verification entry sorted deterministically by document
+key and source uid, and one bad payload shall never hide findings
+for later heads. Hash-only verification shall never fetch during
+validation, external-controlled verification shall never contact
+the external system, and retrieval timestamps shall remain audit
+metadata that never affects ordering or success selection.
+Validation shall never mutate registry, lock, review, or payload
+files.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

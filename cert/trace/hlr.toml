@@ -2770,3 +2770,63 @@ retrievability, or vendored byte integrity.
 """
 verification_methods = ["test"]
 traces_to = ["a0ce5b90-094a-4428-92e1-a6d209dee9f7"]
+
+[[requirements]]
+uid = "c4c2fd84-1783-43c7-b603-6d887758dfb0"
+id = "HLR-107"
+title = "Each effective source revision verifies to a deterministic typed state with vendored byte verification beneath the fixed payload root"
+owner = "tool"
+scope = "component"
+description = """
+Verifying one effective source revision shall return a
+deterministic typed state: `VerifiedBytes` when vendored bytes were
+read and matched the locked digest; `DigestDeclared` when hash-only
+material carries a canonical location and a valid declared digest
+but no local bytes to verify; `ExternallyControlled` when the
+material carries a non-empty controlling system, an immutable
+revision identity, and a declared digest but no local byte claim;
+and `Unavailable` carrying the recorded reason. Only
+`VerifiedBytes` shall be local byte verification, and the weaker
+states shall be explicit rather than silently upgraded: hash-only
+verification shall never fetch, and external-controlled
+verification shall never contact the external system.
+
+Vendored verification shall resolve the record's canonical
+`/`-separated wire path beneath the fixed `<corpus-root>/sources/`
+payload root, re-checking lexical safety as defense in depth, and
+shall fail closed with typed findings on a missing payload, a
+non-regular-file target, a symlink payload root, a symlinked path
+component, or any filesystem resolution escaping the payload root.
+The exact raw bytes shall be hashed and compared with the source
+revision digest and the `sources.lock` digest; a record/lock
+disagreement and a digest mismatch shall be distinct typed findings
+carrying the source uid, document key, path, and the expected and
+actual digests.
+"""
+verification_methods = ["test"]
+traces_to = ["e895b27c-6fe8-4f35-9e65-cfd8b6e6771f"]
+
+[[requirements]]
+uid = "bacd6664-7fd4-4cbc-aa70-447018a066ac"
+id = "HLR-108"
+title = "Batch source verification gates on global graph and lock prerequisites, then reports one sorted finding per effective head without mutation or network access"
+owner = "tool"
+scope = "component"
+description = """
+Graph validation, strict lock parsing, lock canonicality, and
+graph-lock equality shall be global prerequisites applied in order
+before any payload is read; a failure in one shall stop payload
+verification with the typed prerequisite error and no per-head
+entries. After the prerequisites pass, verification shall return
+exactly one entry per effective source head — its verification
+state or its typed payload finding — sorted deterministically by
+document key and source uid, and one bad payload shall never abort
+the batch or hide findings for later heads.
+
+Batch verification shall perform no network access and shall never
+mutate the workspace: registry records, the committed lock, review
+files, and payload bytes shall be byte-identical before and after
+the run, and the only filesystem access shall be read-only.
+"""
+verification_methods = ["test"]
+traces_to = ["e895b27c-6fe8-4f35-9e65-cfd8b6e6771f"]

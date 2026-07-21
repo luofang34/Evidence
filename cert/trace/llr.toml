@@ -4037,3 +4037,84 @@ taxonomy wrapped by `SourceError`, keeping `CorpusError::Source`
 the only corpus wrapper.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "3d0f4f2d-2a8e-4dc5-8d1b-16c18dcc8522"
+id = "LLR-136"
+title = "corpus::source::verify reports one typed verification state per effective head capture mode"
+owner = "tool"
+traces_to = ["c4c2fd84-1783-43c7-b603-6d887758dfb0"]
+modules = ["evidence_core::corpus::source::verify"]
+description = """
+`SourceVerificationState` shall be a deterministic typed enum —
+`VerifiedBytes`, `DigestDeclared`, `ExternallyControlled`, and
+`Unavailable { reason }` — with a stable `as_str` wire string per
+state and rustdoc recording that only `VerifiedBytes` is local byte
+verification. `SourceVerification` shall bind one
+`(document_key, source_uid)` pair to a
+`Result<SourceVerificationState, SourcePayloadError>` outcome so a
+payload finding is data, never an abort. Per-head dispatch shall
+map unavailable material to `Unavailable` with its recorded reason,
+hash-only material to `DigestDeclared` (the record's canonical
+location and digest are guaranteed by record validation; nothing is
+fetched), and external-controlled material to `ExternallyControlled`
+(the external system is never contacted); vendored material shall
+run the resolution and hashing pipeline of LLR-137.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "1746aa02-06b0-4bb3-9d7d-52799a3a36ad"
+id = "LLR-137"
+title = "corpus::source::verify resolves vendored payloads beneath the fixed sources root and hashes raw bytes with typed payload errors"
+owner = "tool"
+traces_to = ["c4c2fd84-1783-43c7-b603-6d887758dfb0"]
+modules = ["evidence_core::corpus::source::verify"]
+description = """
+Vendored resolution shall treat the record's wire path as
+corpus-root-relative with its leading `sources/` component — the
+stored wire form — joining it against the corpus root and requiring
+the result beneath the fixed `<corpus-root>/sources/` payload root.
+The record-load lexical check shall be re-run as defense in depth;
+an absolute path, a parent component, or a path not beneath the
+payload root shall fail as `PathEscape`. Every filesystem step
+shall use `symlink_metadata`: a symlinked payload root fails as
+`SymlinkRoot`, a symlinked path component as `SymlinkComponent`, a
+missing path as `MissingPayload`, and a non-regular-file final
+component as `NotAFile`; the canonicalized target shall stay
+beneath the canonicalized payload root or fail as `PathEscape`.
+The exact raw bytes shall then stream through SHA-256; a lock entry
+disagreeing with the record shall fail as `LockDisagreement`
+naming the field, and bytes digesting differently than declared
+shall fail as `DigestMismatch` carrying the expected and actual
+digests. Every payload error shall carry the source uid, document
+key, and path where applicable, and I/O failures shall carry the
+underlying `io::Error`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "262dcfe8-148e-4d67-a89b-ef116de0b32c"
+id = "LLR-138"
+title = "corpus::source::verify gates the batch on the committed-lock gates and isolates sorted per-head findings"
+owner = "tool"
+traces_to = ["bacd6664-7fd4-4cbc-aa70-447018a066ac"]
+modules = ["evidence_core::corpus::source::verify"]
+description = """
+`verify_effective_sources(corpus_root, graph, lock_bytes)` shall
+run `validate_committed_lock` first so graph validation, strict
+lock parsing, canonical byte equality, and graph-lock equality
+remain one implementation whose typed failure stops the batch
+before any payload is read. After the gates pass, the batch shall
+iterate `effective_source_heads` — `BTreeMap` order, so results
+are sorted by document key then source uid with no re-sort — and
+shall collect exactly one `SourceVerification` per head, matching
+each head to its lock entry; a missing entry shall be a typed
+`LockDisagreement` finding, never a panic. A per-head payload
+finding shall never abort the loop. The only I/O shall be
+read-only: payload reads and hashing beneath the payload root; the
+batch shall never write registry, lock, review, or payload files,
+shall never touch the network, and retrieval timestamps shall never
+affect ordering or state selection.
+"""
+verification_methods = ["test"]
