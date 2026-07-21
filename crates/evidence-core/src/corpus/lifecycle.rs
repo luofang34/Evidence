@@ -150,9 +150,12 @@ pub enum LifecycleError {
     /// the typed source (never stringified), so callers can match
     /// the exact broken invariant — including
     /// [`CorpusError::Review`] wrapping a
-    /// [`ReviewError`](super::ReviewError).
+    /// [`ReviewError`](super::ReviewError). Boxed because
+    /// `CorpusError` is large enough to trip `result_large_err` on
+    /// some platforms; the source object is carried whole either
+    /// way.
     #[error("corpus graph failed validation: {0}")]
-    InvalidGraph(#[source] CorpusError),
+    InvalidGraph(#[source] Box<CorpusError>),
     /// `evaluate_lifecycle` named a uid with no requirement node
     /// in the graph (absent, or naming another node kind), and no
     /// review targets it either.
@@ -199,7 +202,9 @@ pub fn evaluate_lifecycle(
     graph: &CorpusGraph,
     requirement_uid: &str,
 ) -> Result<LifecycleEvaluation, LifecycleError> {
-    graph.validate().map_err(LifecycleError::InvalidGraph)?;
+    graph
+        .validate()
+        .map_err(|e| LifecycleError::InvalidGraph(Box::new(e)))?;
     evaluate_lifecycle_validated(graph, requirement_uid)
 }
 
@@ -221,7 +226,9 @@ pub fn evaluate_lifecycle(
 pub fn evaluate_all_lifecycles(
     graph: &CorpusGraph,
 ) -> Result<BTreeMap<String, LifecycleEvaluation>, LifecycleError> {
-    graph.validate().map_err(LifecycleError::InvalidGraph)?;
+    graph
+        .validate()
+        .map_err(|e| LifecycleError::InvalidGraph(Box::new(e)))?;
     for node in graph.nodes() {
         if let Node::Review(review) = node
             && !matches!(

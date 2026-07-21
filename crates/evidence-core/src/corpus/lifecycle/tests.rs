@@ -268,7 +268,7 @@ fn review_of_missing_requirement_fails_closed() {
     assert!(
         matches!(
             err,
-            LifecycleError::InvalidGraph(CorpusError::DanglingEdge { ref to, .. }) if to == "req_gone"
+            LifecycleError::InvalidGraph(ref inner) if matches!(inner.as_ref(), CorpusError::DanglingEdge { to, .. } if to == "req_gone")
         ),
         "validation rejects the dangling Reviews edge first: {err}"
     );
@@ -276,7 +276,7 @@ fn review_of_missing_requirement_fails_closed() {
     assert!(
         matches!(
             err,
-            LifecycleError::InvalidGraph(CorpusError::DanglingEdge { ref to, .. }) if to == "req_gone"
+            LifecycleError::InvalidGraph(ref inner) if matches!(inner.as_ref(), CorpusError::DanglingEdge { to, .. } if to == "req_gone")
         ),
         "bulk evaluation reports the same invalid graph data: {err}"
     );
