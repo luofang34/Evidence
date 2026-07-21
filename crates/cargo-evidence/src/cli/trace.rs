@@ -303,9 +303,9 @@ pub use evidence_core::trace::default_trace_roots;
 /// Emit the typed adoption-state diagnostic for a no-evidence
 /// evaluation ([`TraceEvidenceState::NotConfigured`] /
 /// [`TraceEvidenceState::NotAdopted`] / [`TraceEvidenceState::Empty`]).
-/// These are the states that used to slide through to `VERIFY_OK`;
-/// they now carry the shared `TRACE_EVIDENCE_*` codes and mark the
-/// run non-success in every output shape. No-op for `Invalid` /
+/// These states carry the shared `TRACE_EVIDENCE_*` codes and mark
+/// the run non-success in every output shape — none may terminate
+/// `VERIFY_OK`. No-op for `Invalid` /
 /// `Valid` states (those have their own emission paths).
 fn emit_evidence_gap(
     eval: &TraceEvidenceEval,

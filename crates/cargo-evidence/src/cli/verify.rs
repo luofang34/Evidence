@@ -38,7 +38,7 @@ struct VerifyCheck {
 
 /// Emit a verify failure envelope and return the given exit code.
 ///
-/// Unifies the pattern that used to repeat five times in cmd_verify:
+/// Unifies the repeated envelope pattern in cmd_verify:
 /// build a `VerifyOutput { success: false, ... error: Some(msg) }`,
 /// emit JSON on --json or print a text line with the given prefix to
 /// stderr (so e.g. "verify: FAIL - foo" vs "error: foo" vs "verify:

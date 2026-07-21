@@ -1,8 +1,8 @@
 //! Empty-trace fail-closed regression for `check --mode=source`
 //! (LLR-105). `check` over a workspace whose trace root
-//! exists but holds zero requirements used to terminate
+//! exists but holds zero requirements must not terminate
 //! `VERIFY_OK` with "0 requirement(s) satisfied" — a success
-//! terminal over no evidence. The run must now emit the typed
+//! terminal over no evidence. The run must emit the typed
 //! `TRACE_EVIDENCE_EMPTY` diagnostic and terminate `VERIFY_FAIL`
 //! with a non-zero exit. Standalone file (not a `#[path]` sibling
 //! of `check_source_correctness.rs`) so each side stays under the

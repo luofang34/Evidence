@@ -2,10 +2,10 @@
 //! requested assurance claim (LLR-105 / HLR-086 / SYS-036).
 //!
 //! Absence of evidence is an adoption state, not valid evidence.
-//! Before this module existed, a missing trace root or an
-//! all-empty trace tree could terminate in `VERIFY_OK`: the
-//! validator passes vacuously on zero requirements, and every
-//! surface that only ran the validator inherited the silent pass.
+//! A missing trace root or an all-empty trace tree must not
+//! terminate in `VERIFY_OK`: the link validator passes vacuously
+//! on zero requirements, so any surface that only ran the
+//! validator would inherit the silent pass.
 //!
 //! [`evaluate_trace_evidence`] is THE semantic result every
 //! surface consumes — `trace --validate`, `check`, doctor's

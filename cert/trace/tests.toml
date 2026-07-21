@@ -391,6 +391,7 @@ test_selectors = [
     "rot_prone_markers_locked::current_tree_is_clean",
     "rot_prone_markers_locked::fires_on_banned_pattern",
     "rot_prone_markers_locked::passes_on_clean_fixture",
+    "rot_prone_markers_locked::fires_on_temporal_phrasing",
 ]
 
 [[tests]]

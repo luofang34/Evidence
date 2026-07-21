@@ -957,13 +957,19 @@ A Rust `#[test] fn` in
 applies a pinned regex pattern set (PR-number breadcrumbs,
 `post-PR` / `pre-PR`, `round[\s-]?\d+`,
 `sits at ~?\d+ lines`, `newly-introduced` / `just-added`,
-`next natural split`), and fails via `assert!` with the offending
+`next natural split`, and the temporal-phrasing class —
+`migrated from`, `previously`, `historically`, `formerly`,
+`before this module` — the CONTRIBUTING WHY-only-comment rule),
+and fails via `assert!` with the offending
 `file:line` listing. No `Diagnostic` wire shape; no `RULES`
 entry. Follows the
 `schema_versions_locked` / `diagnostic_codes_locked` /
 `floors_equal_current_no_slack` pattern — the test's failure
 message is the diagnostic. A `RESERVED_TEXT_REFS` const names
-files where a banned pattern is load-bearing (initially empty).
+files where a banned pattern is load-bearing (each entry carries
+written justification beside it). CHANGELOG.md is exempt as the
+release audit journal, and `used to` is deliberately unpatterned
+(its instrumental reading is legitimate).
 '''
 verification_methods = ["test"]
 

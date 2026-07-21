@@ -2,9 +2,8 @@
 //!
 //! `Dal` deliberately has no `Default` impl: an assurance level is a
 //! claim, and a missing `[dal]` section in `boundary.toml` must never
-//! silently *become* one. Development surfaces that previously fell
-//! back to `Dal::D` now construct
-//! [`crate::policy::AssuranceSelection::unclassified`] — the same
+//! silently *become* one. Development surfaces construct
+//! [`crate::policy::AssuranceSelection::unclassified`] instead — the same
 //! least-strict policy row, named honestly. The `#[derive(Ord)]`
 //! sort order (D < C < B < A) means later variants are *more*
 //! stringent, so `max()` over a `dal_map` gives the highest required

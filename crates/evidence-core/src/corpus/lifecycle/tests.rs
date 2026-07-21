@@ -143,7 +143,7 @@ fn content_change_after_rejection_yields_candidate() {
     );
 }
 
-/// Returning content to the previously approved exact digest
+/// Returning content to an exact digest with an existing approval
 /// yields Approved again: the digest binds exact content
 /// (TEST-135).
 #[test]

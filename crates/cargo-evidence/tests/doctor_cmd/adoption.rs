@@ -17,13 +17,13 @@ use tempfile::TempDir;
 
 use super::helpers::run_doctor;
 
-/// **DAL-A empty-trace silent-pass gate.** `check_trace` used to
-/// load only `<workspace>/cert/trace`, and
+/// **DAL-A empty-trace silent-pass gate.**
 /// `validate_trace_links_with_policy` on an empty-everything tree
 /// is trivially valid (no HLR to iterate → DAL-A's
-/// `require_hlr_sys_trace` has nothing to fail on). Result:
-/// `[✓] trace validity` + `DOCTOR_OK` on a DAL-A project with zero
-/// trace data. The explicit DAL ≥ C empty-trace gate fires
+/// `require_hlr_sys_trace` has nothing to fail on), so a plain
+/// validator run would report `[✓] trace validity` + `DOCTOR_OK`
+/// on a DAL-A project with zero trace data. The explicit DAL ≥ C
+/// empty-trace gate fires
 /// `DOCTOR_TRACE_EMPTY` instead, so a cert-grade target without
 /// trace data cannot silently-pass.
 #[test]

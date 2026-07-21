@@ -324,8 +324,8 @@ fn evidence_check_source_on_empty_dir_fails_gracefully() {
 /// TEST-050 selector (opt-in): a full `evidence_check` source-mode
 /// run on the self-repo passes with `VERIFY_OK`. Expensive —
 /// spawns `cargo test --workspace` under the MCP process which
-/// is itself running under `cargo test`. Historically causes
-/// `target/` lock contention (see
+/// is itself running under `cargo test`, contending on the
+/// `target/` lock (see
 /// `crates/cargo-evidence/src/cli/check.rs:191-196`). Gated
 /// behind `MCP_RUN_LONG_CHECK=1` so normal CI skips it; run
 /// manually with
