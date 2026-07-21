@@ -1279,3 +1279,44 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "a0ce5b90-094a-4428-92e1-a6d209dee9f7"
+id = "SYS-045"
+title = "The active frozen-source baseline inventory is a canonical derived lock with exact three-gate validation"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall define `cert/sources.lock` as the canonical, derived
+inventory of the active frozen-source baseline. Source-revision
+registry records shall remain authoritative; the lock shall carry no
+independent editable semantics and shall equal a fresh projection
+from the validated corpus graph. The lock schema shall be strict and
+versioned: one entry per effective document lineage key, sorted
+canonically, binding the effective source revision identity, the
+availability state, the lowercase content SHA-256 when available,
+the capture mode, and the immutable external control identity when
+that identity is part of the capture contract. Vendored file paths
+and record-file layout shall be storage details and never enter
+source identity; historical non-head revisions shall remain in the
+registry and lineage but never appear as active lock entries.
+
+Deriving the lock value from a validated graph, rendering canonical
+bytes, parsing strict lock bytes, and comparing a committed lock
+against the derived value shall be pure operations. Committed-lock
+validation shall apply three ordered gates — strict parse, byte
+equality with the canonical rendering, and value equality with the
+derived projection — and shall fail closed with typed context for
+missing, extra, changed, malformed, non-canonical, and
+unsupported-version entries. An unavailable effective source shall
+be represented explicitly and shall never receive a synthetic
+digest. The lock shall prove which source digests and availability
+states the corpus baseline selected; it shall not claim recipe
+reproducibility, remote retrievability, or vendored byte integrity.
+Validation shall never mutate the workspace.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

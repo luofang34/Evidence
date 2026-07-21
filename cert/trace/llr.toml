@@ -3952,3 +3952,88 @@ Both validations and every comparison run with no I/O and no
 environment reads.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "535e526e-c1cd-4a39-b5a7-3e6fcfb2e6b6"
+id = "LLR-133"
+title = "corpus::source::lock derives the lock value from effective source heads as a pure projection"
+owner = "tool"
+traces_to = ["60a9bf68-4a18-44ae-8fc5-81b63606945d"]
+modules = ["evidence_core::corpus::source::lock"]
+description = """
+`SourceLock` shall hold `schema_version` plus entries sorted by
+document key then source uid; `SourceLockEntry` shall bind the
+document key, the effective source uid, a `LockAvailability`
+(`available` | `unavailable`), an optional validated
+`SourceContentDigest` (absent iff unavailable), an optional
+`LockCaptureMode` (`vendored` | `hash_only` | `external_controlled`,
+absent iff unavailable), and an optional `ExternalControlId`
+(controlling system plus immutable id, present iff
+external-controlled). `derive_lock` shall project each effective
+head reported by `effective_source_heads`: available material
+binds its declared digest, capture mode, and — for
+external-controlled capture — the controlling system and immutable
+id; unavailable material yields an explicit unavailable entry with
+no digest and no capture mode, never a synthetic value. Retrieval
+timestamps, unavailability reasons, vendored wire paths, titles,
+media types, canonical locations, file layout, and record order
+shall never enter the projection, and historical non-head
+revisions shall never appear as active entries. The function
+shall be pure: no I/O, no environment reads.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "ee77ade4-d3a4-43b2-9bea-0684163f7bd0"
+id = "LLR-134"
+title = "corpus::source::lock renders one canonical byte template and parses strict lock bytes"
+owner = "tool"
+traces_to = ["60a9bf68-4a18-44ae-8fc5-81b63606945d"]
+modules = ["evidence_core::corpus::source::lock"]
+description = """
+`render_lock_canonical` shall emit the documented canonical TOML
+template — the schema header, then one `[[entries]]` table per
+entry in sorted order with fields in fixed order (`document_key`,
+`source_uid`, `availability`, then `sha256` and `capture_mode` for
+available entries, then an inline `external_control` table for
+external-controlled entries), LF line endings, exactly one blank
+line between tables, and a single trailing newline — so equivalent
+locks render byte-identically and a golden fixture can byte-lock
+the complete contract. `parse_lock` shall parse strict bytes:
+unknown fields, malformed digests, a digest or capture field on an
+unavailable entry, and a `schema_version` newer than
+`SUPPORTED_LOCK_SCHEMA` shall fail closed with typed errors;
+duplicate document keys shall fail at parse with a typed
+duplicate-key error; entry order shall be accepted as written and
+left for the canonicality gate.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "237aafc8-abae-4a20-aad6-685f350e439c"
+id = "LLR-135"
+title = "corpus::source::lock validates a committed lock through three ordered gates and reads lock files without mutation"
+owner = "tool"
+traces_to = ["26085b95-4b44-42b4-8d82-db3e6283c4c3"]
+modules = [
+    "evidence_core::corpus::source::lock",
+    "evidence_core::corpus::source::error",
+]
+description = """
+`validate_committed_lock` shall validate the graph first — a
+failure surfaces as a typed error carrying the `CorpusError` as
+its source — then apply the three ordered gates: strict parse
+(typed parse, schema-too-new, and duplicate-key failures),
+canonical-byte equality (a typed non-canonical error carrying
+first-difference detail), and projection equality (typed missing,
+extra, and changed errors, the change naming the document key and
+the field — uid, digest, availability, capture mode, or external
+identity). Difference reports shall iterate in sorted document-key
+order so the reported entry is load-order independent. All gate
+functions shall be pure; `read_lock_blocking` shall be the only
+I/O, a blocking reader returning the parsed lock that never
+writes. Lock failures shall report through a `SourceLockError`
+taxonomy wrapped by `SourceError`, keeping `CorpusError::Source`
+the only corpus wrapper.
+"""
+verification_methods = ["test"]
