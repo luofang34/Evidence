@@ -1,13 +1,23 @@
-//! Gate against rot-prone context markers in source + docs
-//! (LLR-044).
+//! Gate against rot-prone context markers in source comments +
+//! policy prose (LLR-044).
 //!
 //! Walks:
 //!
-//! - `crates/**/{src,tests}/**/*.rs` — production + test source.
-//! - `**/*.md` except `cert/trace/README.md` — top-level docs (README,
-//!   per-crate docs). The trace journal is audit provenance and stays
+//! - `crates/**/{src,tests}/**/*.rs` — production + test source,
+//!   scanned COMMENT-SCOPED: the `rust_comments` sibling module
+//!   lexes each file and yields line (`//`), doc (`///`, `//!`),
+//!   and block (`/* */` — Rust block comments nest) comment lines;
+//!   the banned set applies to those lines only. Runtime string
+//!   data (string literals, raw strings, byte strings, char
+//!   literals) carrying the same words is data, not narration, and
+//!   never fires the gate.
+//! - `**/*.md` except `cert/trace/README.md` — top-level docs
+//!   (README, per-crate docs), scanned WHOLE-FILE: Markdown is
+//!   policy prose with no string-literal ambiguity, so every line
+//!   is fair game. The trace journal is audit provenance and stays
 //!   excluded.
-//! - `cert/**/*.toml` — our own cert state. `cert/trace/**` stays
+//! - `cert/**/*.toml` — our own cert state, scanned WHOLE-FILE on
+//!   the same policy-prose rationale. `cert/trace/**` stays
 //!   excluded (legitimate audit trail).
 //!
 //! Applies a pinned regex pattern set and fails via `assert!` with
@@ -20,32 +30,39 @@
 //!
 //! Markers whose truth depends on transient state outside the file:
 //!
-//! - PR-number breadcrumbs — `PR #49 removed ...` and relatives.
-//! - Bare issue/PR breadcrumbs — `#50`, `the #82 bug`, `(#73 AC)`.
-//!   The number rots when history is rewritten; the surviving
-//!   description or a stable anchor (LLR ID / function name) does not.
-//! - "post-PR" / "pre-PR" / review-round narrative.
+//! - PR-number breadcrumbs — references of the form `PR <number>`.
+//! - Bare issue/PR breadcrumbs — a hash plus two-or-more digits at
+//!   a token boundary. The number rots when history is rewritten;
+//!   the surviving description or a stable anchor (LLR ID /
+//!   function name) does not.
+//! - Narrative pinned to before/after a specific PR landed, or to
+//!   a review round.
 //! - Absolute line counts — drift by the next edit.
-//! - "Newly-added" / "just-added" adjectives — decay to meaningless.
-//! - Forward-looking proximity hints — `next natural split`.
-//! - Temporal phrasing — `previously`, `historically`, `formerly`,
-//!   `migrated from`, `before this module` and relatives. The comment
-//!   describes a past tree, not the code it sits beside; rewrite as
-//!   the present contract.
+//! - Recency adjectives — decay to meaningless.
+//! - Forward-looking proximity hints about a future split.
+//! - Temporal phrasing — the pinned patterns below carry the exact
+//!   words. The comment describes a past tree, not the code it
+//!   sits beside; rewrite as the present contract.
 //!
 //! ## Out of scope
 //!
 //! - `cert/trace/**` — PR refs in trace TOML are audit provenance,
 //!   legitimate.
+//! - `CHANGELOG.md` — the release audit journal; temporal
+//!   narration is its purpose.
 //! - Commit messages — immutable history.
 //! - Stable identifiers (`LLR-NNN`, `TEST-NNN`, function names).
+//! - Rust runtime string data — see the comment-scoped walk above.
 //!
 //! ## Escape hatch
 //!
-//! `RESERVED_TEXT_REFS` names files + lines where a banned pattern
-//! is load-bearing despite looking rot-prone. Initially empty;
-//! additions require written justification in a comment beside the
-//! const.
+//! `RESERVED_TEXT_REFS` names files where a banned pattern is
+//! load-bearing despite looking rot-prone. The list is empty: no
+//! current exemptions. Additions require written justification in
+//! a comment beside the const and are filename-scoped only — a
+//! `path:line` pin rots the first time an unrelated edit moves the
+//! pinned text, and `reserved_text_refs_carry_no_line_pins`
+//! rejects such entries.
 
 #![allow(
     clippy::unwrap_used,
@@ -62,6 +79,9 @@ use regex::Regex;
 #[path = "walker_helpers.rs"]
 mod traversal;
 
+#[path = "rot_prone_markers_locked/rust_comments.rs"]
+mod rust_comments;
+
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -71,24 +91,19 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// Files or file+line pairs where a banned pattern is load-bearing
-/// and the gate must tolerate it. Each entry is a glob-free suffix
-/// match against the file's workspace-relative path; if a match
-/// warrants exemption only at a specific line, use
-/// `<path>:<line_number>`.
+/// Files where a banned pattern is load-bearing and the gate must
+/// tolerate it. Each entry is a glob-free suffix match against the
+/// file's workspace-relative path, filename-scoped only: a
+/// `path:line` pin rots the first time an unrelated edit moves the
+/// pinned text, and `reserved_text_refs_carry_no_line_pins` rejects
+/// such entries outright.
 ///
-/// Current exemptions: none. Add with justification.
-const RESERVED_TEXT_REFS: &[&str] = &[
-    // The rot-gate itself must pattern-match the banned text in its
-    // source (the regex patterns appear verbatim inside string
-    // literals) — otherwise it couldn't enforce the rule. Excluded
-    // by filename so the patterns stay literal and auditable.
-    "tests/rot_prone_markers_locked.rs",
-    // The CONTRIBUTING WHY-only rule quotes the banned temporal
-    // phrases as examples of what not to write; quoting the rule is
-    // the load-bearing use, not temporal narration.
-    "CONTRIBUTING.md:132",
-];
+/// Current exemptions: none — the list is empty and the scanner
+/// needs none. (The audit-journal exclusions — `cert/trace/**` and
+/// `CHANGELOG.md` — are walk-scope decisions documented in the
+/// module doc, not entries here.) Add new entries with written
+/// justification in a comment beside the const.
+const RESERVED_TEXT_REFS: &[&str] = &[];
 
 /// Pinned banned-pattern set. Each entry is a label + regex. Labels
 /// appear in failure output so a hit reads as "file:line matched
@@ -106,11 +121,12 @@ fn banned_patterns() -> Vec<(&'static str, Regex)> {
             "PR-number breadcrumb",
             Regex::new(r"PR\s+#\d+").expect("valid regex"),
         ),
-        // Bare issue/PR breadcrumbs — `#50`, `(#73 AC)`, `the #82 bug`.
-        // Requires the `#` to sit at a token boundary (line start,
-        // whitespace, or `(`) so upstream refs written `rust-lang/rust#NNN`
-        // (the `#` follows a letter) do not match, and `\d{2,}` skips
-        // ordinals like `rotation #1` / `key #2`.
+        // Bare issue/PR breadcrumbs — a hash plus two-or-more
+        // digits at a token boundary. Requires the hash to sit at a
+        // token boundary (line start, whitespace, or open-paren) so
+        // upstream refs written `rust-lang/rust` + hash + number
+        // (the hash follows a letter) do not match, and `\d{2,}`
+        // skips ordinals like `rotation #1` / `key #2`.
         (
             "bare issue-number breadcrumb",
             Regex::new(r"(?:^|[\s(])#\d{2,}\b").expect("valid regex"),
@@ -167,11 +183,14 @@ fn banned_patterns() -> Vec<(&'static str, Regex)> {
 /// Collect all in-scope files for the gate.
 ///
 /// Scope:
-/// - `crates/**/*.rs` (excluding `target/`, `fixtures/`).
+/// - `crates/**/*.rs` (excluding `target/`, `fixtures/`) — scanned
+///   comment-scoped via `rust_comments::extract`.
 /// - `**/*.md` at the workspace root and under `crates/`, but NOT
-///   `cert/trace/README.md` (audit journal; legitimate PR refs).
-/// - `cert/**/*.toml` (our own cert state); `cert/trace/**/*.toml`
-///   stays excluded — entries legitimately cite the implementing PR.
+///   `cert/trace/README.md` (audit journal; legitimate PR refs) —
+///   scanned whole-file.
+/// - `cert/**/*.toml` (our own cert state), scanned whole-file;
+///   `cert/trace/**/*.toml` stays excluded — entries legitimately
+///   cite the implementing PR.
 fn collect_scan_targets(workspace_root: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     collect_rs(&workspace_root.join("crates"), &mut out);
@@ -262,20 +281,22 @@ fn collect_toml_under(root: &Path, out: &mut Vec<PathBuf>) {
     out.extend(files);
 }
 
-fn is_reserved(rel: &str, line_num: usize) -> bool {
-    let normalized = rel.replace('\\', "/");
-    RESERVED_TEXT_REFS.iter().any(|pat| {
-        if let Some((path_part, line_part)) = pat.split_once(':') {
-            normalized.ends_with(path_part)
-                && line_part.parse::<usize>().is_ok_and(|n| n == line_num)
-        } else {
-            normalized.ends_with(pat)
-        }
-    })
+fn is_reserved(rel: &str) -> bool {
+    RESERVED_TEXT_REFS.iter().any(|pat| rel.ends_with(pat))
 }
 
 /// Scan the tree for banned patterns. Returns a list of
 /// `(relative_path, line_number, label, matched_text)` tuples.
+///
+/// Per-file-kind scope (kept in sync with the module doc — the
+/// documented contract IS this behavior):
+///
+/// - `.rs` — extracted comment lines only (line, doc, and block
+///   comments; see the `rust_comments` sibling module). String
+///   literals and other runtime data are not scanned: the same
+///   words are legitimate there.
+/// - `.md` / `.toml` — every line. Policy and prose files carry no
+///   string-literal ambiguity, so the whole file is fair game.
 fn scan_tree(root: &Path) -> Vec<(String, usize, &'static str, String)> {
     let files = collect_scan_targets(root);
     let patterns = banned_patterns();
@@ -289,14 +310,23 @@ fn scan_tree(root: &Path) -> Vec<(String, usize, &'static str, String)> {
         let Ok(content) = fs::read_to_string(file) else {
             continue;
         };
-        for (lineno, line) in content.lines().enumerate() {
-            let lineno = lineno + 1;
-            if is_reserved(&rel, lineno) {
-                continue;
+        if is_reserved(&rel) {
+            continue;
+        }
+        if file.extension().and_then(|e| e.to_str()) == Some("rs") {
+            for (lineno, comment) in rust_comments::extract(&content) {
+                for (label, re) in &patterns {
+                    if let Some(m) = re.find(comment) {
+                        hits.push((rel.clone(), lineno, *label, m.as_str().to_string()));
+                    }
+                }
             }
-            for (label, re) in &patterns {
-                if let Some(m) = re.find(line) {
-                    hits.push((rel.clone(), lineno, *label, m.as_str().to_string()));
+        } else {
+            for (lineno, line) in content.lines().enumerate() {
+                for (label, re) in &patterns {
+                    if let Some(m) = re.find(line) {
+                        hits.push((rel.clone(), lineno + 1, *label, m.as_str().to_string()));
+                    }
                 }
             }
         }
@@ -369,8 +399,8 @@ fn fires_on_bare_issue_number() {
     );
 }
 
-/// Positive dogfood: temporal phrasing fires the gate (the
-/// CONTRIBUTING WHY-only rule names `migrated from` / `previously`).
+/// Positive dogfood: temporal phrasing in comments fires the gate
+/// (the CONTRIBUTING WHY-only rule's pinned word set).
 #[test]
 fn fires_on_temporal_phrasing() {
     let tmp = tempfile::TempDir::new().expect("tempdir");
@@ -434,5 +464,22 @@ fn passes_on_clean_fixture() {
         hits.is_empty(),
         "expected clean fixture to pass; got hits {:?}",
         hits
+    );
+}
+
+/// Defense against the line-pin brittleness: exemption entries are
+/// filename-scoped, so an unrelated edit that moves the exempted
+/// text can never silently break the gate. An entry carrying a `:`
+/// line pin fails here — reword the text instead of pinning it.
+#[test]
+fn reserved_text_refs_carry_no_line_pins() {
+    let pinned: Vec<&&str> = RESERVED_TEXT_REFS
+        .iter()
+        .filter(|entry| entry.contains(':'))
+        .collect();
+    assert!(
+        pinned.is_empty(),
+        "RESERVED_TEXT_REFS entries must be filename-scoped (no `:line` pins); \
+         reword the exempted text to drop the banned literal instead: {pinned:?}"
     );
 }

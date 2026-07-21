@@ -379,19 +379,38 @@ test_selectors = ["diagnostic_codes_locked::link_error_codes_in_rules_and_claime
 [[tests]]
 uid = "1c2ce9ee-2675-4b5d-8eca-550a2b634738"
 id = "TEST-044"
-title = "rot-prone marker gate fires on banned pattern, passes on clean tree"
+title = "rot-prone marker gate: comment-scoped Rust scanning, dogfoods, clean-tree regression"
 owner = "tool"
 traces_to = ["d5fa6b1b-315e-4cce-9a39-085cd266f4ad"]
 description = """
-Positive + negative: a tempdir fixture with a banned pattern
-fires the test; a clean fixture passes. Also asserts the
-workspace's current `.rs` tree is free of the banned patterns.
+Positive dogfoods: every banned-narration shape in Rust comments —
+line, outer doc, inner doc, block, multi-line block (hit reported
+at the middle line), and nested block — fires the gate. Negative
+dogfoods: the same words inside string literals, raw strings (any
+hash count), URLs, char literals, and lifetimes stay runtime data
+and do not fire. Also asserts the workspace's current tree is
+clean, that the exemption mechanism carries no `path:line` pins,
+and that a clean fixture passes.
 """
 test_selectors = [
     "rot_prone_markers_locked::current_tree_is_clean",
     "rot_prone_markers_locked::fires_on_banned_pattern",
-    "rot_prone_markers_locked::passes_on_clean_fixture",
+    "rot_prone_markers_locked::fires_on_bare_issue_number",
     "rot_prone_markers_locked::fires_on_temporal_phrasing",
+    "rot_prone_markers_locked::does_not_fire_on_upstream_refs_or_ordinals",
+    "rot_prone_markers_locked::passes_on_clean_fixture",
+    "rot_prone_markers_locked::reserved_text_refs_carry_no_line_pins",
+    "rot_prone_markers_locked::rust_comments::fires_on_line_comment_temporal",
+    "rot_prone_markers_locked::rust_comments::fires_on_outer_doc_comment_temporal",
+    "rot_prone_markers_locked::rust_comments::fires_on_inner_doc_comment_temporal",
+    "rot_prone_markers_locked::rust_comments::fires_on_block_comment_temporal",
+    "rot_prone_markers_locked::rust_comments::fires_on_multiline_block_comment_middle_line",
+    "rot_prone_markers_locked::rust_comments::fires_on_nested_block_comment",
+    "rot_prone_markers_locked::rust_comments::still_fires_on_comment_after_tricky_literals",
+    "rot_prone_markers_locked::rust_comments::does_not_fire_on_string_literal_data",
+    "rot_prone_markers_locked::rust_comments::does_not_fire_on_double_hash_raw_string",
+    "rot_prone_markers_locked::rust_comments::does_not_fire_on_url_in_string",
+    "rot_prone_markers_locked::rust_comments::does_not_fire_on_char_literal_and_lifetime",
 ]
 
 [[tests]]
