@@ -2543,3 +2543,78 @@ mismatch. Appends shall touch nothing outside the proposal root.
 """
 verification_methods = ["test"]
 traces_to = ["2b6633a7-527b-42d4-9af2-ce22b80eda56"]
+
+[[requirements]]
+uid = "fa2308f1-89b1-4733-acf6-755e8d1ddb9e"
+id = "HLR-100"
+title = "Source revision records load through a strict fail-closed schema with typed material state and exact capture combinations"
+owner = "tool"
+scope = "component"
+description = """
+Source files named by the corpus index `sources` kind shall parse
+under a `schema_version`-gated strict TOML schema that denies
+unknown fields, mirroring the requirement- and review-record
+conventions. Each record shall carry: a `src_<UUIDv4>` permanent
+uid; a human-readable revision identifier unique within the
+source-revision kind; a non-blank stable document lineage key
+grouping revisions of one logical document; a non-blank title; a
+media type in RFC 6838 `type/subtype` token form; and a non-blank
+canonical location preserved exactly as opaque audit identity —
+never fetched, normalized, or rewritten as a URL.
+
+The material state shall be typed. An available record carries an
+RFC 3339 `retrieved_at` recorded as audit metadata and never as
+ordering authority, a validated lowercase SHA-256 digest, and
+exactly one capture value — vendored with a canonical
+`/`-separated relative path beneath the fixed `sources/` payload
+root, hash-only, or external-controlled with non-blank system and
+immutable identifier — while an unavailable record carries a
+non-blank reason and no digest field at all. Blank-string
+validation shall reject whitespace-only values without trimming
+or rewriting accepted text, and impossible or incomplete
+state-and-capture combinations shall fail deserialization rather
+than load as valid records.
+
+Every unknown field, newer schema version, malformed uid, digest,
+media type, or timestamp, blank required string, incomplete
+capture combination, and unsafe or non-canonical vendored path —
+empty, absolute, drive- or UNC-prefixed, backslash-bearing, or
+carrying empty, `.`, or `..` components — shall fail closed with
+a typed error naming the file path and the record's id and uid.
+Vendored path validation is lexical only; filesystem containment
+checks belong to the acquisition layer above this one.
+"""
+verification_methods = ["test"]
+traces_to = ["21472521-3496-411f-8832-8c73ca7732a2"]
+
+[[requirements]]
+uid = "fb3c2661-2807-427f-bbff-309b6685802e"
+id = "HLR-101"
+title = "Source revision nodes are corpus graph identity loaded through the activated sources index kind before requirements and reviews"
+owner = "tool"
+scope = "component"
+description = """
+The corpus index shall activate its reserved `sources` list as
+the only source-revision input: each entry resolves through the
+same deterministic literal-or-recursive-glob mechanism as
+requirement and review entries, an entry resolving to no files
+fails closed, and `source_graphs` remains an unsupported kind
+that fails closed until structural source graph nodes land.
+Graph construction shall load source records before requirements
+and reviews, so a source identity problem surfaces ahead of any
+requirement or review error.
+
+Each valid record shall become a typed source-revision graph node
+whose uid is unique across every node kind and whose human
+identifier is unique within the source-revision kind only — the
+same identifier may name a requirement, a test, a review, and a
+source revision without collision. Source-revision nodes carry no
+edges at this layer; node iteration stays canonical by uid, and
+equivalent records split or reordered across files shall load
+into equal graphs, so file layout and record order carry no
+semantic meaning. An unavailable revision is valid graph state,
+distinguishable by its typed material state from available
+content and from any byte-verified claim.
+"""
+verification_methods = ["test"]
+traces_to = ["21472521-3496-411f-8832-8c73ca7732a2"]
