@@ -259,8 +259,8 @@ impl ProposalStore {
     }
 
     /// Read and strictly validate the proposal file at `path`
-    /// (LLR-122). This is the future apply-path seam: a malformed
-    /// or partially written proposal fails closed here.
+    /// (LLR-122): a malformed or partially written proposal fails
+    /// closed here.
     ///
     /// # Errors
     ///
@@ -369,7 +369,7 @@ fn write_exclusive_blocking(path: &Path, bytes: &[u8]) -> Result<(), ProposalErr
         // Best-effort: the removal itself may fail (e.g. the write
         // failed because the filesystem went away); the typed write
         // error is the authoritative signal either way.
-        let _ = std::fs::remove_file(path).ok();
+        std::fs::remove_file(path).ok();
         return Err(ProposalError::ProposalWrite {
             path: path.to_path_buf(),
             source,

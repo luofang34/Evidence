@@ -3633,7 +3633,10 @@ file-path-write actions are unrepresentable.
 `ProposedRequirementContent` mirrors the
 `RequirementReviewContentV1` projection fields — title, layer,
 description, rationale, scope, category, source, verification
-methods, derives_from — and nothing else. `ProposalFile` and
+methods, derives_from, and safety_impact — and nothing else;
+safety_impact is optional free text under the same contract as
+the native record: normative for derived-layer proposals,
+tolerated as `None` for other layers. `ProposalFile` and
 `ProposalRecord` are strict `deny_unknown_fields` structs: record
 uid validated through the shared corpus-native uid helper,
 submitter required non-empty as audit identity that the rustdoc

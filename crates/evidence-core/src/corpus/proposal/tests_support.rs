@@ -31,6 +31,7 @@ pub(super) fn content(title: &str) -> ProposedRequirementContent {
         source: None,
         verification_methods: vec!["test".to_string()],
         derives_from: Vec::new(),
+        safety_impact: None,
     }
 }
 
@@ -97,6 +98,15 @@ pub(super) fn graph_with(req: RequirementNode, reviews: Vec<ReviewNode>) -> Corp
 
 pub(super) fn candidate_graph() -> CorpusGraph {
     graph_with(requirement(REQ_A, "prose v1"), Vec::new())
+}
+
+/// A candidate at the derived layer whose current content carries
+/// a normative `safety_impact`.
+pub(super) fn derived_candidate_graph() -> CorpusGraph {
+    let mut node = requirement(REQ_A, "prose v1");
+    node.layer = RequirementLayer::Derived;
+    node.safety_impact = Some("high".to_string());
+    graph_with(node, Vec::new())
 }
 
 pub(super) fn approved_graph() -> CorpusGraph {

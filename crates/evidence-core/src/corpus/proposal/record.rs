@@ -78,16 +78,17 @@ impl ProposalAction {
 ///
 /// Beyond the serde shape, the content is validated semantically
 /// on append and on read-back: `title` must be non-empty after
-/// be non-empty after trimming; every `derives_from` entry must be
-/// a valid `req_<UUIDv4>` and the list duplicate-free; and
+/// trimming; every `derives_from` entry must be a valid
+/// `req_<UUIDv4>` and the list duplicate-free; and
 /// `verification_methods` — allowed to be empty, mirroring the
 /// review-content contract — must be sorted and duplicate-free as
 /// written. The ordering rule is deliberately stricter than the
 /// projection's [`canonicalize`](super::super::RequirementReviewContentV1::canonicalize),
 /// which sorts silently: a proposal must arrive in canonical form
 /// so the bytes a human reviews are already the canonical bytes.
-/// `description`, `rationale`, `scope`, `category`, and `source`
-/// stay optional free text; `layer` is serde-validated.
+/// `description`, `rationale`, `scope`, `category`, `source`, and
+/// `safety_impact` stay optional free text; `layer` is
+/// serde-validated.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProposedRequirementContent {
@@ -117,6 +118,12 @@ pub struct ProposedRequirementContent {
     /// `req_<UUIDv4>`, the list duplicate-free.
     #[serde(default)]
     pub derives_from: Vec<String>,
+    /// Safety impact of a derived requirement, mirroring the
+    /// review-content field: normative for derived-layer
+    /// proposals, tolerated as `None` for other layers — the same
+    /// contract as the native record. Optional free text.
+    #[serde(default)]
+    pub safety_impact: Option<String>,
 }
 
 /// On-disk shape of a proposal file. Strict: unknown fields are a
