@@ -2011,6 +2011,7 @@ test_selectors = [
     "evidence_core::corpus::approval_boundary::tests::unapproved_states_produce_distinct_diagnostics",
     "evidence_core::corpus::approval_boundary::tests::candidate_decomposition_remains_usable",
     "evidence_core::corpus::approval_boundary::tests::zero_review_graph_fails_closed",
+    "evidence_core::corpus::approval_boundary::tests::zero_reviews_without_gated_claims_passes",
     "evidence_core::corpus::approval_boundary::tests::enforcement_is_explicit_single_variant",
     "evidence_core::corpus::approval_boundary::tests::lifecycle_evaluation_error_fails_closed",
     "evidence_core::corpus::approval_boundary::tests::violations_are_deterministically_ordered",
@@ -2026,4 +2027,5 @@ traces_to = ["398e24ac-9e53-4181-b3f4-63990270a93d"]
 test_selectors = [
     "corpus_approval_boundary::native_corpus_without_gated_claims_passes",
     "corpus_approval_boundary::legacy_trace_gates_every_claim_when_requested",
+    "evidence_core::corpus::approval_boundary::tests::zero_reviews_without_gated_claims_passes",
 ]

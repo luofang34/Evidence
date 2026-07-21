@@ -3527,6 +3527,12 @@ breaking ties. `ApprovalBoundaryError` is a flat thiserror enum:
 `Violations` aggregating every violation with a one-line-per-
 violation uid-sorted `Display`, and `Lifecycle` wrapping a
 `LifecycleError` for fail-closed evaluator failures.
+Impossible-invariant failures keep their full typed source chain
+through the boundary — `LifecycleError::InvalidGraph` carrying
+the `CorpusError` (itself possibly wrapping a `ReviewError`) as
+its typed source, never a string — so callers can match the exact
+broken invariant; they are never flattened into `Violations` and
+never silently skipped.
 """
 verification_methods = ["test"]
 
@@ -3539,14 +3545,19 @@ traces_to = ["db587696-1d94-451f-a275-0b504af4f6aa"]
 modules = ["evidence_core::corpus::approval_boundary"]
 description = """
 `validate_approval_boundary` runs `evaluate_all_lifecycles`
-once — wrapping any evaluator failure as
-`ApprovalBoundaryError::Lifecycle` so invalid review data fails
-closed — then scans every test node's `Verifies` edge: a target
+once — which validates the whole graph first, so a malformed
+graph (a dangling edge, a review-graph invariant violation)
+fails closed as `ApprovalBoundaryError::Lifecycle` wrapping
+`LifecycleError::InvalidGraph` with the `CorpusError` source
+chain preserved, before any claim is scanned — then scans every
+test node's `Verifies` edge: a target
 whose evaluated state is not `Approved` yields a
-`ReferringArtifact::Test` violation naming the test uid and id,
-and a target naming no requirement node fails closed with
-`LifecycleError::RequirementMissing` (every loader runs
-`CorpusGraph::validate`, which rejects such edges first). For
+`ReferringArtifact::Test` violation naming the test uid and id.
+The scan's own `LifecycleError::RequirementMissing` branch for a
+target naming no requirement node is defense in depth:
+validation rejects every such graph first (the edge dangles or
+its target kind mismatches), so the branch is unreachable
+through validate-first evaluation. For
 every requirement node it reads the graph's trace metadata and
 gates legacy-populated claims: non-empty `modules` yields an
 `ImplementationModules` violation and non-empty `emits` an
@@ -3572,7 +3583,11 @@ A graph with no review nodes evaluates every requirement as
 under explicit enforcement every would-be-gated claim — each
 verifies edge and each module or emitted-diagnostic claim —
 produces a violation: an explicitly requested approval claim
-over zero reviews can never succeed. The module rustdoc states
+over zero reviews can never succeed. Zero reviews alone are not
+a failure, though: an empty review set fails closed only when a
+gated claim exists, and a zero-review graph with no gated claims
+yields `Ok(())` — enforcement gates claims, not the existence
+of requirements. The module rustdoc states
 the compatibility boundary: legacy graphs are not grandfathered
 inside the validator — callers that have not adopted corpus
 lifecycle simply do not call it — and native requirement records

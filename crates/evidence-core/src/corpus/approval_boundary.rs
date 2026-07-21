@@ -37,7 +37,13 @@
 //! [`RequirementLifecycle::Candidate`] — missing reviews are never
 //! implicitly approved — so an explicitly requested approval claim
 //! over zero reviews can never succeed: every would-be-gated claim
-//! produces a violation. Callers that have not adopted corpus
+//! produces a violation. Zero reviews alone are not a failure,
+//! though: under [`LifecycleEnforcement::Required`] an empty review
+//! set fails closed **only when a gated claim exists** (a test
+//! [`EdgeKind::Verifies`] edge, or a requirement metadata `modules`
+//! or `emits` claim). A zero-review graph with no gated claims
+//! yields `Ok(())` — enforcement gates claims, not the existence of
+//! requirements. Callers that have not adopted corpus
 //! lifecycle simply do not call this validator; the distinction is
 //! explicit in the API and tests, never detected from file paths.
 //! Making enforcement mandatory for certification and record corpus
@@ -62,10 +68,14 @@
 //! [`ReferringArtifact::ImplementationModules`] before
 //! [`ReferringArtifact::EmittedDiagnostics`], payload fields breaking
 //! ties). The error's `Display` renders one line per violation in
-//! that order. A lifecycle-evaluator failure (e.g. a review of a
-//! missing requirement) fails closed as
-//! [`ApprovalBoundaryError::Lifecycle`]. The function is pure: no
-//! I/O, no environment reads, no statics.
+//! that order. A malformed graph never reaches the claim scan:
+//! [`evaluate_all_lifecycles`] validates the graph first, and the
+//! impossible-invariant failure (a dangling edge, a review-graph
+//! invariant violation) fails closed as
+//! [`ApprovalBoundaryError::Lifecycle`] with the typed source chain
+//! — [`LifecycleError::InvalidGraph`] wrapping the
+//! [`CorpusError`](super::CorpusError) — preserved end to end. The
+//! function is pure: no I/O, no environment reads, no statics.
 
 use std::fmt;
 
@@ -174,9 +184,15 @@ pub enum ApprovalBoundaryError {
         /// Every violating claim, aggregated (never first-fail).
         violations: Vec<ApprovalBoundaryViolation>,
     },
-    /// Lifecycle evaluation failed — e.g. a review of a missing
-    /// requirement, or a `Verifies` edge naming no requirement node.
-    /// Invalid graph data fails closed.
+    /// Lifecycle evaluation failed because the graph is malformed.
+    /// Impossible-invariant failures — dangling edges, review-graph
+    /// invariant violations, evaluation failures — are carried with
+    /// their full source chain ([`LifecycleError::InvalidGraph`]
+    /// wrapping the typed [`CorpusError`](super::CorpusError), which
+    /// may itself wrap a [`ReviewError`](super::ReviewError)): they
+    /// are never flattened into
+    /// [`ApprovalBoundaryError::Violations`] and never silently
+    /// skipped.
     #[error("lifecycle evaluation failed under explicit enforcement: {0}")]
     Lifecycle(#[from] LifecycleError),
 }
@@ -190,8 +206,9 @@ pub enum ApprovalBoundaryError {
 ///
 /// # Errors
 ///
-/// - [`ApprovalBoundaryError::Lifecycle`] when lifecycle evaluation
-///   itself fails — invalid review data fails closed.
+/// - [`ApprovalBoundaryError::Lifecycle`] when the graph fails
+///   validation inside lifecycle evaluation — the typed source
+///   chain is preserved, never flattened.
 /// - [`ApprovalBoundaryError::Violations`] aggregating every gated
 ///   claim whose target is not [`RequirementLifecycle::Approved`].
 pub fn validate_approval_boundary(
@@ -218,10 +235,13 @@ fn validate_required(graph: &CorpusGraph) -> Result<(), ApprovalBoundaryError> {
                     let (Some(target_node), Some(evaluation)) =
                         (graph.get(target), evaluations.get(target))
                     else {
-                        // A `Verifies` edge naming no requirement node
-                        // is invalid graph data — every loader runs
-                        // `CorpusGraph::validate`, which rejects it —
-                        // and an unvalidated graph fails closed here
+                        // Unreachable through this entry point:
+                        // `evaluate_all_lifecycles` above runs
+                        // `CorpusGraph::validate` first, which
+                        // rejects a dangling or non-requirement
+                        // `Verifies` target before this scan runs.
+                        // The branch remains as defense in depth, so
+                        // even an unvalidated graph fails closed here
                         // rather than passing silently.
                         return Err(LifecycleError::RequirementMissing {
                             requirement_uid: target.clone(),
@@ -300,8 +320,17 @@ fn render_violations(violations: &[ApprovalBoundaryViolation]) -> String {
         .join("\n")
 }
 
-// Tests live in a sibling file pulled in via `#[path]` so this
-// facade stays under the 500-line workspace limit.
+// Unit tests and their shared fixtures live in sibling files under
+// `approval_boundary/`, pulled in via `#[path]`.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+#[path = "approval_boundary/fixtures.rs"]
+mod fixtures;
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

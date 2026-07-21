@@ -1,103 +1,17 @@
 //! Acceptance, distinct-diagnostic, determinism, and fail-closed
 //! tests for the approval boundary (TEST-137).
 
+use super::fixtures::{
+    REQ, REQ_B, REQ_C, REV_1, TEST_A, TEST_B, approve, digest_of, insert_with_claims, reject,
+    requirement, test_verifies,
+};
 use super::{
     ApprovalBoundaryError, ApprovalBoundaryViolation, LifecycleEnforcement, ReferringArtifact,
     validate_approval_boundary,
 };
-use crate::corpus::graph::{RequirementMetadata, TraceMetadata};
 use crate::corpus::{
-    CorpusGraph, EdgeKind, LifecycleError, Node, RequirementLayer, RequirementLifecycle,
-    RequirementNode, RequirementReviewContentV1, ReviewContentDigest, ReviewDecision, ReviewNode,
-    TestNode, review_content_digest_v1,
+    CorpusError, CorpusGraph, EdgeKind, LifecycleError, Node, RequirementLifecycle,
 };
-
-const REQ: &str = "req_a";
-const REQ_B: &str = "req_b";
-const REQ_C: &str = "req_c";
-const REV_1: &str = "rev_1";
-const TEST_A: &str = "test_a";
-const TEST_B: &str = "test_b";
-
-/// A requirement whose `description` populates the review-content
-/// projection, so editing it moves the digest.
-fn requirement(uid: &str, description: &str) -> RequirementNode {
-    let mut node = RequirementNode::new(
-        uid.to_string(),
-        uid.to_uppercase().replace('_', "-"),
-        format!("title of {uid}"),
-        RequirementLayer::Hlr,
-        Vec::new(),
-    );
-    node.description = Some(description.to_string());
-    node
-}
-
-/// The digest a review of `node`'s current content binds.
-fn digest_of(node: &RequirementNode) -> ReviewContentDigest {
-    review_content_digest_v1(&RequirementReviewContentV1::from_node(node))
-}
-
-/// Insert a requirement carrying legacy-style trace metadata claims
-/// (`modules` / `emits`), as the legacy adapter populates them.
-fn insert_with_claims(
-    graph: &mut CorpusGraph,
-    node: RequirementNode,
-    modules: &[&str],
-    emits: &[&str],
-) {
-    graph
-        .insert_with_trace_metadata(
-            Node::Requirement(node),
-            TraceMetadata::Requirement(RequirementMetadata {
-                modules: modules.iter().map(|m| (*m).to_string()).collect(),
-                emits: emits.iter().map(|c| (*c).to_string()).collect(),
-                ..RequirementMetadata::default()
-            }),
-        )
-        .expect("insert requirement with claims");
-}
-
-fn test_verifies(uid: &str, target: &str) -> TestNode {
-    TestNode {
-        uid: uid.to_string(),
-        id: uid.to_uppercase().replace('_', "-"),
-        title: format!("title of {uid}"),
-        selectors: Vec::new(),
-        edges: vec![(EdgeKind::Verifies, target.to_string())],
-    }
-}
-
-fn review(
-    uid: &str,
-    requirement_uid: &str,
-    digest: &ReviewContentDigest,
-    decision: ReviewDecision,
-) -> ReviewNode {
-    ReviewNode {
-        uid: uid.to_string(),
-        id: uid.to_string(),
-        requirement_uid: requirement_uid.to_string(),
-        content_schema: 1,
-        reviewed_content_sha256: digest.clone(),
-        decision,
-        reviewer: format!("{uid}@example.com"),
-        reviewed_at: "2026-07-01T10:00:00Z".to_string(),
-        rationale: match decision {
-            ReviewDecision::Approve => None,
-            ReviewDecision::Reject => Some("reviewed and found wanting".to_string()),
-        },
-        edges: vec![(EdgeKind::Reviews, requirement_uid.to_string())],
-    }
-}
-
-fn approve(uid: &str, requirement_uid: &str, digest: &ReviewContentDigest) -> ReviewNode {
-    review(uid, requirement_uid, digest, ReviewDecision::Approve)
-}
-
-fn reject(uid: &str, requirement_uid: &str, digest: &ReviewContentDigest) -> ReviewNode {
-    review(uid, requirement_uid, digest, ReviewDecision::Reject)
-}
 
 fn validate(graph: &CorpusGraph) -> Result<(), ApprovalBoundaryError> {
     validate_approval_boundary(graph, LifecycleEnforcement::Required)
@@ -314,7 +228,8 @@ fn candidate_decomposition_remains_usable() {
 /// Explicit enforcement over zero reviews fails closed: an
 /// explicitly requested approval claim can never succeed over an
 /// empty review set, because missing reviews are `Candidate`, never
-/// implicitly approved (TEST-137).
+/// implicitly approved (TEST-137). Zero reviews without any gated
+/// claim pass instead — see `zero_reviews_without_gated_claims_passes`.
 #[test]
 fn zero_review_graph_fails_closed() {
     let mut graph = CorpusGraph::new();
@@ -345,6 +260,25 @@ fn zero_review_graph_fails_closed() {
     );
 }
 
+/// Zero reviews alone do not fail: enforcement gates claims, not the
+/// existence of requirements. A zero-review graph whose requirements
+/// carry no gated claims — no verifying tests, no `modules`/`emits`
+/// metadata — yields `Ok(())`; the same zero-review shape WITH one
+/// verifies edge fails closed in `zero_review_graph_fails_closed`
+/// (TEST-137).
+#[test]
+fn zero_reviews_without_gated_claims_passes() {
+    let mut graph = CorpusGraph::new();
+    graph
+        .insert(Node::Requirement(requirement(REQ, "prose v1")))
+        .expect("insert first requirement");
+    graph
+        .insert(Node::Requirement(requirement(REQ_B, "other prose")))
+        .expect("insert second requirement");
+
+    validate(&graph).expect("zero reviews without gated claims passes");
+}
+
 /// The policy choice is explicit and cannot silently default to a
 /// weaker assurance level: `LifecycleEnforcement` has exactly one
 /// variant and no `Default`, so naming `Required` in code is the
@@ -362,9 +296,12 @@ fn enforcement_is_explicit_single_variant() {
     assert_eq!(enforcement, LifecycleEnforcement::Required);
 }
 
-/// A lifecycle-evaluator failure (a review of a missing requirement)
-/// fails closed as the `Lifecycle` variant, wrapping the typed
-/// evaluator error (TEST-137).
+/// A malformed graph (a review whose `Reviews` edge dangles) fails
+/// validation inside lifecycle evaluation, and the
+/// impossible-invariant error is preserved through the boundary with
+/// its full typed source chain — `Lifecycle(InvalidGraph(
+/// CorpusError::DanglingEdge))` — never flattened into `Violations`
+/// and never silently skipped (TEST-137).
 #[test]
 fn lifecycle_evaluation_error_fails_closed() {
     let req = requirement(REQ, "prose v1");
@@ -378,14 +315,29 @@ fn lifecycle_evaluation_error_fails_closed() {
         .expect("insert stray review");
 
     let err = validate(&graph).expect_err("invalid review data must fail closed");
+    let ApprovalBoundaryError::Lifecycle(LifecycleError::InvalidGraph(CorpusError::DanglingEdge {
+        from,
+        to,
+        kind,
+    })) = &err
+    else {
+        panic!("expected the typed validation error chain, got: {err:?}");
+    };
+    assert_eq!(from, REV_1);
+    assert_eq!(to, "req_gone");
+    assert_eq!(*kind, EdgeKind::Reviews);
+    let rendered = err.to_string();
     assert!(
-        matches!(
-            err,
-            ApprovalBoundaryError::Lifecycle(
-                LifecycleError::ApprovalTargetsMissingRequirement { .. }
-            )
-        ),
-        "the evaluator error is wrapped, not flattened: {err}"
+        rendered.contains("lifecycle evaluation failed under explicit enforcement"),
+        "Display names the lifecycle-enforcement context: {rendered}"
+    );
+    assert!(
+        rendered.contains("corpus graph failed validation"),
+        "Display names the graph-validation context: {rendered}"
+    );
+    assert!(
+        rendered.contains("dangling Reviews edge from rev_1 to missing node req_gone"),
+        "Display names the broken invariant: {rendered}"
     );
 }
 
