@@ -2029,3 +2029,55 @@ test_selectors = [
     "corpus_approval_boundary::legacy_trace_gates_every_claim_when_requested",
     "evidence_core::corpus::approval_boundary::tests::zero_reviews_without_gated_claims_passes",
 ]
+
+[[tests]]
+uid = "4db9b93f-7f46-4465-b6f4-3985363254ba"
+id = "TEST-139"
+title = "proposal schema round-trips, store-minted identities, fail-closed roots, exclusive writes, schema-negative tables, and semantic content validation"
+owner = "tool"
+traces_to = [
+    "d91963ae-0de7-4155-a61c-eed53d48290b",
+    "ef446b31-43a2-4c07-9a6e-a821a41c87db",
+]
+test_selectors = [
+    "evidence_core::corpus::proposal::tests::create_proposal_round_trips_through_strict_schema",
+    "evidence_core::corpus::proposal::tests::revise_proposal_round_trips_against_candidate",
+    "evidence_core::corpus::proposal::tests::uids_and_timestamps_are_store_minted",
+    "evidence_core::corpus::proposal::tests::appends_never_overwrite_and_preexisting_path_fails_closed",
+    "evidence_core::corpus::proposal::tests::missing_root_fails_closed",
+    "evidence_core::corpus::proposal::tests::non_directory_root_fails_closed",
+    "evidence_core::corpus::proposal::tests::symlink_root_fails_closed",
+    "evidence_core::corpus::proposal::tests::partial_write_read_back_fails_closed",
+    "evidence_core::corpus::proposal::tests::read_back_refuses_newer_schema_and_bad_fields",
+    "evidence_core::corpus::proposal::tests::schema_negative_actions_fail_closed",
+    "evidence_core::corpus::proposal::tests::concurrent_appends_never_overwrite",
+    "evidence_core::corpus::proposal::tests_content::canonical_content_appends_and_reads_back",
+    "evidence_core::corpus::proposal::tests_content::blank_title_fails_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::tests_content::revise_rejects_blank_title_before_writing",
+    "evidence_core::corpus::proposal::tests_content::malformed_derives_from_fails_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::tests_content::duplicate_derives_from_fails_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::tests_content::unordered_verification_methods_fail_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::tests_content::duplicate_verification_methods_fail_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::record::tests::file_digest_from_hex_rejects_malformed_input",
+    "evidence_core::corpus::proposal::record::tests::file_digest_round_trips_through_serde",
+]
+
+[[tests]]
+uid = "46d61928-011f-4d5b-81cc-7a14f479a897"
+id = "TEST-140"
+title = "revision guards reject stale digests, non-candidate lifecycles, and missing targets, preserve lifecycle sources, and appends leave the corpus byte-identical"
+owner = "tool"
+traces_to = [
+    "ef446b31-43a2-4c07-9a6e-a821a41c87db",
+    "c393a149-d714-4e77-b9d3-45743921bcbe",
+]
+test_selectors = [
+    "evidence_core::corpus::proposal::tests_guards::revise_with_stale_digest_fails_with_typed_mismatch",
+    "evidence_core::corpus::proposal::tests_guards::revise_of_approved_requirement_is_rejected",
+    "evidence_core::corpus::proposal::tests_guards::revise_of_rejected_requirement_is_rejected",
+    "evidence_core::corpus::proposal::tests_guards::revise_of_stale_requirement_is_rejected",
+    "evidence_core::corpus::proposal::tests_guards::revise_of_missing_requirement_fails_closed",
+    "evidence_core::corpus::proposal::tests_guards::revise_with_malformed_base_uid_fails_closed",
+    "evidence_core::corpus::proposal::tests_guards::revise_with_invalid_graph_preserves_lifecycle_source",
+    "evidence_core::corpus::proposal::tests_guards::append_leaves_corpus_baseline_byte_identical",
+]

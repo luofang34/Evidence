@@ -24,6 +24,8 @@
 //! - `approval_boundary` — strict validation that implementation and
 //!   verification evidence claims only approved requirements under
 //!   explicit lifecycle enforcement (LLR-119)
+//! - `proposal` — append-only candidate-proposal store; the one
+//!   agent-facing write capability (LLR-122)
 //!
 //! Design record:
 //! `docs/superpowers/specs/2026-07-18-corpus-model-v0.2-design.md`.
@@ -35,6 +37,7 @@ mod graph;
 mod index;
 mod legacy;
 mod lifecycle;
+mod proposal;
 mod records;
 mod review_content;
 mod review_records;
@@ -56,6 +59,11 @@ pub(crate) use legacy::graph_from_trace_parts;
 pub use lifecycle::{
     LifecycleError, LifecycleEvaluation, RequirementLifecycle, evaluate_all_lifecycles,
     evaluate_lifecycle,
+};
+pub use proposal::{
+    AppendOutcome, PROPOSAL_UID_PREFIX, ProposalAction, ProposalError, ProposalFile,
+    ProposalFileDigest, ProposalRecord, ProposalStore, ProposedRequirementContent,
+    SUPPORTED_PROPOSAL_SCHEMA,
 };
 pub use review_content::{
     RequirementReviewContentV1, canonical_bytes_v1, review_content_digest_v1,

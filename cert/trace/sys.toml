@@ -1159,3 +1159,37 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "2b6633a7-527b-42d4-9af2-ce22b80eda56"
+id = "SYS-042"
+title = "Agent write authority over the corpus is one narrow append-only candidate-proposal capability that leaves the baseline, reviews, and sources byte-identical"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall give agent-facing code exactly one write capability
+over the requirements corpus: appending a candidate proposal
+beneath a caller-supplied proposal root. A proposal shall either
+describe a complete new candidate requirement or carry complete
+replacement content for an existing candidate together with the
+expected current content digest for optimistic concurrency.
+Appending a proposal shall never apply it: the corpus baseline,
+review records, and frozen source files shall remain byte-for-byte
+unchanged by any submission, and human acceptance plus public
+queue and review surfaces are separate work above this layer.
+
+Authority shall be enforced through types and available
+operations, never through a self-declared actor field: review
+creation, lifecycle mutation, source mutation, and baseline
+writes shall be absent from the agent-facing interface, and
+approval, rejection, deletion, review mutation, source mutation,
+baseline replacement, and direct file-path writes shall be
+unrepresentable as proposal actions. Submitter identity and
+submission time shall be recorded as audit metadata and shall
+never confer authority or ordering.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

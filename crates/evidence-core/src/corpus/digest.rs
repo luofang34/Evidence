@@ -85,8 +85,9 @@ impl<'de> Deserialize<'de> for ReviewContentDigest {
 }
 
 /// The digest contract: exactly 64 characters, all lowercase
-/// hexadecimal.
-fn is_valid_digest_hex(hex: &str) -> bool {
+/// hexadecimal. Shared with the proposal file-digest domain, which
+/// validates the same alphabet over different bytes.
+pub(crate) fn is_valid_digest_hex(hex: &str) -> bool {
     hex.len() == 64
         && hex
             .bytes()
