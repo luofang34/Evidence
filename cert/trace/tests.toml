@@ -1761,11 +1761,11 @@ title = "corpus.toml index is strict and fails closed on degenerate input"
 owner = "tool"
 traces_to = ["1e6b28ad-913c-414f-b9db-283d064d9cfc"]
 test_selectors = [
-    "evidence_core::corpus::tests::index_parses_minimal",
-    "evidence_core::corpus::tests::index_rejects_unknown_field",
-    "evidence_core::corpus::tests::index_refuses_newer_schema",
-    "evidence_core::corpus::tests::index_empty_resolution_is_error",
-    "evidence_core::corpus::tests::index_unsupported_kind_fails_closed",
+    "evidence_core::corpus::tests::index::index_parses_minimal",
+    "evidence_core::corpus::tests::index::index_rejects_unknown_field",
+    "evidence_core::corpus::tests::index::index_refuses_newer_schema",
+    "evidence_core::corpus::tests::index::index_empty_resolution_is_error",
+    "evidence_core::corpus::tests::index::index_unsupported_kind_fails_closed",
 ]
 
 [[tests]]
@@ -1775,9 +1775,9 @@ title = "corpus graph enforces identities, canonical edges, and typed endpoints"
 owner = "tool"
 traces_to = ["bbbadd81-3db1-40c0-8355-c5fe10dc4b7f"]
 test_selectors = [
-    "evidence_core::corpus::tests::records_reject_invalid_native_uid",
-    "evidence_core::corpus::tests::graph_rejects_duplicate_identities_and_edges",
-    "evidence_core::corpus::tests::graph_detects_dangling_and_invalid_edge_kinds",
+    "evidence_core::corpus::tests::records::records_reject_invalid_native_uid",
+    "evidence_core::corpus::tests::graph_validation::graph_rejects_duplicate_identities_and_edges",
+    "evidence_core::corpus::tests::graph_validation::graph_detects_dangling_and_invalid_edge_kinds",
 ]
 
 [[tests]]
@@ -1786,7 +1786,7 @@ id = "TEST-121"
 title = "legacy trace loads into the corpus graph with identity and edge-set parity"
 owner = "tool"
 traces_to = ["e86a9580-3495-481e-a912-035c2d5c865a"]
-test_selector = "evidence_core::corpus::tests::legacy_parity_on_own_trace"
+test_selector = "evidence_core::corpus::tests::legacy_parity::legacy_parity_on_own_trace"
 
 [[tests]]
 uid = "bd7f7e23-16ec-4792-a658-7ca6c232b2f8"
@@ -1797,7 +1797,7 @@ traces_to = [
     "1e6b28ad-913c-414f-b9db-283d064d9cfc",
     "bbbadd81-3db1-40c0-8355-c5fe10dc4b7f",
 ]
-test_selector = "evidence_core::corpus::tests::layout_and_edge_order_produce_identical_graph"
+test_selector = "evidence_core::corpus::tests::graph_layout::layout_and_edge_order_produce_identical_graph"
 
 [[tests]]
 uid = "cc46fb7d-e9cc-4e29-aebd-21ce97cecd08"
