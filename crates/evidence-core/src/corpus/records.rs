@@ -20,7 +20,7 @@ use super::graph::{
 const SUPPORTED_RECORDS_SCHEMA: u32 = 1;
 
 /// Typed uid prefix for corpus-native requirement records (HLR-080).
-const REQUIREMENT_UID_PREFIX: &str = "req_";
+pub(super) const REQUIREMENT_UID_PREFIX: &str = "req_";
 
 /// On-disk shape of a native requirement record file. Strict: unknown
 /// fields are a parse error.
@@ -116,19 +116,33 @@ pub(super) fn load_requirements_into(
 }
 
 fn validate_requirement_uid(uid: &str) -> Result<(), CorpusError> {
-    let suffix =
-        uid.strip_prefix(REQUIREMENT_UID_PREFIX)
-            .ok_or_else(|| CorpusError::NativeUidPrefix {
-                uid: uid.to_string(),
-                expected: REQUIREMENT_UID_PREFIX,
-            })?;
+    validate_native_uid(
+        uid,
+        REQUIREMENT_UID_PREFIX,
+        |uid, expected| CorpusError::NativeUidPrefix { uid, expected },
+        |uid| CorpusError::NativeUidUuidV4 { uid },
+    )
+}
+
+/// Validate a corpus-native uid: the kind's typed prefix followed
+/// by an RFC 9562 UUIDv4. Shared by every native record kind
+/// (LLR-114); the caller supplies its error type's uid variant
+/// constructors so requirement and review loaders report through
+/// their own error enums.
+pub(super) fn validate_native_uid<E>(
+    uid: &str,
+    expected: &'static str,
+    native_uid_prefix: impl FnOnce(String, &'static str) -> E,
+    native_uid_uuid_v4: impl FnOnce(String) -> E,
+) -> Result<(), E> {
+    let Some(suffix) = uid.strip_prefix(expected) else {
+        return Err(native_uid_prefix(uid.to_string(), expected));
+    };
     let valid_v4 = Uuid::parse_str(suffix).is_ok_and(|parsed| {
         parsed.get_version() == Some(Version::Random) && parsed.get_variant() == Variant::RFC4122
     });
     if !valid_v4 {
-        return Err(CorpusError::NativeUidUuidV4 {
-            uid: uid.to_string(),
-        });
+        return Err(native_uid_uuid_v4(uid.to_string()));
     }
     Ok(())
 }

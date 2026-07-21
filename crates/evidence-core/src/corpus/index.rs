@@ -6,7 +6,8 @@
 //! recursive pattern; expansion is deterministic (sorted) and never
 //! follows symlinks. Everything degenerate fails closed: unknown
 //! fields, a newer schema, an entry resolving to nothing, and
-//! unsupported node kinds.
+//! unsupported node kinds. Requirement and review files load through
+//! the same resolution mechanism (LLR-116).
 
 use std::path::{Path, PathBuf};
 
@@ -16,6 +17,7 @@ use walkdir::WalkDir;
 use super::error::CorpusError;
 use super::graph::CorpusGraph;
 use super::records;
+use super::review_records;
 
 /// Highest `corpus.toml` schema version this tool loads.
 pub const SUPPORTED_INDEX_SCHEMA: u32 = 1;
@@ -49,6 +51,9 @@ struct IndexFile {
 pub struct CorpusIndex {
     /// Resolved requirement record files, in deterministic order.
     pub requirement_files: Vec<PathBuf>,
+    /// Resolved review record files, in deterministic order
+    /// (LLR-116).
+    pub review_files: Vec<PathBuf>,
 }
 
 impl CorpusIndex {
@@ -83,17 +88,29 @@ impl CorpusIndex {
         for entry in &file.requirements {
             requirement_files.extend(resolve_entry(root, entry)?);
         }
-        Ok(Self { requirement_files })
+        let mut review_files = Vec::new();
+        for entry in &file.reviews {
+            review_files.extend(resolve_entry(root, entry)?);
+        }
+        Ok(Self {
+            requirement_files,
+            review_files,
+        })
     }
 
     /// Load the full graph named by the index at `path`: resolve the
     /// indexed files, union their entries into one graph, and validate
-    /// edge resolution.
+    /// edge resolution. Requirement files load before review files,
+    /// so review records validate against present requirement nodes
+    /// and requirement errors surface first (LLR-116).
     pub fn load_graph(path: &Path) -> Result<CorpusGraph, CorpusError> {
         let index = Self::load(path)?;
         let mut graph = CorpusGraph::new();
         for file in &index.requirement_files {
             records::load_requirements_into(file, &mut graph)?;
+        }
+        for file in &index.review_files {
+            review_records::load_reviews_into(file, &mut graph)?;
         }
         graph.validate()?;
         Ok(graph)
@@ -103,13 +120,12 @@ impl CorpusIndex {
 /// Kinds declared by the index schema without a supported record
 /// loader. Listing entries for one is an error (HLR-079).
 fn reject_unsupported(file: &IndexFile) -> Result<(), CorpusError> {
-    let unsupported: [(&'static str, &[String]); 7] = [
+    let unsupported: [(&'static str, &[String]); 6] = [
         ("sources", &file.sources),
         ("source_graphs", &file.source_graphs),
         ("ambiguities", &file.ambiguities),
         ("decisions", &file.decisions),
         ("profiles", &file.profiles),
-        ("reviews", &file.reviews),
         ("tests", &file.tests),
     ];
     for (kind, entries) in unsupported {
@@ -161,3 +177,15 @@ fn resolve_entry(root: &Path, entry: &str) -> Result<Vec<PathBuf>, CorpusError> 
         Ok(vec![path])
     }
 }
+
+// Index resolution and load-order tests live in a sibling file
+// pulled in via `#[path]`.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+#[path = "index/tests.rs"]
+mod tests;

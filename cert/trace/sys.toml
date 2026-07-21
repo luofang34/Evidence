@@ -1042,3 +1042,39 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "e6e5c8b3-d429-460f-bdfc-3020ff1cfebf"
+id = "SYS-039"
+title = "Human review decisions are strict typed corpus records bound to a requirement uid and an exact reviewed-content digest"
+owner = "soi"
+scope = "soi"
+description = """
+A human review decision on a requirement shall be recorded as a
+strict, typed corpus record — never free-form prose — bound to the
+reviewed requirement's permanent uid and the exact SHA-256 digest of
+the canonical review content the decision covers. The record schema
+shall fail closed on unknown fields, unsupported record or content
+schema versions, malformed uids, digests, or timestamps, an empty
+reviewer identity, and a rejection without a rationale, and every
+failure shall name the file and the record.
+
+The reviewer field records an organization-stable human identity for
+audit; the tool shall never accept it as proof that a caller is
+human. The reviewed-at timestamp is audit metadata too and shall
+never choose which decision is effective.
+
+A reviewer corrects their own earlier decision through a superseding
+review over the same requirement content. Supersession shall be
+deterministic: a superseding review names the same reviewer,
+requirement uid, and reviewed digest as its predecessor, and
+dangling, cyclic, forked, self-referential, cross-reviewer,
+cross-requirement, and cross-digest chains are rejected. Multiple
+independent reviewers may review the same content, and review file
+layout and load order carry no semantic meaning.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

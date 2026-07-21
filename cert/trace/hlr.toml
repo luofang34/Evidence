@@ -2310,3 +2310,61 @@ shall change the digest.
 """
 verification_methods = ["test"]
 traces_to = ["e8c91756-c711-41be-869f-1b6e94e0968d"]
+
+[[requirements]]
+uid = "31c3ae60-1b17-429a-b222-ce64a98d3816"
+id = "HLR-092"
+title = "Review decision records load through a strict fail-closed schema bound to requirement uid and content digest"
+owner = "tool"
+scope = "component"
+description = """
+Review files named by the corpus index `reviews` kind shall parse
+under a `schema_version`-gated strict TOML schema that denies
+unknown fields, mirroring the requirement-record conventions. Each
+record shall carry: a `rev_<UUIDv4>` uid; a non-empty human
+identifier; the reviewed requirement's `req_<UUIDv4>` uid; a
+content-schema version pinned to the supported review-content
+projection; the exact reviewed-content digest as a typed lowercase
+SHA-256 value; an `approve` or `reject` decision; a non-empty,
+organization-stable reviewer identity recorded for audit (never
+accepted as proof that a caller is human); an RFC 3339
+`reviewed_at` timestamp used as audit metadata only; a rationale
+that is required and non-empty exactly when the decision is a
+rejection; and an optional `rev_<UUIDv4>` supersession pointer.
+
+Every unknown field, newer schema version, unsupported content
+schema, and malformed uid, digest, timestamp, reviewer identity, or
+missing rejection rationale shall fail closed with a typed error
+naming the file path and the record's id and uid. A valid record
+loads as a typed review node with a typed edge to the reviewed
+requirement.
+"""
+verification_methods = ["test"]
+traces_to = ["e6e5c8b3-d429-460f-bdfc-3020ff1cfebf"]
+
+[[requirements]]
+uid = "ac1e1019-f2ad-4061-ba29-a42edad03389"
+id = "HLR-093"
+title = "Review nodes carry typed review and supersession edges validated as deterministic chains"
+owner = "tool"
+scope = "component"
+description = """
+Each review record shall become a typed review node in the corpus
+graph with a `reviews` edge to the reviewed requirement node — the
+only endpoint kinds that edge accepts — and an optional
+`supersedes` edge to a predecessor review node, the only endpoint
+kinds that edge accepts. Graph validation shall reject, each with
+a distinct error naming the records involved: a supersession edge
+whose target is missing; a review superseding itself; a
+supersession cycle; a fork, where one review is superseded by more
+than one review; and any superseding review whose reviewer,
+requirement uid, or reviewed content digest differs from its
+predecessor's.
+
+Validation shall be order-independent: equivalent review sets split
+or reordered across files shall produce equal graphs, and reviews
+of the same requirement content by different reviewers shall all
+be preserved as independent nodes.
+"""
+verification_methods = ["test"]
+traces_to = ["e6e5c8b3-d429-460f-bdfc-3020ff1cfebf"]

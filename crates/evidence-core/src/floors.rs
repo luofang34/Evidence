@@ -295,6 +295,8 @@ fn count_graph_per_layer(graph: &CorpusGraph) -> (u64, u64, u64, u64) {
                 RequirementLayer::Source | RequirementLayer::Derived => {}
             },
             Node::Test(_) => counts.3 = counts.3.wrapping_add(1),
+            // Review decisions are not trace-layer entries.
+            Node::Review(_) => {}
         }
     }
     counts

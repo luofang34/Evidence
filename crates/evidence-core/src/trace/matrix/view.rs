@@ -90,6 +90,8 @@ impl MatrixView {
                         traces_to: edge_targets(&test.edges, EdgeKind::Verifies),
                     });
                 }
+                // Review decisions are not traceability-matrix rows.
+                Node::Review(_) => {}
             }
         }
         Self::new(hlrs, llrs, tests)

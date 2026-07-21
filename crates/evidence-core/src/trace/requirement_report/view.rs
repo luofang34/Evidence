@@ -87,6 +87,8 @@ impl ReportView {
                         sort_key: metadata.and_then(|value| value.sort_key),
                     });
                 }
+                // Review decisions are not requirement-report rows.
+                Node::Review(_) => {}
             }
         }
 
@@ -191,6 +193,11 @@ fn requirement_links(
                 layer_label(requirement.layer),
                 requirement.id
             )),
+            (Some(_), Some(Node::Review(_))) => Some(format!(
+                "{} {} parent edge targets a REVIEW node",
+                layer_label(requirement.layer),
+                requirement.id
+            )),
             (Some(_), Some(Node::Requirement(_))) => None,
         };
     }
@@ -227,6 +234,7 @@ fn test_links(
                 ))
             }
             Some(Node::Test(_)) => Some(format!("TEST {} verifies a TEST node", test.id)),
+            Some(Node::Review(_)) => Some(format!("TEST {} verifies a REVIEW node", test.id)),
             Some(Node::Requirement(_)) => None,
         };
     }

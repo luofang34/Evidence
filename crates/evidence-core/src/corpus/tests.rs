@@ -310,6 +310,7 @@ fn graph_node(kind: NodeKind, uid: &str, id: &str, edges: Vec<(EdgeKind, String)
             selectors: Vec::new(),
             edges,
         }),
+        NodeKind::Review => unreachable!("review fixtures build ReviewNode directly"),
     }
 }
 

@@ -1,11 +1,14 @@
 //! Typed errors for corpus index parsing, graph construction, and the
-//! legacy trace adapter.
+//! legacy trace adapter. Review record loading and review graph
+//! validation report through [`ReviewError`], wrapped here by
+//! [`CorpusError::Review`] (LLR-114, LLR-115).
 
 use std::path::PathBuf;
 
 use thiserror::Error;
 
 use super::graph::{EdgeKind, NodeKind};
+use super::review_records::error::ReviewError;
 
 /// Errors from loading, building, or validating the corpus graph.
 ///
@@ -170,6 +173,11 @@ pub enum CorpusError {
         /// Actual target node kind.
         target_kind: NodeKind,
     },
+    /// A review record failed to load or a review graph invariant
+    /// failed validation (LLR-114, LLR-115). Display forwards to the
+    /// wrapped review error unchanged.
+    #[error(transparent)]
+    Review(#[from] ReviewError),
     /// A legacy trace entry has no uid; every corpus node requires a
     /// permanent identity, so the adapter refuses rather than skips.
     #[error("legacy trace entry {id} has no uid; corpus nodes require one")]
