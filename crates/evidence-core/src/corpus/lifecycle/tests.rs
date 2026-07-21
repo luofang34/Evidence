@@ -1,95 +1,12 @@
 //! Truth-table, determinism, and fail-closed tests for lifecycle
 //! evaluation (TEST-135, TEST-136).
 
-use super::{
-    LifecycleError, LifecycleEvaluation, RequirementLifecycle, evaluate_all_lifecycles,
-    evaluate_lifecycle,
+use super::fixtures::{
+    REQ, REQ_B, REV_1, REV_2, approve, by, digest_of, evaluate, graph_with, reject, requirement,
+    supersedes,
 };
-use crate::corpus::{
-    CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementNode, RequirementReviewContentV1,
-    ReviewContentDigest, ReviewDecision, ReviewNode, review_content_digest_v1,
-};
-
-const REQ: &str = "req_a";
-const REQ_B: &str = "req_b";
-const REV_1: &str = "rev_1";
-const REV_2: &str = "rev_2";
-
-/// A requirement whose `description` populates the review-content
-/// projection, so editing it moves the digest.
-fn requirement(uid: &str, description: &str) -> RequirementNode {
-    let mut node = RequirementNode::new(
-        uid.to_string(),
-        uid.to_uppercase().replace('_', "-"),
-        format!("title of {uid}"),
-        RequirementLayer::Hlr,
-        Vec::new(),
-    );
-    node.description = Some(description.to_string());
-    node
-}
-
-/// The digest a review of `node`'s current content binds.
-fn digest_of(node: &RequirementNode) -> ReviewContentDigest {
-    review_content_digest_v1(&RequirementReviewContentV1::from_node(node))
-}
-
-fn review(
-    uid: &str,
-    requirement_uid: &str,
-    digest: &ReviewContentDigest,
-    decision: ReviewDecision,
-) -> ReviewNode {
-    ReviewNode {
-        uid: uid.to_string(),
-        id: uid.to_string(),
-        requirement_uid: requirement_uid.to_string(),
-        content_schema: 1,
-        reviewed_content_sha256: digest.clone(),
-        decision,
-        reviewer: format!("{uid}@example.com"),
-        reviewed_at: "2026-07-01T10:00:00Z".to_string(),
-        rationale: match decision {
-            ReviewDecision::Approve => None,
-            ReviewDecision::Reject => Some("reviewed and found wanting".to_string()),
-        },
-        edges: vec![(EdgeKind::Reviews, requirement_uid.to_string())],
-    }
-}
-
-fn approve(uid: &str, requirement_uid: &str, digest: &ReviewContentDigest) -> ReviewNode {
-    review(uid, requirement_uid, digest, ReviewDecision::Approve)
-}
-
-fn reject(uid: &str, requirement_uid: &str, digest: &ReviewContentDigest) -> ReviewNode {
-    review(uid, requirement_uid, digest, ReviewDecision::Reject)
-}
-
-/// Override the reviewer — a supersession chain names one reviewer.
-fn by(mut node: ReviewNode, reviewer: &str) -> ReviewNode {
-    node.reviewer = reviewer.to_string();
-    node
-}
-
-fn supersedes(node: &mut ReviewNode, predecessor: &str) {
-    node.edges
-        .push((EdgeKind::Supersedes, predecessor.to_string()));
-}
-
-fn graph_with(req: RequirementNode, reviews: Vec<ReviewNode>) -> CorpusGraph {
-    let mut graph = CorpusGraph::new();
-    graph
-        .insert(Node::Requirement(req))
-        .expect("insert requirement");
-    for review in reviews {
-        graph.insert(Node::Review(review)).expect("insert review");
-    }
-    graph
-}
-
-fn evaluate(graph: &CorpusGraph, uid: &str) -> LifecycleEvaluation {
-    evaluate_lifecycle(graph, uid).expect("evaluation succeeds")
-}
+use super::{LifecycleError, RequirementLifecycle, evaluate_all_lifecycles, evaluate_lifecycle};
+use crate::corpus::{CorpusError, CorpusGraph, Node};
 
 /// No reviews at all: the requirement is a Candidate (TEST-135).
 #[test]
@@ -337,8 +254,10 @@ fn timestamps_and_insertion_order_never_affect_evaluation() {
 }
 
 /// A review targeting a missing requirement is invalid graph data:
-/// both entry points fail closed with a typed error carrying the
-/// requirement uid and the review uid (TEST-136).
+/// its `Reviews` edge dangles, so both entry points fail closed in
+/// validation with the dangling-edge error preserved as the typed
+/// source. An absent uid in a valid graph is `RequirementMissing`
+/// (TEST-136).
 #[test]
 fn review_of_missing_requirement_fails_closed() {
     let req = requirement(REQ, "prose v1");
@@ -349,22 +268,22 @@ fn review_of_missing_requirement_fails_closed() {
     assert!(
         matches!(
             err,
-            LifecycleError::ApprovalTargetsMissingRequirement {
-                ref requirement_uid,
-                ref review_uid,
-            } if requirement_uid == "req_gone" && review_uid == REV_1
+            LifecycleError::InvalidGraph(CorpusError::DanglingEdge { ref to, .. }) if to == "req_gone"
         ),
-        "error names the requirement uid and the review uid: {err}"
+        "validation rejects the dangling Reviews edge first: {err}"
     );
     let err = evaluate_all_lifecycles(&graph).expect_err("bulk evaluation must fail closed too");
     assert!(
         matches!(
             err,
-            LifecycleError::ApprovalTargetsMissingRequirement { .. }
+            LifecycleError::InvalidGraph(CorpusError::DanglingEdge { ref to, .. }) if to == "req_gone"
         ),
         "bulk evaluation reports the same invalid graph data: {err}"
     );
-    let err = evaluate_lifecycle(&graph, "req_absent").expect_err("absent uid must fail");
+
+    // An absent uid in a valid graph carries no validation failure.
+    let valid_graph = graph_with(requirement(REQ, "prose v1"), Vec::new());
+    let err = evaluate_lifecycle(&valid_graph, "req_absent").expect_err("absent uid must fail");
     assert!(
         matches!(
             err,

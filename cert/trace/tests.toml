@@ -1981,7 +1981,7 @@ test_selectors = [
 [[tests]]
 uid = "9f06c5fb-d1d7-4156-b982-ae5d2aafe95f"
 id = "TEST-136"
-title = "lifecycle evaluation is deterministic across timestamps, file layouts, and hosts, and invalid review targets fail closed"
+title = "lifecycle evaluation is deterministic across timestamps, file layouts, and hosts, and malformed review graphs fail closed at validation"
 owner = "tool"
 traces_to = ["26725e30-7161-4ff1-a854-4d44a927df9c"]
 test_selectors = [
@@ -1989,4 +1989,7 @@ test_selectors = [
     "corpus_lifecycle::equivalent_file_layouts_evaluate_identically",
     "evidence_core::corpus::lifecycle::tests::evaluate_all_reports_requirements_in_uid_order",
     "evidence_core::corpus::lifecycle::tests::review_of_missing_requirement_fails_closed",
+    "evidence_core::corpus::lifecycle::adversarial_tests::mismatched_requirement_field_and_edge_fails_closed",
+    "evidence_core::corpus::lifecycle::adversarial_tests::unsupported_content_schema_fails_closed",
+    "evidence_core::corpus::lifecycle::adversarial_tests::supersession_cycle_fails_closed",
 ]

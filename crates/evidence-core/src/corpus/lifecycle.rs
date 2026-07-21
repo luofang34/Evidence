@@ -38,27 +38,36 @@
 //!
 //! # Fail-closed boundaries
 //!
-//! A review whose `requirement_uid` names no requirement node is
-//! invalid graph data: both entry points fail with
-//! [`LifecycleError::ApprovalTargetsMissingRequirement`] naming
-//! the requirement uid and the review uid.
+//! Both public entry points run [`CorpusGraph::validate`] once per
+//! call, before any state is derived: a malformed graph — a
+//! dangling or kind-mismatched edge, a review whose
+//! `requirement_uid` field disagrees with its `Reviews` edge or
+//! whose `content_schema` differs from the supported projection
+//! version, or supersession malformation (self, dangling, cycle,
+//! fork, cross-reviewer/requirement/digest) — fails closed with
+//! [`LifecycleError::InvalidGraph`]. That variant carries the
+//! [`CorpusError`] as its typed source, never a string, so callers
+//! can match the exact broken invariant, including
+//! [`CorpusError::Review`] wrapping a
+//! [`ReviewError`](super::ReviewError). No malformed review graph
+//! can produce a lifecycle state.
 //!
-//! Supersession malformation (self, dangling, cycle, fork,
-//! cross-reviewer/requirement/digest) is rejected by
-//! [`CorpusGraph::validate`] before evaluation — the loaders run
-//! it — and this module deliberately does not re-validate chains,
-//! so lifecycle evaluation can never mask a malformed history. An
-//! unvalidated graph fed directly to the evaluator still fails
-//! closed on what the evaluator can detect locally: the
-//! missing-requirement target above.
+//! The cost model is one full-graph validation pass per public
+//! call: [`evaluate_all_lifecycles`] validates once, not once per
+//! requirement, and a caller whose loader already validated pays
+//! the same single pass again — the public boundary owns the
+//! guarantee, so no caller can skip it.
 //!
-//! A review whose `content_schema` differs from the supported
-//! projection version cannot be loaded — records fail closed at
-//! parse — so the evaluator compares digests only. A digest minted
-//! under a foreign projection version can never equal the v1
-//! current digest, so such a review could at most degrade an
-//! approval to Stale and could never reach Approved or Rejected;
-//! no runtime schema handling is needed.
+//! Per-requirement evaluation then runs on a graph whose
+//! invariants hold, so the evaluator compares digests only and
+//! needs no runtime schema handling. The local fail-closed checks
+//! remain as defense in depth: an absent uid with no reviews is
+//! [`LifecycleError::RequirementMissing`], and a review targeting
+//! a missing requirement is
+//! [`LifecycleError::ApprovalTargetsMissingRequirement`] — though
+//! validation already rejects every such graph (the review's
+//! `Reviews` edge dangles), so that variant cannot be reached
+//! through the public entry points.
 //!
 //! Both entry points are pure functions of the graph: no I/O, no
 //! environment reads, no module-level mutable state.
@@ -68,6 +77,7 @@ use std::collections::BTreeMap;
 use thiserror::Error;
 
 use super::digest::ReviewContentDigest;
+use super::error::CorpusError;
 use super::graph::{CorpusGraph, Node, ReviewDecision, ReviewNode};
 use super::review_content::review_content_digest_v1;
 
@@ -127,11 +137,22 @@ pub struct LifecycleEvaluation {
 
 /// Errors from lifecycle evaluation (LLR-118).
 ///
-/// Evaluation never skips degenerate graph data silently; each
-/// variant names the requirement uid and, where a review is
-/// involved, the review uid.
+/// Evaluation never skips degenerate graph data silently: a
+/// malformed graph fails validation with the [`CorpusError`]
+/// preserved as the typed source, and the per-requirement variants
+/// name the requirement uid and, where a review is involved, the
+/// review uid.
 #[derive(Debug, Error)]
 pub enum LifecycleError {
+    /// The graph failed [`CorpusGraph::validate`] before
+    /// evaluation. Both entry points validate the whole graph once
+    /// per call and fail closed; the [`CorpusError`] is carried as
+    /// the typed source (never stringified), so callers can match
+    /// the exact broken invariant — including
+    /// [`CorpusError::Review`] wrapping a
+    /// [`ReviewError`](super::ReviewError).
+    #[error("corpus graph failed validation: {0}")]
+    InvalidGraph(#[source] CorpusError),
     /// `evaluate_lifecycle` named a uid with no requirement node
     /// in the graph (absent, or naming another node kind), and no
     /// review targets it either.
@@ -142,6 +163,10 @@ pub enum LifecycleError {
     },
     /// A review targets a requirement uid with no requirement node
     /// in the graph — invalid graph data; evaluation fails closed.
+    /// Whole-graph validation rejects every such graph first (the
+    /// review's `Reviews` edge dangles), so this variant is
+    /// defense in depth, unreachable through the public entry
+    /// points.
     #[error(
         "review {review_uid} targets requirement {requirement_uid}, \
          which has no requirement node in the graph"
@@ -156,14 +181,74 @@ pub enum LifecycleError {
 
 /// Evaluate the effective lifecycle of one requirement (LLR-117).
 ///
+/// The whole graph is validated once, first; per-requirement
+/// evaluation runs only on a graph whose invariants hold.
+///
 /// # Errors
 ///
+/// - [`LifecycleError::InvalidGraph`] when the graph fails
+///   [`CorpusGraph::validate`]; the underlying [`CorpusError`] is
+///   preserved as the typed source.
 /// - [`LifecycleError::RequirementMissing`] when `requirement_uid`
 ///   names no requirement node and no review targets it.
 /// - [`LifecycleError::ApprovalTargetsMissingRequirement`] when a
 ///   review targets `requirement_uid` but no requirement node
-///   carries that uid (invalid graph data).
+///   carries that uid (invalid graph data — validation rejects it
+///   first; the check is defense in depth).
 pub fn evaluate_lifecycle(
+    graph: &CorpusGraph,
+    requirement_uid: &str,
+) -> Result<LifecycleEvaluation, LifecycleError> {
+    graph.validate().map_err(LifecycleError::InvalidGraph)?;
+    evaluate_lifecycle_validated(graph, requirement_uid)
+}
+
+/// Evaluate every requirement in the graph, keyed by requirement
+/// uid (LLR-118). `BTreeMap` iteration makes reporting order
+/// deterministic.
+///
+/// The whole graph is validated once per call — not once per
+/// requirement — before any evaluation.
+///
+/// # Errors
+///
+/// - [`LifecycleError::InvalidGraph`] when the graph fails
+///   [`CorpusGraph::validate`]; the underlying [`CorpusError`] is
+///   preserved as the typed source.
+///
+/// On a valid graph the per-requirement checks below cannot fire;
+/// they remain as defense in depth (see the module docs).
+pub fn evaluate_all_lifecycles(
+    graph: &CorpusGraph,
+) -> Result<BTreeMap<String, LifecycleEvaluation>, LifecycleError> {
+    graph.validate().map_err(LifecycleError::InvalidGraph)?;
+    for node in graph.nodes() {
+        if let Node::Review(review) = node
+            && !matches!(
+                graph.get(&review.requirement_uid),
+                Some(Node::Requirement(_))
+            )
+        {
+            return Err(LifecycleError::ApprovalTargetsMissingRequirement {
+                requirement_uid: review.requirement_uid.clone(),
+                review_uid: review.uid.clone(),
+            });
+        }
+    }
+    let mut evaluations = BTreeMap::new();
+    for node in graph.nodes() {
+        if let Node::Requirement(requirement) = node {
+            let evaluation = evaluate_lifecycle_validated(graph, &requirement.uid)?;
+            evaluations.insert(requirement.uid.clone(), evaluation);
+        }
+    }
+    Ok(evaluations)
+}
+
+/// Per-requirement evaluation on an already-validated graph. The
+/// public entry points validate once per call, so the per-node
+/// work never re-validates.
+fn evaluate_lifecycle_validated(
     graph: &CorpusGraph,
     requirement_uid: &str,
 ) -> Result<LifecycleEvaluation, LifecycleError> {
@@ -183,42 +268,6 @@ pub fn evaluate_lifecycle(
         current_digest,
         effective_review_uids: heads.iter().map(|review| review.uid.clone()).collect(),
     })
-}
-
-/// Evaluate every requirement in the graph, keyed by requirement
-/// uid (LLR-118). `BTreeMap` iteration makes reporting order
-/// deterministic.
-///
-/// # Errors
-///
-/// Fails closed with
-/// [`LifecycleError::ApprovalTargetsMissingRequirement`] on the
-/// first review (uid order) whose target requirement is absent
-/// from the graph; a valid graph cannot error here.
-pub fn evaluate_all_lifecycles(
-    graph: &CorpusGraph,
-) -> Result<BTreeMap<String, LifecycleEvaluation>, LifecycleError> {
-    for node in graph.nodes() {
-        if let Node::Review(review) = node
-            && !matches!(
-                graph.get(&review.requirement_uid),
-                Some(Node::Requirement(_))
-            )
-        {
-            return Err(LifecycleError::ApprovalTargetsMissingRequirement {
-                requirement_uid: review.requirement_uid.clone(),
-                review_uid: review.uid.clone(),
-            });
-        }
-    }
-    let mut evaluations = BTreeMap::new();
-    for node in graph.nodes() {
-        if let Node::Requirement(requirement) = node {
-            let evaluation = evaluate_lifecycle(graph, &requirement.uid)?;
-            evaluations.insert(requirement.uid.clone(), evaluation);
-        }
-    }
-    Ok(evaluations)
 }
 
 /// The truth table over effective heads: current-digest rejection
@@ -267,8 +316,24 @@ fn missing_requirement_error(graph: &CorpusGraph, requirement_uid: &str) -> Life
     }
 }
 
-// Tests live in a sibling file pulled in via `#[path]` so this
-// facade stays under the 500-line workspace limit.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+#[path = "lifecycle/adversarial_tests.rs"]
+mod adversarial_tests;
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+#[path = "lifecycle/fixtures.rs"]
+mod fixtures;
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
