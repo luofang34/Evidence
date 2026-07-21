@@ -28,6 +28,10 @@
 //! - Absolute line counts — drift by the next edit.
 //! - "Newly-added" / "just-added" adjectives — decay to meaningless.
 //! - Forward-looking proximity hints — `next natural split`.
+//! - Temporal phrasing — `previously`, `historically`, `formerly`,
+//!   `migrated from`, `before this module` and relatives. The comment
+//!   describes a past tree, not the code it sits beside; rewrite as
+//!   the present contract.
 //!
 //! ## Out of scope
 //!
@@ -80,6 +84,10 @@ const RESERVED_TEXT_REFS: &[&str] = &[
     // literals) — otherwise it couldn't enforce the rule. Excluded
     // by filename so the patterns stay literal and auditable.
     "tests/rot_prone_markers_locked.rs",
+    // The CONTRIBUTING WHY-only rule quotes the banned temporal
+    // phrases as examples of what not to write; quoting the rule is
+    // the load-bearing use, not temporal narration.
+    "CONTRIBUTING.md:132",
 ];
 
 /// Pinned banned-pattern set. Each entry is a label + regex. Labels
@@ -126,6 +134,32 @@ fn banned_patterns() -> Vec<(&'static str, Regex)> {
         (
             "forward split hint",
             Regex::new(r"\bnext natural split\b").expect("valid regex"),
+        ),
+        // Temporal phrasing — the CONTRIBUTING "WHY-only comments"
+        // rule. Case-insensitive: the words read the same at sentence
+        // start. `used to` is deliberately NOT banned as a pattern:
+        // it has a legitimate instrumental reading ("used to
+        // normalize"); the temporal reading is swept socially.
+        (
+            "temporal migration marker",
+            Regex::new(r"(?i)\bmigrated from\b").expect("valid regex"),
+        ),
+        (
+            "temporal 'previously' marker",
+            Regex::new(r"(?i)\bpreviously\b").expect("valid regex"),
+        ),
+        (
+            "temporal 'historically' marker",
+            Regex::new(r"(?i)\bhistorically\b").expect("valid regex"),
+        ),
+        (
+            "temporal 'formerly' marker",
+            Regex::new(r"(?i)\bformerly\b").expect("valid regex"),
+        ),
+        (
+            "temporal 'before this' marker",
+            Regex::new(r"(?i)\bbefore this (?:module|crate|feature|change|fix)\b")
+                .expect("valid regex"),
         ),
     ]
 }
@@ -197,6 +231,9 @@ fn collect_md(root: &Path, out: &mut Vec<PathBuf>, is_workspace_root: bool) {
         })
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file() && traversal::has_ext(e.path(), "md"))
+        // CHANGELOG.md is the release audit journal: temporal
+        // narration is its purpose, like the cert/trace journal.
+        .filter(|e| e.file_name().to_str() != Some("CHANGELOG.md"))
         .map(|e| e.into_path());
     out.extend(files);
 }
@@ -330,6 +367,32 @@ fn fires_on_bare_issue_number() {
         "expected bare issue-number breadcrumb hit; got {:?}",
         hits
     );
+}
+
+/// Positive dogfood: temporal phrasing fires the gate (the
+/// CONTRIBUTING WHY-only rule names `migrated from` / `previously`).
+#[test]
+fn fires_on_temporal_phrasing() {
+    let tmp = tempfile::TempDir::new().expect("tempdir");
+    let src = tmp.path().join("crates").join("fake").join("src");
+    std::fs::create_dir_all(&src).expect("mkdir");
+    std::fs::write(
+        src.join("lib.rs"),
+        "//! Previously this slid through. Migrated from the old loader.\n\
+         // Before this module existed, X happened.\npub fn f() {}\n",
+    )
+    .expect("write fixture");
+    let hits = scan_tree(tmp.path());
+    for label in [
+        "temporal 'previously' marker",
+        "temporal migration marker",
+        "temporal 'before this' marker",
+    ] {
+        assert!(
+            hits.iter().any(|(_, _, l, _)| *l == label),
+            "expected {label} hit; got {hits:?}"
+        );
+    }
 }
 
 /// Negative dogfood: upstream `rust-lang/rust#NNN` refs and small

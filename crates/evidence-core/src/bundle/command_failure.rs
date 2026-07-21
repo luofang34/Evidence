@@ -2,10 +2,10 @@
 //! subprocess that exited non-zero (cargo test failing, cargo
 //! check failing, cargo build failing).
 //!
-//! Previously a non-zero exit from `run_capture` was surfaced as
-//! a library-layer `tracing::error!` log and otherwise swallowed;
-//! a downstream `verify` call on the resulting bundle could not
-//! tell the bundle represented a broken build. Recording the
+//! A non-zero exit from `run_capture` surfaced only as
+//! a library-layer `tracing::error!` log would be swallowed by
+//! downstream consumers; a `verify` call on the resulting bundle
+//! could not tell the bundle represented a broken build. Recording the
 //! failure structurally on [`crate::bundle::EvidenceBuilder`] +
 //! mirroring to [`crate::bundle::EvidenceIndex.tool_command_failures`]
 //! is what lets `verify` cross-check "the bundle claims

@@ -98,8 +98,8 @@ impl CargoMetadataProjection {
         Ok(Self { packages })
     }
 
-    /// Read a previously-serialized projection from
-    /// `cargo_metadata.json`.
+    /// Read a projection serialized by an earlier
+    /// `cargo_metadata.json` capture.
     pub fn from_projection_json(json: &str) -> Result<Self, ProjectionError> {
         serde_json::from_str(json).map_err(ProjectionError::ParseProjection)
     }

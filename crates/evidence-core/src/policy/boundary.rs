@@ -200,9 +200,8 @@ impl BoundaryConfig {
     /// failure.
     ///
     /// Logs the set of enabled policy rules at `debug` level on
-    /// success; this used to happen inline in the CLI's hand-rolled
-    /// loader and moved here when the typed loader became the single
-    /// source of truth.
+    /// success; the typed loader is the single source of truth for
+    /// that log line.
     pub fn load(path: &Path) -> Result<Self, LoadBoundaryError> {
         let content = fs::read_to_string(path).map_err(|source| LoadBoundaryError::Read {
             path: path.to_path_buf(),
@@ -304,17 +303,13 @@ impl BoundaryConfig {
     /// Callers that need the raw list without the fallback should
     /// touch `self.scope` directly.
     pub fn trace_roots_or_default(&self) -> Vec<String> {
-        // BoundaryScope historically serialized a separate
-        // `trace_roots` key that isn't on the struct; `load` preserves
-        // unknown fields via serde's default behavior. The CLI's old
-        // loader hand-read this key from `toml::Value` and fell back
-        // to `["cert/trace"]` when it was missing or empty. To keep
-        // that exact behavior, we re-parse the source file here when
-        // we have access — but since callers usually only hold the
-        // typed `BoundaryConfig`, we expose the read-through helper
-        // as a separate free function. Callers that pass a path get
-        // the full fallback; callers that hold just the config get
-        // just `["cert/trace"]` (the default).
+        // `trace_roots` lives in the source file as a side-channel
+        // key, not on the typed struct; `load` preserves unknown
+        // fields via serde's default behavior. A caller holding a
+        // path re-parses the source file for the full fallback
+        // (missing or empty key → `["cert/trace"]`); a caller
+        // holding just the typed `BoundaryConfig` gets
+        // `["cert/trace"]` (the default).
         vec!["cert/trace".to_string()]
     }
 }

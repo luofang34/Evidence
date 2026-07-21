@@ -129,7 +129,8 @@ high-impact rules:
 - **No `unwrap` / `expect` / `panic!` in library code.** Tests
   may opt out via `#[allow(clippy::expect_used, clippy::panic)]`.
 - **WHY-only comments.** No PR-number breadcrumbs, no absolute
-  line counts, no temporal phrasing (`migrated from`, `previously`).
+  line counts, no temporal phrasing (`migrated from`, `previously`;
+  the rot-gate pins the full banned set).
   These are mechanically enforced by `rot_prone_markers_locked`.
 - **No editor-duplicate filenames** (`* 2.rs`, `* 2.toml`, …).
   Mechanically enforced by `editor_duplicates_locked`.

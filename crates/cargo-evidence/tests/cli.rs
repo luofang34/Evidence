@@ -363,10 +363,9 @@ fn test_generate_requires_out_dir() {
 //
 // `assert_policy_implementable` was the safety rail that refused
 // generate when boundary.toml enabled a rule whose enforcement
-// hadn't shipped, so a bundle could not silently overclaim. As of
-// this PR every `BoundaryPolicy` flag is enforced, so the
-// "does not enforce" refusal path no longer exists at integration
-// scope. The unit test
+// hadn't shipped, so a bundle could not silently overclaim. Every
+// `BoundaryPolicy` flag is enforced at integration scope, so no
+// "does not enforce" refusal path remains. The unit test
 // `unimplemented_enabled_rules_is_empty_for_every_combination`
 // in `evidence_core::policy::boundary` pins the empty-list invariant.
 // If a future flag lands without enforcement, that unit test fires

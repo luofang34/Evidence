@@ -266,8 +266,8 @@ mod tests {
 
 /// **Compile-failure mislabel regression.** A genuine build
 /// failure (undefined macro → cargo exits 101, no `test result:`
-/// line) used to route to `CLI_INVALID_ARGUMENT` — wrong
-/// category. The disambiguation rule is:
+/// line) must not route to `CLI_INVALID_ARGUMENT` — that is the
+/// wrong category. The disambiguation rule is:
 ///
 /// - `(Some(parsed), _)` → normal per-requirement path
 /// - `(None, exit == 0)` → `CLI_INVALID_ARGUMENT` (weird shape)
@@ -331,10 +331,9 @@ fn build_failure_emits_check_test_runtime_failure_not_cli_invalid_argument() {
 }
 
 /// **Verify exit-code symmetry regression.** The non-JSONL
-/// `cmd_verify` path used to return `EXIT_VERIFICATION_FAILURE`
-/// (2) for a missing bundle while the JSONL path returned
-/// `EXIT_ERROR` (1) for the same condition. Scripts switching
-/// `--format` got different signals for identical state. The
+/// `cmd_verify` path must agree with the JSONL path on the exit
+/// code for a missing bundle — scripts switching
+/// `--format` must not get different signals for identical state. The
 /// harmonized rule: `EXIT_ERROR` universally for I/O / runtime
 /// fault (bundle not found, file unreadable); `EXIT_VERIFICATION_
 /// FAILURE` reserved for verify-ran-and-found-problems-in-an-
@@ -418,11 +417,11 @@ fn test_failure_keeps_normal_req_gap_path_not_runtime_failure() {
 
 /// **Boundary-trace-roots rebase regression.** The convention
 /// paths (`cert/trace`, `cert/trace`) rebase against the `<PATH>`
-/// argument, but the boundary-fallback path in
-/// `default_trace_roots` used to return entries verbatim. A
-/// downstream project with `trace_roots = ["custom/trace"]` in its
-/// `cert/boundary.toml` would silently resolve against the caller's
-/// CWD and emit VERIFY_OK with 0 requirements.
+/// argument, and the boundary-fallback path in
+/// `default_trace_roots` must rebase the same way — returning entries
+/// verbatim lets a downstream project with `trace_roots =
+/// ["custom/trace"]` in its `cert/boundary.toml` silently resolve
+/// against the caller's CWD and emit VERIFY_OK with 0 requirements.
 ///
 /// Setup: downstream tempdir has NO `cert/trace/` (so the
 /// convention auto-discovery misses), has `cert/boundary.toml`

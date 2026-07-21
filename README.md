@@ -707,7 +707,7 @@ These items are tracked and not yet resolved:
 1. **No derived requirements safety report** -- derived LLRs are validated but no
    summary report is generated for safety analysis.
 
-Previously tracked items now resolved:
+Resolved tracked items (kept for the record):
 
 - ~~No structured SVR capture~~ → per-test outcome atoms in
   `tests/test_outcomes.jsonl` via the enriched libtest parser

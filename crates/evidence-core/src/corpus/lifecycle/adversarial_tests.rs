@@ -11,8 +11,8 @@ use crate::corpus::{CorpusError, CorpusGraph, EdgeKind, Node, ReviewError};
 
 /// Mismatched requirement field/edge: a review whose
 /// `requirement_uid` field names one requirement while its
-/// `Reviews` edge targets another used to evaluate to
-/// `Ok(Approved)`. Both entry points now fail closed in
+/// `Reviews` edge targets another must never produce a lifecycle
+/// state. Both entry points fail closed in
 /// validation, and the source preserves the review-invariant error
 /// (TEST-136).
 #[test]
@@ -60,8 +60,8 @@ fn mismatched_requirement_field_and_edge_fails_closed() {
 }
 
 /// Unsupported content schema: `content_schema = 99` on a
-/// programmatically built review used to evaluate to `Ok(Approved)`.
-/// Both entry points now fail closed in validation, and the source
+/// programmatically built review must never produce a lifecycle
+/// state. Both entry points fail closed in validation, and the source
 /// preserves the schema error (TEST-136).
 #[test]
 fn unsupported_content_schema_fails_closed() {
