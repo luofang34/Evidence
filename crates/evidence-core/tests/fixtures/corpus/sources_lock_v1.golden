@@ -1,0 +1,28 @@
+schema_version = 1
+
+[[entries]]
+document_key = "DOC-1"
+source_uid = "src_00000000-0000-4000-8000-0000000000b1"
+availability = "available"
+sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+capture_mode = "vendored"
+
+[[entries]]
+document_key = "DOC-2"
+source_uid = "src_00000000-0000-4000-8000-0000000000a2"
+availability = "available"
+sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+capture_mode = "hash_only"
+
+[[entries]]
+document_key = "DOC-3"
+source_uid = "src_00000000-0000-4000-8000-0000000000a3"
+availability = "available"
+sha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+capture_mode = "external_controlled"
+external_control = { system = "plm-hd", immutable_id = "DOC-3@revC" }
+
+[[entries]]
+document_key = "DOC-4"
+source_uid = "src_00000000-0000-4000-8000-0000000000a4"
+availability = "unavailable"

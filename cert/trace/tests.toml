@@ -2220,3 +2220,62 @@ test_selectors = [
     "evidence_core::corpus::source::lineage::transition_tests::proposed_graph_must_validate",
     "evidence_core::corpus::source::lineage::transition_tests::linked_revision_loads_and_transitions_through_corpus_index",
 ]
+
+[[tests]]
+uid = "ce47246d-74c3-44b2-a0da-859647c81362"
+id = "TEST-149"
+title = "lock derivation binds effective heads exactly once, excludes historical revisions and storage details, and never invents digests"
+owner = "tool"
+traces_to = ["535e526e-c1cd-4a39-b5a7-3e6fcfb2e6b6"]
+test_selectors = [
+    "evidence_core::corpus::source::lock::tests::derive_lock_binds_effective_heads_only",
+    "evidence_core::corpus::source::lock::tests::layout_and_insertion_order_produce_identical_locks",
+    "evidence_core::corpus::source::lock::tests::recipe_and_storage_details_are_not_lock_identity",
+    "evidence_core::corpus::source::lock::tests::unavailable_heads_derive_without_digest_or_capture",
+    "evidence_core::corpus::source::lock::tests::vendored_paths_timestamps_and_reasons_never_enter_the_lock",
+]
+
+[[tests]]
+uid = "bc29898c-dae5-42a8-892e-ef021cb57d55"
+id = "TEST-150"
+title = "canonical rendering pins the byte template and strict parsing fails closed on malformed input while accepting any entry order"
+owner = "tool"
+traces_to = ["ee77ade4-d3a4-43b2-9bea-0684163f7bd0"]
+test_selectors = [
+    "evidence_core::corpus::source::lock::tests::canonical_render_pins_entry_order_field_order_and_trailing_newline",
+    "evidence_core::corpus::source::lock::tests::render_parse_round_trip",
+    "evidence_core::corpus::source::lock::tests::parse_accepts_any_entry_order",
+    "evidence_core::corpus::source::lock::tests::duplicate_document_key_fails_at_parse",
+    "evidence_core::corpus::source::lock::tests::malformed_digest_fails_at_parse",
+    "evidence_core::corpus::source::lock::tests::unknown_field_and_unavailable_with_digest_fail_at_parse",
+    "evidence_core::corpus::source::lock::tests::newer_schema_fails_closed",
+    "evidence_core::corpus::source::lock::tests::escaping_round_trips_special_strings",
+]
+
+[[tests]]
+uid = "d1b2e9b6-9ce6-42dd-b898-4a811f536c6c"
+id = "TEST-151"
+title = "committed-lock validation applies the three gates in order with typed findings and the blocking reader never mutates"
+owner = "tool"
+traces_to = ["237aafc8-abae-4a20-aad6-685f350e439c"]
+test_selectors = [
+    "evidence_core::corpus::source::lock::validate_tests::canonical_committed_lock_validates",
+    "evidence_core::corpus::source::lock::validate_tests::noncanonical_committed_bytes_fail_gate_two",
+    "evidence_core::corpus::source::lock::validate_tests::missing_and_extra_entries_fail_closed",
+    "evidence_core::corpus::source::lock::validate_tests::changed_fields_fail_naming_the_field",
+    "evidence_core::corpus::source::lock::validate_tests::graph_is_validated_before_the_gates",
+    "evidence_core::corpus::source::lock::validate_tests::read_lock_blocking_reads_without_mutation",
+    "evidence_core::corpus::source::lock::validate_tests::unavailable_head_round_trips_digest_free_through_the_gates",
+]
+
+[[tests]]
+uid = "454ecf0f-5d4d-41f8-895b-a05d2df8b915"
+id = "TEST-152"
+title = "a golden fixture byte-locks the canonical lock bytes and equivalent graphs render byte-identical locks"
+owner = "tool"
+traces_to = ["ee77ade4-d3a4-43b2-9bea-0684163f7bd0"]
+test_selectors = [
+    "corpus_sources_lock::golden_fixture_byte_locks_canonical_lock_bytes",
+    "corpus_sources_lock::equivalent_graphs_render_byte_identical_locks",
+    "corpus_sources_lock::golden_lock_validates_against_its_graph",
+]

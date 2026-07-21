@@ -2702,3 +2702,71 @@ it.
 """
 verification_methods = ["test"]
 traces_to = ["59138efe-ffe9-4bfb-8224-3447a9764670"]
+
+[[requirements]]
+uid = "60a9bf68-4a18-44ae-8fc5-81b63606945d"
+id = "HLR-105"
+title = "The sources lock is a strict versioned canonical TOML inventory of effective source heads"
+owner = "tool"
+scope = "component"
+description = """
+The lock value shall carry a `schema_version` and one entry per
+effective document key, each binding the effective source revision
+uid, the availability state, the validated lowercase content
+SHA-256 when the source is available, the capture mode
+(`vendored`, `hash_only`, or `external_controlled`), and the
+immutable external control identity (controlling system plus
+immutable identifier) when the capture contract includes one.
+Vendored file paths, record-file layout, retrieval timestamps, and
+unavailability reasons shall never enter the lock: they are
+storage or audit details, not source identity. An unavailable
+effective head shall be represented explicitly with no digest and
+no capture mode — never a synthetic value.
+
+The lock projection shall derive from the validated graph's
+effective source heads, so historical non-head revisions stay in
+the registry and lineage but never appear as active lock entries
+and each effective head appears exactly once. Equivalent graph
+layouts and record insertion orders shall derive identical locks,
+and the canonical rendering shall be one fully specified byte
+template — pinned entry order, field order, quoting style, line
+endings, blank-line placement, and a single trailing newline — so
+equivalent graphs produce byte-identical lock files and a golden
+fixture can byte-lock the complete contract.
+"""
+verification_methods = ["test"]
+traces_to = ["a0ce5b90-094a-4428-92e1-a6d209dee9f7"]
+
+[[requirements]]
+uid = "26085b95-4b44-42b4-8d82-db3e6283c4c3"
+id = "HLR-106"
+title = "Committed sources-lock validation applies three ordered exact gates with typed failures and never mutates the workspace"
+owner = "tool"
+scope = "component"
+description = """
+Validating a committed lock against the corpus graph shall apply
+three ordered gates: parse the bytes under the strict versioned
+schema, require the original bytes to equal the canonical
+rendering of the parsed value, and require the parsed value to
+equal the projection derived from the validated graph.
+Non-canonical entry order, field order, whitespace, quoting,
+comments, or trailing-newline form shall therefore fail with a
+typed non-canonical-lock error even when the parsed values are
+equivalent. Missing, extra, changed (uid, digest, availability,
+capture mode, or external identity), duplicate-key,
+malformed-hash, unknown-field, and newer-schema inputs shall each
+fail closed with distinct typed context. The graph shall be
+validated before the projection is derived. Parsing shall accept
+any entry order — canonicality is gate two's concern — while
+duplicate document keys shall fail at parse time.
+
+All lock operations shall be pure functions over graph and bytes;
+the only permitted I/O shall be a blocking file reader that never
+mutates the workspace. Writing or replacing the committed lock
+belongs to a later human CLI surface. The lock proves which source
+digests and availability states the baseline selected; it shall
+not be presented as proof of recipe reproducibility, remote
+retrievability, or vendored byte integrity.
+"""
+verification_methods = ["test"]
+traces_to = ["a0ce5b90-094a-4428-92e1-a6d209dee9f7"]
