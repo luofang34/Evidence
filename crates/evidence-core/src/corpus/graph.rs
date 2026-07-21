@@ -5,7 +5,7 @@
 //! input order (HLR-080). Edges are typed and owned by their source
 //! node; invalid endpoints are validation errors.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Deserialize;
 
@@ -358,6 +358,40 @@ impl CorpusGraph {
     /// Iterate nodes in deterministic (uid) order.
     pub fn nodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes.values()
+    }
+
+    /// All review nodes targeting `requirement_uid`, in uid order
+    /// (LLR-118). Read-only derived view: supersession and decision
+    /// semantics are the lifecycle evaluator's concern, not this
+    /// accessor's.
+    pub fn reviews_for_requirement(&self, requirement_uid: &str) -> Vec<&ReviewNode> {
+        self.nodes
+            .values()
+            .filter_map(|node| match node {
+                Node::Review(review) if review.requirement_uid == requirement_uid => Some(review),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Uids of every review named as a [`EdgeKind::Supersedes`]
+    /// target — the reviews a correcting review has replaced
+    /// (LLR-118). Borrows from the graph; `BTreeSet` keeps
+    /// membership checks deterministic. A well-formed graph
+    /// (`validate`) guarantees every target is a review; an
+    /// unvalidated graph may name anything, and the set simply
+    /// reports the targets as recorded.
+    pub fn superseded_review_uids(&self) -> BTreeSet<&str> {
+        self.nodes
+            .values()
+            .filter_map(|node| match node {
+                Node::Review(review) => Some(review),
+                _ => None,
+            })
+            .flat_map(|review| review.edges.iter())
+            .filter(|(kind, _)| *kind == EdgeKind::Supersedes)
+            .map(|(_, target)| target.as_str())
+            .collect()
     }
 
     pub(crate) fn trace_metadata(&self, uid: &str) -> Option<&TraceMetadata> {

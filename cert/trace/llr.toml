@@ -3433,3 +3433,72 @@ equivalent review sets split or reordered across files load to
 equal graphs.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "5c2ce59b-5a6e-4f4c-903e-ca4c2a3cb778"
+id = "LLR-117"
+title = "corpus::lifecycle evaluates the lifecycle truth table over effective review heads as a pure function"
+owner = "tool"
+traces_to = ["6f9137b9-00ea-4cc2-9794-ea0e145a9203"]
+modules = ["evidence_core::corpus::lifecycle"]
+description = """
+`RequirementLifecycle` (`Candidate` / `Approved` / `Rejected` /
+`Stale`, with `as_str` wire strings) and `LifecycleEvaluation`
+(requirement uid, state, current digest, sorted effective review
+uids) are evaluated-view types documented as never stored on
+nodes. `evaluate_lifecycle` computes the current digest with
+`review_content_digest_v1` over the graph's review-content
+projection, collects the effective heads — the requirement's
+reviews minus any review named as a `Supersedes` target — and
+applies the truth table: any current-digest rejection yields
+`Rejected`; else any current-digest approval yields `Approved`;
+else any older-digest approval yields `Stale`; else `Candidate`.
+`reviewed_at` and node order never enter the decision. A review
+whose content schema differs from the supported projection cannot
+load — records fail closed at parse — and the graph invariant
+rejects a programmatically built mismatch at validation, so the
+evaluator needs no runtime schema handling. Both public entry
+points run `CorpusGraph::validate` once per call before any state
+is derived: a malformed graph — a dangling or kind-mismatched
+edge, a review node/edge/schema invariant violation, or
+supersession malformation — fails closed with
+`LifecycleError::InvalidGraph`, which carries the `CorpusError`
+as its typed source so callers can inspect the exact broken
+invariant; no malformed review graph can produce a lifecycle
+state. On a valid graph the per-requirement fail-closed checks
+remain as defense in depth: an absent uid is
+`LifecycleError::RequirementMissing`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "26725e30-7161-4ff1-a854-4d44a927df9c"
+id = "LLR-118"
+title = "evaluate_all_lifecycles reports every requirement in uid order over deterministic graph review accessors"
+owner = "tool"
+traces_to = ["62e50814-47ca-4da7-bd29-9926bcfbd346"]
+modules = [
+    "evidence_core::corpus::lifecycle",
+    "evidence_core::corpus::graph",
+]
+description = """
+Both public entry points run `CorpusGraph::validate` once per
+call — `evaluate_all_lifecycles` validates once, not once per
+requirement — and a malformed graph fails closed with
+`LifecycleError::InvalidGraph` carrying the `CorpusError` as its
+typed source before any state is derived. On a valid graph,
+`evaluate_all_lifecycles` evaluates every requirement node and
+returns a `BTreeMap` keyed by requirement uid so reporting order
+is deterministic; `evaluate_lifecycle` on an absent uid fails
+with `LifecycleError::RequirementMissing`, and the review-target
+scan behind `LifecycleError::ApprovalTargetsMissingRequirement`
+is retained as defense in depth — validation rejects every graph
+that could reach it (the review's `Reviews` edge dangles).
+`CorpusGraph` gains the two read-only accessors the evaluator
+composes: `reviews_for_requirement`, the uid-ordered review nodes
+targeting one requirement, and `superseded_review_uids`, the set
+of reviews named as a `Supersedes` target; nodes carry no
+lifecycle fields. Both entry points are pure functions of the
+graph: no I/O, no environment reads, no statics.
+"""
+verification_methods = ["test"]

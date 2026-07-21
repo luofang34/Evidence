@@ -1959,3 +1959,37 @@ test_selectors = [
     "evidence_core::corpus::review_records::tests::independent_reviews_of_one_digest_are_preserved",
     "evidence_core::corpus::index::tests::index_resolves_reviews_and_loads_requirements_first",
 ]
+
+[[tests]]
+uid = "dddae922-38c4-4b16-93b9-341ff9a37fe9"
+id = "TEST-135"
+title = "the lifecycle truth table binds exact digests with fail-closed rejection precedence and mechanical staleness"
+owner = "tool"
+traces_to = ["5c2ce59b-5a6e-4f4c-903e-ca4c2a3cb778"]
+test_selectors = [
+    "evidence_core::corpus::lifecycle::tests::no_reviews_yield_candidate",
+    "evidence_core::corpus::lifecycle::tests::current_approval_yields_approved",
+    "evidence_core::corpus::lifecycle::tests::current_rejection_yields_rejected",
+    "evidence_core::corpus::lifecycle::tests::rejection_takes_precedence_over_approval",
+    "evidence_core::corpus::lifecycle::tests::superseded_reviews_contribute_nothing",
+    "evidence_core::corpus::lifecycle::tests::content_change_after_approval_yields_stale",
+    "evidence_core::corpus::lifecycle::tests::content_change_after_rejection_yields_candidate",
+    "evidence_core::corpus::lifecycle::tests::reverting_to_approved_digest_yields_approved_again",
+    "evidence_core::corpus::lifecycle::tests::multiple_reviewers_compose_deterministically",
+]
+
+[[tests]]
+uid = "9f06c5fb-d1d7-4156-b982-ae5d2aafe95f"
+id = "TEST-136"
+title = "lifecycle evaluation is deterministic across timestamps, file layouts, and hosts, and malformed review graphs fail closed at validation"
+owner = "tool"
+traces_to = ["26725e30-7161-4ff1-a854-4d44a927df9c"]
+test_selectors = [
+    "evidence_core::corpus::lifecycle::tests::timestamps_and_insertion_order_never_affect_evaluation",
+    "corpus_lifecycle::equivalent_file_layouts_evaluate_identically",
+    "evidence_core::corpus::lifecycle::tests::evaluate_all_reports_requirements_in_uid_order",
+    "evidence_core::corpus::lifecycle::tests::review_of_missing_requirement_fails_closed",
+    "evidence_core::corpus::lifecycle::adversarial_tests::mismatched_requirement_field_and_edge_fails_closed",
+    "evidence_core::corpus::lifecycle::adversarial_tests::unsupported_content_schema_fails_closed",
+    "evidence_core::corpus::lifecycle::adversarial_tests::supersession_cycle_fails_closed",
+]

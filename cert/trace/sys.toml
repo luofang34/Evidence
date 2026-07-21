@@ -1078,3 +1078,44 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "9612ccb9-294a-4682-88b3-b78cbd34e7e6"
+id = "SYS-040"
+title = "Every requirement's effective lifecycle state is derived deterministically from digest-bound reviews, never stored"
+owner = "soi"
+scope = "soi"
+description = """
+Every requirement shall have exactly one effective lifecycle state
+— candidate, approved, rejected, or stale — derived by a pure
+evaluation over the requirement's review records, never stored as
+a mutable field on the requirement and never toggled by any
+caller. The evaluation shall bind exact content: a review decision
+is effective only when its reviewed-content digest equals the
+requirement's current review-content digest, and only
+non-superseded reviews shall be effective.
+
+Rejection shall be fail-closed and take precedence over approval:
+any effective rejection binding the current digest yields
+rejected. Otherwise at least one effective approval binding the
+current digest yields approved. Otherwise an effective approval
+of older content of the same requirement yields stale. Otherwise
+the requirement is a candidate, including a new requirement and
+revised content whose only older decisions were rejections.
+Returning content to a previously approved exact digest shall
+yield approved again, because the digest binds exact content.
+
+The evaluation shall be deterministic: review timestamps, file
+layout, file order, record order, and host shall never affect the
+result, and reporting shall iterate requirements in uid order. An
+approval whose requirement is missing from the graph is invalid
+graph data and shall fail closed; malformed supersession
+histories shall stay rejected at graph validation and shall never
+be masked by lifecycle evaluation. The repository history remains
+the audit trail for the reviewed bytes.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []
