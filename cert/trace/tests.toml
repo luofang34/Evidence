@@ -2155,8 +2155,8 @@ title = "the optional supersedes record field projects into one owned source edg
 owner = "tool"
 traces_to = ["7009cf8b-c608-4aa0-9dc6-9fb8f6065f2e"]
 test_selectors = [
-    "evidence_core::corpus::source::tests::supersedes_field_projects_one_owned_edge",
-    "evidence_core::corpus::source::tests::malformed_supersedes_uid_fails_closed",
+    "evidence_core::corpus::source::tests_records::supersedes_field_projects_one_owned_edge",
+    "evidence_core::corpus::source::tests_records::malformed_supersedes_uid_fails_closed",
 ]
 
 [[tests]]
@@ -2166,9 +2166,9 @@ title = "source supersedes edges satisfy the endpoint contract, reject every oth
 owner = "tool"
 traces_to = ["c361eb28-be02-4d61-8f28-5d084bf5d1fb"]
 test_selectors = [
-    "evidence_core::corpus::source::lineage::tests::source_supersedes_source_satisfies_endpoint_contract",
-    "evidence_core::corpus::source::lineage::tests::non_source_supersedes_endpoints_fail_closed",
-    "evidence_core::corpus::source::lineage::tests::dangling_source_supersedes_fails_closed",
+    "evidence_core::corpus::source::lineage::endpoint_tests::source_supersedes_source_satisfies_endpoint_contract",
+    "evidence_core::corpus::source::lineage::endpoint_tests::non_source_supersedes_endpoints_fail_closed",
+    "evidence_core::corpus::source::lineage::endpoint_tests::dangling_source_supersedes_fails_closed",
 ]
 
 [[tests]]

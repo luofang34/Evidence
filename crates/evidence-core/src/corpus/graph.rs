@@ -123,12 +123,16 @@ impl CorpusGraph {
     /// contract, then enforce the per-node review invariants
     /// (exactly one `Reviews` edge agreeing with `requirement_uid`,
     /// supported content schema), then validate review supersession
-    /// chains (LLR-115). Review failures surface as
-    /// [`CorpusError::Review`] wrapping the typed review error.
+    /// chains (LLR-115), then validate source-revision lineage
+    /// chains (LLR-130). Review failures surface as
+    /// [`CorpusError::Review`] wrapping the typed review error;
+    /// source lineage failures surface as [`CorpusError::Source`]
+    /// wrapping the typed source error.
     pub fn validate(&self) -> Result<(), CorpusError> {
         validation::validate_edges(self)?;
         review_invariants::validate_review_nodes(self)?;
         supersession::validate_review_supersession(self)?;
+        super::source::lineage::validate_source_lineage(self)?;
         Ok(())
     }
 }

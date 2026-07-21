@@ -311,9 +311,10 @@ pub enum SourceCapture {
 /// `document_key` groups revisions of one logical document, and the
 /// typed [`SourceMaterial`] records what was captured. Structural
 /// source graph nodes are a different node kind and are not this
-/// node. Source revisions carry no edges at this layer; the field
-/// exists so the shared insert path can canonicalize it, and it
-/// stays empty.
+/// node. A revision owns at most one [`EdgeKind::Supersedes`] edge
+/// naming the prior revision of the same document key (LLR-128);
+/// the lineage validator enforces the single-chain invariant
+/// (LLR-130).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceRevisionNode {
     /// Permanent identity, unique across all node kinds.
@@ -333,8 +334,9 @@ pub struct SourceRevisionNode {
     pub canonical_location: String,
     /// Typed material state of the revision.
     pub material: SourceMaterial,
-    /// Outgoing typed edges `(kind, target uid)`. Always empty at
-    /// this layer; revision-chain edges are follow-up work.
+    /// Outgoing typed edges `(kind, target uid)`. A revision owns
+    /// at most one [`EdgeKind::Supersedes`] edge, naming the prior
+    /// revision of the same document key it supersedes (LLR-128).
     pub edges: Vec<(EdgeKind, String)>,
 }
 

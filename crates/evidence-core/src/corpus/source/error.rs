@@ -1,13 +1,23 @@
-//! Typed errors for source-revision record loading (LLR-125).
+//! Typed errors for source-revision record loading, lineage
+//! validation, and baseline transitions (LLR-125, LLR-130,
+//! LLR-132).
 //!
 //! [`SourceError`] is the single error type of the source-revision
 //! pipeline: `load_sources_into` fails closed on unreadable or
 //! malformed files, newer schemas, invalid uids, invalid record
-//! fields, and graph identity collisions. The record-loading
-//! variants mirror their [`CorpusError`] counterparts field for
-//! field so a source file and a requirement file report the same
-//! degenerate input identically; [`CorpusError::Source`] wraps this
-//! type so `CorpusIndex::load_graph` keeps one error type.
+//! fields, and graph identity collisions; lineage validation fails
+//! closed on self-links, cross-document links, duplicate outgoing
+//! edges, forks, cycles, and multiple roots or heads for one
+//! document key; and transition comparison fails closed on
+//! removal, mutation, competing heads, and invalid input graphs.
+//! The record-loading variants mirror their [`CorpusError`]
+//! counterparts field for field so a source file and a requirement
+//! file report the same degenerate input identically;
+//! [`CorpusError::Source`] wraps this type so
+//! `CorpusIndex::load_graph` and [`CorpusGraph::validate`] keep
+//! one error type.
+//!
+//! [`CorpusGraph::validate`]: super::super::graph::CorpusGraph::validate
 
 use std::path::PathBuf;
 
@@ -123,9 +133,10 @@ pub enum SourceError {
         duplicate_uid: String,
     },
     /// One node declared the same typed edge more than once.
-    /// Source-revision records declare no edges, so record loading
-    /// cannot produce this shape; the variant mirrors the closed
-    /// `insert` contract field for field.
+    /// Source-revision records name a single optional `supersedes`
+    /// target, so record loading cannot produce this shape; the
+    /// variant mirrors the closed `insert` contract field for
+    /// field.
     ///
     /// [`insert`]: super::super::graph::CorpusGraph::insert
     #[error("duplicate {kind:?} edge from {from} to {to}")]
@@ -263,6 +274,159 @@ pub enum SourceError {
         value: String,
         /// The lexical rule the path violated.
         rule: VendoredPathRule,
+    },
+    /// A source revision named itself as its own supersedes target;
+    /// a revision supersedes a strictly prior revision (LLR-130).
+    #[error("source revision {uid} supersedes itself")]
+    SourceSupersessionSelf {
+        /// The offending revision's uid.
+        uid: String,
+    },
+    /// A source revision superseded a revision of a different
+    /// document key; supersession links only revisions of one
+    /// logical document (LLR-130).
+    #[error(
+        "source revision {uid} supersedes {predecessor_uid}, which belongs to a different document key"
+    )]
+    SourceSupersessionDocumentKey {
+        /// The superseding revision's uid.
+        uid: String,
+        /// The prior revision's uid.
+        predecessor_uid: String,
+    },
+    /// A source revision owned more than one outgoing supersedes
+    /// edge; a revision supersedes at most one predecessor
+    /// (LLR-130). The record loader cannot produce this shape (a
+    /// record names a single optional `supersedes`), so this
+    /// invariant guards programmatically built graphs.
+    #[error(
+        "source revision {source_uid} owns {count} supersedes edges; \
+         a revision supersedes at most one predecessor"
+    )]
+    SourceDuplicateSupersedesEdge {
+        /// Uid of the revision that owns the edges.
+        source_uid: String,
+        /// Number of outgoing supersedes edges found.
+        count: usize,
+    },
+    /// A source revision is superseded by more than one other
+    /// revision — a fork in the document lineage (LLR-130). This is
+    /// the dual direction of the per-revision outgoing check: a
+    /// revision supersedes at most one predecessor, and a
+    /// predecessor is superseded by at most one revision.
+    #[error(
+        "source revision {uid} is superseded by both {first_uid} and {second_uid}; \
+         a revision is superseded by at most one successor"
+    )]
+    SourceSupersessionFork {
+        /// The forked revision's uid.
+        uid: String,
+        /// Uid of the first superseding revision (uid order).
+        first_uid: String,
+        /// Uid of the second superseding revision (uid order).
+        second_uid: String,
+    },
+    /// Walking a source supersession chain revisited a revision;
+    /// every document lineage is acyclic (LLR-130).
+    #[error("source supersession cycle detected at revision {uid}")]
+    SourceSupersessionCycle {
+        /// A revision uid on the cycle.
+        uid: String,
+    },
+    /// One document key has more than one root revision — a
+    /// revision that supersedes nothing — so the lineage is not a
+    /// single chain (LLR-130).
+    #[error(
+        "document key {document_key} has multiple unrelated roots {first_uid} and {second_uid}; \
+         a document lineage is a single chain with exactly one root"
+    )]
+    SourceLineageMultipleRoots {
+        /// The document key with multiple roots.
+        document_key: String,
+        /// Uid of the first root revision (uid order).
+        first_uid: String,
+        /// Uid of the second root revision (uid order).
+        second_uid: String,
+    },
+    /// One document key has more than one effective head — a
+    /// revision no other revision supersedes — so the lineage has
+    /// no single newest revision (LLR-130). Defense in depth: an
+    /// acyclic lineage with at most one edge per direction has
+    /// equally many roots and heads, so
+    /// [`SourceError::SourceLineageMultipleRoots`] reports the
+    /// violating lineage first through the public validators.
+    #[error(
+        "document key {document_key} has multiple effective heads {first_uid} and {second_uid}; \
+         a document lineage has exactly one effective head"
+    )]
+    SourceLineageMultipleHeads {
+        /// The document key with multiple heads.
+        document_key: String,
+        /// Uid of the first head revision (uid order).
+        first_uid: String,
+        /// Uid of the second head revision (uid order).
+        second_uid: String,
+    },
+    /// A graph failed [`CorpusGraph::validate`] before a source
+    /// transition comparison could run on it
+    /// (LLR-132). [`validate_source_transition`] validates the
+    /// prior graph before comparing and the proposed graph after
+    /// comparing, and fails closed with the [`CorpusError`]
+    /// carried as the typed source (never stringified), so callers
+    /// can match the exact broken invariant. Boxed because
+    /// `CorpusError` is large enough to trip `result_large_err` on
+    /// some platforms.
+    ///
+    /// [`CorpusGraph::validate`]: super::super::graph::CorpusGraph::validate
+    /// [`validate_source_transition`]: super::lineage::validate_source_transition
+    #[error("{graph} corpus graph failed validation: {source}")]
+    SourceTransitionInvalidGraph {
+        /// Which graph failed: `"prior"` or `"proposed"`.
+        graph: &'static str,
+        /// The validation error, carried whole.
+        #[source]
+        source: Box<CorpusError>,
+    },
+    /// A source revision of the prior baseline is absent from the
+    /// proposed graph; revisions are immutable and can never be
+    /// silently removed (LLR-132).
+    #[error(
+        "source revision {uid} of the prior baseline is absent from the proposed graph; \
+         revisions are immutable and cannot be removed"
+    )]
+    SourceTransitionRemoval {
+        /// The removed revision's uid.
+        uid: String,
+    },
+    /// A source revision's immutable projection differs between
+    /// the prior and proposed graphs; revisions are immutable and
+    /// can never be edited in place, so new bytes require a new
+    /// `src_` uid and a supersedes edge (LLR-132).
+    #[error(
+        "source revision {uid} differs in field {field}; \
+         revisions are immutable and cannot be edited in place"
+    )]
+    SourceTransitionMutation {
+        /// The mutated revision's uid.
+        uid: String,
+        /// The projection field that differs.
+        field: &'static str,
+    },
+    /// A new source revision joining an existing document key does
+    /// not supersede that document's prior effective head; a new
+    /// revision must extend the prior head, never compete with it
+    /// (LLR-132).
+    #[error(
+        "source revision {uid} joins document key {document_key} without superseding \
+         the prior effective head {prior_head_uid}; a new revision must extend the prior head"
+    )]
+    SourceTransitionCompetingHead {
+        /// The competing revision's uid.
+        uid: String,
+        /// The document key it joins.
+        document_key: String,
+        /// Uid of the prior effective head it had to supersede.
+        prior_head_uid: String,
     },
     /// `CorpusGraph::insert` failed with a variant outside its
     /// closed error contract. The contract — identity collisions

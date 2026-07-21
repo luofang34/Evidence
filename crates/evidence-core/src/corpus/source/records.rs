@@ -5,12 +5,16 @@
 //! one revision of a source document: identity (`src_<UUIDv4>` uid,
 //! human-readable revision id, stable document lineage key),
 //! descriptive audit fields (title, media type, canonical location),
-//! and a typed [`SourceMaterial`] state. Everything degenerate fails
-//! closed with a typed [`SourceError`] naming the file path and the
-//! record's id and uid: unknown fields, a newer file schema,
-//! malformed uids or timestamps, a malformed media type, blank
-//! required strings, an incomplete material or capture combination,
-//! and an unsafe or non-canonical vendored path.
+//! a typed [`SourceMaterial`] state, and an optional `supersedes`
+//! link naming the prior revision of the same logical document —
+//! projected into the node as one owned [`EdgeKind::Supersedes`]
+//! edge from the newer revision to the prior revision (LLR-128).
+//! Everything degenerate fails closed with a typed [`SourceError`]
+//! naming the file path and the record's id and uid: unknown fields,
+//! a newer file schema, malformed uids or timestamps, a malformed
+//! media type, blank required strings, an incomplete material or
+//! capture combination, and an unsafe or non-canonical vendored
+//! path.
 //!
 //! `canonical_location` is opaque audit identity: preserved exactly,
 //! never fetched or normalized as a URL. `retrieved_at` is audit
@@ -22,7 +26,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use super::super::graph::{CorpusGraph, Node, SourceCapture, SourceMaterial, SourceRevisionNode};
+use super::super::graph::{
+    CorpusGraph, EdgeKind, Node, SourceCapture, SourceMaterial, SourceRevisionNode,
+};
 use super::super::records::validate_native_uid;
 use super::SOURCE_UID_PREFIX;
 use super::error::{SourceError, VendoredPathRule};
@@ -64,6 +70,10 @@ pub struct SourceRevisionRecord {
     pub canonical_location: String,
     /// Typed material state of the revision.
     pub material: SourceMaterial,
+    /// Optional `src_<UUIDv4>` of the prior revision of the same
+    /// logical document this record supersedes (LLR-128).
+    #[serde(default)]
+    pub supersedes: Option<String>,
 }
 
 /// Parse the source file at `path` and insert its records into
@@ -92,6 +102,10 @@ pub(crate) fn load_sources_into(path: &Path, graph: &mut CorpusGraph) -> Result<
     }
     for record in file.sources {
         validate_record(path, &record)?;
+        let mut edges = Vec::new();
+        if let Some(target) = record.supersedes {
+            edges.push((EdgeKind::Supersedes, target));
+        }
         graph
             .insert(Node::SourceRevision(SourceRevisionNode {
                 uid: record.uid,
@@ -101,7 +115,7 @@ pub(crate) fn load_sources_into(path: &Path, graph: &mut CorpusGraph) -> Result<
                 media_type: record.media_type,
                 canonical_location: record.canonical_location,
                 material: record.material,
-                edges: Vec::new(),
+                edges,
             }))
             .map_err(SourceError::from_insert)?;
     }
@@ -153,6 +167,9 @@ fn validate_record(path: &Path, record: &SourceRevisionRecord) -> Result<(), Sou
         });
     }
     validate_material(path, record)?;
+    if let Some(target) = &record.supersedes {
+        validate_source_uid(target)?;
+    }
     Ok(())
 }
 

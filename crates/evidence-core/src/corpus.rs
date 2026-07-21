@@ -73,6 +73,10 @@ pub use review_content::{
 };
 pub use review_records::error::ReviewError;
 pub use source::error::{SourceError, VendoredPathRule};
+pub use source::lineage::{
+    SourceRevisionProjection, effective_source_heads, validate_source_lineage,
+    validate_source_transition,
+};
 
 #[cfg(test)]
 mod tests;
