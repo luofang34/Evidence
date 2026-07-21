@@ -8,7 +8,9 @@ use super::tests_support::*;
 use super::{
     ProposalError, ProposalStore, RequirementLifecycle, ReviewContentDigest, evaluate_lifecycle,
 };
-use crate::corpus::{CorpusIndex, EdgeKind, LifecycleError};
+use crate::corpus::{
+    CorpusIndex, EdgeKind, LifecycleError, RequirementLayer, review_content_digest_v1,
+};
 
 /// A malformed graph fails the revision guard before any write,
 /// and the lifecycle error is preserved as the typed source —
@@ -251,4 +253,46 @@ fn snapshot(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
         }
     }
     map
+}
+
+/// A revision can rewrite a derived candidate's `safety_impact`:
+/// the replacement content round-trips, and the field is bound
+/// into the optimistic-concurrency digest domain, so the changed
+/// content digests differently (TEST-140).
+#[test]
+fn revise_changing_safety_impact_moves_current_digest() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let store = open_store(&dir);
+    let graph = derived_candidate_graph();
+    let projected = graph.review_content(REQ_A).expect("projects content");
+    assert_eq!(
+        projected.safety_impact.as_deref(),
+        Some("high"),
+        "the fixture carries a normative safety_impact"
+    );
+    let before = current_digest(&graph, REQ_A);
+
+    let mut revised = content("replacement");
+    revised.layer = RequirementLayer::Derived;
+    revised.safety_impact = Some("low".to_string());
+    let outcome = store
+        .append_revise_candidate_blocking(&graph, REQ_A, before.clone(), SUBMITTER, revised.clone())
+        .expect("revise appends");
+    let read = ProposalStore::read_proposal_blocking(&outcome.path).expect("reads back");
+    let super::ProposalAction::ReviseCandidate {
+        content: read_content,
+        ..
+    } = read.proposal.action
+    else {
+        panic!("revise action round-trips");
+    };
+    assert_eq!(read_content, revised);
+
+    let mut after = projected.clone();
+    after.safety_impact = revised.safety_impact.clone();
+    assert_ne!(
+        before,
+        review_content_digest_v1(&after),
+        "changing safety_impact moves the current digest"
+    );
 }

@@ -2053,6 +2053,7 @@ test_selectors = [
     "evidence_core::corpus::proposal::tests::partial_write_read_back_fails_closed",
     "evidence_core::corpus::proposal::tests::read_back_refuses_newer_schema_and_bad_fields",
     "evidence_core::corpus::proposal::tests::schema_negative_actions_fail_closed",
+    "evidence_core::corpus::proposal::tests::wrong_typed_safety_impact_fails_closed",
     "evidence_core::corpus::proposal::tests::concurrent_appends_never_overwrite",
     "evidence_core::corpus::proposal::tests_content::canonical_content_appends_and_reads_back",
     "evidence_core::corpus::proposal::tests_content::blank_title_fails_closed_on_append_and_read",
@@ -2061,6 +2062,8 @@ test_selectors = [
     "evidence_core::corpus::proposal::tests_content::duplicate_derives_from_fails_closed_on_append_and_read",
     "evidence_core::corpus::proposal::tests_content::unordered_verification_methods_fail_closed_on_append_and_read",
     "evidence_core::corpus::proposal::tests_content::duplicate_verification_methods_fail_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::tests_content::create_with_safety_impact_round_trips",
+    "evidence_core::corpus::proposal::tests_content::create_without_safety_impact_round_trips_as_none",
     "evidence_core::corpus::proposal::record::tests::file_digest_from_hex_rejects_malformed_input",
     "evidence_core::corpus::proposal::record::tests::file_digest_round_trips_through_serde",
 ]
@@ -2082,5 +2085,6 @@ test_selectors = [
     "evidence_core::corpus::proposal::tests_guards::revise_of_missing_requirement_fails_closed",
     "evidence_core::corpus::proposal::tests_guards::revise_with_malformed_base_uid_fails_closed",
     "evidence_core::corpus::proposal::tests_guards::revise_with_invalid_graph_preserves_lifecycle_source",
+    "evidence_core::corpus::proposal::tests_guards::revise_changing_safety_impact_moves_current_digest",
     "evidence_core::corpus::proposal::tests_guards::append_leaves_corpus_baseline_byte_identical",
 ]

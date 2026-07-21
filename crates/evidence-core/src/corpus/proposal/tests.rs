@@ -383,3 +383,19 @@ fn concurrent_appends_never_overwrite() {
         );
     }
 }
+
+/// A wrong-typed `safety_impact` fails closed at parse: the
+/// strict schema accepts only the optional string (TEST-139).
+#[test]
+fn wrong_typed_safety_impact_fails_closed() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let block = format!(
+        "[proposal.action]\naction = \"create_candidate\"\ncandidate_uid = \"{REQ_A}\"\n\n\
+         [proposal.action.content]\ntitle = \"t\"\nlayer = \"derived\"\nsafety_impact = 42\n"
+    );
+    let err = read_err(&dir, "bad-safety-impact.toml", &doc(&block));
+    assert!(
+        matches!(err, ProposalError::ProposalParse { .. }),
+        "a wrong-typed safety_impact must fail closed, got: {err:?}"
+    );
+}

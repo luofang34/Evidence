@@ -5,6 +5,7 @@
 
 use super::tests_support::*;
 use super::{ProposalError, ProposalStore, ProposedRequirementContent};
+use crate::corpus::RequirementLayer;
 
 /// The canonical-form positive case: sorted unique verification
 /// methods, valid unique `derives_from` targets, and a non-blank
@@ -243,5 +244,64 @@ fn duplicate_verification_methods_fail_closed_on_append_and_read() {
             ProposalError::ProposalContentVerificationMethodsDuplicate { .. }
         ),
         "read-back rejects duplicated methods, got: {err:?}"
+    );
+}
+
+/// A derived-layer create carries `safety_impact` through the
+/// strict schema: the minted file names the field and strict
+/// read-back equals the submitted record (TEST-139).
+#[test]
+fn create_with_safety_impact_round_trips() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let store = open_store(&dir);
+    let mut derived = content("derived candidate");
+    derived.layer = RequirementLayer::Derived;
+    derived.safety_impact = Some("high".to_string());
+    let outcome = store
+        .append_create_candidate_blocking(SUBMITTER, derived.clone())
+        .expect("append succeeds");
+    let bytes = std::fs::read_to_string(&outcome.path).expect("file exists");
+    assert!(
+        bytes.contains("safety_impact = \"high\""),
+        "the minted proposal file carries the field, got:\n{bytes}"
+    );
+
+    let read = ProposalStore::read_proposal_blocking(&outcome.path).expect("reads back");
+    let super::ProposalAction::CreateCandidate {
+        content: read_content,
+        ..
+    } = read.proposal.action
+    else {
+        panic!("create action round-trips");
+    };
+    assert_eq!(read_content, derived);
+}
+
+/// A create omitting `safety_impact` round-trips as `None`, and
+/// the minted file names no such key (TEST-139).
+#[test]
+fn create_without_safety_impact_round_trips_as_none() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let store = open_store(&dir);
+    let outcome = store
+        .append_create_candidate_blocking(SUBMITTER, content("plain candidate"))
+        .expect("append succeeds");
+    let bytes = std::fs::read_to_string(&outcome.path).expect("file exists");
+    assert!(
+        !bytes.contains("safety_impact"),
+        "an omitted optional field is never serialized, got:\n{bytes}"
+    );
+
+    let read = ProposalStore::read_proposal_blocking(&outcome.path).expect("reads back");
+    let super::ProposalAction::CreateCandidate {
+        content: read_content,
+        ..
+    } = read.proposal.action
+    else {
+        panic!("create action round-trips");
+    };
+    assert!(
+        read_content.safety_impact.is_none(),
+        "an omitted safety_impact reads back as None"
     );
 }
