@@ -3836,3 +3836,119 @@ ordering is deterministic and file layout carries no semantic
 meaning.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "7009cf8b-c608-4aa0-9dc6-9fb8f6065f2e"
+id = "LLR-128"
+title = "corpus::source::records projects the optional supersedes field into one owned source Supersedes edge"
+owner = "tool"
+traces_to = ["ec6dcc6d-3502-4bb0-80f3-eee16091080d"]
+modules = ["evidence_core::corpus::source::records"]
+description = """
+`SourceRevisionRecord` gains an optional `supersedes` field
+naming the prior revision's `src_<UUIDv4>` uid. The record
+validator rejects a malformed value through the shared
+corpus-native uid check — a wrong prefix or a non-UUIDv4 suffix
+fails closed naming the file path and the record — and the loader
+projects a present value into the graph node's edge set as
+exactly one owned `Supersedes` edge from the newer revision to
+the prior revision, an absent value leaving the edge set empty.
+The record schema stays strict on unknown fields, and source
+records split or reordered across files load into equal graphs.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "c361eb28-be02-4d61-8f28-5d084bf5d1fb"
+id = "LLR-129"
+title = "corpus::graph::validation permits SourceRevision Supersedes SourceRevision endpoints and nothing else"
+owner = "tool"
+traces_to = ["ec6dcc6d-3502-4bb0-80f3-eee16091080d"]
+modules = ["evidence_core::corpus::graph::validation"]
+description = """
+The edge endpoint contract gains
+`SourceRevision -> Supersedes -> SourceRevision` alongside the
+retained `Review -> Supersedes -> Review` rule. Every other edge
+combination touching a source revision — a source revision
+superseding a requirement, test, or review, a review superseding
+a source revision, or a source revision owning a `DerivesFrom`,
+`Verifies`, or `Reviews` edge — fails closed with
+`InvalidEdgeKinds` naming both endpoints and their kinds, and a
+source supersedes edge naming an absent uid fails as
+`DanglingEdge` before any domain validation runs. Edge
+canonicalization keeps outgoing edges sorted and duplicate-free
+so graph equality is independent of input edge order.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "c7ad7106-fe17-4997-ba24-bb79d2f925d4"
+id = "LLR-130"
+title = "corpus::source::lineage validates single-chain document lineage inside CorpusGraph::validate"
+owner = "tool"
+traces_to = ["ec6dcc6d-3502-4bb0-80f3-eee16091080d"]
+modules = [
+    "evidence_core::corpus::source::lineage",
+    "evidence_core::corpus::graph",
+]
+description = """
+`validate_source_lineage` runs inside `CorpusGraph::validate`
+after edge resolution, review invariants, and review supersession
+validation, iterating in uid order so the reported violation is
+independent of load order: at most one outgoing supersedes edge
+per revision, no self-links, both revisions of a link sharing one
+document key, at most one incoming supersedes edge per revision
+(fork rejection), no cycles, and exactly one root per document
+key — each violation a distinct typed `SourceError` naming the
+revisions and, for multiple roots, the document key. A dual
+multiple-heads check guards the exactly-one-effective-head
+invariant as defense in depth. Review supersession validation is
+untouched, and source lineage failures surface as
+`CorpusError::Source` wrapping the typed source error.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "965b442b-3d81-455f-94e2-e85a03120ef2"
+id = "LLR-131"
+title = "corpus::source::lineage derives effective source heads as a sorted document-key map"
+owner = "tool"
+traces_to = ["f98775e6-d2b3-4eef-9415-828869141bcc"]
+modules = ["evidence_core::corpus::source::lineage"]
+description = """
+`effective_source_heads` returns a `BTreeMap<String, String>`
+from document key to the effective head revision uid — the
+revision of that document key no other revision supersedes — so
+the view is deterministic, independent of file layout and record
+insertion order, and never selected by timestamps. On a validated
+graph each document key yields exactly one head. The function is
+pure: no I/O, no environment reads, no stored state.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "de0b1eba-151e-4136-bc57-33d810fb1a43"
+id = "LLR-132"
+title = "corpus::source::lineage compares source baselines as a pure immutable-superset transition"
+owner = "tool"
+traces_to = ["ede76850-01e5-4518-987b-023c375f892a"]
+modules = ["evidence_core::corpus::source::lineage"]
+description = """
+`validate_source_transition` compares a prior graph with a
+proposed graph as a pure function of both: the prior graph is
+validated first, then every prior source revision uid must remain
+present with a byte-for-byte-equal typed
+`SourceRevisionProjection` — every node field plus the owned
+supersession edge — with a missing revision a typed
+`SourceTransitionRemoval` and any field difference a typed
+`SourceTransitionMutation` naming the revision uid and the
+differing field, so a replaced digest is a mutation, never an
+update. A new revision of an existing document key must own a
+supersession edge to that document's prior effective head or fail
+as a typed `SourceTransitionCompetingHead`; new document keys are
+free, non-source nodes are ignored, and the proposed graph is
+itself validated so an `Ok` transition implies two valid graphs.
+Both validations and every comparison run with no I/O and no
+environment reads.
+"""
+verification_methods = ["test"]

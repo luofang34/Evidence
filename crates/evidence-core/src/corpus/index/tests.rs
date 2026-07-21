@@ -156,7 +156,8 @@ fn index_resolves_sources_and_loads_them_before_requirements() {
                 "src_00000000-0000-4000-8000-0000000000a1",
                 "src_00000000-0000-4000-8000-0000000000a2",
             )
-            .replace("SRC-1", "SRC-2"),
+            .replace("SRC-1", "SRC-2")
+            .replace("DOC-1", "DOC-2"),
     );
     write(&dir.path().join("reqs/records.toml"), REQ_RECORDS);
     write(&dir.path().join("reviews/a.toml"), REVIEW_1);

@@ -2618,3 +2618,87 @@ content and from any byte-verified claim.
 """
 verification_methods = ["test"]
 traces_to = ["21472521-3496-411f-8832-8c73ca7732a2"]
+
+[[requirements]]
+uid = "ec6dcc6d-3502-4bb0-80f3-eee16091080d"
+id = "HLR-102"
+title = "Source revisions own an optional supersedes link validated as one single acyclic chain per document key"
+owner = "tool"
+scope = "component"
+description = """
+Source revision records shall carry an optional `supersedes`
+reference naming a prior revision of the same logical document,
+validated as a corpus-native `src_` uid and projected into the
+graph node as exactly one owned `Supersedes` edge from the newer
+revision to the prior revision. The edge endpoint contract shall
+permit `SourceRevision -> Supersedes -> SourceRevision` while the
+existing `Review -> Supersedes -> Review` contract and its
+validation behavior remain unchanged.
+
+Source supersession shall be validated by a dedicated
+source-domain validator, separate from the review supersession
+validator. Both revisions of a source supersession link shall
+share one document lineage key; every revision shall carry at
+most one outgoing and at most one incoming supersession edge;
+the chain shall be acyclic; and each document key shall resolve
+to exactly one root and exactly one effective head. Dangling
+targets, self-links, cycles, forks, cross-document links,
+duplicate outgoing edges, and multiple unrelated roots for one
+document key shall each fail closed with a distinct typed error
+naming the offending revisions and, where the lineage key is at
+fault, the document key.
+"""
+verification_methods = ["test"]
+traces_to = ["59138efe-ffe9-4bfb-8224-3447a9764670"]
+
+[[requirements]]
+uid = "ede76850-01e5-4518-987b-023c375f892a"
+id = "HLR-103"
+title = "Source baseline transitions are pure UID-preserving immutable-superset comparisons with distinct typed failures"
+owner = "tool"
+scope = "component"
+description = """
+A source baseline transition shall be a pure core-API comparison
+between a prior validated corpus graph and a proposed validated
+corpus graph, scoped to the source-revision subgraph so unrelated
+node kinds never affect the outcome. Every source revision uid of
+the prior baseline shall remain present in the proposal with a
+byte-for-byte-equivalent typed immutable projection covering
+identity, human-readable id, document lineage key, title, media
+type, canonical location, the full material state including
+retrieval timestamp, digest, and capture identity, and the owned
+supersession edge set. A prior revision absent from the proposal
+shall be a typed removal error; any projection difference shall
+be a typed mutation error naming the revision uid and the
+differing field; a changed digest at the same uid shall therefore
+be rejected, so new bytes require a new `src_` identity.
+
+A new revision joining an existing document key shall extend that
+document's prior effective head through its owned supersedes
+link; an unlinked or wrongly linked new revision shall fail as a
+typed competing-head error. New document keys are unconstrained.
+The comparison shall be a pure function — no I/O, no environment
+reads — and shall never parse repository history for correctness.
+"""
+verification_methods = ["test"]
+traces_to = ["59138efe-ffe9-4bfb-8224-3447a9764670"]
+
+[[requirements]]
+uid = "f98775e6-d2b3-4eef-9415-828869141bcc"
+id = "HLR-104"
+title = "Effective source heads are a deterministic derived view keyed by document key"
+owner = "tool"
+scope = "component"
+description = """
+The effective source head of each document key shall be a derived
+view, never stored state: the one revision of the document key
+that no other revision supersedes. The view shall be returned as
+a sorted document-key-to-uid map so equivalent file layouts and
+record insertion orders derive identical lineage and head views,
+and so reporting order is deterministic. Retrieval timestamps,
+review timestamps, file layout, and record order shall never
+select a head; the owned supersession edge set alone determines
+it.
+"""
+verification_methods = ["test"]
+traces_to = ["59138efe-ffe9-4bfb-8224-3447a9764670"]

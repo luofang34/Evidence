@@ -26,6 +26,7 @@ pub(super) struct RecordSpec {
     pub(super) media_type: String,
     pub(super) canonical_location: String,
     pub(super) material_toml: String,
+    pub(super) supersedes: Option<String>,
 }
 
 /// A valid vendored record; mutate fields or `material_toml` for
@@ -41,18 +42,24 @@ pub(super) fn vendored(uid: &str, id: &str) -> RecordSpec {
         material_toml: format!(
             "state = \"available\"\nretrieved_at = \"2026-07-01T10:00:00Z\"\nsha256 = \"{DIGEST}\"\n\n[sources.material.capture]\nmode = \"vendored\"\npath = \"sources/doc-1/rev-c.pdf\"\n"
         ),
+        supersedes: None,
     }
 }
 
 pub(super) fn record_toml(spec: &RecordSpec) -> String {
+    let supersedes_toml = spec
+        .supersedes
+        .as_ref()
+        .map_or_else(String::new, |target| format!("supersedes = \"{target}\"\n"));
     format!(
-        "\n[[sources]]\nuid = \"{}\"\nid = \"{}\"\ndocument_key = \"{}\"\ntitle = \"{}\"\nmedia_type = \"{}\"\ncanonical_location = \"{}\"\n\n[sources.material]\n{}",
+        "\n[[sources]]\nuid = \"{}\"\nid = \"{}\"\ndocument_key = \"{}\"\ntitle = \"{}\"\nmedia_type = \"{}\"\ncanonical_location = \"{}\"\n{}\n[sources.material]\n{}",
         spec.uid,
         spec.id,
         spec.document_key,
         spec.title,
         spec.media_type,
         spec.canonical_location,
+        supersedes_toml,
         spec.material_toml,
     )
 }

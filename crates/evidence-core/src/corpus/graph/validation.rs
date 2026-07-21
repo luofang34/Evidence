@@ -88,7 +88,8 @@ pub(super) fn validate_edges(graph: &CorpusGraph) -> Result<(), CorpusError> {
 
 /// The endpoint-kind contract per edge kind: a requirement derives
 /// from a requirement, a test verifies a requirement, a review
-/// decides on a requirement and supersedes a review (LLR-115).
+/// decides on a requirement and supersedes a review (LLR-115), and
+/// a source revision supersedes a source revision (LLR-129).
 fn edge_kinds_match(source: NodeKind, edge: EdgeKind, target: NodeKind) -> bool {
     matches!(
         (source, edge, target),
@@ -99,5 +100,10 @@ fn edge_kinds_match(source: NodeKind, edge: EdgeKind, target: NodeKind) -> bool 
         ) | (NodeKind::Test, EdgeKind::Verifies, NodeKind::Requirement)
             | (NodeKind::Review, EdgeKind::Reviews, NodeKind::Requirement)
             | (NodeKind::Review, EdgeKind::Supersedes, NodeKind::Review)
+            | (
+                NodeKind::SourceRevision,
+                EdgeKind::Supersedes,
+                NodeKind::SourceRevision
+            )
     )
 }

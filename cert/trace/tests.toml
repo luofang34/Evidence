@@ -2147,3 +2147,76 @@ test_selectors = [
     "evidence_core::corpus::index::tests::index_source_graphs_kind_stays_unsupported",
     "evidence_core::corpus::index::tests::index_sources_entry_resolving_to_nothing_fails_closed",
 ]
+
+[[tests]]
+uid = "59ef2ba4-2d38-4187-b2fd-38962d2b694e"
+id = "TEST-144"
+title = "the optional supersedes record field projects into one owned source edge and malformed values fail closed"
+owner = "tool"
+traces_to = ["7009cf8b-c608-4aa0-9dc6-9fb8f6065f2e"]
+test_selectors = [
+    "evidence_core::corpus::source::tests_records::supersedes_field_projects_one_owned_edge",
+    "evidence_core::corpus::source::tests_records::malformed_supersedes_uid_fails_closed",
+]
+
+[[tests]]
+uid = "6940574e-7137-4438-bdbb-2e63214ba68b"
+id = "TEST-145"
+title = "source supersedes edges satisfy the endpoint contract, reject every other endpoint pair, and dangle closed"
+owner = "tool"
+traces_to = ["c361eb28-be02-4d61-8f28-5d084bf5d1fb"]
+test_selectors = [
+    "evidence_core::corpus::source::lineage::endpoint_tests::source_supersedes_source_satisfies_endpoint_contract",
+    "evidence_core::corpus::source::lineage::endpoint_tests::non_source_supersedes_endpoints_fail_closed",
+    "evidence_core::corpus::source::lineage::endpoint_tests::dangling_source_supersedes_fails_closed",
+]
+
+[[tests]]
+uid = "51da1053-acf8-4cb1-994c-91c885b68354"
+id = "TEST-146"
+title = "linear chains validate and self-links, cross-document links, duplicate edges, forks, cycles, and multiple roots or heads fail with distinct typed context"
+owner = "tool"
+traces_to = ["c7ad7106-fe17-4997-ba24-bb79d2f925d4"]
+test_selectors = [
+    "evidence_core::corpus::source::lineage::tests::one_two_and_three_revision_chains_validate",
+    "evidence_core::corpus::source::lineage::tests::self_link_fails_closed",
+    "evidence_core::corpus::source::lineage::tests::cross_document_link_fails_closed",
+    "evidence_core::corpus::source::lineage::tests::duplicate_outgoing_edges_fail_closed",
+    "evidence_core::corpus::source::lineage::tests::fork_fails_closed",
+    "evidence_core::corpus::source::lineage::tests::cycle_fails_closed",
+    "evidence_core::corpus::source::lineage::tests::multiple_roots_fail_closed",
+    "evidence_core::corpus::source::lineage::tests::multiple_heads_fail_closed_as_dual_guard",
+    "evidence_core::corpus::source::lineage::tests::review_and_source_chains_validate_in_one_graph",
+]
+
+[[tests]]
+uid = "28c93d1a-5048-4944-a77e-4d1b7d2f98e8"
+id = "TEST-147"
+title = "effective source heads are one deterministic head per document key, invariant under layout, insertion order, and timestamps"
+owner = "tool"
+traces_to = ["965b442b-3d81-455f-94e2-e85a03120ef2"]
+test_selectors = [
+    "evidence_core::corpus::source::lineage::tests::linear_chains_derive_one_deterministic_head",
+    "evidence_core::corpus::source::lineage::tests::layout_and_insertion_order_produce_identical_lineage_and_heads",
+    "evidence_core::corpus::source::lineage::tests::timestamps_never_select_a_head",
+]
+
+[[tests]]
+uid = "91e26cfa-33a8-46fe-bc09-d7554963ed73"
+id = "TEST-148"
+title = "transitions reject mutation, removal, digest replacement, and competing heads with distinct typed errors while proper extensions and non-source differences pass"
+owner = "tool"
+traces_to = ["de0b1eba-151e-4136-bc57-33d810fb1a43"]
+test_selectors = [
+    "evidence_core::corpus::source::lineage::transition_tests::proper_extension_succeeds",
+    "evidence_core::corpus::source::lineage::transition_tests::new_document_key_is_free",
+    "evidence_core::corpus::source::lineage::transition_tests::non_source_differences_are_ignored",
+    "evidence_core::corpus::source::lineage::transition_tests::mutation_of_each_projection_field_fails_naming_the_field",
+    "evidence_core::corpus::source::lineage::transition_tests::silent_removal_fails_closed",
+    "evidence_core::corpus::source::lineage::transition_tests::digest_replacement_at_the_same_uid_fails_closed",
+    "evidence_core::corpus::source::lineage::transition_tests::unlinked_competing_revision_fails_closed",
+    "evidence_core::corpus::source::lineage::transition_tests::mid_chain_insertion_is_a_supersedes_mutation",
+    "evidence_core::corpus::source::lineage::transition_tests::prior_graph_must_validate",
+    "evidence_core::corpus::source::lineage::transition_tests::proposed_graph_must_validate",
+    "evidence_core::corpus::source::lineage::transition_tests::linked_revision_loads_and_transitions_through_corpus_index",
+]

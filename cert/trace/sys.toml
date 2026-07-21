@@ -1233,3 +1233,49 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "59138efe-ffe9-4bfb-8224-3447a9764670"
+id = "SYS-044"
+title = "Source document revisions form one immutable single-chain lineage per document and baseline transitions fail closed on mutation"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall treat source document revisions as immutable graph
+objects. A new capture for the same logical document shall extend
+one explicit revision chain through a typed supersedes link owned
+by the newer revision and pointing at the prior revision; editing
+an existing revision in place or creating an unrelated competing
+head shall fail closed. Source supersession shall be validated
+through a source-domain validator separate from review
+supersession, and a supersession link shall require both revisions
+to share one document lineage key.
+
+Each document lineage shall be a single acyclic chain: one root,
+at most one predecessor and at most one successor per revision,
+and exactly one effective head. Dangling targets, self-links,
+cycles, forks, cross-document links, duplicate outgoing edges,
+and multiple unrelated roots for one document key shall each fail
+closed with distinct typed context.
+
+A baseline transition shall be a pure comparison between a prior
+validated baseline and a proposed validated baseline, scoped to
+the source-revision subgraph so unrelated node kinds never affect
+the outcome. The proposed subgraph shall be a UID-preserving
+superset of the prior one: every retained revision shall keep a
+byte-for-byte-equivalent typed immutable projection covering every
+revision field plus its owned supersession edge set, and silent
+removal, in-place mutation, digest replacement, or a new unlinked
+competing revision shall each be a distinct typed error. A changed
+digest at the same logical document shall therefore require a new
+`src_` identity and a supersedes link. The effective source head
+of each document key shall be a deterministic derived view in
+which timestamps and file order never select a head. Correctness
+shall depend only on the core graph API; repository history is
+audit evidence and shall never be parsed for correctness.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

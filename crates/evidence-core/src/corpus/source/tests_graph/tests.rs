@@ -106,9 +106,15 @@ fn source_revision_nodes_iterate_in_canonical_uid_order() {
 /// in any record order (TEST-142).
 #[test]
 fn layout_split_and_record_order_produce_identical_graphs() {
-    let record_a = record_toml(&vendored(SRC_1, "SRC-1"));
-    let record_b = record_toml(&vendored(SRC_2, "SRC-2"));
-    let record_c = record_toml(&vendored(SRC_3, "SRC-3"));
+    let mut spec_a = vendored(SRC_1, "SRC-1");
+    spec_a.document_key = "DOC-A".to_string();
+    let mut spec_b = vendored(SRC_2, "SRC-2");
+    spec_b.document_key = "DOC-B".to_string();
+    let mut spec_c = vendored(SRC_3, "SRC-3");
+    spec_c.document_key = "DOC-C".to_string();
+    let record_a = record_toml(&spec_a);
+    let record_b = record_toml(&spec_b);
+    let record_c = record_toml(&spec_c);
 
     let one = tempfile::tempdir().unwrap();
     write(
@@ -149,14 +155,16 @@ fn layout_split_and_record_order_produce_identical_graphs() {
 
 /// An unavailable revision is valid graph state, distinguishable
 /// from available material by its typed state, and carries no
-/// digest to report as byte-verified; a source revision carrying
-/// any edge fails graph validation (TEST-142).
+/// digest to report as byte-verified; a source revision carrying a
+/// non-supersedes edge fails graph validation (TEST-142).
 #[test]
 fn unavailable_material_is_valid_distinguishable_graph_state() {
     let mut unavailable = vendored(SRC_1, "SRC-1");
     unavailable.material_toml =
         "state = \"unavailable\"\nreason = \"restricted distribution\"".to_string();
-    let graph = load_source_content(&source_file(&[unavailable, vendored(SRC_2, "SRC-2")]))
+    let mut available_spec = vendored(SRC_2, "SRC-2");
+    available_spec.document_key = "DOC-2".to_string();
+    let graph = load_source_content(&source_file(&[unavailable, available_spec]))
         .expect("unavailable material is valid graph state");
     graph.validate().expect("the graph validates");
 
@@ -175,8 +183,9 @@ fn unavailable_material_is_valid_distinguishable_graph_state() {
         "the available sibling stays distinguishable"
     );
 
-    // A source revision carrying an edge fails endpoint validation:
-    // no edge kind accepts a source-revision endpoint at this layer.
+    // A source revision carrying a non-supersedes edge fails
+    // endpoint validation: only `Supersedes` accepts a
+    // source-revision endpoint (LLR-129).
     let mut graph = CorpusGraph::new();
     graph
         .insert(Node::Requirement(crate::corpus::RequirementNode::new(
