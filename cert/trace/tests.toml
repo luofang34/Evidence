@@ -1936,6 +1936,8 @@ test_selectors = [
     "evidence_core::corpus::review_records::tests::malformed_record_fields_fail_closed",
     "evidence_core::corpus::graph::supersession::tests::review_edges_enforce_endpoint_kinds",
     "evidence_core::corpus::graph::supersession::tests::supersession_validation_rejects_invalid_chains",
+    "evidence_core::corpus::graph::supersession::tests::review_with_two_outgoing_supersedes_edges_is_rejected",
+    "evidence_core::corpus::review_records::insert_error_tests::insert_errors_lift_into_review_errors_without_panicking",
     "evidence_core::corpus::graph::review_invariants::tests::review_node_with_mismatched_requirement_field_and_edge_is_rejected",
     "evidence_core::corpus::graph::review_invariants::tests::programmatic_review_with_unsupported_content_schema_is_rejected",
     "evidence_core::corpus::graph::review_invariants::tests::review_node_without_reviews_edge_is_rejected",

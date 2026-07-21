@@ -207,5 +207,15 @@ fn validate_review_uid(uid: &str) -> Result<(), ReviewError> {
     clippy::panic,
     reason = "test setup failures should panic immediately"
 )]
+#[path = "review_records/insert_error_tests.rs"]
+mod insert_error_tests;
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
 #[path = "review_records/tests.rs"]
 mod tests;
