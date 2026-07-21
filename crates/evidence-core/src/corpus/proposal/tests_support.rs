@@ -6,12 +6,12 @@ use std::path::Path;
 use tempfile::TempDir;
 
 use super::{
-    AppendOutcome, CorpusError, CorpusGraph, ProposalStore, ProposedRequirementContent,
-    RequirementLayer, ReviewContentDigest,
+    AppendOutcome, CorpusGraph, ProposalError, ProposalStore, ProposedRequirementContent,
+    ReviewContentDigest,
 };
 use crate::corpus::{
-    EdgeKind, Node, RequirementNode, RequirementReviewContentV1, ReviewDecision, ReviewNode,
-    review_content_digest_v1,
+    EdgeKind, Node, RequirementLayer, RequirementNode, RequirementReviewContentV1, ReviewDecision,
+    ReviewNode, review_content_digest_v1,
 };
 
 pub(super) const REQ_A: &str = "req_00000000-0000-4000-8000-00000000000a";
@@ -132,7 +132,7 @@ pub(super) fn revise(
     graph: &CorpusGraph,
     uid: &str,
     digest: ReviewContentDigest,
-) -> Result<AppendOutcome, CorpusError> {
+) -> Result<AppendOutcome, ProposalError> {
     store.append_revise_candidate_blocking(graph, uid, digest, SUBMITTER, content("replacement"))
 }
 
@@ -150,10 +150,21 @@ pub(super) fn doc(action_block: &str) -> String {
     )
 }
 
-pub(super) fn read_err(dir: &TempDir, name: &str, text: &str) -> CorpusError {
+pub(super) fn read_err(dir: &TempDir, name: &str, text: &str) -> ProposalError {
     let path = dir.path().join(name);
     std::fs::write(&path, text).expect("write fixture");
     ProposalStore::read_proposal_blocking(&path).expect_err("must fail closed")
+}
+
+/// Number of entries beneath `dir`, excluding the root directory
+/// itself: 0 means the directory is empty. Uses `walkdir`, the
+/// workspace-sanctioned walker, with links unfollowed.
+pub(super) fn entry_count(dir: &TempDir) -> usize {
+    walkdir::WalkDir::new(dir.path())
+        .follow_links(false)
+        .into_iter()
+        .count()
+        .saturating_sub(1)
 }
 
 pub(super) fn write(path: &Path, text: &str) {

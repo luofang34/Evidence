@@ -37,6 +37,22 @@
 //! written proposal fails closed when read through
 //! [`ProposalStore::read_proposal_blocking`].
 //!
+//! The returned [`AppendOutcome::content_digest`] is a
+//! [`ProposalFileDigest`]: SHA-256 over the raw proposal FILE
+//! BYTES as written. That domain is distinct from
+//! [`ReviewContentDigest`](super::ReviewContentDigest) — SHA-256
+//! over the canonical review-content encoding — and the two are
+//! never interchangeable.
+//!
+//! # Semantic content validation
+//!
+//! [`ProposedRequirementContent`] is validated semantically —
+//! non-blank title, valid duplicate-free `derives_from` targets,
+//! verification methods sorted and duplicate-free as written — in
+//! BOTH append entry points (before anything is written) and on
+//! strict read-back, each rule failing closed with its own typed
+//! [`ProposalError`] variant.
+//!
 //! # Revision guards
 //!
 //! [`ProposalStore::append_revise_candidate_blocking`] verifies,
@@ -47,126 +63,37 @@
 //! demote approved content — and that the caller's expected digest
 //! equals the requirement's current review-content digest
 //! (optimistic concurrency). Every failure is a typed
-//! [`CorpusError`] carrying the uid and the offending state or
-//! digests.
+//! [`ProposalError`]: a genuinely absent target is
+//! [`ProposalError::ProposalTargetMissing`], a failed evaluation
+//! (malformed graph) is [`ProposalError::ProposalLifecycleEvaluation`]
+//! carrying the original [`LifecycleError`](super::LifecycleError)
+//! as its typed source, and guard rejections name the uid and the
+//! offending state or digests.
 
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::digest::ReviewContentDigest;
-use super::error::CorpusError;
-use super::graph::{CorpusGraph, RequirementLayer};
+use super::graph::CorpusGraph;
 use super::lifecycle::{RequirementLifecycle, evaluate_lifecycle};
 use super::records::{REQUIREMENT_UID_PREFIX, validate_native_uid};
+
+mod error;
+mod record;
+
+pub use error::ProposalError;
+pub use record::{
+    ProposalAction, ProposalFile, ProposalFileDigest, ProposalRecord, ProposedRequirementContent,
+};
 
 /// Highest proposal-file schema version this tool loads (LLR-122).
 pub const SUPPORTED_PROPOSAL_SCHEMA: u32 = 1;
 
 /// Typed uid prefix for proposal records (LLR-122).
 pub const PROPOSAL_UID_PREFIX: &str = "prop_";
-
-/// The only two representable proposal actions (LLR-122).
-///
-/// Serde snake_case with the tag named `action`; any other tag —
-/// `approve`, `reject`, `delete`, a review/source/baseline/file
-/// mutation — fails deserialization, so excluded capabilities are
-/// unrepresentable rather than merely rejected.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
-pub enum ProposalAction {
-    /// Propose a complete new candidate requirement. The store
-    /// mints `candidate_uid` (`req_<UUIDv4>`); the proposed content
-    /// carries no identity of its own.
-    CreateCandidate {
-        /// Store-minted uid of the candidate this proposal would
-        /// create: `req_<UUIDv4>`, validated on read.
-        candidate_uid: String,
-        /// Complete content of the proposed candidate.
-        content: ProposedRequirementContent,
-    },
-    /// Propose complete replacement content for an existing
-    /// candidate, carrying the expected current content digest for
-    /// optimistic concurrency.
-    ReviseCandidate {
-        /// Uid of the candidate to revise: `req_<UUIDv4>`,
-        /// validated on read.
-        base_uid: String,
-        /// Digest the submitter believes the current content has;
-        /// the append fails closed when it has moved.
-        expected_current_digest: ReviewContentDigest,
-        /// Complete replacement content.
-        content: ProposedRequirementContent,
-    },
-}
-
-/// Full replacement content for a candidate (LLR-122).
-///
-/// Mirrors the [`RequirementReviewContentV1`](super::RequirementReviewContentV1)
-/// projection fields and nothing else: no uid, human id, owner,
-/// sort key, implementation modules, governed surfaces, or emitted
-/// diagnostics can be smuggled through a proposal.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ProposedRequirementContent {
-    /// One-line requirement title.
-    pub title: String,
-    /// Decomposition layer.
-    pub layer: RequirementLayer,
-    /// Normative requirement description.
-    #[serde(default)]
-    pub description: Option<String>,
-    /// Normative rationale.
-    #[serde(default)]
-    pub rationale: Option<String>,
-    /// Requirement scope.
-    #[serde(default)]
-    pub scope: Option<String>,
-    /// Requirement category.
-    #[serde(default)]
-    pub category: Option<String>,
-    /// Source reference.
-    #[serde(default)]
-    pub source: Option<String>,
-    /// Verification methods.
-    #[serde(default)]
-    pub verification_methods: Vec<String>,
-    /// Canonical `derives_from` target uids.
-    #[serde(default)]
-    pub derives_from: Vec<String>,
-}
-
-/// On-disk shape of a proposal file. Strict: unknown fields are a
-/// parse error (LLR-122).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ProposalFile {
-    /// File schema version; newer than
-    /// [`SUPPORTED_PROPOSAL_SCHEMA`] refuses to load.
-    pub schema_version: u32,
-    /// The proposal record.
-    pub proposal: ProposalRecord,
-}
-
-/// One proposal record (LLR-122).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ProposalRecord {
-    /// Permanent identity: `prop_<UUIDv4>`, store-minted and
-    /// validated on read.
-    pub uid: String,
-    /// Submitter audit identity; non-empty after trimming. Audit
-    /// metadata only — never accepted as proof of authority.
-    pub submitter: String,
-    /// RFC 3339 submission timestamp, store-minted. Metadata only;
-    /// never ordering authority.
-    pub submitted_at: String,
-    /// The proposed action — exactly the two representable kinds.
-    pub action: ProposalAction,
-}
 
 /// The result of one successful append (LLR-123).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,8 +107,10 @@ pub struct AppendOutcome {
     /// Store-minted `req_<UUIDv4>` of the proposed candidate for a
     /// create action; `None` for a revision.
     pub candidate_uid: Option<String>,
-    /// Typed digest of the exact bytes written to `path`.
-    pub content_digest: ReviewContentDigest,
+    /// Typed digest of the exact bytes written to `path`: SHA-256
+    /// over the raw proposal file bytes, a domain distinct from
+    /// the review-content digest.
+    pub content_digest: ProposalFileDigest,
 }
 
 /// The append-only proposal store (LLR-123).
@@ -200,30 +129,30 @@ impl ProposalStore {
     ///
     /// # Errors
     ///
-    /// Fails closed with [`CorpusError::ProposalRootMissing`] when
-    /// `root` does not exist or cannot be resolved,
-    /// [`CorpusError::ProposalRootSymlink`] when it is a symlink
+    /// Fails closed with [`ProposalError::ProposalRootMissing`]
+    /// when `root` does not exist or cannot be resolved,
+    /// [`ProposalError::ProposalRootSymlink`] when it is a symlink
     /// (checked before any following), and
-    /// [`CorpusError::ProposalRootNotADirectory`] when it is not a
-    /// directory.
-    pub fn new(root: &Path) -> Result<Self, CorpusError> {
+    /// [`ProposalError::ProposalRootNotADirectory`] when it is not
+    /// a directory.
+    pub fn new(root: &Path) -> Result<Self, ProposalError> {
         let metadata =
-            std::fs::symlink_metadata(root).map_err(|_| CorpusError::ProposalRootMissing {
+            std::fs::symlink_metadata(root).map_err(|_| ProposalError::ProposalRootMissing {
                 path: root.to_path_buf(),
             })?;
         if metadata.file_type().is_symlink() {
-            return Err(CorpusError::ProposalRootSymlink {
+            return Err(ProposalError::ProposalRootSymlink {
                 path: root.to_path_buf(),
             });
         }
         if !metadata.is_dir() {
-            return Err(CorpusError::ProposalRootNotADirectory {
+            return Err(ProposalError::ProposalRootNotADirectory {
                 path: root.to_path_buf(),
             });
         }
         let canonical = root
             .canonicalize()
-            .map_err(|_| CorpusError::ProposalRootMissing {
+            .map_err(|_| ProposalError::ProposalRootMissing {
                 path: root.to_path_buf(),
             })?;
         Ok(Self { root: canonical })
@@ -235,14 +164,21 @@ impl ProposalStore {
     ///
     /// # Errors
     ///
-    /// [`CorpusError::ProposalSubmitter`] on an empty submitter;
-    /// serialization, exclusive-creation, and I/O failures from the
-    /// shared append path.
+    /// [`ProposalError::ProposalSubmitter`] on an empty submitter;
+    /// the semantic content variants
+    /// ([`ProposalError::ProposalContentTitle`],
+    /// [`ProposalError::ProposalContentDerivesFrom`],
+    /// [`ProposalError::ProposalContentVerificationMethodsOrder`],
+    /// [`ProposalError::ProposalContentVerificationMethodsDuplicate`],
+    /// and the shared native-uid variants on malformed
+    /// `derives_from` targets) before anything is written;
+    /// serialization, exclusive-creation, and I/O failures from
+    /// the shared append path.
     pub fn append_create_candidate_blocking(
         &self,
         submitter: &str,
         content: ProposedRequirementContent,
-    ) -> Result<AppendOutcome, CorpusError> {
+    ) -> Result<AppendOutcome, ProposalError> {
         let candidate_uid = mint_uid(REQUIREMENT_UID_PREFIX);
         self.append_blocking(
             submitter,
@@ -264,9 +200,14 @@ impl ProposalStore {
     /// # Errors
     ///
     /// The shared native-uid variants on a malformed `base_uid`;
-    /// [`CorpusError::ProposalTargetMissing`],
-    /// [`CorpusError::ProposalLifecycle`] (naming the uid and the
-    /// evaluated state), [`CorpusError::ProposalDigestMismatch`]
+    /// [`ProposalError::ProposalTargetMissing`] when `base_uid`
+    /// names no requirement node in the graph (checked directly);
+    /// [`ProposalError::ProposalLifecycleEvaluation`] when the
+    /// lifecycle evaluation itself fails — a malformed graph —
+    /// with the original [`LifecycleError`](super::LifecycleError)
+    /// preserved as the typed source, never stringified;
+    /// [`ProposalError::ProposalLifecycle`] (naming the uid and the
+    /// evaluated state), [`ProposalError::ProposalDigestMismatch`]
     /// (carrying uid, expected, and actual digests), and the append
     /// failures of [`ProposalStore::append_create_candidate_blocking`].
     pub fn append_revise_candidate_blocking(
@@ -276,34 +217,32 @@ impl ProposalStore {
         expected_current_digest: ReviewContentDigest,
         submitter: &str,
         content: ProposedRequirementContent,
-    ) -> Result<AppendOutcome, CorpusError> {
+    ) -> Result<AppendOutcome, ProposalError> {
         validate_native_uid(
             base_uid,
             REQUIREMENT_UID_PREFIX,
-            |uid, expected| CorpusError::NativeUidPrefix { uid, expected },
-            |uid| CorpusError::NativeUidUuidV4 { uid },
+            |uid, expected| ProposalError::NativeUidPrefix { uid, expected },
+            |uid| ProposalError::NativeUidUuidV4 { uid },
         )?;
         if graph.review_content(base_uid).is_none() {
-            return Err(CorpusError::ProposalTargetMissing {
+            return Err(ProposalError::ProposalTargetMissing {
                 uid: base_uid.to_string(),
             });
         }
         // The requirement node exists, so evaluation cannot hit its
-        // missing-requirement path; the error arm is mapped
-        // defensively to keep the match honest.
-        let evaluation = evaluate_lifecycle(graph, base_uid).map_err(|_| {
-            CorpusError::ProposalTargetMissing {
-                uid: base_uid.to_string(),
-            }
-        })?;
+        // missing-requirement path; a failure here means the graph
+        // itself is malformed, and the typed source travels with
+        // the error.
+        let evaluation = evaluate_lifecycle(graph, base_uid)
+            .map_err(|source| ProposalError::ProposalLifecycleEvaluation(Box::new(source)))?;
         if evaluation.state != RequirementLifecycle::Candidate {
-            return Err(CorpusError::ProposalLifecycle {
+            return Err(ProposalError::ProposalLifecycle {
                 uid: base_uid.to_string(),
                 state: evaluation.state,
             });
         }
         if evaluation.current_digest != expected_current_digest {
-            return Err(CorpusError::ProposalDigestMismatch {
+            return Err(ProposalError::ProposalDigestMismatch {
                 uid: base_uid.to_string(),
                 expected: expected_current_digest,
                 actual: evaluation.current_digest,
@@ -325,49 +264,52 @@ impl ProposalStore {
     ///
     /// # Errors
     ///
-    /// Fails closed with [`CorpusError::ProposalRead`] on I/O
-    /// failure, [`CorpusError::ProposalParse`] on malformed TOML,
+    /// Fails closed with [`ProposalError::ProposalRead`] on I/O
+    /// failure, [`ProposalError::ProposalParse`] on malformed TOML,
     /// unknown fields, an unknown action tag, or a malformed
-    /// digest, [`CorpusError::ProposalSchema`] on a newer schema
+    /// digest, [`ProposalError::ProposalSchema`] on a newer schema
     /// version, and the per-field validation variants (native uid
-    /// shapes, [`CorpusError::ProposalSubmitter`],
-    /// [`CorpusError::ProposalTimestamp`]) naming the path.
-    pub fn read_proposal_blocking(path: &Path) -> Result<ProposalFile, CorpusError> {
-        let raw = std::fs::read_to_string(path).map_err(|source| CorpusError::ProposalRead {
+    /// shapes, [`ProposalError::ProposalSubmitter`],
+    /// [`ProposalError::ProposalTimestamp`], and the semantic
+    /// content variants) naming the path.
+    pub fn read_proposal_blocking(path: &Path) -> Result<ProposalFile, ProposalError> {
+        let raw = std::fs::read_to_string(path).map_err(|source| ProposalError::ProposalRead {
             path: path.to_path_buf(),
             source,
         })?;
         let file: ProposalFile =
-            toml::from_str(&raw).map_err(|source| CorpusError::ProposalParse {
+            toml::from_str(&raw).map_err(|source| ProposalError::ProposalParse {
                 path: path.to_path_buf(),
                 source,
             })?;
         if file.schema_version > SUPPORTED_PROPOSAL_SCHEMA {
-            return Err(CorpusError::ProposalSchema {
+            return Err(ProposalError::ProposalSchema {
                 path: path.to_path_buf(),
                 found: file.schema_version,
                 supported: SUPPORTED_PROPOSAL_SCHEMA,
             });
         }
-        validate_record(path, &file.proposal)?;
+        record::validate_record(path, &file.proposal)?;
         Ok(file)
     }
 
-    /// Mint the proposal uid and timestamp, serialize, and write
+    /// Mint the proposal uid and timestamp, validate the record
+    /// fields that can fail before any write, serialize, and write
     /// the record beneath the root. Shared tail of both appends.
     fn append_blocking(
         &self,
         submitter: &str,
         action: ProposalAction,
-    ) -> Result<AppendOutcome, CorpusError> {
+    ) -> Result<AppendOutcome, ProposalError> {
         let proposal_uid = mint_uid(PROPOSAL_UID_PREFIX);
         let path = self.root.join(format!("{proposal_uid}.toml"));
         if submitter.trim().is_empty() {
-            return Err(CorpusError::ProposalSubmitter {
+            return Err(ProposalError::ProposalSubmitter {
                 path,
                 uid: proposal_uid,
             });
         }
+        record::validate_content(&path, &proposal_uid, action.content())?;
         let candidate_uid = match &action {
             ProposalAction::CreateCandidate { candidate_uid, .. } => Some(candidate_uid.clone()),
             ProposalAction::ReviseCandidate { .. } => None,
@@ -382,7 +324,7 @@ impl ProposalStore {
             },
         };
         let serialized =
-            toml::to_string_pretty(&file).map_err(|source| CorpusError::ProposalSerialize {
+            toml::to_string_pretty(&file).map_err(|source| ProposalError::ProposalSerialize {
                 path: path.clone(),
                 source,
             })?;
@@ -391,7 +333,7 @@ impl ProposalStore {
             path,
             proposal_uid,
             candidate_uid,
-            content_digest: ReviewContentDigest::from_hasher_output(crate::hash::sha256(
+            content_digest: ProposalFileDigest::from_hasher_output(crate::hash::sha256(
                 serialized.as_bytes(),
             )),
         })
@@ -403,63 +345,20 @@ fn mint_uid(prefix: &str) -> String {
     format!("{prefix}{}", Uuid::new_v4())
 }
 
-/// Validate a record's fields in declaration order; the first
-/// failure wins, so error precedence is deterministic (LLR-122).
-fn validate_record(path: &Path, record: &ProposalRecord) -> Result<(), CorpusError> {
-    validate_native_uid(
-        &record.uid,
-        PROPOSAL_UID_PREFIX,
-        |uid, expected| CorpusError::NativeUidPrefix { uid, expected },
-        |uid| CorpusError::NativeUidUuidV4 { uid },
-    )?;
-    if record.submitter.trim().is_empty() {
-        return Err(CorpusError::ProposalSubmitter {
-            path: path.to_path_buf(),
-            uid: record.uid.clone(),
-        });
-    }
-    if chrono::DateTime::parse_from_rfc3339(&record.submitted_at).is_err() {
-        return Err(CorpusError::ProposalTimestamp {
-            path: path.to_path_buf(),
-            uid: record.uid.clone(),
-            value: record.submitted_at.clone(),
-        });
-    }
-    match &record.action {
-        ProposalAction::CreateCandidate { candidate_uid, .. } => {
-            validate_native_uid(
-                candidate_uid,
-                REQUIREMENT_UID_PREFIX,
-                |uid, expected| CorpusError::NativeUidPrefix { uid, expected },
-                |uid| CorpusError::NativeUidUuidV4 { uid },
-            )?;
-        }
-        ProposalAction::ReviseCandidate { base_uid, .. } => {
-            validate_native_uid(
-            base_uid,
-            REQUIREMENT_UID_PREFIX,
-            |uid, expected| CorpusError::NativeUidPrefix { uid, expected },
-            |uid| CorpusError::NativeUidUuidV4 { uid },
-        )?;
-        }
-    }
-    Ok(())
-}
-
 /// Write `bytes` to `path` with exclusive creation: an existing
 /// file is never overwritten (LLR-123). On a mid-write I/O error
 /// the partial file is removed best-effort so a truncated proposal
 /// cannot masquerade as a complete one on a later listing.
-fn write_exclusive_blocking(path: &Path, bytes: &[u8]) -> Result<(), CorpusError> {
+fn write_exclusive_blocking(path: &Path, bytes: &[u8]) -> Result<(), ProposalError> {
     let mut file = match OpenOptions::new().write(true).create_new(true).open(path) {
         Ok(file) => file,
         Err(source) if source.kind() == std::io::ErrorKind::AlreadyExists => {
-            return Err(CorpusError::ProposalExists {
+            return Err(ProposalError::ProposalExists {
                 path: path.to_path_buf(),
             });
         }
         Err(source) => {
-            return Err(CorpusError::ProposalWrite {
+            return Err(ProposalError::ProposalWrite {
                 path: path.to_path_buf(),
                 source,
             });
@@ -470,8 +369,8 @@ fn write_exclusive_blocking(path: &Path, bytes: &[u8]) -> Result<(), CorpusError
         // Best-effort: the removal itself may fail (e.g. the write
         // failed because the filesystem went away); the typed write
         // error is the authoritative signal either way.
-        drop(std::fs::remove_file(path));
-        return Err(CorpusError::ProposalWrite {
+        let _ = std::fs::remove_file(path).ok();
+        return Err(ProposalError::ProposalWrite {
             path: path.to_path_buf(),
             source,
         });
@@ -479,9 +378,8 @@ fn write_exclusive_blocking(path: &Path, bytes: &[u8]) -> Result<(), CorpusError
     Ok(())
 }
 
-// Tests live in sibling files pulled in via `#[path]` so this
-// facade stays under the 500-line workspace limit: shared fixtures
-// plus one module per TEST entry.
+// Tests live in sibling files pulled in via `#[path]`: shared
+// fixtures plus one module per TEST entry.
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -491,6 +389,15 @@ fn write_exclusive_blocking(path: &Path, bytes: &[u8]) -> Result<(), CorpusError
 )]
 #[path = "proposal/tests.rs"]
 mod tests;
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+#[path = "proposal/tests_content/tests.rs"]
+mod tests_content;
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

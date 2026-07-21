@@ -61,8 +61,9 @@ pub use lifecycle::{
     evaluate_lifecycle,
 };
 pub use proposal::{
-    AppendOutcome, PROPOSAL_UID_PREFIX, ProposalAction, ProposalFile, ProposalRecord,
-    ProposalStore, ProposedRequirementContent, SUPPORTED_PROPOSAL_SCHEMA,
+    AppendOutcome, PROPOSAL_UID_PREFIX, ProposalAction, ProposalError, ProposalFile,
+    ProposalFileDigest, ProposalRecord, ProposalStore, ProposedRequirementContent,
+    SUPPORTED_PROPOSAL_SCHEMA,
 };
 pub use review_content::{
     RequirementReviewContentV1, canonical_bytes_v1, review_content_digest_v1,

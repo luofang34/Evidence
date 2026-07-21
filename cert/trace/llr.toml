@@ -3624,8 +3624,22 @@ methods, derives_from — and nothing else. `ProposalFile` and
 uid validated through the shared corpus-native uid helper,
 submitter required non-empty as audit identity that the rustdoc
 states is never authority, and `submitted_at` chrono-validated as
-RFC 3339 metadata that never orders. Every validation failure is
-a typed `CorpusError` naming the file path.
+RFC 3339 metadata that never orders. The proposed content is
+validated semantically on BOTH append (before any write) and
+strict read-back: `title` must be non-empty after trimming
+(`ProposalContentTitle`); every `derives_from` entry must be a
+valid `req_<UUIDv4>` — routed through the shared corpus-native
+uid helper with the proposal error constructors — and the list
+duplicate-free (`ProposalContentDerivesFrom` naming the
+duplicate); and `verification_methods`, allowed to be empty in
+mirroring of the review-content contract, must be sorted and
+duplicate-free as written
+(`ProposalContentVerificationMethodsOrder` naming the first
+out-of-order pair, `ProposalContentVerificationMethodsDuplicate`
+naming the duplicate). The ordering rule is deliberately stricter
+than the projection's silent canonicalization: a proposal must
+arrive in canonical form. Every validation failure is a typed
+`ProposalError` naming the file path.
 """
 verification_methods = ["test"]
 
@@ -3652,7 +3666,15 @@ file yields `ProposalExists` and is never overwritten, and any
 mid-write I/O error removes the partial file best-effort before
 returning `ProposalWrite`. `AppendOutcome` returns the created
 path, proposal uid, optional candidate uid, and the typed digest
-of the exact bytes written. `read_proposal_blocking` parses the
+of the exact bytes written — a `ProposalFileDigest`: SHA-256 over
+the raw proposal FILE BYTES, a domain distinct from
+`ReviewContentDigest` (SHA-256 over the canonical review-content
+encoding). The two domains are separate validated types and never
+interchangeable; `ProposalFileDigest` mirrors the review-digest
+contract style, with `from_hex` failing closed on anything but
+exactly 64 lowercase hexadecimal characters and serde
+deserializing through the validating constructor.
+`read_proposal_blocking` parses the
 record strictly so a malformed or partially written proposal
 fails closed with the path. The store never lists the root and
 never touches anything outside it.
@@ -3662,7 +3684,7 @@ verification_methods = ["test"]
 [[requirements]]
 uid = "c393a149-d714-4e77-b9d3-45743921bcbe"
 id = "LLR-124"
-title = "revision guards enforce candidate lifecycle and optimistic concurrency with typed CorpusError context"
+title = "revision guards enforce candidate lifecycle and optimistic concurrency with typed ProposalError context"
 owner = "tool"
 traces_to = ["2ba5d4a0-78c9-4e81-aa80-f3781b6547fd"]
 modules = ["evidence_core::corpus::proposal"]
@@ -3670,19 +3692,24 @@ description = """
 Before any write, `append_revise_candidate_blocking` validates
 `base_uid` through the shared corpus-native uid helper with the
 `req_` prefix, requires the uid to name an existing requirement
-in the graph — otherwise `ProposalTargetMissing` — requires
-`evaluate_lifecycle` to report `Candidate`, rejecting approved,
+in the graph — otherwise `ProposalTargetMissing`, checked
+directly against the graph — requires `evaluate_lifecycle` to
+report `Candidate`, rejecting approved,
 rejected, and stale targets with `ProposalLifecycle` naming the
 uid and the evaluated state so a proposal can never demote
 approved content, and requires `review_content_digest_v1` of the
 current content to equal the caller's `expected_current_digest`,
 failing with `ProposalDigestMismatch` carrying the uid and both
-digests. New flat `CorpusError` variants: `ProposalRootMissing`,
-`ProposalRootNotADirectory`, `ProposalRootSymlink`,
-`ProposalRead`, `ProposalWrite`, `ProposalParse`,
-`ProposalSchema`, `ProposalSubmitter`, `ProposalTimestamp`,
-`ProposalTargetMissing`, `ProposalLifecycle`,
-`ProposalDigestMismatch`, and `ProposalExists`; uid-shape
-failures reuse the shared native-uid variants.
+digests. A lifecycle evaluation that itself fails — a malformed
+graph — is `ProposalLifecycleEvaluation` carrying the original
+`LifecycleError` as its typed `#[source]`, never stringified and
+never collapsed into target-missing. Every proposal failure
+reports through the flat `ProposalError` type — root, read,
+write, serialize, parse, schema, submitter, timestamp,
+target-missing, lifecycle, lifecycle-evaluation,
+digest-mismatch, and exists variants, native-uid mirrors, and
+the semantic content variants — which `CorpusError::Proposal`
+wraps transparently so mixed corpus call sites keep one error
+type.
 """
 verification_methods = ["test"]

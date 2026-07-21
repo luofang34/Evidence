@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use super::tests_support::*;
 use super::{
-    CorpusError, PROPOSAL_UID_PREFIX, ProposalAction, ProposalStore, SUPPORTED_PROPOSAL_SCHEMA,
+    PROPOSAL_UID_PREFIX, ProposalAction, ProposalError, ProposalStore, SUPPORTED_PROPOSAL_SCHEMA,
     write_exclusive_blocking,
 };
 
@@ -126,7 +126,7 @@ fn appends_never_overwrite_and_preexisting_path_fails_closed() {
     let err = write_exclusive_blocking(&occupied, b"second")
         .expect_err("a pre-existing path must fail closed");
     assert!(
-        matches!(err, CorpusError::ProposalExists { .. }),
+        matches!(err, ProposalError::ProposalExists { .. }),
         "exclusive creation reports the collision, got: {err:?}"
     );
     assert_eq!(
@@ -143,7 +143,7 @@ fn missing_root_fails_closed() {
     let dir = tempfile::tempdir().expect("tempdir");
     let err = ProposalStore::new(&dir.path().join("absent")).expect_err("missing root fails");
     assert!(
-        matches!(err, CorpusError::ProposalRootMissing { .. }),
+        matches!(err, ProposalError::ProposalRootMissing { .. }),
         "got: {err:?}"
     );
 }
@@ -155,7 +155,7 @@ fn non_directory_root_fails_closed() {
     std::fs::write(&file, "x").expect("write file");
     let err = ProposalStore::new(&file).expect_err("file root fails");
     assert!(
-        matches!(err, CorpusError::ProposalRootNotADirectory { .. }),
+        matches!(err, ProposalError::ProposalRootNotADirectory { .. }),
         "got: {err:?}"
     );
 }
@@ -171,7 +171,7 @@ fn symlink_root_fails_closed() {
         std::os::unix::fs::symlink(&real, &link).expect("symlink");
         let err = ProposalStore::new(&link).expect_err("symlink root fails");
         assert!(
-            matches!(err, CorpusError::ProposalRootSymlink { .. }),
+            matches!(err, ProposalError::ProposalRootSymlink { .. }),
             "got: {err:?}"
         );
     }
@@ -196,20 +196,20 @@ fn partial_write_read_back_fails_closed() {
     let err = ProposalStore::read_proposal_blocking(&truncated)
         .expect_err("a truncated proposal must fail closed");
     assert!(
-        matches!(err, CorpusError::ProposalParse { ref path, .. } if *path == truncated),
+        matches!(err, ProposalError::ProposalParse { ref path, .. } if *path == truncated),
         "the typed error names the path, got: {err:?}"
     );
 
     // A prefix that is valid TOML but lacks the record fails too.
     let err = read_err(&dir, "incomplete.toml", "schema_version = 1\n");
     assert!(
-        matches!(err, CorpusError::ProposalParse { .. }),
+        matches!(err, ProposalError::ProposalParse { .. }),
         "a missing record fails closed, got: {err:?}"
     );
     let err = ProposalStore::read_proposal_blocking(&dir.path().join("absent.toml"))
         .expect_err("a missing file must fail closed");
     assert!(
-        matches!(err, CorpusError::ProposalRead { .. }),
+        matches!(err, ProposalError::ProposalRead { .. }),
         "got: {err:?}"
     );
 }
@@ -227,7 +227,7 @@ fn read_back_refuses_newer_schema_and_bad_fields() {
     assert!(
         matches!(
             err,
-            CorpusError::ProposalSchema {
+            ProposalError::ProposalSchema {
                 found: 2,
                 supported: 1,
                 ..
@@ -286,7 +286,7 @@ fn read_back_refuses_newer_schema_and_bad_fields() {
     assert!(
         matches!(
             err,
-            CorpusError::NativeUidPrefix {
+            ProposalError::NativeUidPrefix {
                 expected: "req_",
                 ..
             }
@@ -313,7 +313,7 @@ fn schema_negative_actions_fail_closed() {
         let block = format!("[proposal.action]\naction = \"{action}\"\n");
         let err = read_err(&dir, &format!("neg-{index}.toml"), &doc(&block));
         assert!(
-            matches!(err, CorpusError::ProposalParse { .. }),
+            matches!(err, ProposalError::ProposalParse { .. }),
             "action {action:?} must be unrepresentable, got: {err:?}"
         );
     }
@@ -324,7 +324,7 @@ fn schema_negative_actions_fail_closed() {
     );
     let err = read_err(&dir, "unknown-top.toml", &unknown_top);
     assert!(
-        matches!(err, CorpusError::ProposalParse { .. }),
+        matches!(err, ProposalError::ProposalParse { .. }),
         "an unknown top-level field must fail, got: {err:?}"
     );
 
@@ -332,7 +332,7 @@ fn schema_negative_actions_fail_closed() {
         doc(&create_action_block()).replace("submitter =", "actor = \"human\"\nsubmitter =");
     let err = read_err(&dir, "actor.toml", &actor);
     assert!(
-        matches!(err, CorpusError::ProposalParse { .. }),
+        matches!(err, ProposalError::ProposalParse { .. }),
         "a self-declared actor field must fail, got: {err:?}"
     );
 }
