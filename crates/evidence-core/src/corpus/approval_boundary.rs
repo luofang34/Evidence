@@ -321,6 +321,9 @@ fn validate_required(graph: &CorpusGraph) -> Result<(), ApprovalBoundaryError> {
                 }
             }
             Node::Review(_) => {}
+            // Source revisions make no implementation or
+            // verification claims.
+            Node::SourceRevision(_) => {}
         }
     }
     violations.sort_by(|left, right| {

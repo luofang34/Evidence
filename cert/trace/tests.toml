@@ -2130,10 +2130,10 @@ title = "source-revision nodes enforce per-kind identity, canonical iteration, l
 owner = "tool"
 traces_to = ["5cae4629-c57b-4bcb-a0c0-3f8a671b0173"]
 test_selectors = [
-    "evidence_core::corpus::source::tests::human_ids_are_unique_within_the_source_kind_only",
-    "evidence_core::corpus::source::tests::source_revision_nodes_iterate_in_canonical_uid_order",
-    "evidence_core::corpus::source::tests::layout_split_and_record_order_produce_identical_graphs",
-    "evidence_core::corpus::source::tests::unavailable_material_is_valid_distinguishable_graph_state",
+    "evidence_core::corpus::source::tests_graph::human_ids_are_unique_within_the_source_kind_only",
+    "evidence_core::corpus::source::tests_graph::source_revision_nodes_iterate_in_canonical_uid_order",
+    "evidence_core::corpus::source::tests_graph::layout_split_and_record_order_produce_identical_graphs",
+    "evidence_core::corpus::source::tests_graph::unavailable_material_is_valid_distinguishable_graph_state",
 ]
 
 [[tests]]

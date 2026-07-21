@@ -24,7 +24,7 @@ mod validation;
 
 pub use nodes::{
     EdgeKind, Node, NodeKind, RequirementLayer, RequirementNode, ReviewDecision, ReviewNode,
-    TestNode,
+    SourceCapture, SourceMaterial, SourceRevisionNode, TestNode,
 };
 pub(crate) use nodes::{RequirementMetadata, TestMetadata, TraceMetadata, canonical_strings};
 
