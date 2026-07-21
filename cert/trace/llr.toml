@@ -3605,7 +3605,11 @@ carry no modules or emits fields, so the implementation-claim
 gate applies to claims present in the graph (populated by the
 legacy adapter); native-record support is a documented non-goal.
 Candidate decomposition stays usable because `DerivesFrom`
-edges are never gated.
+edges are never gated. A requirement node missing from the
+lifecycle evaluation map is an impossible invariant: the scan
+returns the typed
+`ApprovalBoundaryError::InvariantMissingEvaluation` naming the
+requirement uid rather than silently skipping its claims.
 """
 verification_methods = ["test"]
 

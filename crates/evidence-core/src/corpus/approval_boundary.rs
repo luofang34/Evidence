@@ -195,6 +195,21 @@ pub enum ApprovalBoundaryError {
     /// skipped.
     #[error("lifecycle evaluation failed under explicit enforcement: {0}")]
     Lifecycle(#[from] LifecycleError),
+    /// A requirement node has no entry in the lifecycle evaluation
+    /// map. `evaluate_all_lifecycles` covers every requirement node
+    /// in the graph, so a missing entry means the evaluator and the
+    /// graph disagree — an impossible invariant, returned as a typed
+    /// error instead of silently skipping the requirement's claims.
+    /// Unreachable through the public entry points today; it exists
+    /// so a future evaluator change degrades loudly.
+    #[error(
+        "requirement {requirement_uid} has no lifecycle evaluation; \
+         the evaluator covers every requirement node"
+    )]
+    InvariantMissingEvaluation {
+        /// The requirement uid missing from the evaluation map.
+        requirement_uid: String,
+    },
 }
 
 /// Validate that no implementation or verification evidence claims
@@ -211,6 +226,9 @@ pub enum ApprovalBoundaryError {
 ///   chain is preserved, never flattened.
 /// - [`ApprovalBoundaryError::Violations`] aggregating every gated
 ///   claim whose target is not [`RequirementLifecycle::Approved`].
+/// - [`ApprovalBoundaryError::InvariantMissingEvaluation`] when a
+///   requirement node is missing from the evaluation map — an
+///   impossible invariant, returned instead of silently skipping.
 pub fn validate_approval_boundary(
     graph: &CorpusGraph,
     enforcement: LifecycleEnforcement,
@@ -263,10 +281,15 @@ fn validate_required(graph: &CorpusGraph) -> Result<(), ApprovalBoundaryError> {
                 }
             }
             Node::Requirement(requirement) => {
-                // `evaluate_all_lifecycles` covers every requirement
-                // node, so the evaluation always exists.
                 let Some(evaluation) = evaluations.get(&requirement.uid) else {
-                    continue;
+                    // `evaluate_all_lifecycles` covers every
+                    // requirement node, so a missing evaluation is an
+                    // impossible invariant. Fail closed with a typed
+                    // error — a requirement's claims are never
+                    // skipped silently.
+                    return Err(ApprovalBoundaryError::InvariantMissingEvaluation {
+                        requirement_uid: requirement.uid.clone(),
+                    });
                 };
                 if evaluation.state == RequirementLifecycle::Approved {
                     continue;
