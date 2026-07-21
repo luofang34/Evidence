@@ -2230,6 +2230,7 @@ traces_to = ["535e526e-c1cd-4a39-b5a7-3e6fcfb2e6b6"]
 test_selectors = [
     "evidence_core::corpus::source::lock::tests::derive_lock_binds_effective_heads_only",
     "evidence_core::corpus::source::lock::tests::layout_and_insertion_order_produce_identical_locks",
+    "evidence_core::corpus::source::lock::tests::recipe_and_storage_details_are_not_lock_identity",
     "evidence_core::corpus::source::lock::tests::unavailable_heads_derive_without_digest_or_capture",
     "evidence_core::corpus::source::lock::tests::vendored_paths_timestamps_and_reasons_never_enter_the_lock",
 ]

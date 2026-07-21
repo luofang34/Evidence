@@ -1,6 +1,6 @@
 //! Typed errors for source-revision record loading, lineage
-//! validation, and baseline transitions (LLR-125, LLR-130,
-//! LLR-132).
+//! validation, baseline transitions, and the `sources.lock`
+//! pipeline (LLR-125, LLR-130, LLR-132, LLR-135).
 //!
 //! [`SourceError`] is the single error type of the source-revision
 //! pipeline: `load_sources_into` fails closed on unreadable or
@@ -8,8 +8,10 @@
 //! fields, and graph identity collisions; lineage validation fails
 //! closed on self-links, cross-document links, duplicate outgoing
 //! edges, forks, cycles, and multiple roots or heads for one
-//! document key; and transition comparison fails closed on
-//! removal, mutation, competing heads, and invalid input graphs.
+//! document key; transition comparison fails closed on
+//! removal, mutation, competing heads, and invalid input graphs;
+//! and lock parsing, canonicality, and projection validation fail
+//! closed through the wrapped [`SourceLockError`] taxonomy.
 //! The record-loading variants mirror their [`CorpusError`]
 //! counterparts field for field so a source file and a requirement
 //! file report the same degenerate input identically;
@@ -25,6 +27,7 @@ use thiserror::Error;
 
 use super::super::error::CorpusError;
 use super::super::graph::{EdgeKind, NodeKind};
+use super::lock::error::SourceLockError;
 
 /// The vendored wire-path rule a lexical check rejected
 /// (LLR-125). Pure data: the failing record's [`SourceError`]
@@ -440,6 +443,14 @@ pub enum SourceError {
     /// [`CorpusGraph::insert`]: super::super::graph::CorpusGraph::insert
     #[error("unexpected graph insertion error: {0}")]
     UnexpectedInsertError(#[source] Box<CorpusError>),
+    /// A `sources.lock` operation failed (LLR-135): strict parsing,
+    /// schema gating, duplicate-key rejection, canonicality, or
+    /// projection validation of the derived source inventory, or
+    /// the blocking lock reader. The [`SourceLockError`] is carried
+    /// whole so callers can match the exact gate that failed;
+    /// `CorpusError::Source` stays the only corpus wrapper.
+    #[error("{0}")]
+    Lock(#[from] SourceLockError),
 }
 
 impl SourceError {

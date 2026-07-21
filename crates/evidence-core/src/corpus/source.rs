@@ -22,9 +22,14 @@
 //! - `lineage` — single-chain lineage validation, effective-head
 //!   derivation, and the pure immutable-superset transition
 //!   comparison (LLR-130, LLR-131, LLR-132)
+//! - `lock` — the canonical derived `sources.lock` inventory of
+//!   effective source heads: value projection, canonical rendering,
+//!   strict parsing, and the three-gate committed-lock validation
+//!   (LLR-133, LLR-134, LLR-135)
 
 pub(super) mod error;
 pub(super) mod lineage;
+pub(super) mod lock;
 pub(super) mod records;
 
 /// Typed uid prefix for corpus-native source-revision records

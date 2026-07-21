@@ -16,6 +16,8 @@
 //!   (LLR-114)
 //! - `source` — corpus-native frozen source-revision records
 //!   (LLR-125)
+//! - `source::lock` — the canonical derived `sources.lock`
+//!   inventory of effective source heads (LLR-133)
 //! - `legacy` — four-file `cert/trace` → graph adapter
 //! - `review_content` — versioned canonical projection of the
 //!   normative content a review approves (LLR-111)
@@ -76,6 +78,11 @@ pub use source::error::{SourceError, VendoredPathRule};
 pub use source::lineage::{
     SourceRevisionProjection, effective_source_heads, validate_source_lineage,
     validate_source_transition,
+};
+pub use source::lock::{
+    ExternalControlId, LockAvailability, LockCaptureMode, SUPPORTED_LOCK_SCHEMA, SourceLock,
+    SourceLockEntry, SourceLockError, derive_lock, parse_lock, read_lock_blocking,
+    render_lock_canonical, validate_committed_lock,
 };
 
 #[cfg(test)]
