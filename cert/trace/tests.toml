@@ -2030,6 +2030,7 @@ test_selectors = [
     "corpus_approval_boundary::native_corpus_without_gated_claims_passes",
     "corpus_approval_boundary::legacy_trace_gates_every_claim_when_requested",
     "evidence_core::corpus::approval_boundary::tests::zero_reviews_without_gated_claims_passes",
+    "evidence_core::corpus::approval_boundary::tests::invariant_missing_evaluation_is_a_typed_error",
 ]
 
 [[tests]]

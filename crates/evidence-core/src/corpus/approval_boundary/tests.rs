@@ -442,3 +442,23 @@ fn multiple_violations_aggregate_in_one_error() {
     );
     assert!(rendered.contains("SOME_CODE"), "names the code: {rendered}");
 }
+
+/// The missing-evaluation invariant is a typed error, never a
+/// silent skip (LLR-121). The evaluator covers every requirement
+/// node, so the arm is unreachable through the public entry points;
+/// this pins the variant's Display so the defense stays honest.
+#[test]
+fn invariant_missing_evaluation_is_a_typed_error() {
+    let err = ApprovalBoundaryError::InvariantMissingEvaluation {
+        requirement_uid: "req_x".to_string(),
+    };
+    let rendered = err.to_string();
+    assert!(
+        rendered.contains("req_x"),
+        "names the requirement: {rendered}"
+    );
+    assert!(
+        rendered.contains("no lifecycle evaluation"),
+        "names the invariant: {rendered}"
+    );
+}
