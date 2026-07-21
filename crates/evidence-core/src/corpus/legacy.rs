@@ -3,14 +3,19 @@
 //! Maps a parsed [`TraceFiles`] into graph nodes without renaming,
 //! dropping, or synthesizing entries. Identities, titles, edge sets,
 //! and selectors match the legacy parser; graph insertion canonicalizes
-//! edge order and applies the same invariants as native records.
+//! edge order and applies the same invariants as native records. The
+//! review-sensitive content fields (description, rationale, scope,
+//! category, source, verification methods, and derived requirements'
+//! safety impact) are retained on the node as normative content, so a
+//! legacy entry and an equivalent native record expose the same
+//! review-content projection (LLR-113).
 
 use crate::trace::{DerivedEntry, HlrEntry, LlrEntry, TestEntry, TraceFiles};
 
 use super::error::CorpusError;
 use super::graph::{
     CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementMetadata, RequirementNode,
-    TestMetadata, TestNode, TraceMetadata,
+    TestMetadata, TestNode, TraceMetadata, canonical_strings,
 };
 
 struct AdaptedNode {
@@ -90,6 +95,13 @@ fn requirement_from_hlr_entry(
             title: entry.title.clone(),
             layer,
             edges: derives_from_edges(&entry.traces_to),
+            description: entry.description.clone(),
+            rationale: entry.rationale.clone(),
+            scope: entry.scope.clone(),
+            category: entry.category.clone(),
+            source: entry.source.clone(),
+            verification_methods: canonical_strings(&entry.verification_methods),
+            safety_impact: None,
         }),
         metadata: TraceMetadata::Requirement(RequirementMetadata {
             namespace: entry.ns.clone(),
@@ -98,9 +110,9 @@ fn requirement_from_hlr_entry(
             category: entry.category.clone(),
             source: entry.source.clone(),
             modules: Vec::new(),
-            surfaces: canonical_claims(&entry.surfaces),
+            surfaces: canonical_strings(&entry.surfaces),
             emits: Vec::new(),
-            verification_methods: canonical_claims(&entry.verification_methods),
+            verification_methods: canonical_strings(&entry.verification_methods),
         }),
     })
 }
@@ -114,6 +126,13 @@ fn requirement_from_llr_entry(entry: &LlrEntry) -> Result<AdaptedNode, CorpusErr
             title: entry.title.clone(),
             layer: RequirementLayer::Llr,
             edges: derives_from_edges(&entry.traces_to),
+            description: entry.description.clone(),
+            rationale: None,
+            scope: None,
+            category: None,
+            source: entry.source.clone(),
+            verification_methods: canonical_strings(&entry.verification_methods),
+            safety_impact: None,
         }),
         metadata: TraceMetadata::Requirement(RequirementMetadata {
             namespace: entry.ns.clone(),
@@ -123,13 +142,16 @@ fn requirement_from_llr_entry(entry: &LlrEntry) -> Result<AdaptedNode, CorpusErr
             source: entry.source.clone(),
             modules: entry.modules.clone(),
             surfaces: Vec::new(),
-            emits: canonical_claims(&entry.emits),
-            verification_methods: canonical_claims(&entry.verification_methods),
+            emits: canonical_strings(&entry.emits),
+            verification_methods: canonical_strings(&entry.verification_methods),
         }),
     })
 }
 
 /// Derived requirements have no parent by definition — no edges.
+/// Their `safety_impact` is normative assurance content the v1
+/// review-content projection binds, so a legacy derived entry and an
+/// equivalent native record expose it identically (LLR-113).
 fn requirement_from_derived_entry(entry: &DerivedEntry) -> Result<AdaptedNode, CorpusError> {
     let uid = require_uid(entry.uid.as_deref(), &entry.id)?;
     Ok(AdaptedNode {
@@ -139,6 +161,13 @@ fn requirement_from_derived_entry(entry: &DerivedEntry) -> Result<AdaptedNode, C
             title: entry.title.clone(),
             layer: RequirementLayer::Derived,
             edges: Vec::new(),
+            description: entry.description.clone(),
+            rationale: entry.rationale.clone(),
+            scope: None,
+            category: None,
+            source: entry.source.clone(),
+            verification_methods: Vec::new(),
+            safety_impact: entry.safety_impact.clone(),
         }),
         metadata: TraceMetadata::Requirement(RequirementMetadata {
             sort_key: entry.sort_key,
@@ -182,11 +211,4 @@ fn derives_from_edges(traces_to: &[String]) -> Vec<(EdgeKind, String)> {
         .iter()
         .map(|target| (EdgeKind::DerivesFrom, target.clone()))
         .collect()
-}
-
-fn canonical_claims(claims: &[String]) -> Vec<String> {
-    let mut claims = claims.to_vec();
-    claims.sort();
-    claims.dedup();
-    claims
 }

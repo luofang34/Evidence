@@ -193,13 +193,13 @@ fn insert_requirement(
     edges: Vec<(EdgeKind, String)>,
 ) {
     graph
-        .insert(Node::Requirement(RequirementNode {
-            uid: uid.into(),
-            id: id.into(),
-            title: id.into(),
+        .insert(Node::Requirement(RequirementNode::new(
+            uid.into(),
+            id.into(),
+            id.into(),
             layer,
             edges,
-        }))
+        )))
         .expect("insert requirement");
 }
 

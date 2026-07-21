@@ -36,6 +36,20 @@ pub enum RequirementLayer {
     Derived,
 }
 
+impl RequirementLayer {
+    /// The serde `snake_case` wire string for this layer — the form
+    /// bound into the canonical review-content encoding (LLR-111).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RequirementLayer::Source => "source",
+            RequirementLayer::Sys => "sys",
+            RequirementLayer::Hlr => "hlr",
+            RequirementLayer::Llr => "llr",
+            RequirementLayer::Derived => "derived",
+        }
+    }
+}
+
 /// Coarse node kind, for kind-filtered queries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeKind {
@@ -90,6 +104,12 @@ pub(crate) enum TraceMetadata {
 }
 
 /// A requirement node.
+///
+/// The content fields past `edges` are the normative statement a
+/// review approves (LLR-113) — retained on the node as content, not
+/// trace metadata. They play no role in node identity: uniqueness is
+/// uid (and human id within a kind), and graph equality already
+/// treats layout and edge order as non-semantic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequirementNode {
     /// Permanent identity, unique across all node kinds.
@@ -102,6 +122,51 @@ pub struct RequirementNode {
     pub layer: RequirementLayer,
     /// Outgoing typed edges `(kind, target uid)`.
     pub edges: Vec<(EdgeKind, String)>,
+    /// Normative requirement description (review content).
+    pub description: Option<String>,
+    /// Normative rationale (review content).
+    pub rationale: Option<String>,
+    /// Requirement scope (review content).
+    pub scope: Option<String>,
+    /// Requirement category (review content).
+    pub category: Option<String>,
+    /// Source reference (review content).
+    pub source: Option<String>,
+    /// Verification methods, sorted and deduplicated at load
+    /// (review content).
+    pub verification_methods: Vec<String>,
+    /// Safety impact of a derived requirement — normative assurance
+    /// content the v1 review-content projection binds (review
+    /// content). `None` for non-derived layers, whose source
+    /// entries carry no such field.
+    pub safety_impact: Option<String>,
+}
+
+impl RequirementNode {
+    /// A requirement node with no review-content fields populated
+    /// yet. Loaders set the content fields directly.
+    pub fn new(
+        uid: String,
+        id: String,
+        title: String,
+        layer: RequirementLayer,
+        edges: Vec<(EdgeKind, String)>,
+    ) -> Self {
+        Self {
+            uid,
+            id,
+            title,
+            layer,
+            edges,
+            description: None,
+            rationale: None,
+            scope: None,
+            category: None,
+            source: None,
+            verification_methods: Vec::new(),
+            safety_impact: None,
+        }
+    }
 }
 
 /// A test-case node.
@@ -281,6 +346,16 @@ fn canonicalize_edges(node: &mut Node) -> Result<(), CorpusError> {
         });
     }
     Ok(())
+}
+
+/// Sort + dedup a set-like string list into canonical form — the
+/// metadata-list contract for content fields loaded from either
+/// record schema (LLR-113).
+pub(crate) fn canonical_strings(values: &[String]) -> Vec<String> {
+    let mut values = values.to_vec();
+    values.sort();
+    values.dedup();
+    values
 }
 
 fn edge_kinds_match(source: NodeKind, edge: EdgeKind, target: NodeKind) -> bool {

@@ -177,4 +177,14 @@ pub enum CorpusError {
         /// Human-readable id of the offending entry.
         id: String,
     },
+    /// A review-content digest string is not exactly 64 lowercase
+    /// hexadecimal characters; malformed digests fail closed at
+    /// construction boundaries (LLR-112).
+    #[error(
+        "invalid review content digest {input:?}: expected exactly 64 lowercase hexadecimal characters"
+    )]
+    InvalidDigest {
+        /// The offending digest string.
+        input: String,
+    },
 }

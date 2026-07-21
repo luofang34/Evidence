@@ -27,16 +27,16 @@ fn write(path: &Path, content: &str) {
 }
 
 fn requirement(uid: &str, id: &str, edges: &[&str]) -> Node {
-    Node::Requirement(RequirementNode {
-        uid: uid.to_string(),
-        id: id.to_string(),
-        title: format!("title of {id}"),
-        layer: RequirementLayer::Sys,
-        edges: edges
+    Node::Requirement(RequirementNode::new(
+        uid.to_string(),
+        id.to_string(),
+        format!("title of {id}"),
+        RequirementLayer::Sys,
+        edges
             .iter()
             .map(|t| (EdgeKind::DerivesFrom, (*t).to_string()))
             .collect(),
-    })
+    ))
 }
 
 #[test]
@@ -296,13 +296,13 @@ fn assert_invalid_edge_kinds(source_kind: NodeKind, edge_kind: EdgeKind, target_
 
 fn graph_node(kind: NodeKind, uid: &str, id: &str, edges: Vec<(EdgeKind, String)>) -> Node {
     match kind {
-        NodeKind::Requirement => Node::Requirement(RequirementNode {
-            uid: uid.to_string(),
-            id: id.to_string(),
-            title: format!("title of {id}"),
-            layer: RequirementLayer::Sys,
+        NodeKind::Requirement => Node::Requirement(RequirementNode::new(
+            uid.to_string(),
+            id.to_string(),
+            format!("title of {id}"),
+            RequirementLayer::Sys,
             edges,
-        }),
+        )),
         NodeKind::Test => Node::Test(TestNode {
             uid: uid.to_string(),
             id: id.to_string(),
