@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::digest::ReviewContentDigest;
+use super::super::digest::{ReviewContentDigest, SourceContentDigest};
 
 /// Typed edge kinds supported by the corpus graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
@@ -63,6 +63,8 @@ pub enum NodeKind {
     Test,
     /// A human review decision record (LLR-115).
     Review,
+    /// One frozen revision of a source document (LLR-126).
+    SourceRevision,
 }
 
 /// A human review decision over a requirement's exact reviewed
@@ -240,6 +242,102 @@ pub struct ReviewNode {
     pub edges: Vec<(EdgeKind, String)>,
 }
 
+/// The typed material state of one frozen source revision
+/// (LLR-125).
+///
+/// The serde shape is internally tagged on `state` with unknown
+/// fields denied, so the record schema and the graph node share one
+/// exact wire form: an `available` state carries `retrieved_at`,
+/// `sha256`, and a [`SourceCapture`]; an `unavailable` state
+/// carries `reason` and nothing else — a digest on an unavailable
+/// record fails deserialization rather than being invented or
+/// silently dropped.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SourceMaterial {
+    /// The revision's bytes were captured; the record carries the
+    /// capture proof fields.
+    Available {
+        /// RFC 3339 retrieval timestamp. Audit metadata only —
+        /// never ordering authority between revisions.
+        retrieved_at: String,
+        /// Validated lowercase SHA-256 the record declares for the
+        /// captured bytes.
+        sha256: SourceContentDigest,
+        /// How the captured bytes are held.
+        capture: SourceCapture,
+    },
+    /// The revision's bytes could not be captured; the record
+    /// carries a reason and no digest.
+    Unavailable {
+        /// Why the material is unavailable; non-blank.
+        reason: String,
+    },
+}
+
+/// The capture mode of available source material (LLR-125).
+///
+/// Serde snake_case with the tag named `mode` and unknown fields
+/// denied; `HashOnly` is an empty struct variant so a stray field
+/// fails deserialization instead of being ignored.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SourceCapture {
+    /// Raw bytes are vendored beneath the fixed `sources/` payload
+    /// root; `path` is the canonical `/`-separated relative wire
+    /// form, validated lexically at record load. Filesystem
+    /// containment is the acquisition layer's concern, not this
+    /// type's.
+    Vendored {
+        /// Canonical relative wire path beneath `sources/`.
+        path: String,
+    },
+    /// Only the digest and location are recorded — for material
+    /// whose redistribution is restricted.
+    HashOnly {},
+    /// Bytes live in an external controlled document system under
+    /// an immutable identifier.
+    ExternalControlled {
+        /// The controlling system; non-blank.
+        system: String,
+        /// The immutable identifier within that system; non-blank.
+        immutable_id: String,
+    },
+}
+
+/// One frozen revision of a source document (LLR-126).
+///
+/// The node is the corpus graph object for an immutable revision:
+/// `document_key` groups revisions of one logical document, and the
+/// typed [`SourceMaterial`] records what was captured. Structural
+/// source graph nodes are a different node kind and are not this
+/// node. Source revisions carry no edges at this layer; the field
+/// exists so the shared insert path can canonicalize it, and it
+/// stays empty.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceRevisionNode {
+    /// Permanent identity, unique across all node kinds.
+    pub uid: String,
+    /// Human-readable revision identifier, unique within the
+    /// source-revision kind.
+    pub id: String,
+    /// Stable lineage key grouping revisions of one logical
+    /// document; non-blank.
+    pub document_key: String,
+    /// One-line title.
+    pub title: String,
+    /// RFC 6838 `type/subtype` media type of the revision.
+    pub media_type: String,
+    /// Canonical location of the revision. Opaque audit identity:
+    /// preserved exactly, never fetched or normalized as a URL.
+    pub canonical_location: String,
+    /// Typed material state of the revision.
+    pub material: SourceMaterial,
+    /// Outgoing typed edges `(kind, target uid)`. Always empty at
+    /// this layer; revision-chain edges are follow-up work.
+    pub edges: Vec<(EdgeKind, String)>,
+}
+
 /// A corpus graph node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
@@ -249,6 +347,8 @@ pub enum Node {
     Test(TestNode),
     /// A human review decision.
     Review(ReviewNode),
+    /// One frozen revision of a source document.
+    SourceRevision(SourceRevisionNode),
 }
 
 impl Node {
@@ -258,6 +358,7 @@ impl Node {
             Node::Requirement(r) => &r.uid,
             Node::Test(t) => &t.uid,
             Node::Review(r) => &r.uid,
+            Node::SourceRevision(s) => &s.uid,
         }
     }
 
@@ -267,6 +368,7 @@ impl Node {
             Node::Requirement(_) => NodeKind::Requirement,
             Node::Test(_) => NodeKind::Test,
             Node::Review(_) => NodeKind::Review,
+            Node::SourceRevision(_) => NodeKind::SourceRevision,
         }
     }
 
@@ -276,6 +378,7 @@ impl Node {
             Node::Requirement(r) => &r.id,
             Node::Test(t) => &t.id,
             Node::Review(r) => &r.id,
+            Node::SourceRevision(s) => &s.id,
         }
     }
 
@@ -285,6 +388,7 @@ impl Node {
             Node::Requirement(r) => &r.edges,
             Node::Test(t) => &t.edges,
             Node::Review(r) => &r.edges,
+            Node::SourceRevision(s) => &s.edges,
         }
     }
 
@@ -293,6 +397,7 @@ impl Node {
             Node::Requirement(r) => &mut r.edges,
             Node::Test(t) => &mut t.edges,
             Node::Review(r) => &mut r.edges,
+            Node::SourceRevision(s) => &mut s.edges,
         }
     }
 }

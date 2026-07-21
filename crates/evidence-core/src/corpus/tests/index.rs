@@ -90,11 +90,16 @@ fn index_unsupported_kind_fails_closed() {
     let dir = tempfile::tempdir().unwrap();
     write(
         &dir.path().join("corpus.toml"),
-        "schema_version = 1\nsources = [\"sources/x.toml\"]\n",
+        "schema_version = 1\nambiguities = [\"ambiguities/x.toml\"]\n",
     );
     let err = CorpusIndex::load(&dir.path().join("corpus.toml")).unwrap_err();
     assert!(
-        matches!(err, CorpusError::UnsupportedKind { kind: "sources" }),
+        matches!(
+            err,
+            CorpusError::UnsupportedKind {
+                kind: "ambiguities"
+            }
+        ),
         "an indexed-but-unloadable kind must refuse, got: {err:?}"
     );
 }

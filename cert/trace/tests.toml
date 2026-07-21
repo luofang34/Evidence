@@ -2108,3 +2108,42 @@ test_selectors = [
     "evidence_core::corpus::proposal::tests_guards::revise_changing_safety_impact_moves_current_digest",
     "evidence_core::corpus::proposal::tests_guards::append_leaves_corpus_baseline_byte_identical",
 ]
+
+[[tests]]
+uid = "b09560c7-4331-48de-8116-74e65e09c0cf"
+id = "TEST-141"
+title = "the four source record shapes round-trip and every strict-schema, field, and capture violation fails closed with typed context"
+owner = "tool"
+traces_to = ["bf1f5d64-f5df-4f3e-8ca8-26b14e0dc678"]
+test_selectors = [
+    "evidence_core::corpus::source::tests::four_record_shapes_round_trip_into_typed_nodes",
+    "evidence_core::corpus::source::tests::strict_schema_violations_fail_closed",
+    "evidence_core::corpus::source::tests::malformed_identity_and_field_values_fail_closed",
+    "evidence_core::corpus::source::tests::incomplete_capture_combinations_fail_closed",
+    "evidence_core::corpus::source::tests::vendored_paths_reject_unsafe_wire_forms",
+]
+
+[[tests]]
+uid = "b82fbfdc-12d8-4c5d-b67d-ffd015e4692c"
+id = "TEST-142"
+title = "source-revision nodes enforce per-kind identity, canonical iteration, layout independence, and typed material-state distinction"
+owner = "tool"
+traces_to = ["5cae4629-c57b-4bcb-a0c0-3f8a671b0173"]
+test_selectors = [
+    "evidence_core::corpus::source::tests_graph::human_ids_are_unique_within_the_source_kind_only",
+    "evidence_core::corpus::source::tests_graph::source_revision_nodes_iterate_in_canonical_uid_order",
+    "evidence_core::corpus::source::tests_graph::layout_split_and_record_order_produce_identical_graphs",
+    "evidence_core::corpus::source::tests_graph::unavailable_material_is_valid_distinguishable_graph_state",
+]
+
+[[tests]]
+uid = "2f9ef457-aaf5-4f8b-a67e-7727eb27eed0"
+id = "TEST-143"
+title = "the index activates sources, loads them before requirements and reviews, keeps source_graphs rejected, and fails closed on empty resolution"
+owner = "tool"
+traces_to = ["c23eb6b5-2f1f-4d70-9264-acd44456fb9b"]
+test_selectors = [
+    "evidence_core::corpus::index::tests::index_resolves_sources_and_loads_them_before_requirements",
+    "evidence_core::corpus::index::tests::index_source_graphs_kind_stays_unsupported",
+    "evidence_core::corpus::index::tests::index_sources_entry_resolving_to_nothing_fails_closed",
+]

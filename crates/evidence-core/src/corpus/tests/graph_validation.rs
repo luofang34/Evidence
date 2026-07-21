@@ -36,6 +36,9 @@ fn graph_node(kind: NodeKind, uid: &str, id: &str, edges: Vec<(EdgeKind, String)
             edges,
         }),
         NodeKind::Review => unreachable!("review fixtures build ReviewNode directly"),
+        NodeKind::SourceRevision => {
+            unreachable!("source-revision fixtures build SourceRevisionNode directly")
+        }
     }
 }
 

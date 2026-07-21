@@ -85,6 +85,9 @@ fn graph_node(kind: NodeKind, uid: &str, edges: Vec<(EdgeKind, String)>) -> Node
             rationale: None,
             edges,
         }),
+        NodeKind::SourceRevision => {
+            unreachable!("supersession fixtures never build source revisions")
+        }
     }
 }
 

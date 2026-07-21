@@ -3,7 +3,9 @@
 //! validation report through [`ReviewError`], wrapped here by
 //! [`CorpusError::Review`] (LLR-114, LLR-115); the proposal store
 //! reports through [`ProposalError`], wrapped here by
-//! [`CorpusError::Proposal`] (LLR-122, LLR-123, LLR-124).
+//! [`CorpusError::Proposal`] (LLR-122, LLR-123, LLR-124); source
+//! record loading reports through [`SourceError`], wrapped here by
+//! [`CorpusError::Source`] (LLR-125).
 
 use std::path::PathBuf;
 
@@ -12,6 +14,7 @@ use thiserror::Error;
 use super::graph::{EdgeKind, NodeKind};
 use super::proposal::ProposalError;
 use super::review_records::error::ReviewError;
+use super::source::error::SourceError;
 
 /// Errors from loading, building, or validating the corpus graph.
 ///
@@ -64,7 +67,7 @@ pub enum CorpusError {
     /// record schemas.
     #[error("corpus index lists unsupported {kind} entries")]
     UnsupportedKind {
-        /// Index key of the unsupported kind (e.g. `sources`).
+        /// Index key of the unsupported kind (e.g. `source_graphs`).
         kind: &'static str,
     },
     /// Failed walking a `<dir>/**/*.toml` index pattern.
@@ -186,6 +189,10 @@ pub enum CorpusError {
     /// unchanged.
     #[error(transparent)]
     Proposal(#[from] ProposalError),
+    /// A source-revision record failed to load (LLR-125). Display
+    /// forwards to the wrapped source error unchanged.
+    #[error(transparent)]
+    Source(#[from] SourceError),
     /// A legacy trace entry has no uid; every corpus node requires a
     /// permanent identity, so the adapter refuses rather than skips.
     #[error("legacy trace entry {id} has no uid; corpus nodes require one")]

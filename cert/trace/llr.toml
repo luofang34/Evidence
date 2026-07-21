@@ -950,7 +950,7 @@ title = "rot_prone_markers_locked integration test"
 owner = "tool"
 traces_to = ["0800ac23-b3d6-4e1e-b2d1-50a0349bd586"]
 modules = ["evidence_core::rot_prone_markers_locked"]
-description = '''
+description = """
 A Rust `#[test] fn` suite in
 `crates/evidence-core/tests/rot_prone_markers_locked.rs` walks every
 `.rs` file under `crates/**/src/**` and `crates/**/tests/**`,
@@ -980,7 +980,7 @@ that moves the pinned text would silently break the exemption) and
 a dedicated test rejects them. CHANGELOG.md and `cert/trace/**`
 stay excluded as audit journals, and `used to` is deliberately
 unpatterned (its instrumental reading is legitimate).
-'''
+"""
 verification_methods = ["test"]
 
 [[requirements]]
@@ -3744,5 +3744,95 @@ digest-mismatch, and exists variants, native-uid mirrors, and
 the semantic content variants — which `CorpusError::Proposal`
 wraps transparently so mixed corpus call sites keep one error
 type.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "bf1f5d64-f5df-4f3e-8ca8-26b14e0dc678"
+id = "LLR-125"
+title = "corpus::source::records parses strict source-revision files and validates every record field closed"
+owner = "tool"
+traces_to = ["fa2308f1-89b1-4733-acf6-755e8d1ddb9e"]
+modules = ["evidence_core::corpus::source::records"]
+description = """
+`SourceFile` / `SourceRevisionRecord` mirror the requirement- and
+review-record conventions: `deny_unknown_fields`, `schema_version`
+gated by `SUPPORTED_SOURCE_SCHEMA`, and per-record validation in
+`load_sources_into`. The record uid carries the `src_` prefix and
+passes the shared corpus-native UUIDv4 validation; `sha256`
+deserializes through the same validating lowercase-hex digest
+contract the review-content domain uses, with the field name
+carrying the source domain; `retrieved_at` must parse as RFC 3339
+via the workspace's chrono dependency; and the media type must
+match a pinned RFC 6838 `type/subtype` token grammar. The
+material state is an internally tagged enum — `available` with
+`retrieved_at`, `sha256`, and a `capture` value tagged `vendored`,
+`hash_only`, or `external_controlled`, or `unavailable` with
+`reason` — so an incomplete combination fails deserialization and
+an unavailable record declares no digest field at all. Blank
+validation rejects whitespace-only `document_key`, `title`,
+`canonical_location`, `reason`, `system`, and `immutable_id`
+values while storing accepted text untrimmed, and the pure
+`validate_vendored_wire_path` rejects empty, absolute, drive- or
+UNC-prefixed, and backslash-bearing paths and any empty, `.`, or
+`..` component lexically, with filesystem containment deferred to
+the acquisition layer. Each failure returns a typed `SourceError`
+— a flat taxonomy `CorpusError::Source` wraps so `load_graph`
+keeps one error type — naming the file path plus the record id
+and uid; graph insertion failures lift into the source taxonomy
+field for field across `insert`'s closed contract, and any
+out-of-contract variant is preserved whole as the typed source of
+`SourceError::UnexpectedInsertError`, never a panic.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "5cae4629-c57b-4bcb-a0c0-3f8a671b0173"
+id = "LLR-126"
+title = "corpus::graph::nodes carries the source-revision node kind with per-kind identity and canonical iteration"
+owner = "tool"
+traces_to = ["fb3c2661-2807-427f-bbff-309b6685802e"]
+modules = ["evidence_core::corpus::graph::nodes"]
+description = """
+`SourceRevisionNode` joins the corpus graph as the typed node for
+one frozen document revision: uid, human-readable revision id,
+stable document lineage key, title, media type, canonical
+location, and the typed material state mirroring the record
+schema, with no edges at this layer. `NodeKind::SourceRevision`
+serializes as `source_revision`, the `Node` accessors report uid,
+kind, id, and an empty edge set for the new variant, and graph
+identity uniqueness treats the source-revision id namespace as
+its own: the same human id may coexist across kinds while a
+repeat within the kind fails insertion naming both uids. Nodes
+iterate in canonical uid order from the uid-keyed `BTreeMap`, and
+graph equality derives from nodes and metadata only, so source
+records split or reordered across files load into equal graphs.
+An unavailable revision reads back as its typed material state —
+valid graph state, distinguishable from available content and
+never byte-verified.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "c23eb6b5-2f1f-4d70-9264-acd44456fb9b"
+id = "LLR-127"
+title = "corpus::index resolves the sources kind and loads sources before requirements and reviews"
+owner = "tool"
+traces_to = ["fb3c2661-2807-427f-bbff-309b6685802e"]
+modules = ["evidence_core::corpus::index"]
+description = """
+`CorpusIndex` gains a resolved `source_files` list fed by the
+index's `sources` entries through the same deterministic
+literal-or-`<dir>/**/*.toml` resolution as the other kinds —
+walked without following symlinks, sorted, and failing closed on
+an entry that resolves to nothing. `sources` leaves the
+unsupported-kind rejection set while `source_graphs` stays
+rejected until structural source graph nodes land, so an index
+listing it still fails closed naming the kind. `load_graph`
+inserts source records before requirement files and review files,
+so a source error surfaces first and later kinds validate against
+a graph already carrying the source revisions; the resolved
+ordering is deterministic and file layout carries no semantic
+meaning.
 """
 verification_methods = ["test"]

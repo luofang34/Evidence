@@ -14,11 +14,13 @@
 //! - `records` — corpus-native record file schemas
 //! - `review_records` — corpus-native human review decision records
 //!   (LLR-114)
+//! - `source` — corpus-native frozen source-revision records
+//!   (LLR-125)
 //! - `legacy` — four-file `cert/trace` → graph adapter
 //! - `review_content` — versioned canonical projection of the
 //!   normative content a review approves (LLR-111)
-//! - `digest` — typed lowercase SHA-256 review-content digest
-//!   (LLR-112)
+//! - `digest` — typed lowercase SHA-256 digest domains (LLR-112,
+//!   LLR-125)
 //! - `lifecycle` — deterministic per-requirement lifecycle
 //!   evaluation over digest-bound review heads (LLR-117)
 //! - `approval_boundary` — strict validation that implementation and
@@ -41,17 +43,18 @@ mod proposal;
 mod records;
 mod review_content;
 mod review_records;
+mod source;
 
 pub use approval_boundary::{
     ApprovalBoundaryError, ApprovalBoundaryViolation, LifecycleEnforcement, ReferringArtifact,
     validate_approval_boundary,
 };
-pub use digest::ReviewContentDigest;
+pub use digest::{ReviewContentDigest, SourceContentDigest};
 pub use error::CorpusError;
 pub(crate) use graph::TraceMetadata;
 pub use graph::{
     CorpusGraph, EdgeKind, Node, NodeKind, RequirementLayer, RequirementNode, ReviewDecision,
-    ReviewNode, TestNode,
+    ReviewNode, SourceCapture, SourceMaterial, SourceRevisionNode, TestNode,
 };
 pub use index::{CorpusIndex, SUPPORTED_INDEX_SCHEMA};
 pub use legacy::graph_from_trace_files;
@@ -69,6 +72,7 @@ pub use review_content::{
     RequirementReviewContentV1, canonical_bytes_v1, review_content_digest_v1,
 };
 pub use review_records::error::ReviewError;
+pub use source::error::{SourceError, VendoredPathRule};
 
 #[cfg(test)]
 mod tests;

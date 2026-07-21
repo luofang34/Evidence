@@ -1193,3 +1193,43 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "21472521-3496-411f-8832-8c73ca7732a2"
+id = "SYS-043"
+title = "A frozen source document revision is a strict typed corpus graph node keyed by a stable document lineage"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall represent one frozen revision of a source document as
+a strict, typed corpus graph node — a source revision — never as
+free-form prose or a bare location string. Revisions of one logical
+document shall group under a stable, non-empty document lineage key,
+and each revision shall carry a permanent `src_<UUIDv4>` identity, a
+human-readable revision identifier unique within the source-revision
+kind, a title, a media type, and a canonical location preserved
+exactly as audit identity.
+
+Every revision shall declare its material state explicitly.
+Available material carries an RFC 3339 retrieval timestamp recorded
+as audit metadata and never as ordering authority, a validated
+lowercase SHA-256 digest, and exactly one capture mode — vendored
+bytes beneath the corpus payload root, a hash-only record, or an
+immutable identifier in an external controlled document system.
+Unavailable material carries a non-empty reason and no invented
+digest, and shall never be reportable as byte-verified; unavailable
+revisions are valid graph state and remain distinguishable from
+available content.
+
+The record schema shall fail closed on unknown fields, a newer
+schema version, malformed identities, digests, media types, or
+timestamps, blank required strings, incomplete capture
+combinations, and unsafe or non-canonical vendored paths, naming
+the file and the record in every failure. Source file layout and
+record order carry no semantic meaning.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []
