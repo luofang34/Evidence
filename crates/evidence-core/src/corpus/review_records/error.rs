@@ -245,6 +245,22 @@ pub enum ReviewError {
         /// The superseded review's uid.
         predecessor_uid: String,
     },
+    /// A review carries more than one outgoing `Supersedes` edge;
+    /// supersession is a chain, so a review corrects at most one
+    /// predecessor (LLR-115). The record loader cannot produce this
+    /// shape — a record names a single optional
+    /// `supersedes_review_uid` — so the invariant guards
+    /// programmatically built graphs.
+    #[error(
+        "review {review_uid} has {count} Supersedes edges; \
+         a review supersedes at most one predecessor"
+    )]
+    ReviewDuplicateSupersedesEdge {
+        /// The malformed review's uid.
+        review_uid: String,
+        /// Number of `Supersedes` edges the node declares.
+        count: usize,
+    },
     /// A review is superseded by more than one review; supersession
     /// is a chain, not a tree (LLR-115).
     #[error(
@@ -265,13 +281,26 @@ pub enum ReviewError {
         /// Uid at which the walk revisits a review.
         uid: String,
     },
+    /// `CorpusGraph::insert` failed with a variant outside its
+    /// closed error contract. The contract — identity collisions
+    /// and duplicate edges only — makes this unreachable today,
+    /// but a contract change upstream must degrade to a typed
+    /// error carrying the original [`CorpusError`] as its source,
+    /// never a panic (LLR-114). Boxed because `CorpusError` is
+    /// large enough to trip `result_large_err` on some platforms;
+    /// the source object is carried whole either way.
+    ///
+    /// [`CorpusGraph::insert`]: super::super::graph::CorpusGraph::insert
+    #[error("unexpected graph insertion error: {0}")]
+    UnexpectedInsertError(#[source] Box<CorpusError>),
 }
 
 impl ReviewError {
     /// Lift a [`CorpusGraph::insert`] failure into the review error
     /// type. `insert` fails only on identity collisions and duplicate
-    /// edges, so those are the only variants that can reach the
-    /// review loader.
+    /// edges, which map field for field; any other variant is outside
+    /// that closed contract today and is preserved whole in
+    /// [`ReviewError::UnexpectedInsertError`] rather than panicking.
     ///
     /// [`CorpusGraph::insert`]: super::super::graph::CorpusGraph::insert
     pub(super) fn from_insert(err: CorpusError) -> Self {
@@ -291,9 +320,7 @@ impl ReviewError {
             CorpusError::DuplicateEdge { from, to, kind } => {
                 ReviewError::DuplicateEdge { from, to, kind }
             }
-            other => unreachable!(
-                "CorpusGraph::insert fails only on identity collisions and duplicate edges: {other:?}"
-            ),
+            other => ReviewError::UnexpectedInsertError(Box::new(other)),
         }
     }
 }

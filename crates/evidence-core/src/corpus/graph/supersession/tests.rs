@@ -344,3 +344,42 @@ fn supersession_validation_rejects_invalid_chains() {
         .validate()
         .expect("a linear same-reviewer correction chain validates");
 }
+
+/// A review carrying two outgoing `Supersedes` edges is rejected
+/// even when both predecessors satisfy every per-edge invariant;
+/// the single-supersession chain still validates (TEST-133). The
+/// record loader cannot produce this shape — a record names a
+/// single optional `supersedes_review_uid` — so the invariant
+/// guards programmatic construction.
+#[test]
+fn review_with_two_outgoing_supersedes_edges_is_rejected() {
+    let mut double = review_node(REV_3, "REV-003", Some(REV_1));
+    let Node::Review(review) = &mut double else {
+        unreachable!("review_node builds a review node")
+    };
+    review.edges.push((EdgeKind::Supersedes, REV_2.to_string()));
+    let multi = chain_graph(vec![
+        review_node(REV_1, "REV-001", None),
+        review_node(REV_2, "REV-002", None),
+        double,
+    ]);
+    let err = multi.validate().unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CorpusError::Review(ReviewError::ReviewDuplicateSupersedesEdge {
+                ref review_uid,
+                count: 2,
+            }) if review_uid == REV_3
+        ),
+        "two outgoing supersession edges name the review and the count, got: {err:?}"
+    );
+
+    let valid_chain = chain_graph(vec![
+        review_node(REV_1, "REV-001", None),
+        review_node(REV_2, "REV-002", Some(REV_1)),
+    ]);
+    valid_chain
+        .validate()
+        .expect("a single supersession still validates");
+}

@@ -3373,7 +3373,12 @@ error taxonomy split out of `CorpusError`, which wraps it so
 `load_graph` keeps one error type — naming the file path plus the
 record id and uid; valid records insert a `ReviewNode` carrying a
 `Reviews` edge to the requirement and an optional `Supersedes`
-edge to the predecessor review.
+edge to the predecessor review. Graph insertion failures lift
+into the review taxonomy field for field across `insert`'s closed
+contract — identity collisions and duplicate edges — while any
+out-of-contract variant is preserved whole as the typed source of
+`ReviewError::UnexpectedInsertError`: an upstream contract change
+degrades to a typed error, never a panic.
 """
 verification_methods = ["test"]
 
@@ -3399,16 +3404,21 @@ programmatically built — before any chain check: exactly one
 target and the node's requirement-uid field, and the supported
 content schema, so a malformed review node fails closed instead
 of poisoning chain validation. Supersession validation follows:
-per edge it rejects self-supersession and any reviewer,
+per review node it rejects more than one outgoing `Supersedes`
+edge — a review corrects at most one predecessor — and per edge
+it rejects self-supersession and any reviewer,
 requirement-uid, or digest mismatch against the predecessor with
 distinct errors naming both uids; it then rejects forks (more
-than one incoming supersession per review) and cycles found by
-walking the supersession chain, all in uid-sorted order so
+than one incoming supersession per review, the dual direction of
+the per-node outgoing check) and cycles found by walking the
+supersession chain, all in uid-sorted order so
 results are independent of load order. Review violations surface
 as the typed `ReviewError` (split out of `CorpusError`, which
-wraps it); the record loader satisfies the node invariants by
-construction, so the graph-level checks are what guards
-programmatically constructed graphs.
+wraps it); the record loader satisfies the node invariants and
+the singular outgoing supersession by construction — a record
+names a single optional `supersedes_review_uid` — so the
+graph-level checks are what guards programmatically constructed
+graphs.
 """
 verification_methods = ["test"]
 

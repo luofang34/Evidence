@@ -6,13 +6,19 @@
 //! iterates in uid-sorted order, so the reported violation is
 //! independent of load order:
 //!
-//! 1. Per edge: a review may not supersede itself, and a
+//! 1. Per review node: at most one outgoing `Supersedes` edge — a
+//!    review corrects at most one predecessor. The record loader
+//!    cannot produce a multi-supersession node (a record names a
+//!    single optional `supersedes_review_uid`), so this invariant
+//!    guards programmatically built graphs.
+//! 2. Per edge: a review may not supersede itself, and a
 //!    superseding review must name the same reviewer, requirement
 //!    uid, and reviewed content digest as its predecessor — each
 //!    mismatch is a distinct error naming both uids.
-//! 2. Forks: a review may be superseded by at most one other
-//!    review.
-//! 3. Cycles: walking the supersession chain must never revisit a
+//! 3. Forks: a review may be superseded by at most one other
+//!    review — at most one incoming `Supersedes` edge, the dual
+//!    direction of check 1.
+//! 4. Cycles: walking the supersession chain must never revisit a
 //!    review.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -27,6 +33,17 @@ pub(super) fn validate_review_supersession(graph: &CorpusGraph) -> Result<(), Re
         let Node::Review(review) = node else {
             continue;
         };
+        let supersedes_count = review
+            .edges
+            .iter()
+            .filter(|(kind, _)| *kind == EdgeKind::Supersedes)
+            .count();
+        if supersedes_count > 1 {
+            return Err(ReviewError::ReviewDuplicateSupersedesEdge {
+                review_uid: review.uid.clone(),
+                count: supersedes_count,
+            });
+        }
         for (kind, target) in &review.edges {
             if *kind != EdgeKind::Supersedes {
                 continue;
@@ -69,9 +86,12 @@ pub(super) fn validate_review_supersession(graph: &CorpusGraph) -> Result<(), Re
     reject_cycles(graph)
 }
 
-/// A fork is a review with more than one incoming supersession.
-/// Successors were collected in uid order, so the named pair is
-/// deterministic.
+/// A fork is a review with more than one incoming supersession —
+/// the dual direction of the per-node outgoing check in
+/// [`validate_review_supersession`]: a review corrects at most one
+/// predecessor, and a predecessor is corrected by at most one
+/// review. Successors were collected in uid order, so the named
+/// pair is deterministic.
 fn reject_forks(superseded_by: &BTreeMap<&str, Vec<&str>>) -> Result<(), ReviewError> {
     for (predecessor, successors) in superseded_by {
         if let [first, second, ..] = successors.as_slice() {
