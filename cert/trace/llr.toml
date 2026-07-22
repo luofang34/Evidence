@@ -166,16 +166,28 @@ emits = [
 [[requirements]]
 uid = "c5b6d67a-603c-4e74-9197-10419a5495c0"
 id = "LLR-009"
-title = "DeterministicManifest projects host-independent fields"
+title = "RecipeManifest projects the canonical recipe identity"
 owner = "tool"
 traces_to = ["6947e635-4f6b-4833-a101-f896b8ae59c9"]
-modules = ["evidence_core::env::fingerprint::DeterministicManifest"]
+modules = [
+    "evidence_core::env::manifest::RecipeManifest",
+    "evidence_core::env::fingerprint::EnvFingerprint::recipe_manifest",
+]
 description = """
-DeterministicManifest is derived from EnvFingerprint by selecting
-only fields that shall be byte-equal across hosts for the same
-commit: rustc string, cargo string, target_triple, cargo_lock_hash,
-rust_toolchain_toml, rustflags. Its SHA-256 lands in
-index.json.deterministic_hash.
+RecipeManifest is derived from EnvFingerprint plus the recorded
+build inputs by projecting the canonical recipe identity in a
+documented field order: toolchain (rustc, cargo, llvm_version,
+rust_toolchain_toml, rustflags), cargo_lock_hash, target_triple,
+profile, features (empty until the tool gains cargo feature
+selection), locked_graph_hash (SHA-256 of the canonical
+resolved-dependency projection, null when the bundle carries no
+cargo_metadata.json), command_recipe_hash (SHA-256 of the
+canonical commands.json content), inputs_hash (SHA-256 of the
+canonical source-input digest map), and resolution_policy, with
+git_sha / git_branch / git_dirty retained as source metadata.
+Its SHA-256 lands in index.json.recipe_hash. The hash proves
+same declared recipe — never that outputs reproduce; output
+equality is the reproduction comparison's claim.
 """
 verification_methods = ["test"]
 emits = [
@@ -999,17 +1011,20 @@ on `pull_request` events downloads the last successful
 `evidence-cross-host` Linux artifact from the main branch via
 `gh run list` + `gh run download`, builds the current PR's
 `cargo-evidence` binary, generates a dev-profile bundle via
-`--skip-tests`, compares `deterministic_hash` between the prior
-artifact's `index.json` and the fresh bundle. A companion bash
+`--skip-tests`, and compares the six-field toolchain projection
+(rustc, cargo, llvm_version, cargo_lock_hash,
+rust_toolchain_toml, rustflags) between the prior artifact's
+`deterministic-manifest.json` and the fresh bundle's. A
+companion bash
 script `scripts/deterministic-baseline-override-lint.sh` greps
 the PR body (or push-mode commit message) for
 `^Override-Deterministic-Baseline: .+` and emits exit 0 when an
 override is present, exit 1 otherwise. The job combines both:
 match → pass silently; mismatch + override → pass with log;
-mismatch without override → fail with both hashes printed.
-Missing prior artifact → skip with warning (exit 0), same
-degradation pattern as `floors-lower-lint.sh` under a fresh
-repo.
+mismatch without override → fail with the drifted fields
+printed. Missing prior artifact → skip with warning (exit 0),
+same degradation pattern as `floors-lower-lint.sh` under a
+fresh repo.
 """
 verification_methods = ["test"]
 
@@ -4260,3 +4275,101 @@ claim, not its integrity.
 """
 verification_methods = ["test"]
 emits = ["VERIFY_ONLINE_RESOLUTION"]
+
+[[requirements]]
+uid = "b65fc892-2555-489d-bd75-0a0d3abd96dc"
+id = "LLR-143"
+title = "EvidenceIndex.recipe_hash renames deterministic_hash behind a read-time serde alias"
+owner = "tool"
+traces_to = ["79601c1c-8372-4b2e-9b79-b09ffbca00c8"]
+modules = ["evidence_core::bundle::index::EvidenceIndex"]
+description = """
+`EvidenceIndex.recipe_hash` records SHA-256 of
+`deterministic-manifest.json`. The field serializes under
+`recipe_hash`; `#[serde(alias = "deterministic_hash")]` accepts
+the pre-rename key when reading bundles written before the
+rename, so a legacy index.json still deserializes while every
+new bundle emits only the new name. The rustdoc narrows the
+claim the old name overreached: the hash proves the two bundles
+declare the same recipe, not that their outputs reproduce.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "a8412e0d-3f73-4d90-9d5a-be02f98c1605"
+id = "LLR-144"
+title = "EvidenceBuilder::finalize computes the recipe inputs and writes the canonical recipe manifest"
+owner = "tool"
+traces_to = ["79601c1c-8372-4b2e-9b79-b09ffbca00c8"]
+modules = ["evidence_core::bundle::builder::EvidenceBuilder::finalize"]
+description = """
+`finalize` writes `cargo_metadata.json` BEFORE the recipe
+manifest (cert/record unconditionally, development under the
+boundary-policy flags) so `locked_graph_hash` can bind the
+SHA-256 of the canonical resolved-dependency projection.
+`inputs_hash` / `command_recipe_hash` are computed over the
+canonical serializations of the recorded input and command
+state — byte-identical to what `write_inputs` / `write_commands`
+persist — and `features` is recorded as an empty list until the
+tool gains cargo feature selection. `resolution_policy` comes
+from the build config. The manifest lands before SHA256SUMS is
+assembled so the integrity chain binds it, and its SHA-256 is
+recorded as `index.json.recipe_hash`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "2536ac17-57b2-4d0e-a2e4-b821bc179fc1"
+id = "LLR-145"
+title = "Verify re-checks recipe_hash and re-projects the recipe manifest from bundle content"
+owner = "tool"
+traces_to = ["79601c1c-8372-4b2e-9b79-b09ffbca00c8"]
+modules = ["evidence_core::verify::bundle::verify_bundle_with_key"]
+description = """
+Verify compares `index.json.recipe_hash` against the SHA-256 of
+`deterministic-manifest.json` and re-projects the manifest from
+the bundle's own content — env.json for the fingerprint fields,
+inputs_hashes.json and commands.json for the two aggregate
+hashes, cargo_metadata.json for the locked-graph hash, and
+index.resolution_policy for the policy — byte-comparing the
+re-projection against the committed manifest. Missing projection
+inputs skip the re-projection (the absence already fired
+MissingHashedFile upstream); unparseable ones surface
+ManifestProjectionDrift rather than passing silently.
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_DETERMINISTIC_HASH_MISMATCH",
+    "VERIFY_MANIFEST_PROJECTION_DRIFT",
+]
+
+[[requirements]]
+uid = "3263d49d-1511-4e07-98f7-326b6728ff14"
+id = "LLR-146"
+title = "compare_reproduction classifies two bundles into typed reproduction findings"
+owner = "tool"
+traces_to = ["056a024e-3c14-4877-8728-26f7e18f3aae"]
+modules = ["evidence_core::verify::reproduction::compare_reproduction"]
+description = """
+`compare_reproduction(baseline, candidate)` reads each side's
+inputs_hashes.json, deterministic-manifest.json recipe fields,
+and outputs_hashes.json, and returns a deterministically sorted
+`Vec<ReproductionFinding>`; the two bundles are
+reproduction-equal iff the vector is empty. Input-plane: a
+digest mismatch yields InputChanged, a key present on exactly
+one side yields InputMissing, a malformed digest or an
+unreadable inputs file yields InputUnverifiable. Recipe plane:
+each recipe field (toolchain, target_triple, profile, features,
+locked_graph_hash, command_recipe_hash, inputs_hash,
+resolution_policy, and the lockfile plane reported as
+`dependency_lock`) is compared individually, yielding
+RecipeFieldChanged per differing field; git identity is
+excluded; a missing or unparseable manifest on either side
+yields RecipeUnavailable. Output plane: digest mismatch yields
+OutputChanged, baseline-only keys yield OutputMissing,
+candidate-only keys yield OutputExtra, and malformed digests or
+an unreadable outputs file yield OutputUnverifiable.
+`ReproductionError` stays an uncoded thiserror family — the
+comparison is a library API, not a diagnostic surface.
+"""
+verification_methods = ["test"]

@@ -28,7 +28,7 @@ rationale = """
 HashMap iteration order in Rust is intentionally randomized
 (SipHash with a per-process seed) to defeat hash-flooding attacks.
 That randomization breaks the byte-identical-output property the
-tool needs for `content_hash` and `deterministic_hash`: two runs
+tool needs for `content_hash` and `recipe_hash`: two runs
 on the same host with the same inputs would produce SHA256SUMS
 files differing only in path order, hashing to different digests.
 The `Cross-host determinism` CI job would catch a HashMap leak
@@ -91,7 +91,7 @@ justify it:
   2. **Determinism**: symlink targets can differ across checkouts
      of the same git state (different filesystem layouts, missing
      vendored sources, etc.), breaking
-     `deterministic_hash` parity. Same-git-state implies
+     `recipe_hash` parity. Same-git-state implies
      same-bundle is the cross-host gate's contract.
 
   3. **Loop safety**: symlink cycles (`a → b → a`) consume

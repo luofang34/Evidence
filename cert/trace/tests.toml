@@ -421,11 +421,11 @@ owner = "tool"
 traces_to = ["7539445f-e53f-4300-80fa-ecf12948e121"]
 description = """
 Integration tests for the baseline-override lint script.
-Positive (match): two bundles with identical deterministic_hash
-→ exit 0.
-Drift-without-override: differing hashes + empty PR body → exit
-1 with instructions.
-Drift-with-override: differing hashes + PR body containing
+Positive (match): two manifests with identical toolchain
+projections → exit 0.
+Drift-without-override: differing projections + empty PR body →
+exit 1 with instructions.
+Drift-with-override: differing projections + PR body containing
 `Override-Deterministic-Baseline: dep bump` → exit 0 with a
 logged notice.
 Missing-prior-artifact fallback: bundle path doesn't exist →
@@ -2374,4 +2374,67 @@ test_selectors = [
     "evidence_core::verify::resolution_policy::tests::locked_offline_cert_bundle_is_allowed",
     "resolution_policy::generate_dev_with_online_flag_records_online_opt_in",
     "resolution_policy::verify_rejects_online_opt_in_cert_bundle",
+]
+
+[[tests]]
+uid = "f58ac0b2-906c-47cf-b9bf-3a0a0fdd23c7"
+id = "TEST-160"
+title = "recipe manifest projection carries the recipe fields in canonical order and stays deterministic"
+owner = "tool"
+traces_to = ["c5b6d67a-603c-4e74-9197-10419a5495c0"]
+test_selectors = [
+    "evidence_core::env::fingerprint::tests::recipe_manifest_records_recipe_fields_in_canonical_order",
+    "evidence_core::env::fingerprint::tests::recipe_manifest_is_byte_deterministic",
+    "evidence_core::env::manifest::tests::digests_match_canonical_serializations",
+    "evidence_core::env::manifest::tests::recipe_inputs_from_bundle_round_trip",
+]
+
+[[tests]]
+uid = "e8639fef-4bff-4ba2-bf42-bca0ff184215"
+id = "TEST-161"
+title = "index.json emits recipe_hash and reads legacy deterministic_hash via the serde alias"
+owner = "tool"
+traces_to = ["b65fc892-2555-489d-bd75-0a0d3abd96dc"]
+test_selectors = [
+    "evidence_core::bundle::index::tests::recipe_hash_serializes_under_new_name",
+    "evidence_core::bundle::index::tests::legacy_deterministic_hash_deserializes_via_alias",
+]
+
+[[tests]]
+uid = "e349d4e2-b63a-45a0-a82a-fe27171793d9"
+id = "TEST-162"
+title = "finalize writes the enriched recipe manifest; verify re-projects it and detects drift"
+owner = "tool"
+traces_to = [
+    "a8412e0d-3f73-4d90-9d5a-be02f98c1605",
+    "2536ac17-57b2-4d0e-a2e4-b821bc179fc1",
+]
+test_selectors = [
+    "evidence_core::bundle::builder::tests::finalize_writes_recipe_manifest_and_recipe_hash",
+    "evidence_core::verify::bundle::tests::recipe_manifest_reprojection_detects_tampered_inputs",
+]
+
+[[tests]]
+uid = "40ee9fc9-28c5-4241-bfaa-a86c71672676"
+id = "TEST-163"
+title = "reproduced-output comparison: equal fixtures, per-field findings, missing and unverifiable planes"
+owner = "tool"
+traces_to = ["3263d49d-1511-4e07-98f7-326b6728ff14"]
+test_selectors = [
+    "evidence_core::verify::reproduction::tests::identical_bundles_compare_equal",
+    "evidence_core::verify::reproduction::tests::changed_target_triple_yields_recipe_field_finding",
+    "evidence_core::verify::reproduction::tests::changed_features_yields_recipe_field_finding",
+    "evidence_core::verify::reproduction::tests::changed_rustflags_yields_recipe_field_finding",
+    "evidence_core::verify::reproduction::tests::changed_cargo_lock_yields_dependency_lock_finding",
+    "evidence_core::verify::reproduction::tests::changed_inputs_hash_yields_recipe_field_finding",
+    "evidence_core::verify::reproduction::tests::changed_command_recipe_hash_yields_recipe_field_finding",
+    "evidence_core::verify::reproduction::tests::changed_input_digest_yields_input_changed",
+    "evidence_core::verify::reproduction::tests::changed_output_digest_yields_output_changed",
+    "evidence_core::verify::reproduction::tests::removed_output_yields_output_missing",
+    "evidence_core::verify::reproduction::tests::added_output_yields_output_extra",
+    "evidence_core::verify::reproduction::tests::malformed_input_digest_yields_input_unverifiable",
+    "evidence_core::verify::reproduction::tests::missing_inputs_file_yields_input_unverifiable",
+    "evidence_core::verify::reproduction::tests::missing_outputs_file_yields_output_unverifiable",
+    "evidence_core::verify::reproduction::tests::missing_manifest_yields_recipe_unavailable",
+    "evidence_core::verify::reproduction::tests::findings_sort_deterministically",
 ]

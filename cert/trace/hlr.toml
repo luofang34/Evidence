@@ -177,34 +177,42 @@ surfaces = ["generate"]
 [[requirements]]
 uid = "6947e635-4f6b-4833-a101-f896b8ae59c9"
 id = "HLR-009"
-title = "Emit deterministic-manifest.json projection"
+title = "Emit deterministic-manifest.json recipe projection"
 owner = "tool"
 scope = "component"
 description = """
-deterministic-manifest.json is a host-independent projection of
-env.json covering only toolchain + source identity. Its SHA-256 is
-recorded in index.json.deterministic_hash; cross-host parity is
-asserted in CI via determinism-compare.
+deterministic-manifest.json carries the bundle's canonical recipe
+manifest (SYS-048): the toolchain projection (rustc, cargo,
+llvm_version, rust_toolchain_toml, rustflags, cargo_lock_hash)
+plus target_triple, profile, feature selection, locked dependency
+graph hash, command recipe hash, source-input digest aggregate,
+and resolution policy, with git identity retained as source
+metadata. Its SHA-256 is recorded in index.json.recipe_hash;
+cross-host parity is asserted in CI via determinism-compare on
+the six-field toolchain projection, since the full recipe binds
+host-defining fields (target_triple) by design.
 
 **Analysis claim** (DO-178C §6.3.4 verification by analysis): tests
 cover (a) the projection function's behavior on representative
-env.json inputs and (b) cross-host parity at run-time via the
-five-flavor `determinism-compare` CI job. What tests cannot prove
-is *projection completeness* — that every host-dependent field in
-`env.json`'s source struct is either included in the projection
-deterministically or excluded by design. That coverage is verified
-by analysis: the projection's source code
-(`evidence_core::env::manifest::project_for_determinism`) is read
-against the `EnvironmentMetadata` struct definition, and each field
-is classified host-dependent (excluded), host-stable (included), or
+env.json inputs and (b) cross-host toolchain parity at run-time via
+the five-flavor `determinism-compare` CI job. What tests cannot
+prove is *projection completeness* — that every host-dependent
+field in `env.json`'s source struct is either included in the
+projection deterministically or excluded by design. That coverage
+is verified by analysis: the projection's source code
+(`EnvFingerprint::recipe_manifest` in
+`evidence_core::env::fingerprint`, struct
+`evidence_core::env::manifest::RecipeManifest`) is read against
+the `EnvFingerprint` struct definition, and each field is
+classified host-dependent (excluded), host-stable (included), or
 intentionally-host-dependent-but-projected (e.g., toolchain version
-strings, retained because they are part of the determinism-bearing
-identity). The analysis is documented in the same module's
-crate-level rustdoc and re-validated at PR review when either
-struct gains a field. A future PR introducing a struct-level
-attribute (e.g., `#[deterministic_manifest(included|excluded)]`)
-would mechanize the obligation; the manual analysis suffices for
-the current shipping bar.
+strings and target_triple, retained because they are part of the
+determinism-bearing recipe identity). The analysis is documented
+in the same module's crate-level rustdoc and re-validated at PR
+review when either struct gains a field. A struct-level attribute
+(e.g., `#[recipe_manifest(included|excluded)]`) would mechanize
+the obligation; the manual analysis suffices for the current
+shipping bar.
 """
 verification_methods = [
     "test",
@@ -856,21 +864,25 @@ surfaces = ["comment hygiene gate"]
 [[requirements]]
 uid = "4aad7a9e-ec91-42a6-9360-a4c7f8e50761"
 id = "HLR-045"
-title = "Cross-time determinism is enforced by comparing every PR's deterministic_hash to the last successful main-branch build"
+title = "Cross-time determinism is enforced by comparing every PR's recipe toolchain projection to the last successful main-branch build"
 owner = "tool"
 scope = "component"
 description = """
 On every push to a PR branch and every push to main, a CI job
 shall (a) build the release binary on the current tree, (b)
 download the most recent successful main-branch bundle artifact,
-(c) extract `deterministic_hash` from both, (d) compare. If the
-two hashes match, the job passes silently. If they differ and the
-commit message or PR body contains a line matching
+(c) extract the six-field toolchain projection (rustc, cargo,
+llvm_version, cargo_lock_hash, rust_toolchain_toml, rustflags)
+from both `deterministic-manifest.json` files, (d) compare. If
+the projections match, the job passes silently. If they differ
+and the commit message or PR body contains a line matching
 `^Override-Deterministic-Baseline: .+`, the job passes with a
 logged notice. If they differ with no override line, the job
-fails with a message naming the two hashes and the expected
-override syntax. Artifact fetch failures (prior artifact expired
-beyond 14-day retention, no prior main run) degrade to a logged
+fails with a message naming the drifted fields and the expected
+override syntax. Comparing raw `recipe_hash` instead would fire
+on every commit, because the recipe manifest also binds git
+state. Artifact fetch failures (prior artifact expired beyond
+14-day retention, no prior main run) degrade to a logged
 warning + pass, so the gate doesn't block a repo with no
 artifact history.
 """
@@ -2895,3 +2907,67 @@ surfaces = [
     "generate",
     "verify",
 ]
+
+[[requirements]]
+uid = "79601c1c-8372-4b2e-9b79-b09ffbca00c8"
+id = "HLR-111"
+title = "The bundle binds a canonical recipe manifest and records its SHA-256 as index.json.recipe_hash"
+owner = "tool"
+scope = "component"
+description = """
+Every bundle shall carry `deterministic-manifest.json` holding the
+canonical `RecipeManifest` (SYS-048) in a documented field order:
+toolchain (rustc, cargo, llvm_version, rust_toolchain_toml,
+rustflags), cargo_lock_hash, target_triple, profile, feature
+selection (recorded as an empty list until the tool gains cargo
+feature selection), locked_graph_hash (SHA-256 of the canonical
+resolved-dependency projection from `cargo_metadata.json`, null
+when the bundle carries no such artifact), command_recipe_hash
+(SHA-256 of the canonical `commands.json` content), inputs_hash
+(SHA-256 of the canonical source-input digest map), and
+resolution_policy. Git identity (git_sha / git_branch / git_dirty)
+remains in the manifest as source metadata but is excluded from
+reproduced-output recipe comparison (HLR-112).
+
+`index.json` shall record the manifest's SHA-256 under
+`recipe_hash`; the previous `deterministic_hash` key is accepted
+as a read-time serde alias so bundles written before the rename
+still parse. The rename narrows the documented claim: recipe_hash
+proves the two bundles declare the same recipe; it does not prove
+their outputs reproduce — that is HLR-112's comparison.
+"""
+verification_methods = ["test"]
+traces_to = ["1ed39bb5-5c84-4068-b1ec-b588e7cfbf9d"]
+surfaces = [
+    "generate",
+    "verify",
+]
+
+[[requirements]]
+uid = "056a024e-3c14-4877-8728-26f7e18f3aae"
+id = "HLR-112"
+title = "Reproduced-output comparison reports typed findings over input, recipe, and output digest planes"
+owner = "tool"
+scope = "component"
+description = """
+The library shall provide a reproduced-output comparison over two
+bundle directories that reads each side's `inputs_hashes.json`,
+`deterministic-manifest.json` recipe fields, and
+`outputs_hashes.json`, and reports a deterministically sorted list
+of typed findings (SYS-048): InputChanged / InputMissing /
+InputUnverifiable per source path, RecipeFieldChanged per recipe
+field (the lockfile plane is reported as `dependency_lock`),
+RecipeUnavailable when either side's manifest is absent or
+unreadable, and OutputChanged / OutputMissing / OutputExtra /
+OutputUnverifiable per artifact.
+
+Two bundles shall compare reproduction-equal iff the finding list
+is empty: identical canonical input digests, identical recipe
+fields, and identical output digest maps. Git identity is excluded
+from the recipe comparison — it is source metadata, not recipe
+content. Missing or unparseable plane files yield explicit
+non-success findings (RecipeUnavailable, InputUnverifiable,
+OutputUnverifiable), never a panic and never a silent pass.
+"""
+verification_methods = ["test"]
+traces_to = ["1ed39bb5-5c84-4068-b1ec-b588e7cfbf9d"]
