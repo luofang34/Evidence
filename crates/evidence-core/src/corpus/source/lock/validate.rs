@@ -27,9 +27,13 @@
 //!    from the validated graph ([`SourceLockError::Missing`],
 //!    [`SourceLockError::Extra`], [`SourceLockError::Changed`]).
 //!
-//! [`read_lock_blocking`] is the only I/O: a blocking file reader
-//! returning the parsed lock. It never writes; validation never
-//! mutates the workspace.
+//! [`validate_lock_file_blocking`] is the file-level validation
+//! entry: it reads the committed file bytes once and applies the
+//! full three gates to them, so the canonicality gate sees the exact
+//! committed bytes. [`read_lock_blocking`] is the value-only
+//! blocking reader returning the parsed lock; the parsed value alone
+//! cannot support a canonical-byte check. Neither writes; validation
+//! never mutates the workspace.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -41,7 +45,7 @@ use super::super::super::graph::CorpusGraph;
 use super::super::error::SourceError;
 use super::error::SourceLockError;
 use super::{
-    ExternalControlId, LockAvailability, LockCaptureMode, SUPPORTED_LOCK_SCHEMA, SourceLock,
+    ExternalControlId, LockCapture, LockMaterial, SUPPORTED_LOCK_SCHEMA, SourceLock,
     SourceLockEntry, derive_lock, render_lock_canonical,
 };
 
@@ -55,6 +59,24 @@ struct LockFileWire {
     /// The per-document-key entries, in committed file order.
     #[serde(default)]
     entries: Vec<EntryWire>,
+}
+
+/// The `capture_mode` wire tag: a flat string field of the
+/// committed file, mirrored here for deserialization only. The
+/// domain type is [`LockCapture`]; because the external-control
+/// identity travels as the sibling `external_control` field, the
+/// wire cannot deserialize into [`LockCapture`] directly —
+/// `entry_from_wire` pairs the tag with the identity and fails
+/// closed on an inconsistent combination.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LockCaptureMode {
+    /// `vendored`.
+    Vendored,
+    /// `hash_only`.
+    HashOnly,
+    /// `external_controlled`.
+    ExternalControlled,
 }
 
 /// One lock entry's wire shape. Internally tagged on
@@ -176,9 +198,12 @@ pub fn validate_committed_lock(bytes: &[u8], graph: &CorpusGraph) -> Result<(), 
 }
 
 /// Read and parse the committed lock at `path` (LLR-135). This is
-/// the module's only I/O: a blocking reader that returns the parsed
-/// lock value and never writes. Parse failures surface exactly as
-/// [`parse_lock`] reports them.
+/// the value-only blocking reader: it returns the parsed lock and
+/// never writes. The parsed value alone cannot support a
+/// canonical-byte check — for file-level validation against a
+/// graph, use [`validate_lock_file_blocking`], which keeps the
+/// committed bytes for the canonicality gate. Parse failures
+/// surface exactly as [`parse_lock`] reports them.
 ///
 /// # Errors
 ///
@@ -190,6 +215,27 @@ pub fn read_lock_blocking(path: &Path) -> Result<SourceLock, SourceError> {
         source,
     })?;
     parse_lock(&bytes)
+}
+
+/// Validate the committed lock file at `path` against `graph`
+/// through the full three ordered gates of
+/// [`validate_committed_lock`] (LLR-135). This is the file-level
+/// validation entry: it reads the file bytes once and keeps them,
+/// so the canonicality gate applies to the exact committed bytes —
+/// a parsed value alone cannot support that check. It never
+/// writes; validation never mutates the workspace.
+///
+/// # Errors
+///
+/// - [`SourceLockError::Read`] when the file cannot be read.
+/// - Every [`validate_committed_lock`] failure when the bytes are
+///   degenerate or disagree with `graph`.
+pub fn validate_lock_file_blocking(path: &Path, graph: &CorpusGraph) -> Result<(), SourceError> {
+    let bytes = std::fs::read(path).map_err(|source| SourceLockError::Read {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    validate_committed_lock(&bytes, graph)
 }
 
 /// Compare the derived inventory with the committed one in sorted
@@ -246,19 +292,40 @@ fn first_changed_field(
     if committed.source_uid != derived.source_uid {
         return Some("uid");
     }
-    if committed.availability != derived.availability {
-        return Some("availability");
+    match (&derived.material, &committed.material) {
+        (LockMaterial::Unavailable, LockMaterial::Unavailable) => None,
+        (LockMaterial::Available { .. }, LockMaterial::Unavailable)
+        | (LockMaterial::Unavailable, LockMaterial::Available { .. }) => Some("availability"),
+        (
+            LockMaterial::Available {
+                sha256: derived_sha256,
+                capture: derived_capture,
+            },
+            LockMaterial::Available {
+                sha256: committed_sha256,
+                capture: committed_capture,
+            },
+        ) => {
+            if committed_sha256 != derived_sha256 {
+                return Some("digest");
+            }
+            if committed_capture.as_str() != derived_capture.as_str() {
+                return Some("capture_mode");
+            }
+            if external_control(committed_capture) != external_control(derived_capture) {
+                return Some("external_identity");
+            }
+            None
+        }
     }
-    if committed.sha256 != derived.sha256 {
-        return Some("digest");
+}
+
+/// The external control identity a capture mode binds, if any.
+fn external_control(capture: &LockCapture) -> Option<&ExternalControlId> {
+    match capture {
+        LockCapture::ExternalControlled(external) => Some(external),
+        _ => None,
     }
-    if committed.capture_mode != derived.capture_mode {
-        return Some("capture_mode");
-    }
-    if committed.external_control != derived.external_control {
-        return Some("external_identity");
-    }
-    None
 }
 
 /// Where committed bytes first differ from the canonical rendering:
@@ -281,9 +348,10 @@ fn first_difference(committed: &[u8], canonical: &[u8]) -> String {
 }
 
 /// Convert one wire entry into the lock value, enforcing the
-/// capture-mode/external-control invariant the tag cannot express:
-/// the external-control table is present iff the capture mode is
-/// external-controlled.
+/// capture-mode/external-control consistency the flat wire fields
+/// imply: the external-control table is present iff the capture
+/// mode is external-controlled. The resulting [`LockMaterial`]
+/// carries the consistent combination by construction.
 fn entry_from_wire(wire: &EntryWire) -> Result<SourceLockEntry, SourceError> {
     match wire {
         EntryWire::Available {
@@ -293,19 +361,25 @@ fn entry_from_wire(wire: &EntryWire) -> Result<SourceLockEntry, SourceError> {
             capture_mode,
             external_control,
         } => {
-            if (*capture_mode == LockCaptureMode::ExternalControlled) != external_control.is_some()
-            {
-                return Err(parse_error(
-                    "external_control is required iff capture_mode is \"external_controlled\"",
-                ));
-            }
+            let capture = match (capture_mode, external_control) {
+                (LockCaptureMode::Vendored, None) => LockCapture::Vendored,
+                (LockCaptureMode::HashOnly, None) => LockCapture::HashOnly,
+                (LockCaptureMode::ExternalControlled, Some(external)) => {
+                    LockCapture::ExternalControlled(external.clone())
+                }
+                _ => {
+                    return Err(parse_error(
+                        "external_control is required iff capture_mode is \"external_controlled\"",
+                    ));
+                }
+            };
             Ok(SourceLockEntry {
                 document_key: document_key.clone(),
                 source_uid: source_uid.clone(),
-                availability: LockAvailability::Available,
-                sha256: Some(sha256.clone()),
-                capture_mode: Some(*capture_mode),
-                external_control: external_control.clone(),
+                material: LockMaterial::Available {
+                    sha256: sha256.clone(),
+                    capture,
+                },
             })
         }
         EntryWire::Unavailable {
@@ -314,10 +388,7 @@ fn entry_from_wire(wire: &EntryWire) -> Result<SourceLockEntry, SourceError> {
         } => Ok(SourceLockEntry {
             document_key: document_key.clone(),
             source_uid: source_uid.clone(),
-            availability: LockAvailability::Unavailable,
-            sha256: None,
-            capture_mode: None,
-            external_control: None,
+            material: LockMaterial::Unavailable,
         }),
     }
 }

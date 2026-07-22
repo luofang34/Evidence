@@ -3963,15 +3963,18 @@ modules = ["evidence_core::corpus::source::lock"]
 description = """
 `SourceLock` shall hold `schema_version` plus entries sorted by
 document key then source uid; `SourceLockEntry` shall bind the
-document key, the effective source uid, a `LockAvailability`
-(`available` | `unavailable`), an optional validated
-`SourceContentDigest` (absent iff unavailable), an optional
-`LockCaptureMode` (`vendored` | `hash_only` | `external_controlled`,
-absent iff unavailable), and an optional `ExternalControlId`
-(controlling system plus immutable id, present iff
-external-controlled). `derive_lock` shall project each effective
-head reported by `effective_source_heads`: available material
-binds its declared digest, capture mode, and — for
+document key, the effective source uid, and a typed `LockMaterial`
+— `Available` carrying a validated `SourceContentDigest` and a
+`LockCapture` (`Vendored` | `HashOnly` |
+`ExternalControlled(ExternalControlId)`, the identity binding the
+controlling system plus immutable id), or `Unavailable` carrying
+neither — so a digest or capture mode without availability and an
+external-control identity without the external-controlled mode are
+unrepresentable in the domain type; the flat `availability`,
+`sha256`, `capture_mode`, and `external_control` fields exist only
+in the canonical wire form. `derive_lock` shall project each
+effective head reported by `effective_source_heads`: available
+material binds its declared digest, capture mode, and — for
 external-controlled capture — the controlling system and immutable
 id; unavailable material yields an explicit unavailable entry with
 no digest and no capture mode, never a synthetic value. Retrieval
@@ -4030,11 +4033,14 @@ extra, and changed errors, the change naming the document key and
 the field — uid, digest, availability, capture mode, or external
 identity). Difference reports shall iterate in sorted document-key
 order so the reported entry is load-order independent. All gate
-functions shall be pure; `read_lock_blocking` shall be the only
-I/O, a blocking reader returning the parsed lock that never
-writes. Lock failures shall report through a `SourceLockError`
-taxonomy wrapped by `SourceError`, keeping `CorpusError::Source`
-the only corpus wrapper.
+functions shall be pure; the blocking file entries shall be the
+only I/O: `validate_lock_file_blocking`, the file-level validation
+entry, shall read the committed file bytes once and apply the full
+three gates to them without writing, and `read_lock_blocking`
+shall be the value-only blocking reader returning the parsed lock
+without writing. Lock failures shall report through a
+`SourceLockError` taxonomy wrapped by `SourceError`, keeping
+`CorpusError::Source` the only corpus wrapper.
 """
 verification_methods = ["test"]
 

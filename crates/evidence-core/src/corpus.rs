@@ -82,9 +82,9 @@ pub use source::lineage::{
     validate_source_transition,
 };
 pub use source::lock::{
-    ExternalControlId, LockAvailability, LockCaptureMode, SUPPORTED_LOCK_SCHEMA, SourceLock,
+    ExternalControlId, LockCapture, LockMaterial, SUPPORTED_LOCK_SCHEMA, SourceLock,
     SourceLockEntry, SourceLockError, derive_lock, parse_lock, read_lock_blocking,
-    render_lock_canonical, validate_committed_lock,
+    render_lock_canonical, validate_committed_lock, validate_lock_file_blocking,
 };
 pub use source::verify::{
     DigestMismatchDetail, SourcePayloadError, SourceVerification, SourceVerificationState,

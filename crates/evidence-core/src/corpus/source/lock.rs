@@ -10,11 +10,15 @@
 //! [`render_lock_canonical`] renders the one canonical byte form,
 //! and the `validate` sibling parses strict lock bytes and compares
 //! a committed lock with the derived projection. All four are pure;
-//! the only I/O anywhere in the module is
-//! [`read_lock_blocking`](validate::read_lock_blocking), a blocking
-//! file reader that never mutates the workspace. Writing or
-//! replacing the committed lock belongs to a later human CLI
-//! surface.
+//! the only I/O anywhere in the module is the `validate` sibling's
+//! blocking pair —
+//! [`validate_lock_file_blocking`](validate::validate_lock_file_blocking),
+//! the file-level validation entry applying the three gates to the
+//! committed file bytes, and
+//! [`read_lock_blocking`](validate::read_lock_blocking), a
+//! value-only blocking reader. Neither mutates the workspace.
+//! Writing or replacing the committed lock belongs to a later human
+//! CLI surface.
 //!
 //! # Entry membership
 //!
@@ -119,7 +123,8 @@
 //! - `error` — the [`SourceLockError`] taxonomy every lock failure
 //!   reports through (LLR-135)
 //! - `validate` — strict parsing, the three ordered committed-lock
-//!   gates, and the blocking reader (LLR-134, LLR-135)
+//!   gates, and the blocking read and file-validation entries
+//!   (LLR-134, LLR-135)
 
 use super::super::digest::SourceContentDigest;
 use super::super::graph::{CorpusGraph, Node, SourceCapture, SourceMaterial, SourceRevisionNode};
@@ -129,54 +134,57 @@ pub(crate) mod error;
 mod validate;
 
 pub use error::SourceLockError;
-pub use validate::{parse_lock, read_lock_blocking, validate_committed_lock};
+pub use validate::{
+    parse_lock, read_lock_blocking, validate_committed_lock, validate_lock_file_blocking,
+};
 
 /// Highest sources-lock schema version this tool loads (LLR-134).
 pub const SUPPORTED_LOCK_SCHEMA: u32 = 1;
 
-/// The availability state of one effective source head (LLR-133).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LockAvailability {
+/// The typed material state of one effective source head (LLR-133):
+/// available material always carries its digest and capture mode;
+/// unavailable material carries neither. The availability/digest/
+/// capture consistency the flat canonical fields imply is a
+/// type-level invariant here, not a prose one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LockMaterial {
     /// The revision's bytes were captured; the entry binds the
-    /// declared digest and capture mode.
-    Available,
+    /// declared digest and the capture mode.
+    Available {
+        /// Validated lowercase content SHA-256 — never a synthetic
+        /// digest.
+        sha256: SourceContentDigest,
+        /// How the captured bytes are held.
+        capture: LockCapture,
+    },
     /// The revision's bytes could not be captured; the entry binds
     /// no digest and no capture mode.
     Unavailable,
 }
 
-impl LockAvailability {
-    /// The canonical wire string for this state.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            LockAvailability::Available => "available",
-            LockAvailability::Unavailable => "unavailable",
-        }
-    }
-}
-
 /// The capture mode of an available effective source head
 /// (LLR-133). Vendored payloads bind the mode alone — the vendored
-/// path is a storage detail and never enters the lock.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum LockCaptureMode {
+/// path is a storage detail and never enters the lock. The
+/// external-controlled mode always carries its immutable control
+/// identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LockCapture {
     /// Raw bytes are vendored beneath the `sources/` payload root.
     Vendored,
     /// Only the digest and location are recorded.
     HashOnly,
     /// Bytes live in an external controlled document system under
     /// an immutable identifier.
-    ExternalControlled,
+    ExternalControlled(ExternalControlId),
 }
 
-impl LockCaptureMode {
-    /// The canonical wire string for this mode.
-    pub fn as_str(self) -> &'static str {
+impl LockCapture {
+    /// The canonical `capture_mode` wire string for this mode.
+    pub fn as_str(&self) -> &'static str {
         match self {
-            LockCaptureMode::Vendored => "vendored",
-            LockCaptureMode::HashOnly => "hash_only",
-            LockCaptureMode::ExternalControlled => "external_controlled",
+            LockCapture::Vendored => "vendored",
+            LockCapture::HashOnly => "hash_only",
+            LockCapture::ExternalControlled(_) => "external_controlled",
         }
     }
 }
@@ -197,29 +205,23 @@ pub struct ExternalControlId {
 /// One lock entry: the effective source head of one document key
 /// (LLR-133).
 ///
-/// Construction invariant (upheld by [`derive_lock`] and
-/// [`parse_lock`], assumed by [`render_lock_canonical`]):
-/// `availability == Available` iff `sha256.is_some()` iff
-/// `capture_mode.is_some()`, and `external_control.is_some()` iff
-/// `capture_mode == Some(LockCaptureMode::ExternalControlled)`.
-/// The renderer emits exactly what the value carries, so a value
-/// built outside those constructors still renders deterministically.
+/// The consistency the flat canonical fields imply — a digest and a
+/// capture mode exactly when available, an external-control
+/// identity exactly under the external-controlled mode — is a
+/// type-level invariant of [`LockMaterial`] and [`LockCapture`],
+/// not a prose one: an invalid combination is unrepresentable, so
+/// there is no runtime test for unrepresentable states — the type
+/// is the proof. Every construction path ([`derive_lock`],
+/// [`parse_lock`], or a direct literal) yields a value
+/// [`render_lock_canonical`] renders deterministically.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceLockEntry {
     /// Stable lineage key of the logical document.
     pub document_key: String,
     /// Uid of the effective source revision — the document's head.
     pub source_uid: String,
-    /// Availability state of the head.
-    pub availability: LockAvailability,
-    /// Declared lowercase content SHA-256; `None` iff unavailable —
-    /// never a synthetic digest.
-    pub sha256: Option<SourceContentDigest>,
-    /// Capture mode; `None` iff unavailable.
-    pub capture_mode: Option<LockCaptureMode>,
-    /// Immutable external control identity; `Some` iff the capture
-    /// mode is external-controlled.
-    pub external_control: Option<ExternalControlId>,
+    /// Typed material state of the head.
+    pub material: LockMaterial,
 }
 
 /// The derived source-inventory lock (LLR-133): a strict versioned
@@ -277,41 +279,32 @@ fn entry_from_revision(
     uid: String,
     revision: &SourceRevisionNode,
 ) -> SourceLockEntry {
-    match &revision.material {
+    let material = match &revision.material {
         SourceMaterial::Available {
             sha256, capture, ..
         } => {
-            let (capture_mode, external_control) = match capture {
-                SourceCapture::Vendored { .. } => (LockCaptureMode::Vendored, None),
-                SourceCapture::HashOnly { .. } => (LockCaptureMode::HashOnly, None),
+            let capture = match capture {
+                SourceCapture::Vendored { .. } => LockCapture::Vendored,
+                SourceCapture::HashOnly { .. } => LockCapture::HashOnly,
                 SourceCapture::ExternalControlled {
                     system,
                     immutable_id,
-                } => (
-                    LockCaptureMode::ExternalControlled,
-                    Some(ExternalControlId {
-                        system: system.clone(),
-                        immutable_id: immutable_id.clone(),
-                    }),
-                ),
+                } => LockCapture::ExternalControlled(ExternalControlId {
+                    system: system.clone(),
+                    immutable_id: immutable_id.clone(),
+                }),
             };
-            SourceLockEntry {
-                document_key,
-                source_uid: uid,
-                availability: LockAvailability::Available,
-                sha256: Some(sha256.clone()),
-                capture_mode: Some(capture_mode),
-                external_control,
+            LockMaterial::Available {
+                sha256: sha256.clone(),
+                capture,
             }
         }
-        SourceMaterial::Unavailable { .. } => SourceLockEntry {
-            document_key,
-            source_uid: uid,
-            availability: LockAvailability::Unavailable,
-            sha256: None,
-            capture_mode: None,
-            external_control: None,
-        },
+        SourceMaterial::Unavailable { .. } => LockMaterial::Unavailable,
+    };
+    SourceLockEntry {
+        document_key,
+        source_uid: uid,
+        material,
     }
 }
 
@@ -334,19 +327,22 @@ pub fn render_lock_canonical(lock: &SourceLock) -> Vec<u8> {
         out.push_str("\n[[entries]]\n");
         push_field(&mut out, "document_key", &entry.document_key);
         push_field(&mut out, "source_uid", &entry.source_uid);
-        push_field(&mut out, "availability", entry.availability.as_str());
-        if let Some(sha256) = &entry.sha256 {
-            push_field(&mut out, "sha256", sha256.as_str());
-        }
-        if let Some(capture_mode) = entry.capture_mode {
-            push_field(&mut out, "capture_mode", capture_mode.as_str());
-        }
-        if let Some(external) = &entry.external_control {
-            out.push_str("external_control = { system = ");
-            push_basic_string(&mut out, &external.system);
-            out.push_str(", immutable_id = ");
-            push_basic_string(&mut out, &external.immutable_id);
-            out.push_str(" }\n");
+        match &entry.material {
+            LockMaterial::Available { sha256, capture } => {
+                push_field(&mut out, "availability", "available");
+                push_field(&mut out, "sha256", sha256.as_str());
+                push_field(&mut out, "capture_mode", capture.as_str());
+                if let LockCapture::ExternalControlled(external) = capture {
+                    out.push_str("external_control = { system = ");
+                    push_basic_string(&mut out, &external.system);
+                    out.push_str(", immutable_id = ");
+                    push_basic_string(&mut out, &external.immutable_id);
+                    out.push_str(" }\n");
+                }
+            }
+            LockMaterial::Unavailable => {
+                push_field(&mut out, "availability", "unavailable");
+            }
         }
     }
     out.into_bytes()
