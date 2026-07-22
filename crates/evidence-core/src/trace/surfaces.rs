@@ -25,18 +25,18 @@
 /// the two groups can use their natural conventions (lowercase CLI
 /// verbs; Capitalized observable-contract labels).
 ///
-/// **Not yet covered**: `cargo evidence diff`,
-/// `schema show`, `schema validate`. These subcommands exist but
-/// don't have governing HLRs in the self-trace today; adding them
-/// to KNOWN_SURFACES would fire the unclaimed-surface rule
-/// immediately. The gap is itself the point of this bijection —
-/// a follow-up PR adds HLRs for these subcommands (tracked in
-/// cert/trace/README journal).
+/// **Not yet covered**: `schema show`, `schema validate`. These
+/// subcommands exist but don't have governing HLRs in the
+/// self-trace today; adding them to KNOWN_SURFACES would fire the
+/// unclaimed-surface rule immediately. The gap is itself the point
+/// of this bijection — a follow-up PR adds HLRs for these
+/// subcommands (tracked in cert/trace/README journal).
 pub const KNOWN_SURFACES: &[&str] = &[
     // Group 1 — CLI verb names (lowercase; match the `Commands::*`
     // variants exactly).
     "check",
     "context",
+    "diff",
     "doctor",
     "floors",
     "generate",
@@ -71,7 +71,7 @@ pub const KNOWN_SURFACES: &[&str] = &[
 /// Used by the group-scoped sort test to validate within-group order
 /// without imposing cross-group ordering.
 #[cfg(test)]
-const CONTRACTS_START: usize = 10;
+const CONTRACTS_START: usize = 11;
 
 #[cfg(test)]
 mod tests {

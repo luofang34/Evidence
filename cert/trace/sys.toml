@@ -1452,3 +1452,41 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "bb638b12-db15-4312-a04a-66187ddf80ec"
+id = "SYS-049"
+title = "Bundle assurance state is inspectable: derived per-area completeness states on every bundle, and bundle comparison over every assurance-relevant category with explicit unverifiable markers"
+owner = "soi"
+scope = "soi"
+description = """
+Every bundle shall record on its index a set of separately derived
+completeness states — capture completeness, graph validity,
+verification completeness, objective-mapping completeness,
+review/approval completeness, integrity verification,
+reproducibility verification, and tool qualification — so no single
+Boolean conflates independent assurance areas. Each state shall be
+derived only from facts known at generation time; a state the
+generator cannot substantiate shall be recorded as incomplete or
+unverifiable, never optimistically complete. A bundle the verifier
+rejects shall never report verification completeness, and empty
+input, output, or trace data shall never report capture or graph
+completeness for an in-scope claim.
+
+The bundle comparison shall examine every assurance-relevant
+content category — scope, trace graph, tests and row-level
+results, coverage, commands, recipe, inputs, outputs,
+objective/profile mappings, reviews/approvals, anomalies,
+tool/qualification identity, integrity/signature state, derived
+completeness states, and the whole-content hash — and report each
+category as equal, added, removed, changed, or unverifiable with
+deterministic detail lines. Categories whose artifacts are missing
+or unparseable shall be reported unverifiable with the reason, and
+the comparison shall never imply "no changes" while unexamined
+content may differ.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []
