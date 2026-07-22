@@ -798,6 +798,20 @@ jobs:
             CARGO_TERM_COLOR="$CARGO_TERM_COLOR" \
             cargo build --release -p cargo-evidence
 
+      - name: Prepare the locked offline cache under Nix
+        shell: bash
+        run: |
+          # Post-#143 every cargo metadata/build/test invocation in
+          # generate runs `--locked --offline`. `cargo build -p`
+          # populates the registry only for the build closure — the
+          # full metadata resolve also needs dev-dependency index
+          # entries, which a restored fallback cache may not carry
+          # (a warm PR-lane cache can make this latent; a cold or
+          # partial one makes it fatal). `cargo fetch --locked`
+          # downloads every lockfile entry so the offline gates are
+          # cache-shape independent.
+          nix develop -c cargo fetch --locked
+
       - name: Generate bundle (run A) under Nix
         shell: bash
         run: |
