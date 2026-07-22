@@ -78,12 +78,6 @@ fn build_bundle(
         serde_json::to_vec_pretty(&env_fp).unwrap(),
     )
     .unwrap();
-    let manifest = env_fp.deterministic_manifest();
-    fs::write(
-        bundle_dir.join("deterministic-manifest.json"),
-        serde_json::to_vec_pretty(&manifest).unwrap(),
-    )
-    .unwrap();
 
     // Non-empty source baseline: verify fails closed on empty inputs.
     // outputs stays empty (output-manifest population is a separate
@@ -111,10 +105,24 @@ fn build_bundle(
     )
     .unwrap();
 
+    // The recipe manifest aggregates the recorded inputs, so it is
+    // written after inputs_hashes.json / commands.json.
+    let recipe_inputs = evidence_core::env::RecipeInputs::from_bundle_dir(
+        &bundle_dir,
+        evidence_core::policy::ResolutionPolicy::LOCKED_OFFLINE,
+    )
+    .expect("gather recipe inputs");
+    let manifest = env_fp.recipe_manifest(&recipe_inputs);
+    fs::write(
+        bundle_dir.join("deterministic-manifest.json"),
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+
     let sha256sums_path = bundle_dir.join("SHA256SUMS");
     write_sha256sums(&bundle_dir, &sha256sums_path).unwrap();
     let content_hash = sha256_file(&sha256sums_path).unwrap();
-    let deterministic_hash = sha256_file(&bundle_dir.join("deterministic-manifest.json")).unwrap();
+    let recipe_hash = sha256_file(&bundle_dir.join("deterministic-manifest.json")).unwrap();
 
     let test_summary = if test_summary_present {
         Some(evidence_core::TestSummary {
@@ -148,7 +156,7 @@ fn build_bundle(
         trace_outputs: vec![],
         bundle_complete,
         content_hash,
-        deterministic_hash,
+        recipe_hash,
         test_summary,
         tool_command_failures: failures,
         dal_map: BTreeMap::new(),

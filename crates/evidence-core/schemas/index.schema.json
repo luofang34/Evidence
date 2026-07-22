@@ -23,7 +23,7 @@
     "trace_outputs",
     "bundle_complete",
     "content_hash",
-    "deterministic_hash"
+    "recipe_hash"
   ],
   "properties": {
     "schema_version": {
@@ -118,10 +118,10 @@
       "pattern": "^[a-f0-9]{64}$",
       "description": "SHA-256 of the SHA256SUMS file; covers every recorded byte and is host-specific"
     },
-    "deterministic_hash": {
+    "recipe_hash": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$",
-      "description": "SHA-256 of deterministic-manifest.json; cross-host-stable identity hash (toolchain + target + source)"
+      "description": "SHA-256 of deterministic-manifest.json; canonical recipe identity hash (toolchain + target + profile + features + locked graph + command recipe + source inputs + resolution policy). Proves same declared recipe, not reproduced outputs."
     },
     "test_summary": {
       "type": "object",

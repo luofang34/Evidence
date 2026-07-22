@@ -64,13 +64,6 @@ fn build_prerelease_bundle(profile: evidence_core::Profile) -> (TempDir, PathBuf
     )
     .unwrap();
 
-    let manifest = env_fp.deterministic_manifest();
-    fs::write(
-        bundle_dir.join("deterministic-manifest.json"),
-        serde_json::to_vec_pretty(&manifest).unwrap(),
-    )
-    .unwrap();
-
     let empty_map: BTreeMap<String, String> = BTreeMap::new();
     fs::write(
         bundle_dir.join("inputs_hashes.json"),
@@ -89,10 +82,25 @@ fn build_prerelease_bundle(profile: evidence_core::Profile) -> (TempDir, PathBuf
     )
     .unwrap();
 
+    // The recipe manifest aggregates the recorded inputs, so it is
+    // written AFTER inputs_hashes.json / commands.json; verify
+    // re-projects it from those files and byte-compares.
+    let recipe_inputs = evidence_core::env::RecipeInputs::from_bundle_dir(
+        &bundle_dir,
+        evidence_core::policy::ResolutionPolicy::LOCKED_OFFLINE,
+    )
+    .expect("gather recipe inputs");
+    let manifest = env_fp.recipe_manifest(&recipe_inputs);
+    fs::write(
+        bundle_dir.join("deterministic-manifest.json"),
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+
     let sha256sums_path = bundle_dir.join("SHA256SUMS");
     write_sha256sums(&bundle_dir, &sha256sums_path).unwrap();
     let content_hash = sha256_file(&sha256sums_path).unwrap();
-    let deterministic_hash = sha256_file(&bundle_dir.join("deterministic-manifest.json")).unwrap();
+    let recipe_hash = sha256_file(&bundle_dir.join("deterministic-manifest.json")).unwrap();
 
     let index = EvidenceIndex {
         schema_version: evidence_core::schema_versions::INDEX.to_string(),
@@ -114,7 +122,7 @@ fn build_prerelease_bundle(profile: evidence_core::Profile) -> (TempDir, PathBuf
         trace_outputs: vec![],
         bundle_complete: true,
         content_hash,
-        deterministic_hash,
+        recipe_hash,
         test_summary: None,
         tool_command_failures: Vec::new(),
         dal_map: BTreeMap::new(),

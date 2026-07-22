@@ -258,7 +258,7 @@ pub fn cmd_verify(
                     VE::UnsafePath(_)                   => "unsafe_path",
                     VE::FormatError { .. }              => "format_error",
                     VE::CrossFileInconsistency { .. }   => "cross_file_mismatch",
-                    VE::DeterministicHashMismatch { .. } => "deterministic_hash",
+                    VE::DeterministicHashMismatch { .. } => "recipe_hash",
                     VE::ManifestProjectionDrift { .. }  => "manifest_projection",
                     VE::TraceOutputNotHashed(_)         => "trace_output_not_hashed",
                     VE::TestSummaryMismatch { .. }      => "test_summary_mismatch",

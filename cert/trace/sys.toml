@@ -60,9 +60,14 @@ owner = "soi"
 scope = "soi"
 description = """
 Two invocations on different supported hosts against the same source
-commit and same toolchain shall produce byte-equal deterministic
-manifests (content_hash may differ by host-varying metadata, but
-deterministic_hash shall not).
+commit and same toolchain shall agree on the cross-host-stable
+toolchain projection of the recipe manifest — the six fields the CI
+determinism gates compare (rustc, cargo, llvm_version,
+cargo_lock_hash, rust_toolchain_toml, rustflags). The full recipe
+identity (SYS-048) additionally binds host-defining fields such as
+target_triple, so `recipe_hash` itself is a same-target identity,
+not a cross-host one; `content_hash` may differ by host-varying
+metadata either way.
 """
 verification_methods = ["test"]
 traces_to = []
@@ -230,19 +235,22 @@ traces_to = []
 [[requirements]]
 uid = "3596cc7b-d8ce-46fb-8a92-62c55a40758b"
 id = "SYS-013"
-title = "The deterministic_hash of the tool's own bundle shall stay stable across time between PR-boundary checkpoints, with silent drift mechanically prevented"
+title = "The toolchain projection of the tool's own bundle recipe manifest shall stay stable across time between PR-boundary checkpoints, with silent drift mechanically prevented"
 owner = "soi"
 scope = "soi"
 description = """
 Cross-host determinism (SYS-003, landed) proves that N hosts
-building the SAME commit produce the same `deterministic_hash` at
-a SINGLE point in time. It doesn't catch drift across time —
-dependency lock-file changes, toolchain bumps, RUSTFLAGS
-adjustments, or any edit to a determinism-affecting input in a
-PR. The tool shall detect when the current PR's
-`deterministic_hash` diverges from the last successful
-main-branch build and block the PR unless an explicit override
-line (`Override-Deterministic-Baseline: <reason>`) appears in the
+building the SAME commit agree on the recipe manifest's
+toolchain projection at a SINGLE point in time. It doesn't
+catch drift across time — dependency lock-file changes,
+toolchain bumps, RUSTFLAGS adjustments, or any edit to a
+determinism-affecting input in a PR. The tool shall detect when
+the current PR's toolchain projection (the six named manifest
+fields the baseline lint compares; comparing raw `recipe_hash`
+would fire on every commit because the hash also binds git
+state) diverges from the last successful main-branch build and
+block the PR unless an explicit override line
+(`Override-Deterministic-Baseline: <reason>`) appears in the
 PR body. This turns silent determinism drift into a
 mechanically-refused regression, preserving the reproducibility
 contract on which the bundle's audit value depends.
@@ -1397,6 +1405,47 @@ baseline actually resolved to.
 A development workflow may explicitly opt into online resolution;
 the opt-in shall be recorded in the bundle, and a bundle produced
 under it shall never satisfy a certification or record claim.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []
+
+[[requirements]]
+uid = "1ed39bb5-5c84-4068-b1ec-b588e7cfbf9d"
+id = "SYS-048"
+title = "Bundle recipe identity is canonical, and reproduced-output equality is defined over input, recipe, and output digest planes"
+owner = "soi"
+scope = "soi"
+description = """
+The bundle shall record a canonical recipe identity covering the
+target triple, feature selection, build profile, locked dependency
+graph, toolchain (rustc / cargo / LLVM / rust-toolchain.toml /
+RUSTFLAGS), dependency-resolution policy, source-input digests,
+and the exact command recipe, so two bundles can be classified as
+same-recipe or different-recipe without consulting host-specific
+metadata.
+
+The identity hash recorded in `index.json` shall be named for what
+it proves — `recipe_hash`, the SHA-256 of the committed recipe
+manifest — and shall never be presented as proof that build outputs
+reproduce. Same-recipe is a claim about declared build identity;
+reproduced outputs are a separate, stronger claim.
+
+Reproduced-output comparison shall be defined over three digest
+planes: the canonical source-input digests, the recipe/target
+identity, and the recorded output digests. Two bundles compare
+reproduction-equal iff all three planes compare equal. Every
+difference — changed, missing, extra, or unverifiable inputs,
+recipe fields, or outputs — shall surface as a typed comparison
+finding, never as a bare boolean or a panic.
+
+Cross-host recipe parity (the toolchain-projection agreement of
+SYS-003) shall be treated as a distinct claim from
+reproduced-output equality: target artifacts legitimately differ
+across hosts, so output-digest equality is a same-target
+comparison while recipe parity is the cross-host one.
 """
 verification_methods = [
     "test",

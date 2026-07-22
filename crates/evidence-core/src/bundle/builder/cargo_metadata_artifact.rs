@@ -22,10 +22,14 @@ use crate::util::cmd_stdout;
 /// projection sorts packages by name, and serde's `to_string_pretty`
 /// is stable, so two runs on the same input produce byte-identical
 /// artifact bytes (SYS-003).
+///
+/// Returns the projection so `finalize` can fold its canonical
+/// resolved-graph hash into the recipe manifest's
+/// `locked_graph_hash`.
 pub(super) fn write_cargo_metadata_projection(
     bundle_dir: &Path,
     policy: ResolutionPolicy,
-) -> Result<(), BuilderError> {
+) -> Result<CargoMetadataProjection, BuilderError> {
     let mut args = vec!["metadata", "--format-version", "1"];
     args.extend_from_slice(policy.cargo_args());
     let raw = cmd_stdout("cargo", &args).map_err(|e| {
@@ -48,5 +52,5 @@ pub(super) fn write_cargo_metadata_projection(
         path: path.clone(),
         source,
     })?;
-    Ok(())
+    Ok(projection)
 }

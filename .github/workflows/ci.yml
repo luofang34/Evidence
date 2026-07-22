@@ -393,7 +393,7 @@ jobs:
     # that final cert builds run on Linux under Nix; macOS Nix is a
     # dev-convenience path, and it's already exercised end-to-end by
     # `evidence-self-nix (macos-latest)` via the devShell — which is
-    # what the 5-flavor `deterministic_hash` parity claim depends on.
+    # what the 5-flavor toolchain-projection parity claim depends on.
     # Running a second macOS `nix build` added ~9 min to the critical
     # path for ~5% more coverage (breakage unique to `makeRustPlatform`
     # on macOS that doesn't also hit the devShell); not worth blocking
@@ -632,17 +632,20 @@ jobs:
     # Generates a bundle on each OS from the same commit and
     # publishes its index.json + SHA256SUMS + deterministic-manifest
     # as a per-OS artifact. The determinism-compare job downloads all
-    # and asserts `deterministic_hash` parity across native + Nix
+    # and asserts toolchain-projection parity across native + Nix
     # flavors.
     #
     # `content_hash` still differs per host by design (env.json
     # records `host.os`, libc, tool availability — those are baked
     # into SHA256SUMS as part of the integrity chain, same as every
-    # other recorded byte). What's gating is the committed
-    # `deterministic-manifest.json`, a projection of env.json onto
-    # toolchain + source identity, which MUST be byte-equal across
+    # other recorded byte). What's gating is the six-field toolchain
+    # projection of the committed `deterministic-manifest.json`
+    # (rustc, cargo, llvm_version, cargo_lock_hash,
+    # rust_toolchain_toml, rustflags), which MUST be equal across
     # every flavor built from the same commit with the same
-    # `rust-toolchain.toml`.
+    # `rust-toolchain.toml`. The full `recipe_hash` also binds
+    # host-defining fields (target_triple), so it is a same-target
+    # identity and intentionally NOT compared cross-host.
     #
     # `needs: check` intentionally NOT set — runs in parallel with
     # check; each matrix entry does its own release build.
@@ -717,8 +720,8 @@ jobs:
           # label the determinism-compare job keys on.
           echo "${{ runner.os }}" > ./xhost-stage/runner-os.txt
           echo "---- on ${{ runner.os }} ----"
-          echo "content_hash:       $(jq -r .content_hash        ./xhost-stage/index.json)"
-          echo "deterministic_hash: $(jq -r .deterministic_hash  ./xhost-stage/index.json)"
+          echo "content_hash: $(jq -r .content_hash ./xhost-stage/index.json)"
+          echo "recipe_hash:  $(jq -r .recipe_hash  ./xhost-stage/index.json)"
 
       - name: Upload per-OS artifact
         if: always()
@@ -741,9 +744,9 @@ jobs:
     #      parity gate as `evidence-self`.
     #   2. Upload a per-flavor artifact so `determinism-compare` can
     #      assert that Nix-flavor bundles and native-flavor bundles
-    #      produce the same `deterministic_hash` (same projection
-    #      fields: rustc version string, cargo version, Cargo.lock
-    #      hash, rust-toolchain.toml content, rustflags, git state).
+    #      produce the same toolchain projection (the six manifest
+    #      fields: rustc version string, cargo version, LLVM version,
+    #      Cargo.lock hash, rust-toolchain.toml content, rustflags).
     #
     # Why both Linux and macOS: user explicitly asked for parity
     # between the two Nix hosts. If rust-overlay ever ships a rustc
@@ -788,7 +791,7 @@ jobs:
           # develop -c` inherits the caller env today, but relying on
           # that is fragile if nix ever changes behavior — any lost
           # RUSTFLAGS value silently changes env.json's rustflags
-          # field and therefore the deterministic_hash. Keep it
+          # field and therefore the recipe_hash. Keep it
           # explicit.
           nix develop -c env \
             RUSTFLAGS="$RUSTFLAGS" \
@@ -884,8 +887,8 @@ jobs:
           # Nix-Linux / Nix-macOS distinct from plain Linux / macOS.
           echo "Nix-${{ runner.os }}" > ./xhost-stage/runner-os.txt
           echo "---- Nix-${{ runner.os }} ----"
-          echo "content_hash:       $(jq -r .content_hash        ./xhost-stage/index.json)"
-          echo "deterministic_hash: $(jq -r .deterministic_hash  ./xhost-stage/index.json)"
+          echo "content_hash: $(jq -r .content_hash ./xhost-stage/index.json)"
+          echo "recipe_hash:  $(jq -r .recipe_hash  ./xhost-stage/index.json)"
 
       - name: Upload per-flavor artifact
         if: always()
@@ -921,10 +924,10 @@ jobs:
     # unit-test-only — we can't unexercise rustc/cargo on PATH in CI
     # without tearing down the toolchain.
     #
-    # Not wired into determinism-compare: `deterministic_hash` includes
+    # Not wired into determinism-compare: `recipe_hash` includes
     # `profile` in its projection, so cert and dev bundles hash
-    # differently by design. That job gates dev-only parity across
-    # native+Nix flavors.
+    # differently by design. That job gates dev-only toolchain parity
+    # across native+Nix flavors.
     name: Evidence (self, cert profile)
     runs-on: ubuntu-latest
 
@@ -1140,7 +1143,7 @@ jobs:
     # Downloads the FIVE expected artifacts — three native
     # (xhost-Linux / xhost-macOS / xhost-Windows) and two Nix
     # (xhost-nix-Linux / xhost-nix-macOS) — and asserts
-    # `deterministic_hash` parity across every flavor (gating).
+    # toolchain-projection parity across every flavor (gating).
     #
     # Strict missing-artifact policy: if any of the five doesn't
     # show up (Nix install flaked, runner outage, …) this job fails
@@ -1162,7 +1165,7 @@ jobs:
           path: ./xhost
           pattern: xhost-*
 
-      - name: Assert deterministic_hash parity across all flavors
+      - name: Assert toolchain-projection parity across all flavors
         shell: bash
         run: |
           set -u
@@ -1173,26 +1176,33 @@ jobs:
 
           echo "## Determinism compare report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| flavor | deterministic_hash | content_hash |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| flavor | toolchain projection | recipe_hash | content_hash |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
 
-          declare -A seen_det
+          declare -A seen_proj
           declare -A seen_content
           declare -a flavors=()
-          declare -a det_hashes=()
+          declare -a proj_hashes=()
           declare -a content_hashes=()
 
           for dir in ./xhost/xhost-*/; do
             [ -d "$dir" ] || continue
             flavor=$(cat "$dir/runner-os.txt" | tr -d '[:space:]')
-            det=$(jq -r .deterministic_hash "$dir/index.json")
+            # Cross-host parity is asserted on the six-field toolchain
+            # projection of the recipe manifest — the same fields the
+            # cross-time lint compares. The full `recipe_hash` also
+            # binds host-defining fields (target_triple), so it is a
+            # same-target identity and MUST differ across flavors.
+            proj=$(jq -S -c '{rustc, cargo, llvm_version, cargo_lock_hash, rust_toolchain_toml, rustflags}' "$dir/deterministic-manifest.json")
+            proj_hash=$(printf '%s' "$proj" | sha256sum | cut -d' ' -f1)
+            recipe=$(jq -r .recipe_hash "$dir/index.json")
             content=$(jq -r .content_hash "$dir/index.json")
-            echo "$flavor: deterministic=$det content=$content"
-            echo "| $flavor | \`$det\` | \`$content\` |" >> "$GITHUB_STEP_SUMMARY"
-            seen_det[$flavor]="$det"
+            echo "$flavor: toolchain-projection=$proj_hash recipe=$recipe content=$content"
+            echo "| $flavor | \`$proj_hash\` | \`$recipe\` | \`$content\` |" >> "$GITHUB_STEP_SUMMARY"
+            seen_proj[$flavor]="$proj_hash"
             seen_content[$flavor]="$content"
             flavors+=("$flavor")
-            det_hashes+=("$det")
+            proj_hashes+=("$proj_hash")
             content_hashes+=("$content")
           done
 
@@ -1203,7 +1213,7 @@ jobs:
           # bug to investigate, not to paper over.
           missing=()
           for flavor in "${EXPECTED[@]}"; do
-            if [ -z "${seen_det[$flavor]:-}" ]; then
+            if [ -z "${seen_proj[$flavor]:-}" ]; then
               missing+=("$flavor")
             fi
           done
@@ -1214,28 +1224,28 @@ jobs:
             exit 1
           fi
 
-          n=${#det_hashes[@]}
-          distinct_det=$(printf '%s\n' "${det_hashes[@]}" | sort -u | wc -l | tr -d '[:space:]')
+          n=${#proj_hashes[@]}
+          distinct_proj=$(printf '%s\n' "${proj_hashes[@]}" | sort -u | wc -l | tr -d '[:space:]')
           distinct_content=$(printf '%s\n' "${content_hashes[@]}" | sort -u | wc -l | tr -d '[:space:]')
 
-          echo "**deterministic_hash distinct values: $distinct_det / $n (must be 1)**" >> "$GITHUB_STEP_SUMMARY"
-          echo "**content_hash distinct values:       $distinct_content / $n (expected $n, one per flavor)**" >> "$GITHUB_STEP_SUMMARY"
+          echo "**toolchain projection distinct values: $distinct_proj / $n (must be 1)**" >> "$GITHUB_STEP_SUMMARY"
+          echo "**content_hash distinct values:        $distinct_content / $n (expected $n, one per flavor)**" >> "$GITHUB_STEP_SUMMARY"
 
           fail=0
-          if [ "$distinct_det" -ne 1 ]; then
-            echo "::error::deterministic_hash drift — $distinct_det distinct values across $n flavors"
+          if [ "$distinct_proj" -ne 1 ]; then
+            echo "::error::toolchain projection drift — $distinct_proj distinct values across $n flavors"
             # Name each drifted flavor in the log so the reviewer
             # doesn't need to dig through the summary table.
             for flavor in "${EXPECTED[@]}"; do
-              echo "::error::flavor=$flavor deterministic_hash=${seen_det[$flavor]}"
+              echo "::error::flavor=$flavor toolchain-projection=${seen_proj[$flavor]}"
             done
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "_❌ deterministic_hash MUST be identical across all flavors. Inspect each artifact's \`deterministic-manifest.json\`: toolchain / cargo_lock_hash / rust_toolchain_toml / rustflags / git state is drifting between flavors._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_❌ The toolchain projection MUST be identical across all flavors. Inspect each artifact's \`deterministic-manifest.json\`: rustc / cargo / llvm_version / cargo_lock_hash / rust_toolchain_toml / rustflags is drifting between flavors._" >> "$GITHUB_STEP_SUMMARY"
             fail=1
           else
-            echo "::notice::deterministic_hash parity: PASS ($n/$n flavors agree)"
+            echo "::notice::toolchain projection parity: PASS ($n/$n flavors agree)"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "_✅ deterministic_hash matches across all $n flavors._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_✅ Toolchain projection matches across all $n flavors._" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           if [ "$distinct_content" -ne "$n" ]; then
@@ -1253,18 +1263,19 @@ jobs:
           exit $fail
 
   cross-time-determinism:
-    # Guards against silent drift of a bundle's `deterministic_hash`
-    # across time — dependency lock bumps, toolchain swaps,
-    # RUSTFLAGS changes. Cross-host determinism (landed) pins parity
-    # across N hosts at one point in time; this job pins parity
-    # across time on one host.
+    # Guards against silent drift of a bundle's recipe toolchain
+    # projection across time — dependency lock bumps, toolchain
+    # swaps, RUSTFLAGS changes. Cross-host determinism (landed) pins
+    # parity across N hosts at one point in time; this job pins
+    # parity across time on one host.
     #
     # Pull-request only. Downloads the last successful main-branch
     # `evidence-cross-host` Linux artifact, extracts its
-    # `deterministic_hash`, builds the PR's bundle, and compares. If
-    # equal, pass silently. If different + the PR body carries
-    # `Override-Deterministic-Baseline: <reason>`, pass with a logged
-    # notice. If different without override, fail with both hashes + the
+    # `deterministic-manifest.json`, builds the PR's bundle, and
+    # compares the six-field toolchain projection via the override
+    # lint. If equal, pass silently. If different + the PR body
+    # carries `Override-Deterministic-Baseline: <reason>`, pass with
+    # a logged notice. If different without override, fail with the
     # expected override syntax.
     #
     # Baseline publication is deliberately NOT this job's concern: a
@@ -1282,9 +1293,9 @@ jobs:
     # `main` tip, whose run publishes the baseline, so a gap is a real
     # problem — bring the PR up to date or re-run CI on the base commit.
     #
-    # Linux-only — `deterministic_hash` is cross-host-stable by
-    # design, so one OS is enough to catch drift. Running on three
-    # would burn runner minutes for no additional signal.
+    # Linux-only — the recipe toolchain projection is cross-host-
+    # stable by design, so one OS is enough to catch drift. Running
+    # on three would burn runner minutes for no additional signal.
     name: Cross-time determinism (ubuntu-latest)
     runs-on: ubuntu-latest
     # The compare belongs on PRs; a `main` run's role is to publish the
@@ -1321,8 +1332,8 @@ jobs:
         run: |
           # --skip-tests --inventory-outputs: no nextest, but the inventory
           # phase runs so outputs_hashes.json is populated. The cross-time
-          # gate compares deterministic_hash (a toolchain/git projection
-          # that excludes deliverable digests), so the inventory does not
+          # gate compares the six-field toolchain projection (which
+          # excludes deliverable digests), so the inventory does not
           # perturb it.
           mkdir -p "$RUNNER_TEMP/current-out"
           ./target/release/cargo-evidence evidence generate \
@@ -1379,9 +1390,9 @@ jobs:
           # comparison ran — the job has already failed and this is not a
           # pass.
           if [ "${{ steps.compare.outcome }}" = "success" ]; then
-            echo "_Cross-time determinism: base-SHA baseline deterministic_hash matched the current build._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_Cross-time determinism: base-SHA baseline toolchain projection matched the current build._" >> "$GITHUB_STEP_SUMMARY"
           elif [ "${{ steps.compare.outcome }}" = "failure" ]; then
-            echo "_Cross-time determinism: **drift detected** — the current bundle's deterministic_hash differs from the base-SHA baseline and no accepted override was found._" >> "$GITHUB_STEP_SUMMARY"
+            echo "_Cross-time determinism: **drift detected** — the current bundle's toolchain projection differs from the base-SHA baseline and no accepted override was found._" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "_Cross-time determinism: **failed closed** — no usable baseline for the PR base SHA (missing, expired, or malformed); the comparison did not run._" >> "$GITHUB_STEP_SUMMARY"
           fi

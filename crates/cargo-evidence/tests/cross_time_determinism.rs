@@ -321,7 +321,7 @@ fn malformed_current_manifest_exit_two() {
 /// changes only `git_sha` / `git_branch` / `git_dirty` (the
 /// always-differs-per-commit case), the gate must stay green.
 /// This is the load-bearing regression that surfaced from CI's
-/// first run: comparing raw `deterministic_hash` fires on every
+/// first run: comparing raw `recipe_hash` fires on every
 /// PR because the hash includes git state. Projecting to the six
 /// toolchain-only fields fixes it; this test pins that fix.
 #[test]

@@ -65,14 +65,14 @@ impl std::fmt::Display for VerifyError {
             } => {
                 write!(
                     f,
-                    "deterministic_hash mismatch: index={}, actual={}",
+                    "recipe_hash mismatch: index={}, actual={}",
                     index_hash, actual_hash
                 )
             }
             VerifyError::ManifestProjectionDrift { detail } => {
                 write!(
                     f,
-                    "deterministic-manifest.json is not a valid projection of env.json: {}",
+                    "deterministic-manifest.json is not a valid projection of the bundle's recipe content: {}",
                     detail
                 )
             }

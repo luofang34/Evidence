@@ -99,18 +99,28 @@ pub struct EvidenceIndex {
     /// present). Reproducible across runs **on the same host** for
     /// the same commit and inputs; differs across hosts because
     /// `env.json` records host identity (host.os, libc, tools). For
-    /// cross-host equality see `deterministic_hash`.
+    /// same-recipe identity see `recipe_hash`.
     pub content_hash: String,
-    /// SHA-256 of `deterministic-manifest.json`.
+    /// SHA-256 of `deterministic-manifest.json` — the recipe
+    /// identity hash.
     ///
-    /// The committed manifest is a projection of `env.json` down to
-    /// fields that are cross-host stable (toolchain, target triple,
-    /// source identity). Bundles built from the same commit with the
-    /// same `rust-toolchain.toml` on Linux, macOS, and Windows share
-    /// this hash. This is the tool's cross-host reproducibility
-    /// contract, running alongside the full-content `content_hash`
-    /// which stays in `SHA256SUMS` for audit-chain integrity.
-    pub deterministic_hash: String,
+    /// The committed manifest is the canonical recipe projection
+    /// (toolchain, target triple, profile, features, locked
+    /// dependency graph, command recipe, source-input digests,
+    /// resolution policy). Two bundles sharing this hash declare
+    /// the SAME recipe; the hash says nothing about whether their
+    /// outputs reproduce — reproduced-output equality is the
+    /// `verify::reproduction` comparison's claim, and cross-host
+    /// parity is the six-field toolchain projection the CI
+    /// determinism gates compare (the full recipe binds
+    /// host-defining fields like `target_triple`).
+    ///
+    /// Serialized as `recipe_hash`. `#[serde(alias)]` accepts the
+    /// pre-rename `deterministic_hash` key when reading bundles
+    /// written before the rename, so a legacy `index.json` still
+    /// deserializes; every new bundle emits only `recipe_hash`.
+    #[serde(alias = "deterministic_hash")]
+    pub recipe_hash: String,
     /// Parsed test results summary, if cargo test was executed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub test_summary: Option<TestSummary>,
@@ -183,7 +193,7 @@ mod tests {
             trace_outputs: vec!["trace/matrix.md".to_string()],
             bundle_complete: true,
             content_hash: "deadbeef".repeat(8),
-            deterministic_hash: "cafebabe".repeat(8),
+            recipe_hash: "cafebabe".repeat(8),
             test_summary: None,
             tool_command_failures: Vec::new(),
             dal_map: BTreeMap::new(),
@@ -256,5 +266,85 @@ mod tests {
             rendered["resolution_policy"],
             serde_json::Value::String("online_opt_in".to_string())
         );
+    }
+
+    /// A freshly written index serializes the recipe identity hash
+    /// under `recipe_hash` — never the legacy key.
+    #[test]
+    fn recipe_hash_serializes_under_new_name() {
+        let idx = EvidenceIndex {
+            schema_version: crate::schema_versions::INDEX.to_string(),
+            boundary_schema_version: crate::schema_versions::BOUNDARY.to_string(),
+            trace_schema_version: crate::schema_versions::TRACE.to_string(),
+            profile: Profile::Dev,
+            timestamp_rfc3339: "2024-01-01T00:00:00Z".to_string(),
+            git_sha: "abc123".to_string(),
+            git_branch: "main".to_string(),
+            git_dirty: false,
+            engine_crate_version: "0.1.0".to_string(),
+            engine_git_sha: "abc123".to_string(),
+            engine_build_source: "git".to_string(),
+            inputs_hashes_file: "inputs_hashes.json".to_string(),
+            outputs_hashes_file: "outputs_hashes.json".to_string(),
+            commands_file: "commands.json".to_string(),
+            env_fingerprint_file: "env.json".to_string(),
+            trace_roots: vec![],
+            trace_outputs: vec![],
+            bundle_complete: true,
+            content_hash: "deadbeef".repeat(8),
+            recipe_hash: "cafebabe".repeat(8),
+            test_summary: None,
+            tool_command_failures: Vec::new(),
+            dal_map: BTreeMap::new(),
+            boundary_policy: crate::policy::BoundaryPolicy::default(),
+            resolution_policy: ResolutionPolicy::LockedOffline,
+        };
+        let rendered = serde_json::to_value(&idx).expect("serialize");
+        assert_eq!(
+            rendered["recipe_hash"],
+            serde_json::Value::String("cafebabe".repeat(8))
+        );
+        assert!(
+            rendered.get("deterministic_hash").is_none(),
+            "the legacy key must never be emitted: {rendered}"
+        );
+    }
+
+    /// A legacy `index.json` carrying the pre-rename
+    /// `deterministic_hash` key still deserializes — the value lands
+    /// in `recipe_hash` via the serde alias — and re-serializes
+    /// under the new name only.
+    #[test]
+    fn legacy_deterministic_hash_deserializes_via_alias() {
+        let legacy = serde_json::json!({
+            "schema_version": "1.0.0",
+            "boundary_schema_version": "1.0.0",
+            "trace_schema_version": "1.0.0",
+            "profile": "dev",
+            "timestamp_rfc3339": "2024-01-01T00:00:00Z",
+            "git_sha": "abc123",
+            "git_branch": "main",
+            "git_dirty": false,
+            "engine_crate_version": "0.1.0",
+            "engine_git_sha": "abc123",
+            "inputs_hashes_file": "inputs_hashes.json",
+            "outputs_hashes_file": "outputs_hashes.json",
+            "commands_file": "commands.json",
+            "env_fingerprint_file": "env.json",
+            "trace_roots": [],
+            "trace_outputs": [],
+            "bundle_complete": true,
+            "content_hash": "deadbeef".repeat(8),
+            "deterministic_hash": "cafebabe".repeat(8),
+        });
+        let idx: EvidenceIndex = serde_json::from_value(legacy).expect("legacy index parses");
+        assert_eq!(idx.recipe_hash, "cafebabe".repeat(8));
+
+        let rendered = serde_json::to_value(&idx).expect("serialize");
+        assert_eq!(
+            rendered["recipe_hash"],
+            serde_json::Value::String("cafebabe".repeat(8))
+        );
+        assert!(rendered.get("deterministic_hash").is_none());
     }
 }

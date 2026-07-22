@@ -121,7 +121,7 @@ mod tests {
             trace_outputs: vec![],
             bundle_complete: false,
             content_hash: "0".repeat(64),
-            deterministic_hash: "0".repeat(64),
+            recipe_hash: "0".repeat(64),
             test_summary: None,
             tool_command_failures: vec![ToolCommandFailure {
                 command_name: "cargo test-bench-all".to_string(),

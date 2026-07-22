@@ -170,9 +170,10 @@ pub fn verify_bundle_with_key(
         });
     }
 
-    // 6a + 6b. deterministic_hash == SHA-256(deterministic-manifest.json)
-    // and the manifest is a faithful projection of env.json.
-    check_deterministic_manifest(bundle, &index, &mut verify_errors)?;
+    // 6a + 6b. recipe_hash == SHA-256(deterministic-manifest.json)
+    // and the manifest is a faithful projection of the bundle's
+    // recipe content.
+    check_recipe_manifest(bundle, &index, &mut verify_errors)?;
 
     // 6c/6d/6e. Consistency cross-checks (trace_outputs in SHA256SUMS,
     // test_summary re-parse, dal_map ↔ compliance reports).
@@ -291,16 +292,16 @@ fn validate_index_fields(index: &EvidenceIndex, errors: &mut Vec<VerifyError>) {
             actual: index.content_hash.clone(),
         });
     }
-    if index.deterministic_hash.len() != 64
+    if index.recipe_hash.len() != 64
         || !index
-            .deterministic_hash
+            .recipe_hash
             .chars()
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
     {
         errors.push(VerifyError::FormatError {
-            field: "deterministic_hash".to_string(),
+            field: "recipe_hash".to_string(),
             expected: "64-character lowercase hex (SHA-256)".to_string(),
-            actual: index.deterministic_hash.clone(),
+            actual: index.recipe_hash.clone(),
         });
     }
 }
@@ -370,15 +371,27 @@ fn hash_sha256sums_entries(
     Ok(listed_files)
 }
 
-/// Steps 6a + 6b — deterministic_hash matches the manifest file's
-/// SHA-256, AND the manifest is a faithful projection of env.json.
+/// Steps 6a + 6b — recipe_hash matches the manifest file's
+/// SHA-256, AND the manifest is a faithful projection of the
+/// bundle's recipe content.
 ///
 /// The two checks are paired: without 6b, a tamperer could produce a
 /// well-formed bundle where `deterministic-manifest.json` and
-/// `index.json.deterministic_hash` agree with each other but disagree
-/// with `env.json`. 6b closes that gap by re-projecting env.json and
-/// byte-comparing to the committed manifest.
-fn check_deterministic_manifest(
+/// `index.json.recipe_hash` agree with each other but disagree
+/// with the bundle's recorded recipe inputs. 6b closes that gap by
+/// re-projecting the manifest from `env.json`, `inputs_hashes.json`,
+/// `commands.json`, `cargo_metadata.json`, and
+/// `index.resolution_policy`, then byte-comparing to the committed
+/// manifest.
+///
+/// A missing projection input (`inputs_hashes.json` /
+/// `commands.json`) skips the re-projection — the absence already
+/// fired `MissingHashedFile` upstream — while a present-but-
+/// unparseable input surfaces `ManifestProjectionDrift`. A bundle
+/// whose manifest predates the recipe fields re-projects to
+/// different bytes and fails 6b; pre-1.0 schemas evolve in place,
+/// so regenerate the bundle with the current engine.
+fn check_recipe_manifest(
     bundle: &Path,
     index: &EvidenceIndex,
     errors: &mut Vec<VerifyError>,
@@ -389,9 +402,9 @@ fn check_deterministic_manifest(
     }
 
     let actual_manifest_hash = sha256_file(&manifest_path)?;
-    if index.deterministic_hash != actual_manifest_hash {
+    if index.recipe_hash != actual_manifest_hash {
         errors.push(VerifyError::DeterministicHashMismatch {
-            index_hash: index.deterministic_hash.clone(),
+            index_hash: index.recipe_hash.clone(),
             actual_hash: actual_manifest_hash,
         });
     }
@@ -408,28 +421,45 @@ fn check_deterministic_manifest(
             return Ok(());
         }
     };
-    match serde_json::from_slice::<crate::env::EnvFingerprint>(&env_bytes) {
-        Ok(env_fp) => match serde_json::to_vec_pretty(&env_fp.deterministic_manifest()) {
-            Ok(reprojected) => {
-                if reprojected != manifest_bytes {
-                    errors.push(VerifyError::ManifestProjectionDrift {
-                        detail: format!(
-                            "manifest {} bytes, reprojection {} bytes",
-                            manifest_bytes.len(),
-                            reprojected.len()
-                        ),
-                    });
-                }
-            }
-            Err(e) => {
-                errors.push(VerifyError::ManifestProjectionDrift {
-                    detail: format!("serialize reprojection: {}", e),
-                });
-            }
-        },
+    let env_fp = match serde_json::from_slice::<crate::env::EnvFingerprint>(&env_bytes) {
+        Ok(env_fp) => env_fp,
         Err(e) => {
             errors.push(VerifyError::ManifestProjectionDrift {
                 detail: format!("parse env.json: {}", e),
+            });
+            return Ok(());
+        }
+    };
+    let recipe_inputs =
+        match crate::env::RecipeInputs::from_bundle_dir(bundle, index.resolution_policy) {
+            Ok(inputs) => inputs,
+            Err(crate::env::GatherFailure::Missing) => {
+                // A projection input is absent — MissingHashedFile
+                // already fired upstream. Nothing to re-project.
+                return Ok(());
+            }
+            Err(crate::env::GatherFailure::Unreadable(e)) => {
+                errors.push(VerifyError::ManifestProjectionDrift {
+                    detail: format!("gather recipe inputs: {}", e),
+                });
+                return Ok(());
+            }
+        };
+    match serde_json::to_vec_pretty(&env_fp.recipe_manifest(&recipe_inputs)) {
+        Ok(reprojected) => {
+            if reprojected != manifest_bytes {
+                errors.push(VerifyError::ManifestProjectionDrift {
+                    detail: format!(
+                        "manifest {} bytes, reprojection {} bytes",
+                        manifest_bytes.len(),
+                        reprojected.len()
+                    ),
+                });
+            }
+        }
+        Err(e) => {
+            errors.push(VerifyError::ManifestProjectionDrift {
+                detail: format!("serialize reprojection: {}", e),
             });
         }
     }

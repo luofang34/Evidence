@@ -362,13 +362,43 @@ impl EvidenceBuilder {
         let ts = utc_now_rfc3339();
         let sha256sums_path = self.bundle_dir.join("SHA256SUMS");
 
-        // Step 1: Project env.json onto the cross-host-stable subset
-        // and write `deterministic-manifest.json`. The manifest is
-        // the committed artifact whose hash becomes the cross-host
-        // reproducibility contract; writing it before SHA256SUMS is
-        // assembled means `write_sha256sums` picks it up for free
-        // and the integrity chain binds it like any other content
-        // file.
+        // Step 1: Write the deterministic projection of
+        // `cargo metadata --format-version 1` into the bundle as
+        // `cargo_metadata.json` BEFORE the recipe manifest — the
+        // manifest's `locked_graph_hash` binds the canonical
+        // resolved-dependency projection this step produces
+        // (LLR-141 / LLR-144). The artifact binds the resolved
+        // dependency graph and lets verify-time re-run the boundary
+        // checks the bundle claimed at generate time (LLR-072).
+        // Cert/record bundles always carry it; the development
+        // profile writes it only when the boundary policy enables
+        // `forbid_build_rs` or `forbid_proc_macros`. Landing it
+        // before `write_sha256sums` lets the integrity chain
+        // auto-bind it like every other content file.
+        let metadata_projection = if matches!(self.config.profile, Profile::Cert | Profile::Record)
+            || self.config.boundary_policy.forbid_build_rs
+            || self.config.boundary_policy.forbid_proc_macros
+        {
+            Some(write_cargo_metadata_projection(
+                &self.bundle_dir,
+                self.config.resolution_policy,
+            )?)
+        } else {
+            None
+        };
+
+        // Step 2: Project env.json plus the recorded build inputs
+        // onto the canonical recipe manifest and write
+        // `deterministic-manifest.json`. The manifest is the
+        // committed artifact whose hash becomes the recipe identity
+        // (`index.json.recipe_hash`); writing it before SHA256SUMS
+        // is assembled means `write_sha256sums` picks it up for
+        // free and the integrity chain binds it like any other
+        // content file. `inputs_hash` / `command_recipe_hash` are
+        // computed over the same canonical serializations
+        // `write_inputs` / `write_commands` persist, so the
+        // generate-time and verify-time digests agree. `features`
+        // records empty: the tool does not set cargo features.
         let env_path = self.bundle_dir.join("env.json");
         let env_bytes = fs::read(&env_path).map_err(|source| BuilderError::Io {
             op: "reading",
@@ -377,7 +407,13 @@ impl EvidenceBuilder {
         })?;
         let env_fp: crate::env::EnvFingerprint =
             serde_json::from_slice(&env_bytes).map_err(BuilderError::ParseEnv)?;
-        let manifest = env_fp.deterministic_manifest();
+        let recipe_inputs = recipe::assemble_recipe_inputs(
+            &self.inputs,
+            &self.commands,
+            metadata_projection.as_ref(),
+            self.config.resolution_policy,
+        )?;
+        let manifest = env_fp.recipe_manifest(&recipe_inputs);
         let manifest_path = self.bundle_dir.join("deterministic-manifest.json");
         let manifest_bytes =
             serde_json::to_vec_pretty(&manifest).map_err(|source| BuilderError::Serialize {
@@ -390,33 +426,15 @@ impl EvidenceBuilder {
             source,
         })?;
 
-        // Step 1.5: Write a deterministic projection of
-        // `cargo metadata --format-version 1` into the bundle as
-        // `cargo_metadata.json`. The artifact binds the resolved
-        // dependency graph (LLR-141) and lets verify-time re-run the
-        // boundary checks the bundle claimed at generate time
-        // (LLR-072). Cert/record bundles always carry it; the
-        // development profile writes it only when the boundary policy
-        // enables `forbid_build_rs` or `forbid_proc_macros`. Land it
-        // before `write_sha256sums` so the integrity chain auto-binds
-        // it like every other content file.
-        if matches!(self.config.profile, Profile::Cert | Profile::Record)
-            || self.config.boundary_policy.forbid_build_rs
-            || self.config.boundary_policy.forbid_proc_macros
-        {
-            write_cargo_metadata_projection(&self.bundle_dir, self.config.resolution_policy)?;
-        }
-
-        // Step 2: Write SHA256SUMS covering the content layer only.
+        // Step 3: Write SHA256SUMS covering the content layer only.
         // index.json does not exist yet so it is naturally excluded.
         write_sha256sums(&self.bundle_dir, &sha256sums_path)?;
 
-        // Step 3: Compute full content_hash and the narrower
-        // deterministic_hash.
+        // Step 4: Compute full content_hash and the recipe_hash.
         let content_hash = crate::hash::sha256_file(&sha256sums_path)?;
-        let deterministic_hash = crate::hash::sha256_file(&manifest_path)?;
+        let recipe_hash = crate::hash::sha256_file(&manifest_path)?;
 
-        // Step 4: Build and write index.json (metadata layer).
+        // Step 5: Build and write index.json (metadata layer).
         let idx = EvidenceIndex {
             schema_version: crate::schema_versions::INDEX.to_string(),
             boundary_schema_version: crate::schema_versions::BOUNDARY.to_string(),
@@ -444,7 +462,7 @@ impl EvidenceBuilder {
                 .collect(),
             bundle_complete: self.tool_command_failures.is_empty(),
             content_hash,
-            deterministic_hash,
+            recipe_hash,
             test_summary: self.test_summary.clone(),
             tool_command_failures: self.tool_command_failures.clone(),
             dal_map: self
@@ -474,4 +492,5 @@ impl EvidenceBuilder {
 }
 
 mod cargo_metadata_artifact;
+mod recipe;
 use cargo_metadata_artifact::write_cargo_metadata_projection;

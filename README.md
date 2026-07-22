@@ -48,25 +48,30 @@ fork it, read every line, and plan to own the delta.
 The CI matrix covers three host platforms; the level of confidence in each
 is intentionally different.
 
-| Platform     | Compiles | Unit + integration tests | Nix reproducible build | Cross-host `deterministic_hash` parity | `deterministic_hash` parity under Nix |
-|--------------|----------|--------------------------|------------------------|-----------------------------------------|----------------------------------------|
-| Linux x86_64 | yes      | yes                      | yes (gated in CI)      | yes (gated in CI)                       | yes (gated in CI)                      |
-| macOS (Apple Silicon) | yes | yes                  | works via devShell (gated in CI) | yes (gated in CI)             | yes (gated in CI)                      |
-| Windows x86_64 | yes    | yes                      | n/a (no Nix on Windows) | yes (gated in CI)                       | n/a (no Nix on Windows)                |
+| Platform     | Compiles | Unit + integration tests | Nix reproducible build | Cross-host toolchain parity | Toolchain parity under Nix |
+|--------------|----------|--------------------------|------------------------|-----------------------------|----------------------------|
+| Linux x86_64 | yes      | yes                      | yes (gated in CI)      | yes (gated in CI)           | yes (gated in CI)          |
+| macOS (Apple Silicon) | yes | yes                  | works via devShell (gated in CI) | yes (gated in CI)  | yes (gated in CI)          |
+| Windows x86_64 | yes    | yes                      | n/a (no Nix on Windows) | yes (gated in CI)          | n/a (no Nix on Windows)    |
 
 What's being claimed:
 
 - Every bundle carries **two** SHA-256 hashes in `index.json`:
   `content_hash` (the full SHA-256 of `SHA256SUMS`, covers every recorded
   byte, necessarily host-specific because `env.json` records host identity)
-  and `deterministic_hash` (the SHA-256 of a committed
-  `deterministic-manifest.json`, which is a projection of `env.json` down
-  to toolchain + target + source identity).
-- **`deterministic_hash` parity is gated in CI across five flavors**
+  and `recipe_hash` (the SHA-256 of a committed
+  `deterministic-manifest.json`, the canonical recipe projection:
+  toolchain, target triple, profile, features, locked dependency graph,
+  command recipe, source-input digests, resolution policy).
+- **Cross-host recipe parity is gated in CI across five flavors**
   (3 native + 2 Nix) via the `determinism-compare` job: every push runs
   the generator on Linux, macOS, and Windows *native* plus Linux and
-  macOS *under `nix develop`*, and asserts all five `deterministic_hash`
-  values are byte-equal. If any flavor diverges, or if any flavor's
+  macOS *under `nix develop`*, and asserts all five manifests agree on
+  the six-field toolchain projection (rustc, cargo, llvm_version,
+  cargo_lock_hash, rust_toolchain_toml, rustflags). The full
+  `recipe_hash` also binds host-defining fields (`target_triple`), so it
+  is a same-target identity and intentionally not compared across hosts.
+  If any flavor's toolchain projection diverges, or if any flavor's
   artifact is missing, the job fails the PR. The Nix flavors dogfood
   the cert-build toolchain resolution path (rust-overlay) against the
   dev path (rustup), so silent drift between dev and cert bundles is
@@ -76,12 +81,12 @@ What's being claimed:
   intentional: the full SHA256SUMS-hashed chain records the host
   operating environment so a DO-330 auditor has cryptographically-bound
   provenance for the build environment. The cross-host equality channel
-  is `deterministic_hash`.
+  is the toolchain projection.
 
 What this matrix does **not** claim:
 
-- Passing CI tests and matching `deterministic_hash` prove the tool runs
-  consistently on that platform. Neither proves a bundle is fit for
+- Passing CI tests and a matching toolchain projection prove the tool
+  runs consistently on that platform. Neither proves a bundle is fit for
   regulatory qualification on that platform — that's a DER's call, not a
   CI signal.
 - macOS and Windows are kept green primarily so contributors on those
@@ -91,9 +96,11 @@ What this matrix does **not** claim:
 **Recommended posture for anyone evaluating the tool:**
 
 - Final cert builds should run on Linux under the provided Nix flake.
-- For dev work on macOS / Windows, compare `deterministic_hash` against
-  the Linux reference when you need to confirm reproducibility; don't
-  compare `content_hash` across hosts (it will always differ).
+- For dev work on macOS / Windows, compare the toolchain projection of
+  `deterministic-manifest.json` against the Linux reference when you
+  need to confirm toolchain parity, and `recipe_hash` when you need
+  same-target recipe identity; don't compare `content_hash` across
+  hosts (it will always differ).
 - Pin a commit SHA, because the formats may still change.
 
 ---
@@ -181,9 +188,9 @@ Every bundle is a self-contained directory with deterministic content:
 
 ```
 evidence/cert-20260207-143022Z-a1b2c3d4/
-  index.json                   # Bundle metadata, schema versions, content_hash + deterministic_hash
+  index.json                   # Bundle metadata, schema versions, content_hash + recipe_hash
   env.json                     # Environment fingerprint (rustc, cargo, LLVM, libc, OS, tools, …)
-  deterministic-manifest.json  # Cross-host-stable projection of env.json (toolchain + target + source)
+  deterministic-manifest.json  # Canonical recipe projection (toolchain, target, profile, features, locked graph, command recipe, inputs, resolution policy)
   inputs_hashes.json           # SHA-256 of the source baseline: in-scope crate sources + workspace-control inputs
   outputs_hashes.json          # SHA-256 of the build's workspace deliverables (lib/bin artifacts); host-specific
   commands.json                # Recorded command executions with exit codes
@@ -202,16 +209,23 @@ evidence/cert-20260207-143022Z-a1b2c3d4/
 - `content_hash` in `index.json` is `SHA-256(SHA256SUMS)` — the
   full-fidelity integrity hash. It differs per host because
   `env.json` records host identity (host.os, libc, tool availability).
-- `deterministic_hash` in `index.json` is
-  `SHA-256(deterministic-manifest.json)` — the cross-host
-  reproducibility contract. Two runs on the same commit with the
-  same `rust-toolchain.toml` and the same `--target` produce the
-  same `deterministic_hash` regardless of host. This is what CI's
-  cross-host determinism job gates on.
-- The manifest is a **projection** of `env.json`, not a rewrite.
-  `verify_bundle` re-projects `env.json` at verification time and
-  asserts byte-equality against the committed manifest; tampering
-  with either side is caught.
+- `recipe_hash` in `index.json` is
+  `SHA-256(deterministic-manifest.json)` — the **recipe identity**
+  hash. Two bundles sharing it declare the same recipe: same
+  toolchain, target triple, profile, feature selection, locked
+  dependency graph, command recipe, source-input digests, and
+  resolution policy. Because the recipe binds host-defining fields
+  (`target_triple`), `recipe_hash` is a *same-target* identity;
+  CI's cross-host determinism job gates on the manifest's six-field
+  toolchain projection instead. `recipe_hash` says nothing about
+  whether the bundles' outputs came out equal — that is the
+  reproduced-output comparison's claim (below).
+- The manifest is a **projection** of `env.json` plus the recorded
+  build inputs, not a rewrite. `verify_bundle` re-projects it from
+  `env.json`, `inputs_hashes.json`, `commands.json`,
+  `cargo_metadata.json`, and the recorded resolution policy at
+  verification time and asserts byte-equality against the committed
+  manifest; tampering with any input is caught.
 - All paths in `SHA256SUMS` use forward slashes, regardless of OS.
 - `inputs_hashes.json` records a defined **source baseline**, not
   "every file": the git-tracked sources of each in-scope Cargo
@@ -230,12 +244,17 @@ evidence/cert-20260207-143022Z-a1b2c3d4/
   accidental submission of `dev` bundles as `cert`.
 - Existing bundle directories are never overwritten.
 
-### content_hash vs deterministic_hash — when to compare which
+### The four integrity/identity claims — when to compare which
 
-Use `content_hash` when you need to attest that **every recorded byte**
-is unchanged. It is the integrity hash in the classical sense — an
-integrity re-check, **not** DO-178C verification independence — and
-is what `sha256sum -c SHA256SUMS` inside the bundle will attest to
+A bundle makes four distinct, easily-confused claims. Compare the
+one that matches your question.
+
+**1. Bundle content integrity** — *"have these bytes been tampered
+with since the tool wrote them?"* Use `content_hash` when you need
+to attest that **every recorded byte** is unchanged. It is the
+integrity hash in the classical sense — an integrity re-check,
+**not** DO-178C verification independence — and is what
+`sha256sum -c SHA256SUMS` inside the bundle will attest to
 (subject to the `index.json` exclusion). The check answers "have these
 files been tampered with since this tool wrote them?", not "did this
 tool record the right hashes in the first place?" — see the
@@ -243,11 +262,38 @@ tool record the right hashes in the first place?" — see the
 discussion. Comparing `content_hash` across hosts is meaningless
 because the bundles legitimately record different host identities.
 
-Use `deterministic_hash` when you need to confirm that two bundles
-**represent the same logical build** (same commit, same toolchain,
-same target). It is the cross-host reproducibility channel. Our CI
-cross-host job asserts `deterministic_hash` parity across Linux,
-macOS, and Windows on every push.
+**2. Recipe identity** — *"do these two bundles declare the same
+build recipe?"* Compare `recipe_hash`
+(`SHA-256(deterministic-manifest.json)`). The recipe covers the
+toolchain, target triple, profile, feature selection, locked
+dependency graph, command recipe, source-input digests, and
+resolution policy. Equal `recipe_hash` means same declared recipe —
+it does **not** prove the outputs reproduce. Because the recipe
+binds `target_triple`, this is a same-target comparison.
+
+**3. Cross-host recipe parity** — *"did N hosts use the same
+toolchain?"* Compare the six-field toolchain projection of
+`deterministic-manifest.json` (rustc, cargo, llvm_version,
+cargo_lock_hash, rust_toolchain_toml, rustflags). This is what CI's
+`determinism-compare` (five flavors, every push) and
+`cross-time-determinism` (PR vs. last main-branch build) gate on.
+Parity proves toolchain sameness across hosts and time — the one
+comparison that stays meaningful when target artifacts differ.
+
+**4. Reproduced-output equality** — *"did the candidate actually
+reproduce the baseline's outputs?"* Use
+`evidence_core::verify::compare_reproduction(baseline, candidate)`.
+It compares three planes — canonical input digests, recipe fields,
+and output digests — and returns typed findings
+(`InputChanged` / `InputMissing` / `InputUnverifiable`,
+`RecipeFieldChanged { field }` / `RecipeUnavailable`,
+`OutputChanged` / `OutputMissing` / `OutputExtra` /
+`OutputUnverifiable`), deterministically sorted. The bundles are
+reproduction-equal **iff the finding list is empty**: same-source,
+same-recipe, same-target bundles compare equal only when their
+output digests also compare equal. Missing declared inputs or
+outputs and unverifiable artifacts surface as explicit non-success
+findings, never a panic or a silent pass.
 
 ### Cross-time determinism and the `Override-Deterministic-Baseline:` protocol
 
@@ -301,7 +347,7 @@ the gate is best-effort, never user-hostile.
 **Known limitation**: the live-compare gate detects per-PR drift but
 not slow cumulative drift across many individually-justified
 overrides. A committed historical-anchor baseline — pinning
-`{git_sha → deterministic_hash}` for a curated set of milestone
+`{git_sha → recipe_hash}` for a curated set of milestone
 commits — would close that gap and is tracked as a follow-up.
 
 ### Bundle integrity layers
@@ -698,7 +744,7 @@ The six invariants that govern this tool's design:
 | 3 | Deterministic    | PASS   | `content_hash` excludes timestamps; BTreeMap ordering; two back-to-back runs on the same commit produce identical `content_hash` (gated by the dogfood `Evidence (self)` CI job) |
 | 4 | Data-driven      | PASS   | TOML policy files in `cert/`                               |
 | 5 | Offline-capable  | PASS   | Zero network calls; all operations are local              |
-| 6 | Cross-platform   | PASS   | `deterministic_hash` parity across Linux/macOS/Windows is gated by the `evidence-cross-host` CI job; `content_hash` differs by host by design (it binds `env.json`'s host identity fields) |
+| 6 | Cross-platform   | PASS   | Toolchain-projection parity across Linux/macOS/Windows is gated by the `evidence-cross-host` + `determinism-compare` CI jobs; `content_hash` differs by host by design (it binds `env.json`'s host identity fields) |
 
 ### Known Limitations (P1 Items)
 

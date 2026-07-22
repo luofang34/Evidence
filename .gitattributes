@@ -19,7 +19,7 @@ crates/evidence-core/tests/fixtures/compliance/** binary
 crates/evidence-core/tests/fixtures/corpus/** binary
 
 # Source-tracked files whose bytes flow directly into the
-# `deterministic_hash` projection. `cargo_lock_hash` is SHA-256 of
+# `recipe_hash` projection. `cargo_lock_hash` is SHA-256 of
 # `Cargo.lock`'s bytes; `rust_toolchain_toml` is the raw file
 # content. On Windows with `core.autocrlf=true` (default), git checks
 # these out with CRLF and their bytes drift from the Unix checkouts,
