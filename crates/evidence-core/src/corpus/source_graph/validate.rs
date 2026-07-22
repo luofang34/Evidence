@@ -43,12 +43,42 @@ pub(crate) fn validate_source_graphs(graph: &CorpusGraph) -> Result<(), SourceGr
                 revision_uid: revision_uid.clone(),
             });
         };
-        for node in source_graph.nodes() {
-            validate_node(revision_uid, source_graph, &uid_index, media_type, node)?;
-        }
-        validate_ordinals(revision_uid, source_graph)?;
+        validate_one_graph(revision_uid, source_graph, &uid_index, media_type)?;
     }
     Ok(())
+}
+
+/// Validate one standalone source graph against a declared media
+/// type, without requiring a committed source revision (LLR-157).
+///
+/// Ingesters use this as the final internal check over a candidate
+/// set: the uid index is the graph's own, so no parent can resolve
+/// cross-revision, and the per-node and ordinal passes are the
+/// committed-graph ones.
+pub(crate) fn validate_graph_standalone(
+    revision_uid: &str,
+    media_type: &str,
+    graph: &SourceGraph,
+) -> Result<(), SourceGraphError> {
+    let uid_index: BTreeMap<&str, &str> = graph
+        .nodes()
+        .map(|node| (node.uid.as_str(), revision_uid))
+        .collect();
+    validate_one_graph(revision_uid, graph, &uid_index, media_type)
+}
+
+/// Run the per-node checks in uid order, then the sibling-ordinal
+/// pass — the check order of the module docs.
+fn validate_one_graph(
+    revision_uid: &str,
+    graph: &SourceGraph,
+    uid_index: &BTreeMap<&str, &str>,
+    media_type: &str,
+) -> Result<(), SourceGraphError> {
+    for node in graph.nodes() {
+        validate_node(revision_uid, graph, uid_index, media_type, node)?;
+    }
+    validate_ordinals(revision_uid, graph)
 }
 
 /// Map every committed source-revision uid to its declared media

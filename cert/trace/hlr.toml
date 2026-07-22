@@ -3182,3 +3182,87 @@ contracts.
 """
 verification_methods = ["test"]
 traces_to = ["f2f526ca-3eb4-4acc-9275-2035e8bff6e3"]
+
+[[requirements]]
+uid = "d71dca66-931d-4d77-b366-da19b0716304"
+id = "HLR-120"
+title = "Markdown ingestion requires verified bytes, explicit metadata, and a canonical ingester recipe"
+owner = "tool"
+scope = "component"
+description = """
+The ingestion entry point shall accept frozen source bytes only
+together with: the Markdown media type assertion
+(`text/markdown`), the `src_<UUIDv4>` source-revision uid, the
+canonical relative source path, the verified input digest over
+the frozen bytes, and an explicit ingester recipe. The recipe
+shall record the parser crate name, parser version, enabled
+extensions, adapter version, and normalization contract version
+under a canonical byte encoding whose digest is the recipe
+identity plane; the input digest is the input identity plane.
+Local-file metadata may carry a git blob SHA; the frozen source
+digest remains authoritative. Non-UTF-8 input shall fail closed
+with the byte offset of the first invalid sequence and shall
+never lossy-decode. Media-type mismatch and input-digest
+mismatch shall fail closed before any parsing. Ingestion shall
+perform no fetch, no filesystem access, no environment reads,
+and no workspace mutation or baseline replacement.
+"""
+verification_methods = ["test"]
+traces_to = ["252c8b10-3369-4cd9-919b-b8f02a2503b8"]
+
+[[requirements]]
+uid = "66bcd731-272d-4b70-8867-334df362c80a"
+id = "HLR-121"
+title = "Markdown parser events map through the canonical node builder, preserving structure without normative inference"
+owner = "tool"
+scope = "component"
+description = """
+The adapter shall parse CommonMark with explicitly enabled GFM
+tables and footnotes and shall map parser events through the
+canonical structural node builder rather than constructing
+graph records independently. It shall preserve: headings with
+their hierarchy and explicit or generated anchors; paragraphs;
+nested ordered and unordered lists; GFM tables with rows and
+cells; block quotes as notes under the GFM alert rule; fenced
+and indented code under the code normalization contract with
+significant whitespace preserved; and footnote definitions as
+labeled notes. Definition-like constructs shall appear only
+when explicitly represented — never inferred — and the adapter
+shall not infer normative meaning, requirements, modality, or
+section importance. Sibling ordinals shall be contiguous per
+parent set, and every preserved construct shall project the
+correct parent, kind, ordinal, canonical text, and locator.
+"""
+verification_methods = ["test"]
+traces_to = ["252c8b10-3369-4cd9-919b-b8f02a2503b8"]
+
+[[requirements]]
+uid = "452b5bec-b337-4024-8b48-97c9feaaa0ee"
+id = "HLR-122"
+title = "Markdown ingestion emits deterministic typed diagnostics and canonical identities independent of parser event order"
+owner = "tool"
+scope = "component"
+description = """
+Duplicate explicit anchors, malformed explicit heading ids,
+unsupported raw HTML, and structurally lossy constructs shall
+each produce typed diagnostics carrying a byte range into the
+frozen source, sorted deterministically; silent dropping is
+forbidden. Every candidate node shall carry a Markdown locator
+recording the safe source path, the optional verified git blob,
+the explicit or generated anchor, the heading path, and a byte
+range aligned to UTF-8 boundaries and bounded by the input —
+diagnostic only, never identity. Deterministic structural
+reconciliation keys shall follow the canonical precedence —
+explicit anchors or numbering first, then canonical ancestry —
+and initial node identities shall be minted through the
+structural identity service, with re-ingestion reusing
+committed uids through reconciliation. Content and output
+digests shall cover the canonical node projection, never
+parser-internal objects, so repeated ingestion produces equal
+output and parser event order leaks into canonical graph
+equality only through semantically meaningful sibling order.
+The candidate set shall satisfy the source-graph forest
+invariants before ingestion returns.
+"""
+verification_methods = ["test"]
+traces_to = ["252c8b10-3369-4cd9-919b-b8f02a2503b8"]

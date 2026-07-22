@@ -1572,3 +1572,50 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "252c8b10-3369-4cd9-919b-b8f02a2503b8"
+id = "SYS-052"
+title = "Structure-preserving CommonMark/GFM ingestion into candidate structural source nodes"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall convert verified frozen Markdown/CommonMark-GFM
+bytes into candidate structural source nodes while preserving
+normative document structure — headings and their hierarchy,
+paragraphs, nested ordered and unordered lists, GFM tables with
+rows and cells, block quotes and configured admonitions, fenced
+and indented code, footnotes, and explicit heading anchors —
+and shall never infer normative meaning, requirements,
+modality, or section importance. Ingestion shall accept bytes
+only with an explicit Markdown media type assertion, the
+source-revision uid, the canonical source path, the verified
+input digest, and an explicit ingester recipe recording parser
+crate and version, enabled extensions, adapter version, and
+normalization contract version; local-file metadata may carry a
+git blob SHA while the frozen source digest remains
+authoritative. Non-UTF-8 input shall fail closed with the byte
+offset of the first invalid sequence — never lossy decoding —
+and media-type or input-digest mismatch shall fail closed
+before parsing. Duplicate explicit anchors, malformed explicit
+heading ids, unsupported raw HTML, and structurally lossy
+constructs shall produce deterministic sorted typed
+diagnostics; silent dropping is forbidden. Every candidate node
+shall carry a Markdown locator with the safe source path,
+optional verified git blob, explicit or generated anchor,
+heading path, and a UTF-8-aligned in-bounds byte range as
+diagnostics, never identity. Initial ingestion shall mint node
+identities through the structural identity service and
+re-ingestion shall reuse committed identities through
+structural-key reconciliation; parser event order shall not
+leak into canonical graph equality except through semantically
+meaningful sibling order, and content and output digests shall
+cover the canonical node projection, never parser-internal
+objects. Ingestion shall perform no fetch, no workspace
+mutation, and no baseline replacement.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

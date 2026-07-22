@@ -27,6 +27,7 @@ walkdir.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 unicode-normalization.workspace = true
+pulldown-cmark.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

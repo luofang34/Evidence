@@ -4776,3 +4776,119 @@ error type while callers match the exact source-graph gate
 that failed.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "2f88c7f9-9537-440c-a52c-d4367f1e5b51"
+id = "LLR-160"
+title = "corpus::ingest::recipe carries the ingester recipe identity with canonical byte encoding and structural digest"
+owner = "tool"
+traces_to = ["d71dca66-931d-4d77-b366-da19b0716304"]
+modules = ["evidence_core::corpus::ingest::recipe"]
+description = """
+`IngesterRecipe` records the five identity fields of one
+ingestion configuration: the parser crate name, the parser
+version, the enabled extension set, the adapter version, and
+the normalization contract version. `canonical_bytes` encodes
+the recipe under a domain-tagged (`evidence/ingester-recipe/v1`)
+length-prefixed framing — every string as `u64_be` byte length
+plus exact UTF-8 bytes, the extension set iterated in sorted
+`BTreeSet` order — so no field-boundary collision is possible,
+extension order is non-semantic, and the encoding is disjoint
+from every other corpus encoding. `digest` returns the
+validated structural digest over those canonical bytes: the
+recipe identity plane, independent of the input and output
+identity planes. The struct carries no behavior beyond encoding
+and digest; the recipe is caller-supplied identity metadata
+bound into every ingestion result.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "6af12c81-f642-4934-abee-47b1fb0814ad"
+id = "LLR-161"
+title = "corpus::ingest carries the ingestion input contract, typed error and diagnostic taxonomy, and output identity projection"
+owner = "tool"
+traces_to = [
+    "d71dca66-931d-4d77-b366-da19b0716304",
+    "452b5bec-b337-4024-8b48-97c9feaaa0ee",
+]
+modules = ["evidence_core::corpus::ingest"]
+description = """
+`IngestMarkdownInput` binds the frozen bytes with their
+explicit metadata: media type assertion, source-revision uid,
+canonical relative path, verified input digest, optional git
+blob, and the ingester recipe. `ingest_markdown` validates the
+contract before parsing, in a documented fail-fast order: the
+media type must be `text/markdown` (ASCII case-insensitive);
+the bytes must re-digest to the declared input digest; the
+source-revision uid must satisfy the corpus-native `src_`
+UUIDv4 contract; the canonical path must satisfy the vendored
+wire-path rules; the git blob, when present, must be 40- or
+64-character lowercase hex; and the bytes must decode as UTF-8,
+with the first invalid sequence's byte offset reported — never
+lossy decoding. Every failure is a flat typed `IngestError`
+variant carrying the conflicting values; the family is
+deliberately uncoded, following the `CorpusError` precedent —
+ingestion runs inside flows that already own the diagnostic
+surface, so a second code family would double-report.
+`MarkdownIngestion` returns the candidate nodes with minted
+identities, the sorted typed `IngestDiagnostic` list (duplicate
+anchor, malformed explicit id, unsupported raw HTML, lossy
+construct — each with a byte range into the source), and the
+`output_digest`: a structural digest over the canonical node
+projection — a domain-tagged framing of the candidate forest in
+document order keyed by parent position, with node identities
+excluded — so the output identity plane is deterministic across
+runs, independent of the recipe and input planes, and covers
+canonical nodes rather than parser-internal objects. The
+adapter performs no I/O, no environment reads, and no network
+or workspace access.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "d03f4d14-8ad0-4922-a2bd-22ea5aa99909"
+id = "LLR-162"
+title = "corpus::ingest::markdown maps pulldown-cmark events into candidate source nodes with anchors, locators, and diagnostics"
+owner = "tool"
+traces_to = [
+    "66bcd731-272d-4b70-8867-334df362c80a",
+    "452b5bec-b337-4024-8b48-97c9feaaa0ee",
+]
+modules = ["evidence_core::corpus::ingest::markdown"]
+description = """
+The adapter parses with exactly `ENABLE_TABLES` and
+`ENABLE_FOOTNOTES` and walks `OffsetIter` events through a
+frame stack into the canonical candidate builder: a heading
+opens a section under the nearest lower-level section (label
+from heading text, ordinal from the parent sibling counter);
+a paragraph outside an absorbing container is a paragraph node;
+list items are list-item nodes attached to the enclosing
+section in document order with nested-list text folded into
+their own item; a GFM table maps to table, row, and cell nodes
+under the closed parent table (header row is the first row);
+fenced and indented code is a code-block node under the code
+normalization contract; a block quote is a note node, its GFM
+`[!KIND]` alert marker stripped when present; a footnote
+definition is a note node labeled `footnote:<id>`. Definition
+kinds are never emitted — GFM has no explicit definition-list
+syntax and nothing is inferred. Heading anchors come from an
+explicit `{#id}` suffix when present (malformed ids produce a
+typed diagnostic), else a documented deterministic slugger
+(lowercase, non-alphanumeric runs to hyphens, `-2`/`-3`
+deduplication); a repeated explicit anchor produces a typed
+duplicate-anchor diagnostic on the second and later
+occurrences. Raw HTML events produce unsupported-raw-HTML
+diagnostics; images and thematic breaks produce lossy-construct
+diagnostics — nothing is silently dropped, and diagnostics sort
+deterministically by byte range and kind. Byte ranges come from
+the parser's offset iterator through a checked constructor that
+rejects ranges unaligned to UTF-8 boundaries or outside the
+input; ranges are diagnostic, never identity. Candidates
+reconcile through the identity service (an empty committed
+graph mints every identity fresh), receive content digests and
+fingerprints from the canonical normalization module, and pass
+the standalone source-graph validation before ingestion
+returns.
+"""
+verification_methods = ["test"]
