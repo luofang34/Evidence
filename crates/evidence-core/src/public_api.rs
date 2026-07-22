@@ -27,8 +27,8 @@ pub use crate::floors::{FloorsConfig, current_measurements};
 pub use crate::git::{GitSnapshot, RealGitProvider};
 pub use crate::policy::{
     AssuranceLevel, AssuranceSelection, AssuranceSelectionError, AuxiliaryMcdcTool, BoundaryConfig,
-    BoundaryInputs, BoundaryPolicy, Dal, DalConfig, EvidencePolicy, Profile, StandardEdition,
-    StandardsPack, TracePolicy, load_trace_roots,
+    BoundaryInputs, BoundaryPolicy, Dal, DalConfig, EvidencePolicy, Profile, ResolutionPolicy,
+    StandardEdition, StandardsPack, TracePolicy, load_trace_roots,
 };
 pub use crate::rules::{Domain, RULES, RuleEntry};
 pub use crate::trace::{

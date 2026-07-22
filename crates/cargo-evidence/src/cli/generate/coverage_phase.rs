@@ -16,6 +16,7 @@ use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
 use evidence_core::bundle::EvidenceBuilder;
+use evidence_core::policy::ResolutionPolicy;
 use evidence_core::{
     AssuranceLevel, CoverageLevel, Diagnostic, Location, Profile, Severity, parse_llvm_cov_export,
 };
@@ -59,7 +60,10 @@ pub fn resolve_choice(cli: Option<CoverageChoice>, profile: Profile) -> Coverage
     })
 }
 
-/// Run Phase 5b.
+/// Run Phase 5b. Every llvm-cov spawn carries the run's
+/// resolution-policy flags (LLR-140) so the instrumented build
+/// and the report passes resolve the dependency graph the same way
+/// the rest of the pipeline does.
 pub fn run_coverage_phase(
     builder: &mut EvidenceBuilder,
     choice: CoverageChoice,
@@ -72,6 +76,7 @@ pub fn run_coverage_phase(
     if levels.is_empty() {
         return Ok(CoverageOutcome::Skipped);
     }
+    let resolution_policy = builder.resolution_policy();
 
     let tmp = TempDir::new().context("creating coverage tempdir")?;
     let json_path = tmp.path().join("llvm-cov.json");
@@ -80,7 +85,7 @@ pub fn run_coverage_phase(
     // Phase 1: run instrumented tests without emitting a report
     // (leaves profdata files for `report` to consume twice —
     // once per format, avoiding a second test run).
-    match spawn_llvm_cov_no_report() {
+    match spawn_llvm_cov_no_report(resolution_policy) {
         Ok(()) => {}
         Err(LlvmCovSpawnError::BinaryMissing) => {
             let is_cert = matches!(profile, Profile::Cert | Profile::Record);
@@ -104,8 +109,8 @@ pub fn run_coverage_phase(
     // Phase 2: extract both JSON + lcov from the cached profdata.
     // Neither can fail BinaryMissing here (we just succeeded with
     // the same binary) so we treat any failure as a hard error.
-    spawn_llvm_cov_report(&["--json", "--output-path"], &json_path)?;
-    spawn_llvm_cov_report(&["--lcov", "--output-path"], &lcov_path)?;
+    spawn_llvm_cov_report(&["--json", "--output-path"], &json_path, resolution_policy)?;
+    spawn_llvm_cov_report(&["--lcov", "--output-path"], &lcov_path, resolution_policy)?;
 
     let json = std::fs::read_to_string(&json_path).context("reading cargo-llvm-cov JSON output")?;
     let workspace_root = std::env::current_dir().context("reading current dir")?;
@@ -198,13 +203,15 @@ enum LlvmCovSpawnError {
 
 /// Phase-1 spawn: instrumented test run, no report emitted.
 /// Leaves profdata files in `target/llvm-cov-target` for the
-/// `report` sub-invocations to consume.
-fn spawn_llvm_cov_no_report() -> Result<(), LlvmCovSpawnError> {
+/// `report` sub-invocations to consume. Carries the run's
+/// resolution-policy flags (LLR-140).
+fn spawn_llvm_cov_no_report(policy: ResolutionPolicy) -> Result<(), LlvmCovSpawnError> {
     let result = Command::new("cargo")
         .arg("llvm-cov")
         .arg("--workspace")
         .arg("--no-cfg-coverage")
         .arg("--no-report")
+        .args(policy.cargo_args())
         .env("CARGO_TERM_COLOR", "never")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -214,12 +221,18 @@ fn spawn_llvm_cov_no_report() -> Result<(), LlvmCovSpawnError> {
 
 /// Phase-2 spawn: `cargo llvm-cov report` with a format flag.
 /// Reads the cached profdata — fast (no rebuild, no test run).
-fn spawn_llvm_cov_report(fmt_args: &[&str], output_path: &Path) -> Result<()> {
+/// Carries the run's resolution-policy flags (LLR-140).
+fn spawn_llvm_cov_report(
+    fmt_args: &[&str],
+    output_path: &Path,
+    policy: ResolutionPolicy,
+) -> Result<()> {
     let result = Command::new("cargo")
         .arg("llvm-cov")
         .arg("report")
         .args(fmt_args)
         .arg(output_path)
+        .args(policy.cargo_args())
         .env("CARGO_TERM_COLOR", "never")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

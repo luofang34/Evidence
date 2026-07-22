@@ -32,6 +32,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::diagnostic::{DiagnosticCode, Severity};
+use crate::policy::ResolutionPolicy;
 use crate::util::{CmdError, cmd_stdout};
 
 /// A single boundary rule violation.
@@ -144,6 +145,10 @@ pub enum BoundaryCheckError {
         /// Count, materialized for the error message.
         count: usize,
     },
+    /// The locked/offline `cargo metadata` invocation could not
+    /// resolve the graph from the local cargo cache (LLR-140).
+    #[error(transparent)]
+    LockedGraphUnavailable(#[from] crate::policy::LockedGraphError),
 }
 
 fn fmt_build_rs(v: &[BuildRsViolation]) -> String {
@@ -179,6 +184,7 @@ impl DiagnosticCode for BoundaryCheckError {
             BoundaryCheckError::ForbiddenBuildRs { .. }      => "BOUNDARY_FORBIDDEN_BUILD_RS",
             BoundaryCheckError::ForbiddenProcMacro { .. }    => "BOUNDARY_FORBIDDEN_PROC_MACRO",
             BoundaryCheckError::DalAMissingAuxiliaryMcdc { .. } => "BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC",
+            BoundaryCheckError::LockedGraphUnavailable(e)    => e.code(),
         }
     }
 
@@ -190,9 +196,9 @@ impl DiagnosticCode for BoundaryCheckError {
 /// Enforce the `no_out_of_scope_deps` boundary rule.
 ///
 /// Shells out to `cargo metadata --format-version 1` in
-/// `workspace_root`, walks the resolved dep graph from each in-scope
-/// workspace member, and flags every transitive workspace-member dep
-/// that isn't in the `in_scope` list.
+/// `workspace_root` under `policy`, walks the resolved dep graph
+/// from each in-scope workspace member, and flags every transitive
+/// workspace-member dep that isn't in the `in_scope` list.
 ///
 /// Returns `Ok(())` when no violation is found;
 /// [`BoundaryCheckError::OutOfScopeDeps`] when one or more in-scope
@@ -202,8 +208,9 @@ impl DiagnosticCode for BoundaryCheckError {
 pub fn check_no_out_of_scope_deps(
     in_scope: &[String],
     workspace_root: &Path,
+    policy: ResolutionPolicy,
 ) -> Result<(), BoundaryCheckError> {
-    let output = run_cargo_metadata(workspace_root)?;
+    let output = run_cargo_metadata(workspace_root, policy)?;
     let metadata: Metadata = serde_json::from_str(&output)?;
     let violations = find_out_of_scope_deps(in_scope, &metadata)?;
     if violations.is_empty() {
@@ -213,7 +220,10 @@ pub fn check_no_out_of_scope_deps(
     Err(BoundaryCheckError::OutOfScopeDeps { violations, count })
 }
 
-fn run_cargo_metadata(workspace_root: &Path) -> Result<String, CmdError> {
+fn run_cargo_metadata(
+    workspace_root: &Path,
+    policy: ResolutionPolicy,
+) -> Result<String, BoundaryCheckError> {
     // `--format-version 1` locks the output schema so future cargo
     // versions can introduce v2 without breaking this parser. We use
     // `cmd_stdout` rather than a new subprocess helper because
@@ -229,7 +239,12 @@ fn run_cargo_metadata(workspace_root: &Path) -> Result<String, CmdError> {
     // only one the CLI drives today; alternate entry points should
     // chdir first.
     let _ = workspace_root;
-    cmd_stdout("cargo", &["metadata", "--format-version", "1"])
+    let mut args = vec!["metadata", "--format-version", "1"];
+    args.extend_from_slice(policy.cargo_args());
+    cmd_stdout("cargo", &args).map_err(|e| match policy.offline_failure("cargo metadata", e) {
+        Ok(g) => BoundaryCheckError::LockedGraphUnavailable(g),
+        Err(e) => BoundaryCheckError::CargoMetadata(e),
+    })
 }
 
 /// Pure dep-graph walk, factored out of `check_no_out_of_scope_deps`
@@ -343,16 +358,17 @@ pub fn check_dal_a_mcdc_evidence(
 
 /// Enforce the `forbid_build_rs` boundary rule.
 ///
-/// Shells out to `cargo metadata --format-version 1`, walks
-/// `packages[]`, and flags every package whose `name` is in `in_scope`
-/// AND whose `targets[]` contains a target with `kind ==
+/// Shells out to `cargo metadata --format-version 1` under `policy`,
+/// walks `packages[]`, and flags every package whose `name` is in
+/// `in_scope` AND whose `targets[]` contains a target with `kind ==
 /// ["custom-build"]`. Per-crate scoping is preserved — a `build.rs`
 /// in an out-of-scope crate is fine.
 pub fn check_no_build_rs(
     in_scope: &[String],
     workspace_root: &Path,
+    policy: ResolutionPolicy,
 ) -> Result<(), BoundaryCheckError> {
-    let output = run_cargo_metadata(workspace_root)?;
+    let output = run_cargo_metadata(workspace_root, policy)?;
     let metadata: Metadata = serde_json::from_str(&output)?;
     let violations = find_build_rs_violations(in_scope, &metadata)?;
     if violations.is_empty() {
@@ -364,15 +380,16 @@ pub fn check_no_build_rs(
 
 /// Enforce the `forbid_proc_macros` boundary rule.
 ///
-/// Shells out to `cargo metadata --format-version 1`, walks
-/// `packages[]`, and flags every package whose `name` is in `in_scope`
-/// AND whose `targets[]` contains a target with `kind ==
+/// Shells out to `cargo metadata --format-version 1` under `policy`,
+/// walks `packages[]`, and flags every package whose `name` is in
+/// `in_scope` AND whose `targets[]` contains a target with `kind ==
 /// ["proc-macro"]`. Per-crate scoping is preserved.
 pub fn check_no_proc_macros(
     in_scope: &[String],
     workspace_root: &Path,
+    policy: ResolutionPolicy,
 ) -> Result<(), BoundaryCheckError> {
-    let output = run_cargo_metadata(workspace_root)?;
+    let output = run_cargo_metadata(workspace_root, policy)?;
     let metadata: Metadata = serde_json::from_str(&output)?;
     let violations = find_proc_macro_violations(in_scope, &metadata)?;
     if violations.is_empty() {

@@ -22,6 +22,7 @@ use thiserror::Error;
 use walkdir::WalkDir;
 
 use crate::git::{GitError, git_ls_files_in};
+use crate::policy::ResolutionPolicy;
 use crate::util::{CmdError, cmd_stdout};
 
 /// Pathspecs for workspace-level controlled inputs that affect the
@@ -135,6 +136,11 @@ pub enum InputScopeError {
     /// `cargo metadata` failed to launch or exited non-zero.
     #[error("running `cargo metadata` for scope resolution")]
     CargoMetadata(#[source] CmdError),
+    /// The `--locked --offline` `cargo metadata` invocation failed —
+    /// the locked dependency graph could not be resolved from the
+    /// local cargo cache (LLR-140).
+    #[error(transparent)]
+    LockedGraphUnavailable(#[from] crate::policy::LockedGraphError),
     /// `git ls-files` failed while enumerating a unit or control set.
     #[error("running `git ls-files` for scope resolution")]
     GitLsFiles(#[source] GitError),
@@ -155,12 +161,23 @@ pub enum InputScopeError {
 /// ([`resolve_in_scope_units`], [`assemble_input_plan`]) carry the unit
 /// tests. `--no-deps` keeps `cargo metadata` to workspace packages —
 /// the full dependency graph is not needed to map names to directories.
+/// The metadata invocation carries the given [`ResolutionPolicy`]
+/// flags (LLR-140); a locked/offline invocation that cannot resolve
+/// from the local cache fails closed with
+/// [`InputScopeError::LockedGraphUnavailable`].
 pub fn build_input_plan_blocking(
     in_scope: &[String],
     required_inputs: &[String],
+    policy: ResolutionPolicy,
 ) -> Result<Vec<InputEntry>, InputScopeError> {
-    let json = cmd_stdout("cargo", &["metadata", "--format-version", "1", "--no-deps"])
-        .map_err(InputScopeError::CargoMetadata)?;
+    let mut args = vec!["metadata", "--format-version", "1", "--no-deps"];
+    args.extend_from_slice(policy.cargo_args());
+    let json = cmd_stdout("cargo", &args).map_err(|e| {
+        match policy.offline_failure("cargo metadata", e) {
+            Ok(g) => InputScopeError::LockedGraphUnavailable(g),
+            Err(e) => InputScopeError::CargoMetadata(e),
+        }
+    })?;
     let root = workspace_root_from(&json)?;
     let units = resolve_in_scope_units(&json, in_scope)?;
     let mode = decide_enumeration(&root)?;

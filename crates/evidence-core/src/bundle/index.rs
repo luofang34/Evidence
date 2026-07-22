@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use crate::policy::Profile;
+use crate::policy::{Profile, ResolutionPolicy};
 
 use super::command_failure::ToolCommandFailure;
 use super::test_summary::TestSummary;
@@ -12,6 +12,16 @@ use super::test_summary::TestSummary;
 /// a legacy bundle that predates the field.
 pub(super) fn default_engine_build_source() -> String {
     "unknown".to_string()
+}
+
+/// Default for `EvidenceIndex::resolution_policy` when deserializing
+/// a legacy bundle that predates the field: `locked_offline`, the
+/// safe default (LLR-142). A bundle that never recorded the field
+/// could not have been produced under the development online opt-in —
+/// that path did not exist — so the default is a true statement about
+/// the bundle, not a guess.
+pub(super) fn default_resolution_policy() -> ResolutionPolicy {
+    ResolutionPolicy::LockedOffline
 }
 
 /// Contains metadata about the evidence bundle including schema versions,
@@ -127,6 +137,14 @@ pub struct EvidenceIndex {
     /// for legacy bundles.
     #[serde(default, skip_serializing_if = "is_default_boundary_policy")]
     pub boundary_policy: crate::policy::BoundaryPolicy,
+    /// Dependency-resolution policy the bundle was generated under
+    /// (LLR-142). Always serialized — the bundle records its policy
+    /// explicitly. `#[serde(default)]` resolves a legacy bundle that
+    /// predates the field to `locked_offline`, the safe default.
+    /// Verify rejects a bundle pairing `online_opt_in` with a
+    /// cert/record profile (`VERIFY_ONLINE_RESOLUTION`).
+    #[serde(default = "default_resolution_policy")]
+    pub resolution_policy: ResolutionPolicy,
 }
 
 fn is_default_boundary_policy(p: &crate::policy::BoundaryPolicy) -> bool {
@@ -170,9 +188,73 @@ mod tests {
             tool_command_failures: Vec::new(),
             dal_map: BTreeMap::new(),
             boundary_policy: crate::policy::BoundaryPolicy::default(),
+            resolution_policy: ResolutionPolicy::LockedOffline,
         };
         assert!(idx.bundle_complete);
         assert_eq!(idx.profile, Profile::Cert);
         assert_eq!(idx.content_hash.len(), 64);
+        assert_eq!(idx.resolution_policy, ResolutionPolicy::LockedOffline);
+    }
+
+    /// TEST-159 (a): a bundle written before `resolution_policy`
+    /// existed deserializes with the safe `locked_offline` default,
+    /// and the field serializes under its snake_case wire label.
+    #[test]
+    fn resolution_policy_defaults_to_locked_offline_for_legacy_bundles() {
+        let legacy = serde_json::json!({
+            "schema_version": "1.0.0",
+            "boundary_schema_version": "1.0.0",
+            "trace_schema_version": "1.0.0",
+            "profile": "dev",
+            "timestamp_rfc3339": "2024-01-01T00:00:00Z",
+            "git_sha": "abc123",
+            "git_branch": "main",
+            "git_dirty": false,
+            "engine_crate_version": "0.1.0",
+            "engine_git_sha": "abc123",
+            "inputs_hashes_file": "inputs_hashes.json",
+            "outputs_hashes_file": "outputs_hashes.json",
+            "commands_file": "commands.json",
+            "env_fingerprint_file": "env.json",
+            "trace_roots": [],
+            "trace_outputs": [],
+            "bundle_complete": true,
+            "content_hash": "deadbeef".repeat(8),
+            "deterministic_hash": "cafebabe".repeat(8),
+        });
+        let idx: EvidenceIndex = serde_json::from_value(legacy).expect("legacy index parses");
+        assert_eq!(idx.resolution_policy, ResolutionPolicy::LockedOffline);
+
+        let online: EvidenceIndex = serde_json::from_value(serde_json::json!({
+            "schema_version": "1.0.0",
+            "boundary_schema_version": "1.0.0",
+            "trace_schema_version": "1.0.0",
+            "profile": "dev",
+            "timestamp_rfc3339": "2024-01-01T00:00:00Z",
+            "git_sha": "abc123",
+            "git_branch": "main",
+            "git_dirty": false,
+            "engine_crate_version": "0.1.0",
+            "engine_git_sha": "abc123",
+            "inputs_hashes_file": "inputs_hashes.json",
+            "outputs_hashes_file": "outputs_hashes.json",
+            "commands_file": "commands.json",
+            "env_fingerprint_file": "env.json",
+            "trace_roots": [],
+            "trace_outputs": [],
+            "bundle_complete": true,
+            "content_hash": "deadbeef".repeat(8),
+            "deterministic_hash": "cafebabe".repeat(8),
+            "resolution_policy": "online_opt_in",
+        }))
+        .expect("online_opt_in wire label parses");
+        assert_eq!(online.resolution_policy, ResolutionPolicy::OnlineOptIn);
+
+        // Round-trip: the typed enum serializes back to the wire label.
+        let rendered = serde_json::to_value(&online).expect("serialize");
+        assert_eq!(
+            rendered["resolution_policy"],
+            serde_json::Value::String("online_opt_in".to_string())
+        );
     }
 }

@@ -40,7 +40,7 @@ pub(in crate::cli::generate) fn inventory_and_hash_outputs(
     if !should_inventory(skip_tests, inventory_outputs, strict) {
         return Ok(());
     }
-    match inventory_outputs_blocking(profile) {
+    match inventory_outputs_blocking(profile, builder.resolution_policy()) {
         Ok(artifacts) => {
             if artifacts.is_empty() && strict {
                 return Err(anyhow::anyhow!(

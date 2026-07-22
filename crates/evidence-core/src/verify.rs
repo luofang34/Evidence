@@ -26,6 +26,7 @@ mod errors_display;
 mod llr_selectors;
 mod output_manifest;
 mod paths;
+mod resolution_policy;
 mod runtime_error;
 mod source_baseline;
 mod test_identity;

@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use crate::policy::{AssuranceLevel, BoundaryPolicy, Profile};
+use crate::policy::{AssuranceLevel, BoundaryPolicy, Profile, ResolutionPolicy};
 
 /// Configuration for evidence bundle generation.
 #[derive(Debug, Clone)]
@@ -35,4 +35,12 @@ pub struct EvidenceBuildConfig {
     /// claimed", verify skips the recheck.
     #[doc(alias = "policy")]
     pub boundary_policy: BoundaryPolicy,
+    /// Dependency-resolution policy every cargo subprocess in the
+    /// pipeline runs under (LLR-139). Recorded into `index.json` as
+    /// `resolution_policy` so verify can reject an online-resolution
+    /// cert/record bundle (LLR-142). Library callers that do not
+    /// plumb a policy should pass [`ResolutionPolicy::LOCKED_OFFLINE`];
+    /// the online path exists only through the CLI's development
+    /// `--online` opt-in.
+    pub resolution_policy: ResolutionPolicy,
 }

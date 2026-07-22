@@ -169,6 +169,14 @@ impl EvidenceBuilder {
         &self.bundle_dir
     }
 
+    /// The dependency-resolution policy this bundle is being built
+    /// under (from [`EvidenceBuildConfig::resolution_policy`]). Every
+    /// cargo-invoking phase reads the policy here so the pipeline
+    /// shares one source of truth (LLR-139 / LLR-140).
+    pub fn resolution_policy(&self) -> crate::policy::ResolutionPolicy {
+        self.config.resolution_policy
+    }
+
     /// Hash a file into inputs, keyed by `path`. Wrapper over [`Self::hash_input_under`].
     pub fn hash_input(&mut self, path: &str) -> Result<(), BuilderError> {
         self.hash_input_under(Path::new("."), path)
@@ -382,18 +390,21 @@ impl EvidenceBuilder {
             source,
         })?;
 
-        // Step 1.5: When boundary policy claims `forbid_build_rs` or
-        // `forbid_proc_macros`, write a deterministic projection of
+        // Step 1.5: Write a deterministic projection of
         // `cargo metadata --format-version 1` into the bundle as
-        // `cargo_metadata.json`. The artifact lets verify-time re-run
-        // the same checks against the bundle the bundle claimed at
-        // generate time (LLR-072). Land it before `write_sha256sums`
-        // so the integrity chain auto-binds it like every other
-        // content file.
-        if self.config.boundary_policy.forbid_build_rs
+        // `cargo_metadata.json`. The artifact binds the resolved
+        // dependency graph (LLR-141) and lets verify-time re-run the
+        // boundary checks the bundle claimed at generate time
+        // (LLR-072). Cert/record bundles always carry it; the
+        // development profile writes it only when the boundary policy
+        // enables `forbid_build_rs` or `forbid_proc_macros`. Land it
+        // before `write_sha256sums` so the integrity chain auto-binds
+        // it like every other content file.
+        if matches!(self.config.profile, Profile::Cert | Profile::Record)
+            || self.config.boundary_policy.forbid_build_rs
             || self.config.boundary_policy.forbid_proc_macros
         {
-            write_cargo_metadata_projection(&self.bundle_dir)?;
+            write_cargo_metadata_projection(&self.bundle_dir, self.config.resolution_policy)?;
         }
 
         // Step 2: Write SHA256SUMS covering the content layer only.
@@ -443,6 +454,7 @@ impl EvidenceBuilder {
                 .map(|(k, v)| (k.clone(), v.to_string()))
                 .collect(),
             boundary_policy: self.config.boundary_policy.clone(),
+            resolution_policy: self.config.resolution_policy,
         };
 
         let index_path = self.bundle_dir.join("index.json");

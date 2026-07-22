@@ -2321,3 +2321,57 @@ test_selectors = [
     "evidence_core::corpus::source::verify::batch_tests::verification_never_mutates_the_corpus",
     "corpus_source_verification::corpus_index_loads_and_verifies_end_to_end",
 ]
+
+[[tests]]
+uid = "63647cc0-ddef-489e-a339-13106d4109d9"
+id = "TEST-156"
+title = "ResolutionPolicy truth table, argv rendering, and the cert/record online refusal at the CLI gate"
+owner = "tool"
+traces_to = ["d591c58b-aa28-46a0-8a79-1abd39d2da8d"]
+test_selectors = [
+    "evidence_core::policy::resolution::tests::for_profile_truth_table",
+    "evidence_core::policy::resolution::tests::cargo_args_match_policy",
+    "evidence_core::policy::resolution::tests::online_forbidden_error_carries_policy_code",
+    "resolution_policy::generate_cert_with_online_flag_is_refused",
+]
+
+[[tests]]
+uid = "77b0bcfb-b9a0-45a2-b51e-935dc10582e7"
+id = "TEST-157"
+title = "all cargo subprocess argv carry the policy flags; missing-cache and prepared-cache runs prove offline behavior end to end"
+owner = "tool"
+traces_to = ["c9899d50-b100-4a19-b6cf-1269460b5470"]
+test_selectors = [
+    "evidence_core::bundle::cargo_artifacts::tests::dev_locked_offline_build_args_carry_policy_flags",
+    "evidence_core::bundle::cargo_artifacts::tests::cert_and_record_build_args_are_release_locked_offline",
+    "evidence_core::bundle::cargo_artifacts::tests::online_opt_in_build_args_carry_no_resolution_flags",
+    "evidence_core::policy::resolution::tests::offline_failure_maps_only_locked_nonzero_exits",
+    "resolution_policy::missing_cache_locked_offline_fails_with_actionable_diagnostic",
+    "resolution_policy::prepared_cache_offline_generate_succeeds_and_records_policy",
+]
+
+[[tests]]
+uid = "02c4f0c0-8ced-4d90-8ddc-4d09633066dd"
+id = "TEST-158"
+title = "the projection binds the resolved dependency graph deterministically and round-trips"
+owner = "tool"
+traces_to = ["e4ffc9e7-2698-459f-911f-f1156b47697e"]
+test_selectors = [
+    "evidence_core::cargo_metadata::tests::projection_binds_resolved_dependency_graph",
+    "evidence_core::cargo_metadata::tests::projection_dependencies_are_sorted_and_deduplicated",
+]
+
+[[tests]]
+uid = "eb27c893-1af5-4c81-880e-b2726e61ccde"
+id = "TEST-159"
+title = "index.json records the policy with a safe legacy default; verify rejects online cert/record bundles and accepts dev"
+owner = "tool"
+traces_to = ["ff850748-3a41-4d11-93dc-68d7bd72cd4d"]
+test_selectors = [
+    "evidence_core::bundle::index::tests::resolution_policy_defaults_to_locked_offline_for_legacy_bundles",
+    "evidence_core::verify::resolution_policy::tests::online_opt_in_cert_bundle_is_rejected",
+    "evidence_core::verify::resolution_policy::tests::online_opt_in_dev_bundle_is_allowed",
+    "evidence_core::verify::resolution_policy::tests::locked_offline_cert_bundle_is_allowed",
+    "resolution_policy::generate_dev_with_online_flag_records_online_opt_in",
+    "resolution_policy::verify_rejects_online_opt_in_cert_bundle",
+]

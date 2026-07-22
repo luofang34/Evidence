@@ -242,6 +242,18 @@ pub enum VerifyError {
         /// `"record"` when this error fires.
         profile: String,
     },
+    /// The bundle records `resolution_policy = "online_opt_in"`
+    /// under a cert/record profile: the dependency graph was
+    /// resolved with network access, so the bundle cannot back a
+    /// certification claim (LLR-142). The generate-time gate refuses
+    /// `--online` on cert/record; this is the defense-in-depth half
+    /// for hand-assembled or tampered bundles.
+    OnlineResolutionBundle {
+        /// Profile read from `index.json` — always `"cert"` or
+        /// `"record"` when this error fires (dev-profile bundles
+        /// under the opt-in verify normally).
+        profile: String,
+    },
 }
 
 impl DiagnosticCode for VerifyError {
@@ -282,6 +294,7 @@ impl DiagnosticCode for VerifyError {
             VerifyError::OutputManifestEmpty               => "VERIFY_OUTPUT_MANIFEST_EMPTY",
             VerifyError::TraceEvidenceNotAdopted { .. }    => "TRACE_EVIDENCE_NOT_ADOPTED",
             VerifyError::TraceEvidenceEmpty { .. }         => "TRACE_EVIDENCE_EMPTY",
+            VerifyError::OnlineResolutionBundle { .. }     => "VERIFY_ONLINE_RESOLUTION",
         }
     }
 
@@ -336,7 +349,8 @@ impl DiagnosticCode for VerifyError {
             | VerifyError::TestSummaryAbsentOnFailedRun { .. }
             | VerifyError::LlrTestSelectorUnresolved { .. }
             | VerifyError::BoundaryVerifyForbiddenBuildRs { .. }
-            | VerifyError::BoundaryVerifyForbiddenProcMacro { .. } => None,
+            | VerifyError::BoundaryVerifyForbiddenProcMacro { .. }
+            | VerifyError::OnlineResolutionBundle { .. } => None,
         };
 
         file_path.map(|file| Location {

@@ -174,6 +174,7 @@ fn test_toctou_detection() {
         fail_on_dirty: false,
         dal_map: BTreeMap::new(),
         boundary_policy: evidence_core::BoundaryPolicy::default(),
+        resolution_policy: evidence_core::policy::ResolutionPolicy::LOCKED_OFFLINE,
     };
 
     let builder = EvidenceBuilder::new_with_provider(config, MutatingGitProvider::new())

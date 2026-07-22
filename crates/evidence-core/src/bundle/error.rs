@@ -111,6 +111,12 @@ pub enum BuilderError {
     /// `CargoMetadataRun`.
     #[error("parsing cargo metadata for projection")]
     CargoMetadataProject(#[source] crate::cargo_metadata::ProjectionError),
+    /// The `--locked --offline` `cargo metadata` invocation for the
+    /// `cargo_metadata.json` artifact failed — the locked dependency
+    /// graph could not be resolved from the local cargo cache
+    /// (LLR-140).
+    #[error(transparent)]
+    LockedGraphUnavailable(#[from] crate::policy::LockedGraphError),
 }
 
 impl DiagnosticCode for BuilderError {
@@ -138,6 +144,9 @@ impl DiagnosticCode for BuilderError {
             BuilderError::ParseEnv(_)                                              => "BUNDLE_PARSE_ENV_FAILED",
             BuilderError::Toctou { .. }                                            => "BUNDLE_TOCTOU",
             BuilderError::CargoMetadataRun(_) | BuilderError::CargoMetadataProject(_) => "BUNDLE_CARGO_METADATA_FAILED",
+            // Forwards to the shared locked-graph code (LLR-140) — one
+            // failure class, one diagnostic, no per-enum duplicate.
+            BuilderError::LockedGraphUnavailable(e)                                => e.code(),
         }
     }
 
@@ -159,7 +168,8 @@ impl DiagnosticCode for BuilderError {
             | BuilderError::ParseEnv(_)
             | BuilderError::Toctou { .. }
             | BuilderError::CargoMetadataRun(_)
-            | BuilderError::CargoMetadataProject(_) => None,
+            | BuilderError::CargoMetadataProject(_)
+            | BuilderError::LockedGraphUnavailable(_) => None,
         };
         file.map(|file| Location {
             file: Some(file),

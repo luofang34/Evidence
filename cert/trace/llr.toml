@@ -1373,7 +1373,8 @@ function spawns `cargo llvm-cov --workspace --json --output-path
 <tmp.json> --lcov --output-path <tmp.lcov>` (via
 `std::process::Command`), parses the JSON, and stages both files
 into the builder via `EvidenceBuilder::set_coverage_report` and
-`EvidenceBuilder::stage_coverage_lcov`. On ENOENT (binary
+`EvidenceBuilder::stage_coverage_lcov`. Each llvm-cov spawn
+carries the shared resolution-policy flags (LLR-140). On ENOENT (binary
 missing) the phase emits a `COVERAGE_LLVMCOV_MISSING`
 diagnostic whose severity is Warning for `Profile::Dev` and
 Error for `Profile::Cert` / `Profile::Record`; on JSON parse
@@ -2175,11 +2176,13 @@ description = """
 The bundle includes a deterministic projection of `cargo
 metadata --format-version 1` as `cargo_metadata.json` whenever
 the generate-time `BoundaryPolicy` enables either
-`forbid_build_rs` or `forbid_proc_macros`. Format: a sorted
-array of `{ name, targets[].kind, links }` entries — the
-minimum needed for the recheck. Sorted by `name` ascending so
-the artifact is byte-stable across re-runs and across hosts
-(SYS-003).
+`forbid_build_rs` or `forbid_proc_macros`; cert/record profiles
+write it unconditionally (LLR-141). Format: a `packages` array
+of `{ name, targets[].kind, links }` entries — the minimum
+needed for the recheck — plus a `dependencies` map binding the
+resolved dependency graph (LLR-141). Packages are sorted by
+`name` ascending so the artifact is byte-stable across re-runs
+and across hosts (SYS-003).
 
 `EvidenceIndex.boundary_policy` (additive, `#[serde(default)]`)
 records the flag values at generate time so verify can replay
@@ -2756,7 +2759,9 @@ inputs are existence-checked against the workspace root
 required but absent cannot be silently dropped.
 
 `build_input_plan_blocking` orchestrates the subprocess calls and
-the pure helpers. `hash_in_scope_sources` consumes the plan,
+the pure helpers; its `cargo metadata --no-deps` invocation
+carries the shared resolution-policy flags (LLR-140).
+`hash_in_scope_sources` consumes the plan,
 hashing each entry into `inputs_hashes.json`; strict (cert/record)
 mode propagates any planning error as a generate failure, so a
 cert bundle can never record an empty or mis-resolved source
@@ -2814,7 +2819,9 @@ byte-deterministic (SYS-003).
 
 `run_tests_and_capture` runs `cargo nextest run --workspace
 --no-fail-fast --message-format libtest-json-plus` through the
-builder's `run_capture` and feeds its stdout to the parser.
+builder's `run_capture` and feeds its stdout to the parser. The
+nextest argv carries the shared resolution-policy flags
+(LLR-140).
 """
 verification_methods = ["test"]
 
@@ -2885,8 +2892,9 @@ results are sorted and deduplicated for determinism.
 
 `inventory_outputs_blocking` reads `workspace_members` and
 `target_directory` from `cargo metadata`, then builds with the
-bundle's recipe — cert/record build `--release --locked` so the
-inventory attests the deliverable and a pinned dependency graph,
+bundle's recipe — cert/record build `--release` plus the shared
+resolution-policy flags (LLR-140) so the inventory attests the
+deliverable and the pinned, offline-resolved dependency graph,
 not an implicit debug build. `inventory_and_hash_outputs` hashes
 each artifact into `outputs_hashes.json` via `builder.add_output`;
 strict mode fails closed on zero deliverables or an unhashable
@@ -4124,3 +4132,131 @@ shall never touch the network, and retrieval timestamps shall never
 affect ordering or state selection.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "d591c58b-aa28-46a0-8a79-1abd39d2da8d"
+id = "LLR-139"
+title = "policy::resolution::ResolutionPolicy gates locked_offline vs online_opt_in on profile and owns the online-resolution refusal"
+owner = "tool"
+traces_to = ["0c1f3ac4-e0df-4c3c-b24c-15eb11ce2ede"]
+modules = [
+    "evidence_core::policy::resolution::ResolutionPolicy",
+    "evidence_core::policy::resolution::ResolutionPolicyError",
+    "cargo_evidence::cli::generate::cmd_generate",
+]
+description = """
+`ResolutionPolicy::for_profile(profile, online_opt_in)` is the
+single decision point for dependency resolution: the development
+profile with an explicit `--online` opt-in yields `OnlineOptIn`;
+every profile without the opt-in yields `LockedOffline`;
+cert/record with the opt-in is refused with the typed
+`ResolutionPolicyError` carrying
+`POLICY_ONLINE_RESOLUTION_FORBIDDEN`. `cargo_args()` renders the
+policy as subprocess argv — `["--locked", "--offline"]` for
+`LockedOffline`, `[]` for `OnlineOptIn` — so every call site
+applies the same flags, and `as_str()` renders the
+`locked_offline` / `online_opt_in` wire label recorded in
+`index.json`. `cmd_generate` resolves the policy immediately
+after profile resolution, before the assurance-selection gate,
+so the refusal fires before any bundle work.
+"""
+verification_methods = ["test"]
+emits = ["POLICY_ONLINE_RESOLUTION_FORBIDDEN"]
+
+[[requirements]]
+uid = "c9899d50-b100-4a19-b6cf-1269460b5470"
+id = "LLR-140"
+title = "every generate-time cargo subprocess carries the resolution policy flags; locked/offline failures map to BUNDLE_LOCKED_GRAPH_UNAVAILABLE"
+owner = "tool"
+traces_to = ["0c1f3ac4-e0df-4c3c-b24c-15eb11ce2ede"]
+modules = [
+    "evidence_core::boundary_check::run_cargo_metadata",
+    "evidence_core::bundle::input_scope::build_input_plan_blocking",
+    "evidence_core::bundle::cargo_artifacts::inventory_outputs_blocking",
+    "evidence_core::bundle::builder::write_cargo_metadata_projection",
+    "cargo_evidence::cli::generate::phases::run_tests_and_capture",
+    "cargo_evidence::cli::generate::coverage_phase::run_coverage_phase",
+]
+description = """
+Every cargo invocation the generate pipeline spawns appends
+`ResolutionPolicy::cargo_args()` to its argv: the boundary policy
+gates' `cargo metadata`, input-scope resolution's
+`cargo metadata --no-deps`, the output inventory's
+`cargo metadata` + `cargo build`, the `cargo_metadata.json`
+projection's full `cargo metadata`, `cargo nextest run`, and the
+three `cargo llvm-cov` spawns. Cert/record keeps `--release` on
+its build; the resolution flags are policy-driven, not
+profile-hardcoded.
+
+Under `LockedOffline`, a non-zero exit from one of these
+invocations maps to the shared `LockedGraphError` — code
+`BUNDLE_LOCKED_GRAPH_UNAVAILABLE` — whose message names the
+command, the policy, and the remediation (`cargo fetch --locked`
+in an online environment). The policy makes the cause class
+unambiguous (missing cache or lock drift), so no stderr
+heuristics are consulted; launch and non-UTF-8 failures keep
+their existing codes.
+"""
+verification_methods = ["test"]
+emits = ["BUNDLE_LOCKED_GRAPH_UNAVAILABLE"]
+
+[[requirements]]
+uid = "e4ffc9e7-2698-459f-911f-f1156b47697e"
+id = "LLR-141"
+title = "cargo_metadata.json binds the resolved dependency graph and is written for every cert/record bundle"
+owner = "tool"
+traces_to = ["11ad8fea-6494-4948-834d-3150fea0c6ac"]
+modules = [
+    "evidence_core::cargo_metadata::CargoMetadataProjection",
+    "evidence_core::bundle::builder::EvidenceBuilder::finalize",
+]
+description = """
+`CargoMetadataProjection` gains `dependencies`: a
+`BTreeMap<name version, BTreeSet<name version>>` projected from
+`resolve.nodes` — the RESOLVED graph (post-resolution package
+versions), not the declared dependency specs. Keys and values
+are `BTree`-ordered and deduplicated so the artifact stays
+byte-deterministic across runs and hosts (SYS-003); a resolve
+node whose dependency id is absent from `packages[]` fails the
+projection closed. The existing `packages` projection is
+untouched, so the verify-time boundary recheck keeps replaying
+against the same fields.
+
+`EvidenceBuilder::finalize` writes the artifact unconditionally
+on cert/record profiles — the development profile keeps the
+boundary-policy-flag gating — before SHA256SUMS is assembled, so
+the integrity chain binds the graph the baseline resolved to,
+not just the lockfile pathname.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "ff850748-3a41-4d11-93dc-68d7bd72cd4d"
+id = "LLR-142"
+title = "EvidenceIndex.resolution_policy records the policy; verify rejects an online-resolution cert/record bundle"
+owner = "tool"
+traces_to = ["11ad8fea-6494-4948-834d-3150fea0c6ac"]
+modules = [
+    "evidence_core::bundle::index::EvidenceIndex",
+    "evidence_core::verify::resolution_policy::check_resolution_policy",
+    "evidence_core::verify::bundle::verify_bundle_with_key",
+]
+description = """
+`EvidenceIndex.resolution_policy` (typed `ResolutionPolicy`,
+serialized snake_case, `#[serde(default)]` resolving to
+`locked_offline`) records which policy produced the bundle;
+bundles written before the field existed parse with the safe
+default.
+
+`check_resolution_policy` runs inside `verify_bundle_with_key`
+and pushes `VerifyError::OnlineResolutionBundle`
+(`VERIFY_ONLINE_RESOLUTION`) when a bundle records
+`online_opt_in` under a cert/record profile — defense in depth
+behind the generate-time refusal, so a hand-assembled or
+tampered bundle cannot launder a development online opt-in into
+a certification claim. A development-profile bundle under the
+opt-in verifies normally: the flag narrows what the bundle can
+claim, not its integrity.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_ONLINE_RESOLUTION"]

@@ -1367,3 +1367,39 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "36d6b5ec-6ddb-4d42-9299-5ed9df5e7b21"
+id = "SYS-047"
+title = "Certification evidence generation resolves dependencies only from a locked, offline cargo baseline"
+owner = "soi"
+scope = "soi"
+description = """
+Evidence generation that backs a certification or record claim
+shall resolve the cargo dependency graph exclusively from the
+committed lockfile and the local cargo cache: every cargo
+subprocess the pipeline spawns (metadata, build, test, coverage,
+and auxiliary analysis) shall run under one explicit resolution
+policy — `--locked --offline` — so graph resolution can never
+silently reach the network.
+
+When the locked graph cannot be resolved from local data,
+generation shall fail before producing evidence with a precise
+diagnostic that names the failed command, the policy, and the
+remediation (populating the cache via `cargo fetch --locked` in
+an online environment), rather than falling back to online
+resolution.
+
+The resolved dependency graph — not merely the lockfile pathname —
+shall be captured as a bundle input, so the bundle binds what the
+baseline actually resolved to.
+
+A development workflow may explicitly opt into online resolution;
+the opt-in shall be recorded in the bundle, and a bundle produced
+under it shall never satisfy a certification or record claim.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

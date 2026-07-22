@@ -93,11 +93,17 @@ pub(super) fn enforce_boundary_policy(
     }
     // `cargo metadata` reads from cwd + upward-walk; the CLI is
     // invoked at the workspace root so cwd is correct. Passing "."
-    // is documentary for the library API.
+    // is documentary for the library API. Every metadata invocation
+    // runs under the run's resolution policy (LLR-140).
     let workspace_root = Path::new(".");
+    let resolution = derived.resolution_policy;
 
     if derived.policy.no_out_of_scope_deps {
-        match evidence_core::check_no_out_of_scope_deps(&derived.in_scope_crates, workspace_root) {
+        match evidence_core::check_no_out_of_scope_deps(
+            &derived.in_scope_crates,
+            workspace_root,
+            resolution,
+        ) {
             Ok(()) => {}
             Err(evidence_core::BoundaryCheckError::OutOfScopeDeps { violations, .. }) => {
                 let lines: Vec<String> = violations
@@ -126,7 +132,8 @@ pub(super) fn enforce_boundary_policy(
     }
 
     if derived.policy.forbid_build_rs {
-        match evidence_core::check_no_build_rs(&derived.in_scope_crates, workspace_root) {
+        match evidence_core::check_no_build_rs(&derived.in_scope_crates, workspace_root, resolution)
+        {
             Ok(()) => {}
             Err(evidence_core::BoundaryCheckError::ForbiddenBuildRs { violations, .. }) => {
                 let lines: Vec<String> = violations
@@ -155,7 +162,11 @@ pub(super) fn enforce_boundary_policy(
     }
 
     if derived.policy.forbid_proc_macros {
-        match evidence_core::check_no_proc_macros(&derived.in_scope_crates, workspace_root) {
+        match evidence_core::check_no_proc_macros(
+            &derived.in_scope_crates,
+            workspace_root,
+            resolution,
+        ) {
             Ok(()) => {}
             Err(evidence_core::BoundaryCheckError::ForbiddenProcMacro { violations, .. }) => {
                 let lines: Vec<String> = violations

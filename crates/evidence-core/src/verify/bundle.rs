@@ -111,6 +111,12 @@ pub fn verify_bundle_with_key(
     // bundles keep their skip semantics.
     super::trace_evidence::check_trace_evidence(bundle, &index.profile, &mut verify_errors);
 
+    // 3a''''''. Fail closed on an online-resolution cert/record
+    // bundle — the development online opt-in can never back a
+    // certification claim, even if the generate-time gate was
+    // bypassed (LLR-142).
+    super::resolution_policy::check_resolution_policy(&index, &mut verify_errors);
+
     // 3b. Validate index.json field formats (semantic checks beyond serde)
     validate_index_fields(&index, &mut verify_errors);
 

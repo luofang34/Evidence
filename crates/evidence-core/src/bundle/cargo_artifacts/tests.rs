@@ -95,23 +95,42 @@ fn empty_or_blank_input_yields_no_artifacts() {
 }
 
 #[test]
-fn dev_build_args_are_a_default_debug_build() {
-    // Dev must not pin the dependency graph or force release — fast
-    // iteration is the point; provenance strictness is cert/record's job.
-    let args = build_args(Profile::Dev);
-    assert_eq!(args, vec!["build", "--workspace", "--message-format=json"]);
+fn dev_locked_offline_build_args_carry_policy_flags() {
+    // Dev stays on the default debug build (fast iteration) but still
+    // pins and resolves offline — provenance strictness is the shared
+    // policy's job, not the profile's (LLR-140).
+    let args = build_args(Profile::Dev, ResolutionPolicy::LockedOffline);
+    assert_eq!(
+        args,
+        vec![
+            "build",
+            "--workspace",
+            "--message-format=json",
+            "--locked",
+            "--offline"
+        ]
+    );
     assert!(!args.contains(&"--release"));
-    assert!(!args.contains(&"--locked"));
 }
 
 #[test]
-fn cert_and_record_build_args_are_release_locked() {
+fn cert_and_record_build_args_are_release_locked_offline() {
     for p in [Profile::Cert, Profile::Record] {
-        let args = build_args(p);
+        let args = build_args(p, ResolutionPolicy::LockedOffline);
         assert!(args.contains(&"--release"), "{p:?} must build --release");
         assert!(
-            args.contains(&"--locked"),
-            "{p:?} must build --locked (pinned dependency graph)"
+            args.contains(&"--locked") && args.contains(&"--offline"),
+            "{p:?} must resolve the pinned dependency graph offline"
         );
     }
+}
+
+#[test]
+fn online_opt_in_build_args_carry_no_resolution_flags() {
+    // The development online opt-in removes `--locked` / `--offline`
+    // everywhere — their absence IS the opt-in (LLR-139).
+    let args = build_args(Profile::Dev, ResolutionPolicy::OnlineOptIn);
+    assert_eq!(args, vec!["build", "--workspace", "--message-format=json"]);
+    assert!(!args.contains(&"--locked"));
+    assert!(!args.contains(&"--offline"));
 }
