@@ -26,6 +26,7 @@ use crate::hash::write_sha256sums;
 use crate::policy::Profile;
 use crate::traits::GitProvider;
 
+mod completeness;
 mod config;
 mod naming;
 mod outputs;
@@ -58,6 +59,14 @@ pub struct EvidenceBuilder {
     /// `true`) and the verify-time cross-check that a cert/
     /// record bundle carries no recorded failures.
     tool_command_failures: Vec<ToolCommandFailure>,
+    /// The generate-time trace-evidence classification, threaded
+    /// in via [`Self::set_trace_evidence_state`] before finalize;
+    /// feeds the `graph_validity` completeness state (LLR-149).
+    trace_evidence_state: Option<crate::trace::TraceEvidenceState>,
+    /// Whether a signing key resolved for this run, threaded in
+    /// via [`Self::set_signature_planned`] before finalize; feeds
+    /// the `integrity` completeness state (LLR-149).
+    signature_planned: bool,
 }
 
 impl EvidenceBuilder {
@@ -140,18 +149,17 @@ impl EvidenceBuilder {
             test_outcomes: Vec::new(),
             coverage_report: None,
             tool_command_failures: Vec::new(),
+            trace_evidence_state: None,
+            signature_planned: false,
         })
     }
 
     /// Record a captured-subprocess failure. Called by
     /// [`Self::run_capture`] on non-zero exit and by phase
     /// orchestrators that caught a [`BuilderError::RunCommand`]
-    /// spawn failure.
-    ///
-    /// Non-empty `tool_command_failures` flips
+    /// spawn failure. Non-empty `tool_command_failures` flips
     /// [`EvidenceIndex::bundle_complete`] to `false` at
-    /// [`Self::finalize`] time; verify cross-checks that
-    /// cert/record bundles never ship with recorded failures.
+    /// [`Self::finalize`] time.
     pub fn record_command_failure(&mut self, failure: ToolCommandFailure) {
         self.tool_command_failures.push(failure);
     }
@@ -289,10 +297,7 @@ impl EvidenceBuilder {
     }
 
     /// Accessor for the coverage-facing impl in
-    /// `builder_coverage.rs`. The sibling module extends
-    /// [`EvidenceBuilder`] with `set_coverage_report` +
-    /// aggregate getters without pushing this file past the
-    /// 500-line workspace limit.
+    /// `builder_coverage.rs`.
     pub(super) fn coverage_report_ref(&self) -> Option<&crate::CoverageReport> {
         self.coverage_report.as_ref()
     }
@@ -327,22 +332,19 @@ impl EvidenceBuilder {
     /// - `Some(false)` when any test failed.
     ///
     /// Note the asymmetry with "tests present": a summary with
-    /// `total == 0` reports `Some(true)` — there were no failures
-    /// because there were no tests. Callers that care about the
-    /// distinction should check `test_summary` directly.
+    /// `total == 0` reports `Some(true)`. Callers that care
+    /// about the distinction should check `test_summary`
+    /// directly.
     pub fn tests_passed(&self) -> Option<bool> {
         self.test_summary.as_ref().map(|s| s.failed == 0)
     }
 
-    /// Finalize the bundle by writing SHA256SUMS (content layer) then index.json (metadata layer).
-    ///
-    /// The two-layer design ensures determinism:
-    /// 1. SHA256SUMS is written first, covering all content-layer files (everything
-    ///    except `index.json` and `SHA256SUMS` itself).
-    /// 2. The `content_hash` is the SHA-256 of the SHA256SUMS file contents.
-    /// 3. `index.json` is written last with `content_hash` embedded. Because
-    ///    `index.json` is excluded from SHA256SUMS, timestamps do not affect
-    ///    the content hash.
+    /// Finalize the bundle: SHA256SUMS (content layer) then
+    /// index.json (metadata layer). SHA256SUMS covers every
+    /// content-layer file; `content_hash` is the SHA-256 of the
+    /// SHA256SUMS file itself; index.json is written last and
+    /// excluded from SHA256SUMS so timestamps cannot affect the
+    /// content hash.
     pub fn finalize(&self, trace_outputs: Vec<PathBuf>) -> Result<PathBuf, BuilderError> {
         // TOCTOU check: verify git HEAD hasn't changed since builder was created.
         // A changed HEAD means source files may have been modified between the
@@ -473,6 +475,7 @@ impl EvidenceBuilder {
                 .collect(),
             boundary_policy: self.config.boundary_policy.clone(),
             resolution_policy: self.config.resolution_policy,
+            completeness: self.derive_completeness_states(),
         };
 
         let index_path = self.bundle_dir.join("index.json");

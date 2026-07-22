@@ -10,9 +10,9 @@
   "features": [],
   "locked_graph_hash": null,
   "command_recipe_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-  "inputs_hash": "d4573c8e66f070ef0a7c06c110f68f1d2cffac2a9128b71a1daa859a34c655a1",
+  "inputs_hash": "0e41d97284e23929807aef1e5041030acfd2bcafcca57ee711363a7958cec123",
   "resolution_policy": "locked_offline",
-  "git_sha": "415f0653de181fe9ad064570416b2a639b7ca4ad",
-  "git_branch": "agent/139-recipe-identity",
+  "git_sha": "287503f658c9c1305b54d78ecfa7c4cc6f1490fa",
+  "git_branch": "agent/144-diff-completeness",
   "git_dirty": true
 }

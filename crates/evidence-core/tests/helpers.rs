@@ -214,6 +214,7 @@ pub fn create_minimal_bundle(profile: evidence_core::Profile) -> (TempDir, std::
         dal_map: BTreeMap::new(),
         boundary_policy: evidence_core::BoundaryPolicy::default(),
         resolution_policy: evidence_core::policy::ResolutionPolicy::LOCKED_OFFLINE,
+        completeness: evidence_core::CompletenessStates::legacy(),
     };
     fs::write(
         bundle_dir.join("index.json"),

@@ -217,13 +217,17 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         );
     };
 
-    let (config, derived) = phases::build_config(
+    let (mut config, derived) = phases::build_config(
         profile,
         output_root,
         &boundary_path,
         trace_roots_arg,
         resolution_policy,
     );
+    // Thread the capture intent the completeness-state derivation
+    // reads at finalize (LLR-149): a --skip-tests run makes no
+    // test claim.
+    config.skip_tests = skip_tests;
     if let Some(code) = policy::enforce_boundary_policy(&derived, profile, json_output)? {
         return Ok(code);
     }
@@ -306,6 +310,9 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     if let Some(code) = trace_validation.short_circuit {
         return Ok(code);
     }
+    // Record the classification the phase computed so finalize
+    // derives graph_validity from the same evidence (LLR-149).
+    builder.set_trace_evidence_state(trace_validation.state);
 
     // Phase 6b — enrich stored test outcomes with per-test →
     // LLR back-links, then write `tests/test_outcomes.jsonl`.

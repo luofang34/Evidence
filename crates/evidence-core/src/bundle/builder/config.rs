@@ -43,4 +43,11 @@ pub struct EvidenceBuildConfig {
     /// the online path exists only through the CLI's development
     /// `--online` opt-in.
     pub resolution_policy: ResolutionPolicy,
+    /// Whether the run skips test capture (`--skip-tests`). Read at
+    /// finalize time by the completeness-state derivation (LLR-149):
+    /// a skipped run makes no test claim, so `capture` /
+    /// `reproducibility` derive `not_applicable` instead of
+    /// `incomplete` when no test evidence exists. Library callers
+    /// that run tests should pass `false`.
+    pub skip_tests: bool,
 }

@@ -39,3 +39,10 @@ pub use errors::{VerifyError, VerifyResult};
 pub use paths::REQUIRED_FILES;
 pub use reproduction::{ReproductionError, ReproductionFinding, compare_reproduction};
 pub use runtime_error::VerifyRuntimeError;
+
+// Plane-diff helpers shared with the bundle-diff engine
+// (`crate::diff`) so both comparisons walk the same loading and
+// key-diff logic instead of duplicating it (LLR-147).
+pub(crate) use reproduction::{
+    Plane, compare_recipe_fields, diff_digest_planes, read_digest_map, read_recipe,
+};

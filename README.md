@@ -528,17 +528,43 @@ Exit codes: `0` = pass, `1` = error, `2` = verification failure.
 
 When `cargo test` (or any captured subprocess) exits non-zero during `generate`, the builder records a `ToolCommandFailure { command_name, exit_code, stderr_tail }` entry on the bundle's `index.json`, and `bundle_complete` flips to `false`. On `cert` / `record` profile this also propagates as a non-zero exit from `generate` itself (`EXIT_VERIFICATION_FAILURE`, 2), so automation sees the signal without parsing the bundle.
 
-### `cargo evidence diff`
+`bundle_complete` is the legacy single-bit rollup. Every bundle also
+records a `completeness` object on its `index.json` — one independently
+derived state (`complete` / `incomplete` / `not_applicable` /
+`unverifiable`) per assurance area: `capture`, `graph_validity`,
+`verification`, `objective_mapping`, `review_approval`, `integrity`,
+`reproducibility`, and `tool_qualification`. Each state derives only
+from generation-time facts; `verification` reflects the immediate
+post-generation verification outcome recorded before the signature
+seals the envelope, so a bundle the verifier rejects never reports
+verification completeness, and a state the generator cannot
+substantiate is never optimistically complete. `verify --json`
+reports the recorded states alongside the bundle's `profile` — the
+named claim context they were derived under — while `verify` itself
+checks integrity and internal consistency, which is a different
+claim than any single completeness state.### `cargo evidence diff`
 
-Compare two evidence bundles.
+Compare two evidence bundles across every assurance-relevant category.
 
 ```bash
 cargo evidence diff ./evidence/bundle-a ./evidence/bundle-b
 cargo evidence diff ./evidence/bundle-a ./evidence/bundle-b --json
 ```
 
-Shows added, removed, and changed files in both input and output hash sets,
-plus metadata changes (profile, git SHA, branch, dirty state).
+The comparison walks the full assurance surface in a fixed order — `scope`
+(profile, DAL map, boundary/resolution policy, schema versions, git identity),
+`trace_graph` (entry-level by uid), `tests` (summary + per-test outcome rows),
+`coverage` (aggregates + capture-file presence), `commands`, `recipe`,
+`inputs`, `outputs`, `objective_mappings` (per-crate statuses + standards-pack
+identity), `reviews_approvals`, `anomalies` (recorded command failures),
+`tool_identity`, `integrity`, `completeness_states`, and `content_hash` — and
+marks each `equal`, `added`, `removed`, `changed`, or `unverifiable` with
+deterministic detail lines. Categories whose artifacts are missing report
+`unverifiable` with the reason (reviews/approvals are always unverifiable:
+they are workspace-corpus state, not bundle artifacts). The human report
+prints `(no changes)` only when every category compares equal, so unexamined
+content is never implied unchanged. Exit code stays `0` whether or not
+differences exist — diff reports, it does not judge.
 
 ### `cargo evidence init`
 

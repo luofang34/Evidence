@@ -355,6 +355,7 @@ fn plan_agrees_with_independent_git_enumeration_in_a_temp_worktree() {
         dal_map: std::collections::BTreeMap::new(),
         boundary_policy: crate::BoundaryPolicy::default(),
         resolution_policy: crate::policy::ResolutionPolicy::LOCKED_OFFLINE,
+        skip_tests: false,
     };
     let mut builder =
         crate::bundle::EvidenceBuilder::new_with_provider(config, MockGit).expect("builder");

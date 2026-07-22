@@ -3,7 +3,6 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use serde::Serialize;
 
 use evidence_core::diagnostic::{Diagnostic, DiagnosticCode, Severity};
 use evidence_core::verify::VerifyRuntimeError;
@@ -12,29 +11,16 @@ use evidence_core::{VerifyResult, read_verifying_key, verify_bundle_with_key};
 use super::args::{EXIT_ERROR, EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, OutputFormat};
 use super::output::{emit_json, emit_jsonl};
 
+mod envelope;
 mod incomplete_bundle;
 mod key_resolve;
 mod skipped_notices;
 mod terminals;
+use envelope::{VerifyCheck, VerifyOutput, index_states};
 use incomplete_bundle::maybe_emit_bundle_incomplete_warning;
 use key_resolve::{classify_key_load_diagnostic, resolve_verify_key_path};
 use skipped_notices::maybe_emit_llr_check_skipped_no_outcomes;
 use terminals::{terminal_error, terminal_fail, terminal_ok};
-
-#[derive(Serialize)]
-struct VerifyOutput {
-    success: bool,
-    bundle_path: String,
-    checks: Vec<VerifyCheck>,
-    error: Option<String>,
-}
-
-#[derive(Serialize)]
-struct VerifyCheck {
-    name: String,
-    status: String,
-    message: Option<String>,
-}
 
 /// Emit a verify failure envelope and return the given exit code.
 ///
@@ -54,10 +40,13 @@ fn fail_verify(
 ) -> Result<i32> {
     let msg = msg.into();
     if json_output {
+        let (profile, completeness) = index_states(bundle_path);
         emit_json(&VerifyOutput {
             success: false,
             bundle_path: bundle_path.display().to_string(),
             checks,
+            profile,
+            completeness,
             error: Some(msg),
         })?;
     } else {
@@ -74,6 +63,21 @@ fn fail_verify(
 /// when any check fails (or when any warning fires in `--strict`
 /// mode), and [`EXIT_ERROR`] only when the tool itself can't run —
 /// e.g. the bundle directory is missing.
+///
+/// # What a pass asserts — and what it does not
+///
+/// A pass asserts bundle integrity and internal consistency under
+/// the bundle's recorded profile (the named claim context): the
+/// `SHA256SUMS` rehash, `content_hash`, signature (when a key is
+/// supplied), recipe re-projection, and the cross-file policy
+/// checks. It does NOT re-derive the bundle's per-area
+/// completeness: capture, graph-validity, review/approval and the
+/// other areas are the generator's recorded account, reported
+/// verbatim in the JSON envelope's `completeness` field alongside
+/// `profile` so a consumer sees exactly which states passed
+/// (LLR-149). Structural capture can therefore be inspectable
+/// without being verified — the envelope always names which state
+/// is which.
 ///
 /// **Agents and humans should prefer `cargo evidence check`**
 /// ([`crate::cli::check::cmd_check`]) as the default entry point:
@@ -185,10 +189,13 @@ pub fn cmd_verify(
             });
 
             if json_output {
+                let (profile, completeness) = index_states(&bundle_path);
                 emit_json(&VerifyOutput {
                     success: true,
                     bundle_path: bundle_path.display().to_string(),
                     checks,
+                    profile,
+                    completeness,
                     error: None,
                 })?;
             } else {
@@ -228,10 +235,13 @@ pub fn cmd_verify(
                     ),
                 });
                 if json_output {
+                    let (profile, completeness) = index_states(&bundle_path);
                     emit_json(&VerifyOutput {
                         success: true,
                         bundle_path: bundle_path.display().to_string(),
                         checks,
+                        profile,
+                        completeness,
                         error: None,
                     })?;
                 } else {
@@ -305,10 +315,13 @@ pub fn cmd_verify(
             });
 
             if json_output {
+                let (profile, completeness) = index_states(&bundle_path);
                 emit_json(&VerifyOutput {
                     success: !treat_as_fail,
                     bundle_path: bundle_path.display().to_string(),
                     checks,
+                    profile,
+                    completeness,
                     error: if treat_as_fail {
                         Some(format!("strict mode: {}", reason))
                     } else {

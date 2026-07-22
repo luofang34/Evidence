@@ -46,6 +46,7 @@ fn config(output_root: &Path) -> EvidenceBuildConfig {
         dal_map: BTreeMap::new(),
         boundary_policy: BoundaryPolicy::default(),
         resolution_policy: crate::policy::ResolutionPolicy::LOCKED_OFFLINE,
+        skip_tests: false,
     }
 }
 

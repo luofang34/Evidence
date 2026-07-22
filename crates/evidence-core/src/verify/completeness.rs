@@ -131,6 +131,7 @@ mod tests {
             dal_map: std::collections::BTreeMap::new(),
             boundary_policy: crate::policy::BoundaryPolicy::default(),
             resolution_policy: crate::policy::ResolutionPolicy::LOCKED_OFFLINE,
+            completeness: crate::bundle::CompletenessStates::legacy(),
         };
         check_bundle_completeness(&index, &mut errors);
         assert!(

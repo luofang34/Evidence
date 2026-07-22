@@ -181,7 +181,38 @@
       "type": "string",
       "enum": ["locked_offline", "online_opt_in"],
       "description": "Dependency-resolution policy the bundle was generated under (LLR-142). `locked_offline`: every cargo subprocess ran `--locked --offline`, resolving only from the committed lockfile and local cargo cache. `online_opt_in`: development-mode online resolution; the bundle cannot back a cert/record claim (verify rejects that pairing with VERIFY_ONLINE_RESOLUTION). Absent in legacy bundles, which deserialize as `locked_offline`."
+    },
+    "completeness": {
+      "type": "object",
+      "description": "Per-area derived completeness states (LLR-149). Each area records one state: `complete` (substantiated), `incomplete` (in scope but absent/empty/broken), `not_applicable` (nothing claimed), or `unverifiable` (never evaluated at generation). Legacy bundles predate the field and deserialize with every state unverifiable. The `verification` state is patched to the immediate post-generation verification outcome before the envelope is signed, so a bundle the verifier rejects never reports verification completeness.",
+      "properties": {
+        "capture": { "$ref": "#/$defs/completeness_state" },
+        "graph_validity": { "$ref": "#/$defs/completeness_state" },
+        "verification": { "$ref": "#/$defs/completeness_state" },
+        "objective_mapping": { "$ref": "#/$defs/completeness_state" },
+        "review_approval": { "$ref": "#/$defs/completeness_state" },
+        "integrity": { "$ref": "#/$defs/completeness_state" },
+        "reproducibility": { "$ref": "#/$defs/completeness_state" },
+        "tool_qualification": { "$ref": "#/$defs/completeness_state" }
+      },
+      "required": [
+        "capture",
+        "graph_validity",
+        "verification",
+        "objective_mapping",
+        "review_approval",
+        "integrity",
+        "reproducibility",
+        "tool_qualification"
+      ],
+      "additionalProperties": false
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "completeness_state": {
+      "type": "string",
+      "enum": ["complete", "incomplete", "not_applicable", "unverifiable"]
+    }
+  }
 }

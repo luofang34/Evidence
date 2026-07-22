@@ -73,6 +73,7 @@ mod tests {
             dal_map: BTreeMap::new(),
             boundary_policy: crate::policy::BoundaryPolicy::default(),
             resolution_policy: policy,
+            completeness: crate::bundle::CompletenessStates::legacy(),
         }
     }
 

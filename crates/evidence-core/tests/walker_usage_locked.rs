@@ -62,6 +62,10 @@ const ALLOWED_READ_DIR_FILES: &[&str] = &[
     // Single-dir `compliance/*.json` listing — index-vs-compliance
     // drift detection. Not a tree walk.
     "src/verify/consistency.rs",
+    // Single-dir `compliance/*.json` listing — the diff engine's
+    // objective_mappings / tool_identity categories. Same shape as
+    // the verify-side entry above. Not a tree walk.
+    "src/diff/categories_assurance.rs",
     // Single-dir bundle-finder: `generate --out-dir` produces exactly
     // one bundle dir under tmp; the listing picks it up by name.
     // Separately, a single-dir `compliance/` listing collects the

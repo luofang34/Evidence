@@ -61,30 +61,57 @@ fn resolve_signing_key_path(explicit: Option<PathBuf>) -> Option<PathBuf> {
     None
 }
 
-/// Finalize the bundle and (if a signing key resolves) write
+/// Finalize the bundle, record the immediate verification outcome
+/// on the index, and (if a signing key resolves) write
 /// `BUNDLE.sig`. Anchor consistency is checked when
 /// `cert/signing.pub` is present.
+///
+/// Ordering is load-bearing (LLR-149): the signing key resolves
+/// BEFORE finalize so the `integrity` completeness state reflects
+/// whether the envelope will be sealed; the immediate
+/// `verify_bundle` runs AFTER finalize (the index exists) but
+/// BEFORE signing, so the patched `verification` state is covered
+/// by the signature. `index.json` is metadata-layer (excluded
+/// from `SHA256SUMS`), so the patch leaves `content_hash`
+/// untouched. The generator closure re-verifies the sealed bundle
+/// afterward — the only byte difference between the two runs is
+/// the recorded `verification` state itself, which verification
+/// does not judge.
 pub(super) fn finalize_and_sign(
-    builder: EvidenceBuilder,
+    mut builder: EvidenceBuilder,
     trace_outputs: Vec<PathBuf>,
     signing_key: Option<PathBuf>,
     profile: Profile,
     quiet: bool,
     json_output: bool,
 ) -> Result<PathBuf> {
-    let bundle_path = builder.finalize(trace_outputs)?;
     let resolved = resolve_signing_key_path(signing_key);
+    if resolved.is_none() && matches!(profile, Profile::Cert | Profile::Record) {
+        anyhow::bail!(
+            "no signing key resolved (looked at --signing-key, \
+             $EVIDENCE_SIGNING_KEY_PATH, and {DEFAULT_SIGNING_KEY}); \
+             cert/record profiles require a signing key"
+        );
+    }
+    builder.set_signature_planned(resolved.is_some());
+    let bundle_path = builder.finalize(trace_outputs)?;
 
-    match (resolved, profile) {
-        (None, Profile::Cert | Profile::Record) => {
-            anyhow::bail!(
-                "no signing key resolved (looked at --signing-key, \
-                 $EVIDENCE_SIGNING_KEY_PATH, and {DEFAULT_SIGNING_KEY}); \
-                 cert/record profiles require a signing key"
-            );
-        }
-        (None, Profile::Dev) => Ok(bundle_path),
-        (Some(key_path), _) => {
+    // Immediate verification feeds the recorded `verification`
+    // state: Pass → complete, a failed or skipped run →
+    // incomplete, a verifier that could not run → unverifiable.
+    // The state is always the observed outcome — a bundle the
+    // verifier rejects never records complete.
+    let verification_state = match evidence_core::verify_bundle(&bundle_path) {
+        Ok(evidence_core::VerifyResult::Pass) => evidence_core::CompletenessState::Complete,
+        Ok(_) => evidence_core::CompletenessState::Incomplete,
+        Err(_) => evidence_core::CompletenessState::Unverifiable,
+    };
+    evidence_core::record_verification_state(&bundle_path, verification_state)
+        .context("recording verification completeness state")?;
+
+    match resolved {
+        None => Ok(bundle_path),
+        Some(key_path) => {
             let signing_key = evidence_core::read_signing_key(&key_path)
                 .with_context(|| format!("reading signing key from {:?}", key_path))?;
             sign_bundle(&bundle_path, &signing_key)?;

@@ -2971,3 +2971,71 @@ OutputUnverifiable), never a panic and never a silent pass.
 """
 verification_methods = ["test"]
 traces_to = ["1ed39bb5-5c84-4068-b1ec-b588e7cfbf9d"]
+
+[[requirements]]
+uid = "eed12a6e-3d8e-4ddc-95f7-86e4794c622c"
+id = "HLR-113"
+title = "Bundle diff compares every assurance-relevant category and reports per-category status without implying unexamined equality"
+owner = "tool"
+scope = "component"
+description = """
+`cargo evidence diff` shall compare two bundles across the full
+assurance surface (SYS-049): scope (profile, DAL map, boundary and
+resolution policy, schema versions, git identity), trace graph
+(entry-level added/removed/changed by requirement uid, plus the
+generated matrix's presence), tests (the recorded summary and each
+per-test outcome row — pass/fail and presence are compared;
+wall-clock duration and failure-message text are not), coverage
+(aggregate covered/total per measurement plus capture-file
+presence), commands (argv and exit code per row plus capture-file
+presence), the recipe fields, the input and output digest planes,
+objective mappings (per-crate objective statuses and the raw
+standards-pack identity), anomalies (recorded tool-command
+failures), tool identity (engine version/sha/source and toolchain
+fields), integrity state (signature and hash-manifest presence),
+the derived completeness states, and the whole-content hash.
+
+Each category shall report exactly one status — equal, added,
+removed, changed, or unverifiable — with deterministic, sorted,
+human-readable detail lines. A category whose artifacts are missing
+or unparseable on a side shall be reported unverifiable with the
+reason (reviews/approvals are always unverifiable: they are
+workspace-corpus state, not bundle artifacts), never silently
+equal. The human report shall print its no-changes marker only when
+every category compared equal.
+"""
+verification_methods = ["test"]
+traces_to = ["bb638b12-db15-4312-a04a-66187ddf80ec"]
+surfaces = ["diff"]
+
+[[requirements]]
+uid = "9ecc3bf0-e572-4583-b00d-5efb21c460c7"
+id = "HLR-114"
+title = "Every bundle records separately derived per-area completeness states on its index"
+owner = "tool"
+scope = "component"
+description = """
+Every bundle's `index.json` shall carry a `completeness` object
+with one state — complete, incomplete, not_applicable, or
+unverifiable — per assurance area (SYS-049): capture,
+graph_validity, verification, objective_mapping, review_approval,
+integrity, reproducibility, and tool_qualification. Each state
+shall derive only from facts known at generation time: recorded
+command failures, the input/output manifests, whether the run
+captured tests, the generate-time trace-evidence classification,
+the in-scope DAL map and written compliance reports, and whether a
+signing key resolved. Verification completeness shall reflect the
+immediate post-generation verification outcome — recorded before
+the signature seals the envelope — and shall read unverifiable
+when no verification ran, so a bundle the verifier rejects never
+reports verification completeness and an empty input or trace
+baseline never reports capture or graph completeness for an
+in-scope claim. Review/approval shall read not_applicable while
+review records remain workspace-corpus state rather than bundle
+artifacts. The legacy `bundle_complete` Boolean remains for wire
+compatibility with `completeness` named as its successor; bundles
+written before the field existed deserialize with every state
+unverifiable.
+"""
+verification_methods = ["test"]
+traces_to = ["bb638b12-db15-4312-a04a-66187ddf80ec"]

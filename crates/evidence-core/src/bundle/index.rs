@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use crate::policy::{Profile, ResolutionPolicy};
 
 use super::command_failure::ToolCommandFailure;
+use super::completeness::CompletenessStates;
 use super::test_summary::TestSummary;
 
 /// Default for `EvidenceIndex::engine_build_source` when deserializing
@@ -91,6 +92,12 @@ pub struct EvidenceIndex {
     /// Generated trace output files
     pub trace_outputs: Vec<String>,
     /// Whether the bundle is complete
+    ///
+    /// Legacy single-bit rollup: `true` iff no captured subprocess
+    /// failed during generation. Superseded by
+    /// [`Self::completeness`], which records one independently
+    /// derived state per assurance area; this field stays for wire
+    /// compatibility and keeps its original derivation.
     pub bundle_complete: bool,
     /// SHA-256 of the SHA256SUMS file.
     ///
@@ -155,6 +162,17 @@ pub struct EvidenceIndex {
     /// cert/record profile (`VERIFY_ONLINE_RESOLUTION`).
     #[serde(default = "default_resolution_policy")]
     pub resolution_policy: ResolutionPolicy,
+    /// Per-area derived completeness states (LLR-149). Always
+    /// serialized on new bundles; `#[serde(default)]` resolves a
+    /// legacy bundle that predates the field to
+    /// [`CompletenessStates::legacy`] (every state `unverifiable`)
+    /// — a bundle that never recorded the states must not
+    /// retroactively claim them. The `verification` state is
+    /// patched to the immediate post-generation verification
+    /// outcome before the signature seals the envelope; every
+    /// other state is derive-time final.
+    #[serde(default = "CompletenessStates::legacy")]
+    pub completeness: CompletenessStates,
 }
 
 fn is_default_boundary_policy(p: &crate::policy::BoundaryPolicy) -> bool {
@@ -199,6 +217,7 @@ mod tests {
             dal_map: BTreeMap::new(),
             boundary_policy: crate::policy::BoundaryPolicy::default(),
             resolution_policy: ResolutionPolicy::LockedOffline,
+            completeness: CompletenessStates::legacy(),
         };
         assert!(idx.bundle_complete);
         assert_eq!(idx.profile, Profile::Cert);
@@ -298,6 +317,7 @@ mod tests {
             dal_map: BTreeMap::new(),
             boundary_policy: crate::policy::BoundaryPolicy::default(),
             resolution_policy: ResolutionPolicy::LockedOffline,
+            completeness: CompletenessStates::legacy(),
         };
         let rendered = serde_json::to_value(&idx).expect("serialize");
         assert_eq!(

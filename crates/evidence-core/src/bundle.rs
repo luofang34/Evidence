@@ -5,6 +5,7 @@
 //! | Sub-module     | Concern                                                   |
 //! |----------------|-----------------------------------------------------------|
 //! | `command`        | `CommandRecord` — rows in `commands.json`                 |
+//! | `completeness`   | `CompletenessStates` — per-area derived states on `index.json` |
 //! | `test_summary`   | `TestSummary` + `parse_cargo_test_output`                 |
 //! | `outcome_record` | `TestOutcomeRecord` — rows in `tests/test_outcomes.jsonl` |
 //! | `capture`        | `normalize_captured_text` — LF-normalize stdout/stderr    |
@@ -23,6 +24,7 @@ mod capture;
 mod cargo_artifacts;
 mod command;
 mod command_failure;
+mod completeness;
 mod error;
 mod index;
 mod input_scope;
@@ -39,6 +41,10 @@ pub use cargo_artifacts::{
 };
 pub use command::CommandRecord;
 pub use command_failure::{STDERR_TAIL_LINES, ToolCommandFailure, tail_stderr};
+pub use completeness::{
+    CompletenessError, CompletenessFacts, CompletenessState, CompletenessStates,
+    record_verification_state,
+};
 pub use error::BuilderError;
 pub use index::EvidenceIndex;
 pub use input_scope::{

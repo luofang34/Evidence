@@ -54,9 +54,13 @@ group.
   bundle. The `verify/` subdirectory holds the load-and-check
   helpers (`incomplete_bundle.rs`, `skipped_notices.rs`,
   `terminals.rs`).
-- **`diff`** — compare two bundles structurally. Pure inspection,
-  reports differences without judging them; exit code stays `0`
-  even when bundles differ.
+- **`diff`** — compare two bundles across every assurance-relevant
+  category (scope, trace graph, tests, coverage, commands, recipe,
+  inputs, outputs, objective mappings, anomalies, tool identity,
+  integrity, completeness states, content hash). Pure inspection,
+  reports per-category status without judging them; exit code
+  stays `0` even when bundles differ. The engine lives in
+  `evidence_core::diff`; `diff.rs` is only the renderer.
 
 ### Source-tree inspection (no bundle, no `out_dir` write)
 

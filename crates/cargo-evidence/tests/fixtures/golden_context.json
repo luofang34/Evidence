@@ -808,6 +808,23 @@
       "verification_methods": [
         "test"
       ]
+    },
+    {
+      "id": "LLR-148",
+      "uid": "62a23480-5d01-4a66-8417-a918039bd5eb",
+      "layer": "llr",
+      "title": "cmd_diff renders the category-complete comparison and never judges it",
+      "description": "`cmd_diff` is a thin renderer over `compare_bundles`. Human output\nprints one section per category naming its status, followed by the\ncategory's detail lines; the `(no changes)` marker prints only when\nevery category compared equal, so a report never implies unexamined\ncontent is unchanged. `--json` emits `{bundle_a, bundle_b,\ncategories}` plus the legacy `inputs_diff` / `outputs_diff` /\n`metadata_diff` / `env_diff` keys, kept populated (deprecated) so\nthe MCP wrapper and existing consumers keep their shape. The exit\ncode stays 0 whether or not differences exist — diff reports, it\ndoes not judge; I/O and parse failures return exit 1 through the\nanyhow error envelope. The command emits no diagnostic codes and\nhas no JSONL mode.\n",
+      "modules": [
+        "cargo_evidence::cli::diff::cmd_diff"
+      ],
+      "emits": [],
+      "traces_to": [
+        "eed12a6e-3d8e-4ddc-95f7-86e4794c622c"
+      ],
+      "verification_methods": [
+        "test"
+      ]
     }
   ],
   "parents": [
@@ -1109,6 +1126,15 @@
       ]
     },
     {
+      "id": "HLR-113",
+      "uid": "eed12a6e-3d8e-4ddc-95f7-86e4794c622c",
+      "layer": "hlr",
+      "title": "Bundle diff compares every assurance-relevant category and reports per-category status without implying unexamined equality",
+      "traces_to": [
+        "bb638b12-db15-4312-a04a-66187ddf80ec"
+      ]
+    },
+    {
       "id": "SYS-002",
       "uid": "0e42b90f-88d7-408f-8843-0a3335279360",
       "layer": "sys",
@@ -1288,6 +1314,13 @@
       "uid": "36d6b5ec-6ddb-4d42-9299-5ed9df5e7b21",
       "layer": "sys",
       "title": "Certification evidence generation resolves dependencies only from a locked, offline cargo baseline",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-049",
+      "uid": "bb638b12-db15-4312-a04a-66187ddf80ec",
+      "layer": "sys",
+      "title": "Bundle assurance state is inspectable: derived per-area completeness states on every bundle, and bundle comparison over every assurance-relevant category with explicit unverifiable markers",
       "traces_to": []
     }
   ],
@@ -1576,6 +1609,22 @@
       ],
       "traces_to": [
         "dde74fce-62f8-4f33-b161-e21ee8b4627d"
+      ]
+    },
+    {
+      "id": "TEST-165",
+      "uid": "b3541e7a-e251-464e-ad4e-d611d7321793",
+      "name": "cmd_diff: skip-tests vs full-suite delta, fixture matrix per category, unverifiable categories block the no-changes marker, JSON envelope shape",
+      "selectors": [
+        "diff::changed_artifacts_each_appear_in_their_category",
+        "diff::json_envelope_carries_categories_and_legacy_keys",
+        "diff::missing_bundle_exits_nonzero",
+        "diff::missing_categories_are_unverifiable_and_never_no_changes",
+        "diff::no_changes_marker_only_when_all_categories_equal",
+        "diff::skip_tests_vs_full_suite_shows_test_and_state_deltas"
+      ],
+      "traces_to": [
+        "62a23480-5d01-4a66-8417-a918039bd5eb"
       ]
     },
     {
@@ -2012,8 +2061,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 193,
-      "floor": 193
+      "current": 199,
+      "floor": 199
     }
   ],
   "boundary": {

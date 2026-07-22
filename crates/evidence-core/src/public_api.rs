@@ -5,11 +5,12 @@ pub use crate::boundary_check::{
     check_no_proc_macros,
 };
 pub use crate::bundle::{
-    ArtifactError, EvidenceBuildConfig, EvidenceBuilder, EvidenceIndex, InputEntry, InputReason,
-    InputScopeError, OutputArtifact, ResolvedUnit, SigningError, TestSummary, ToolCommandFailure,
-    WORKSPACE_CONTROL_PATHSPECS, assemble_input_plan, build_input_plan_blocking,
-    generate_signing_key, inventory_outputs_blocking, parse_cargo_test_output_detailed,
-    parse_nextest_libtest_json, parse_workspace_artifacts, read_signing_key, read_verifying_key,
+    ArtifactError, CompletenessFacts, CompletenessState, CompletenessStates, EvidenceBuildConfig,
+    EvidenceBuilder, EvidenceIndex, InputEntry, InputReason, InputScopeError, OutputArtifact,
+    ResolvedUnit, SigningError, TestSummary, ToolCommandFailure, WORKSPACE_CONTROL_PATHSPECS,
+    assemble_input_plan, build_input_plan_blocking, generate_signing_key,
+    inventory_outputs_blocking, parse_cargo_test_output_detailed, parse_nextest_libtest_json,
+    parse_workspace_artifacts, read_signing_key, read_verifying_key, record_verification_state,
     resolve_in_scope_units, sign_bundle, verify_bundle_signature, write_signing_key,
     write_verifying_key,
 };
@@ -22,6 +23,7 @@ pub use crate::coverage::{
     parse_llvm_cov_export,
 };
 pub use crate::diagnostic::{Diagnostic, DiagnosticCode, Location, Severity, TERMINAL_CODES};
+pub use crate::diff::{CategoryDiff, DiffCategoryStatus, DiffError, compare_bundles};
 pub use crate::env::{EnvFingerprint, Host};
 pub use crate::floors::{FloorsConfig, current_measurements};
 pub use crate::git::{GitSnapshot, RealGitProvider};

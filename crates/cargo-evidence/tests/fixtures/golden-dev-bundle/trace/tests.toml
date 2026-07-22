@@ -2438,3 +2438,61 @@ test_selectors = [
     "evidence_core::verify::reproduction::tests::missing_manifest_yields_recipe_unavailable",
     "evidence_core::verify::reproduction::tests::findings_sort_deterministically",
 ]
+
+[[tests]]
+uid = "7fd2913c-10f5-491b-b2f9-d76cdcb13cc4"
+id = "TEST-164"
+title = "compare_bundles: per-category statuses across every assurance category, unverifiable explicitness, determinism"
+owner = "tool"
+traces_to = ["75f19007-a976-42dd-a694-de413da303ce"]
+test_selectors = [
+    "evidence_core::diff::tests::identical_bundles_compare_equal_except_reviews",
+    "evidence_core::diff::tests::scope_change_is_changed",
+    "evidence_core::diff::tests::trace_entry_change_is_changed",
+    "evidence_core::diff::tests::missing_trace_dir_is_unverifiable",
+    "evidence_core::diff::tests::test_row_flip_and_added_rows_are_changed",
+    "evidence_core::diff::tests::duration_and_failure_message_drift_compares_equal",
+    "evidence_core::diff::tests::skip_tests_pair_reports_tests_added",
+    "evidence_core::diff::tests::coverage_aggregate_change_is_changed",
+    "evidence_core::diff::tests::command_row_changes_are_changed",
+    "evidence_core::diff::tests::recipe_field_change_names_the_field",
+    "evidence_core::diff::tests::input_and_output_plane_changes_are_changed",
+    "evidence_core::diff::tests::standards_pack_change_is_changed",
+    "evidence_core::diff::tests::anomalies_row_added_is_changed",
+    "evidence_core::diff::tests::integrity_and_content_hash_changes_are_changed",
+    "evidence_core::diff::tests::completeness_states_delta_is_changed",
+    "evidence_core::diff::tests::missing_bundle_dir_is_an_error",
+    "evidence_core::diff::tests::missing_planes_are_unverifiable_not_equal",
+    "evidence_core::diff::tests::details_are_sorted_deterministically",
+]
+
+[[tests]]
+uid = "b3541e7a-e251-464e-ad4e-d611d7321793"
+id = "TEST-165"
+title = "cmd_diff: skip-tests vs full-suite delta, fixture matrix per category, unverifiable categories block the no-changes marker, JSON envelope shape"
+owner = "tool"
+traces_to = ["62a23480-5d01-4a66-8417-a918039bd5eb"]
+test_selectors = [
+    "diff::skip_tests_vs_full_suite_shows_test_and_state_deltas",
+    "diff::changed_artifacts_each_appear_in_their_category",
+    "diff::missing_categories_are_unverifiable_and_never_no_changes",
+    "diff::json_envelope_carries_categories_and_legacy_keys",
+    "diff::missing_bundle_exits_nonzero",
+    "diff::no_changes_marker_only_when_all_categories_equal",
+]
+
+[[tests]]
+uid = "4e63003d-4d80-4f1b-8ff3-f360529f8a42"
+id = "TEST-166"
+title = "completeness states: derivation table per assurance area, legacy default, verification patch"
+owner = "tool"
+traces_to = ["a4706592-261a-433e-b20b-fa17fcc303cb"]
+test_selectors = [
+    "evidence_core::bundle::completeness::tests::derive_capture_states",
+    "evidence_core::bundle::completeness::tests::derive_graph_validity_states",
+    "evidence_core::bundle::completeness::tests::derive_verification_is_never_optimistic",
+    "evidence_core::bundle::completeness::tests::derive_objective_mapping_and_tool_qualification",
+    "evidence_core::bundle::completeness::tests::derive_integrity_review_reproducibility",
+    "evidence_core::bundle::completeness::tests::legacy_index_deserializes_all_unverifiable",
+    "evidence_core::bundle::completeness::tests::record_verification_state_patches_index",
+]
