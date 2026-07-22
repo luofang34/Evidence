@@ -209,6 +209,34 @@ fn missing_cache_locked_offline_fails_with_actionable_diagnostic() {
 
     let empty_cargo_home = TempDir::new().unwrap();
     let out = TempDir::new().unwrap();
+
+    // Premise probe: the fixture must actually be unable to resolve
+    // offline with the isolated cache. A wrapped cargo (e.g. a Nix
+    // sandbox whose vendor config makes every crate available
+    // offline regardless of CARGO_HOME) defeats the premise; skip
+    // there — the standard Check runners exercise the failure for
+    // real. HOME is isolated too so a home-level vendor config
+    // cannot leak in.
+    let probe = std::process::Command::new("cargo")
+        .arg("metadata")
+        .arg("--locked")
+        .arg("--offline")
+        .arg("--format-version")
+        .arg("1")
+        .current_dir(tmp.path())
+        .env("CARGO_HOME", empty_cargo_home.path())
+        .env("HOME", empty_cargo_home.path())
+        .output()
+        .unwrap();
+    if probe.status.success() {
+        eprintln!(
+            "skipping: this environment resolves crates offline regardless of \
+             CARGO_HOME (wrapped/vendored cargo); the missing-cache premise \
+             cannot be constructed here"
+        );
+        return;
+    }
+
     let result = cargo_evidence()
         .arg("evidence")
         .arg("generate")
@@ -219,6 +247,7 @@ fn missing_cache_locked_offline_fails_with_actionable_diagnostic() {
         .arg(out.path())
         .current_dir(tmp.path())
         .env("CARGO_HOME", empty_cargo_home.path())
+        .env("HOME", empty_cargo_home.path())
         .output()
         .unwrap();
     assert!(
