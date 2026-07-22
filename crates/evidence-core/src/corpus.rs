@@ -24,6 +24,9 @@
 //!   structural source graph: `snode_` identity, canonical text
 //!   and digests, closed locators, forest invariants, and
 //!   structural-key reconciliation (LLR-156)
+//! - `ingest` — structure-preserving ingestion of verified frozen
+//!   Markdown bytes into candidate structural source nodes, with
+//!   the ingester recipe identity and typed diagnostics (LLR-161)
 //! - `legacy` — four-file `cert/trace` → graph adapter
 //! - `review_content` — versioned canonical projection of the
 //!   normative content a review approves (LLR-111)
@@ -45,6 +48,7 @@ mod digest;
 mod error;
 mod graph;
 mod index;
+mod ingest;
 mod legacy;
 mod lifecycle;
 mod proposal;
@@ -66,6 +70,10 @@ pub use graph::{
     ReviewNode, SourceCapture, SourceMaterial, SourceRevisionNode, TestNode,
 };
 pub use index::{CorpusIndex, SUPPORTED_INDEX_SCHEMA};
+pub use ingest::{
+    IngestDiagnostic, IngestDiagnosticKind, IngestError, IngestMarkdownInput, IngesterRecipe,
+    MARKDOWN_MEDIA_TYPE, MarkdownIngestion, ingest_markdown,
+};
 pub use legacy::graph_from_trace_files;
 pub(crate) use legacy::graph_from_trace_parts;
 pub use lifecycle::{

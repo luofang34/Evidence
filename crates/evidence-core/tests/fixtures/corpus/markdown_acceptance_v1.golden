@@ -1,0 +1,295 @@
+evidence/markdown-ingest-output/v1
+nodes = 26
+
+[[node]]
+parent = root
+kind = "section"
+ordinal = 0
+label = "1 Evidence Specification"
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+anchor = "evidence-spec"
+heading_path = ["1 Evidence Specification"]
+byte_range = [0, 44]
+text = "1 Evidence Specification"
+digest = "fe66a56e29dd80bfe8f3992ed2ef8e340bdeb7ec7a63f6c9de962613f185bb9b"
+
+[[node]]
+parent = 0
+kind = "paragraph"
+ordinal = 0
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification"]
+byte_range = [45, 115]
+text = "This specification exercises structure preservation for élan cases."
+digest = "c38ab018036dc8eaa56e8184d7ef956a2da4e2a4cc65f33aa3b66658471838ce"
+
+[[node]]
+parent = 0
+kind = "section"
+ordinal = 1
+label = "1.1 Scope"
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+anchor = "1-1-scope"
+heading_path = ["1 Evidence Specification", "1.1 Scope"]
+byte_range = [116, 129]
+text = "1.1 Scope"
+digest = "0328d6f5ed99e7737a3f77b702a95247bba5eff8f12db321f5e04c99e3864a03"
+
+[[node]]
+parent = 2
+kind = "paragraph"
+ordinal = 0
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.1 Scope"]
+byte_range = [130, 152]
+text = "Common baseline text."
+digest = "8138a08923d936340a14894b6396e7a901c06fd8108eef569deeff8fe23ab9a4"
+
+[[node]]
+parent = 2
+kind = "list_item"
+ordinal = 1
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.1 Scope"]
+byte_range = [153, 188]
+text = "Hardware"
+digest = "6ccefa5fb2138b3727c47b08e5d5af53489007016e19cd96b8fab711e2e069a7"
+
+[[node]]
+parent = 2
+kind = "list_item"
+ordinal = 2
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.1 Scope"]
+byte_range = [166, 175]
+text = "Sensor"
+digest = "e4c31239e08e0f0819fe4034ff8cc92c9776eb788a31759b452c4c4b7267f099"
+
+[[node]]
+parent = 2
+kind = "list_item"
+ordinal = 3
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.1 Scope"]
+byte_range = [177, 188]
+text = "Actuator"
+digest = "7392ea2a374425166f1360fc013281f28695a2e2c301bd4832d34cb50d0eb656"
+
+[[node]]
+parent = 2
+kind = "list_item"
+ordinal = 4
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.1 Scope"]
+byte_range = [188, 200]
+text = "Software"
+digest = "64af7267d99fd6bc928c25eb3139df596200e84dd15f00f9aa8d4d4bb2f7a935"
+
+[[node]]
+parent = 2
+kind = "list_item"
+ordinal = 5
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.1 Scope"]
+byte_range = [200, 214]
+text = "First pass"
+digest = "f15f7ac13eb28114804918c8dc95ac0c39d10232acaee3662572139cb8685e54"
+
+[[node]]
+parent = 2
+kind = "list_item"
+ordinal = 6
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.1 Scope"]
+byte_range = [214, 230]
+text = "Second pass"
+digest = "bf9a46a06fc3bd926795c0f0b075806edd1bee28fdca2e89458bc521164cf2fa"
+
+[[node]]
+parent = 0
+kind = "section"
+ordinal = 2
+label = "1.2 Interface"
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+anchor = "1-2-interface"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [230, 247]
+text = "1.2 Interface"
+digest = "afde02d05cc410e7e8207626294020f26140089108d38561288b03e813b4cd87"
+
+[[node]]
+parent = 10
+kind = "paragraph"
+ordinal = 0
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [248, 270]
+text = "Common baseline text."
+digest = "8138a08923d936340a14894b6396e7a901c06fd8108eef569deeff8fe23ab9a4"
+
+[[node]]
+parent = 10
+kind = "table"
+ordinal = 1
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [271, 361]
+text = ""
+digest = "a644291e7b52d637c0ed599496d489cb7e720e02238e3986cce216f7339f7532"
+
+[[node]]
+parent = 12
+kind = "table_row"
+ordinal = 0
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [271, 290]
+text = ""
+digest = "71ec7a7c1d358c8da6159777c3b980ebe34d48ce0fe972ea5fd154d5014c5ab4"
+
+[[node]]
+parent = 13
+kind = "table_cell"
+ordinal = 0
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [272, 278]
+text = "Term"
+digest = "af15bed73f5d96b5283e58a8af9dce182be79191a0707ab41da9cfc6d5b7aeee"
+
+[[node]]
+parent = 13
+kind = "table_cell"
+ordinal = 1
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [279, 288]
+text = "Meaning"
+digest = "78bcfe3ebcbb87f55288ddcd231044d0ade23ab3e82706a01d6642db7f850b7f"
+
+[[node]]
+parent = 12
+kind = "table_row"
+ordinal = 1
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [309, 336]
+text = ""
+digest = "71ec7a7c1d358c8da6159777c3b980ebe34d48ce0fe972ea5fd154d5014c5ab4"
+
+[[node]]
+parent = 16
+kind = "table_cell"
+ordinal = 0
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [310, 316]
+text = "Node"
+digest = "8f4e88da08ca3b3b3e2cc51ca937cf62aaf71dc00f5273d0aa62b3e6ba7a6d59"
+
+[[node]]
+parent = 16
+kind = "table_cell"
+ordinal = 1
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [317, 334]
+text = "Structural unit"
+digest = "db065e0ff9eb5833c685659bea1c70b43661d2752129307ca73e0a94ccaecced"
+
+[[node]]
+parent = 12
+kind = "table_row"
+ordinal = 2
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [336, 361]
+text = ""
+digest = "71ec7a7c1d358c8da6159777c3b980ebe34d48ce0fe972ea5fd154d5014c5ab4"
+
+[[node]]
+parent = 19
+kind = "table_cell"
+ordinal = 0
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [337, 343]
+text = "Link"
+digest = "4e53d13dfad23e3ef84c4b5e136fd8ce97eb6848ed17538a4b842647874decc0"
+
+[[node]]
+parent = 19
+kind = "table_cell"
+ordinal = 1
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [344, 359]
+text = "Directed edge"
+digest = "4194a9013a10f28b54f8f7e1a9bbfa7e3d7b63d121ed37dd958ef52625a26c65"
+
+[[node]]
+parent = 10
+kind = "code_block"
+ordinal = 2
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [362, 427]
+text = "int  main(void) {\n      int   x =  1;\n      return  x;\n}\n"
+digest = "956d8cfca8f4882b5b380947d6dd3b9f239fcb8e214769085476a9bd6fd5ceae"
+
+[[node]]
+parent = 10
+kind = "note"
+ordinal = 3
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [429, 474]
+text = "Interface notes are informative."
+digest = "f0da6f857efc997bfd6d329a2c209a467b9c6aef9100821837681e3df4fc8f17"
+
+[[node]]
+parent = 10
+kind = "paragraph"
+ordinal = 4
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [475, 510]
+text = "See the annex for details."
+digest = "8ef2902d79ff602bf42945ac7241b0ba4a4cf9ab41524f484136aed8915e99f9"
+
+[[node]]
+parent = 10
+kind = "note"
+ordinal = 5
+label = "footnote:annex"
+path = "docs/evidence-spec.md"
+git_blob = "0123456789abcdef0123456789abcdef01234567"
+heading_path = ["1 Evidence Specification", "1.2 Interface"]
+byte_range = [511, 556]
+text = "The annex carries NFD café text."
+digest = "a5f00261eddcb45d77a76fdb7fad7be6bc17bff89acd4697ac55a516bdb2758f"
