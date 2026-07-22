@@ -2662,3 +2662,61 @@ test_selectors = [
     "evidence_core::corpus::index::tests::index_source_graph_entry_resolving_to_nothing_fails_closed",
     "evidence_core::corpus::index::tests::source_graph_errors_surface_through_the_corpus_wrapper",
 ]
+
+[[tests]]
+uid = "ba8e25ae-e4d8-4f65-97a1-617f55679c3e"
+id = "TEST-176"
+title = "the ingester recipe canonical encoding binds every field and recipe, input, and output identities change independently"
+owner = "tool"
+traces_to = [
+    "2f88c7f9-9537-440c-a52c-d4367f1e5b51",
+    "6af12c81-f642-4934-abee-47b1fb0814ad",
+]
+test_selectors = [
+    "evidence_core::corpus::ingest::tests::recipe_canonical_bytes_bind_every_field_deterministically",
+    "evidence_core::corpus::ingest::tests::recipe_extension_order_is_non_semantic",
+    "evidence_core::corpus::ingest::tests::recipe_input_and_output_identities_change_independently",
+]
+
+[[tests]]
+uid = "5966218c-0cdd-47bd-889e-0101c148a0af"
+id = "TEST-177"
+title = "the acceptance fixture byte-locks its golden candidate projection and repeated ingestion and reconciliation stay deterministic"
+owner = "tool"
+traces_to = [
+    "6af12c81-f642-4934-abee-47b1fb0814ad",
+    "d03f4d14-8ad0-4922-a2bd-22ea5aa99909",
+]
+test_selectors = [
+    "corpus_ingest_markdown::golden_candidate_projection_byte_locks_canonical_bytes",
+    "corpus_ingest_markdown::repeated_ingestion_produces_equal_output_with_fresh_uids",
+    "corpus_ingest_markdown::reingestion_reuses_committed_uids_through_reconciliation",
+]
+
+[[tests]]
+uid = "67f6dcc9-1591-4bcb-b014-dae1c7a617ac"
+id = "TEST-178"
+title = "every preserved markdown construct projects the correct parent, kind, ordinal, text, and locator"
+owner = "tool"
+traces_to = ["d03f4d14-8ad0-4922-a2bd-22ea5aa99909"]
+test_selectors = [
+    "evidence_core::corpus::ingest::markdown::tests::headings_lists_tables_code_notes_project_structure",
+    "evidence_core::corpus::ingest::markdown::tests::anchors_heading_paths_and_ordinals_project",
+    "evidence_core::corpus::ingest::markdown::tests::code_whitespace_survives_and_prose_normalizes",
+    "evidence_core::corpus::ingest::markdown::tests::byte_ranges_slice_valid_utf8_and_unaligned_ranges_fail",
+]
+
+[[tests]]
+uid = "32cf1cc0-7ac4-4f99-950b-0a37082e93cb"
+id = "TEST-179"
+title = "duplicate anchors, malformed ids, raw HTML, and lossy constructs diagnose deterministically and contract violations fail closed"
+owner = "tool"
+traces_to = [
+    "6af12c81-f642-4934-abee-47b1fb0814ad",
+    "d03f4d14-8ad0-4922-a2bd-22ea5aa99909",
+]
+test_selectors = [
+    "evidence_core::corpus::ingest::markdown::tests::duplicate_anchors_and_malformed_ids_produce_typed_diagnostics",
+    "evidence_core::corpus::ingest::markdown::tests::unsupported_html_and_lossy_constructs_produce_sorted_diagnostics",
+    "evidence_core::corpus::ingest::tests::non_utf8_media_type_and_digest_mismatch_fail_closed",
+]
