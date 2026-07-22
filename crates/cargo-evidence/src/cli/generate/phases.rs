@@ -13,7 +13,8 @@ use evidence_core::{
     EvidenceBuilder, Profile, build_input_plan_blocking,
     corpus::graph_from_trace_files,
     git::{check_shallow_clone, is_dirty_or_unknown},
-    load_trace_roots, parse_nextest_libtest_json,
+    load_trace_roots,
+    policy::ResolutionPolicy,
     trace::{generate_corpus_traceability_matrix, read_all_trace_files},
 };
 
@@ -41,6 +42,11 @@ pub(super) struct BoundaryDerived {
     /// qualification gate can read it without re-loading the
     /// config. `None` ⇒ no external MC/DC evidence claimed.
     pub(super) auxiliary_mcdc_tool: Option<evidence_core::AuxiliaryMcdcTool>,
+    /// Dependency-resolution policy resolved from (profile, `--online`)
+    /// at the top of `cmd_generate` (LLR-139); carried so the boundary
+    /// policy gates run their `cargo metadata` under the same policy
+    /// as every other pipeline subprocess.
+    pub(super) resolution_policy: ResolutionPolicy,
 }
 
 // Phase 1 — preflight checks (shallow-clone, cert-dirty)
@@ -81,6 +87,7 @@ pub(super) fn build_config(
     output_root: PathBuf,
     boundary_path: &Path,
     trace_roots_arg: Option<String>,
+    resolution_policy: ResolutionPolicy,
 ) -> (EvidenceBuildConfig, BoundaryDerived) {
     let trace_roots = trace_roots_arg
         .as_deref()
@@ -110,6 +117,7 @@ pub(super) fn build_config(
         fail_on_dirty: strict,
         dal_map: dal_map.clone(),
         boundary_policy: policy.clone(),
+        resolution_policy,
     };
     (
         config,
@@ -121,6 +129,7 @@ pub(super) fn build_config(
             max_dal,
             policy,
             auxiliary_mcdc_tool,
+            resolution_policy,
         },
     )
 }
@@ -213,7 +222,7 @@ pub(super) fn hash_in_scope_sources(
     if prefixes.is_empty() && required_inputs.is_empty() {
         return Ok(());
     }
-    match build_input_plan_blocking(prefixes, required_inputs) {
+    match build_input_plan_blocking(prefixes, required_inputs, builder.resolution_policy()) {
         Ok(plan) => {
             for entry in &plan {
                 if let Err(e) = builder.hash_input(&entry.path) {
@@ -238,105 +247,11 @@ pub(super) fn hash_in_scope_sources(
     Ok(())
 }
 
-// Phase 5 — run nextest and capture
-
-/// Run `cargo nextest run --workspace` under `libtest-json-plus`
-/// through the builder's `run_capture`, parse the machine-readable
-/// event stream, and record the per-test outcomes + summary on the
-/// builder. Machine-readable output preserves per-binary identity, so
-/// LLR `test_selector`s resolve to executed results — the identity that
-/// plain libtest text loses as `__unknown_binary__`.
-///
-/// `skip_tests` short-circuits. In strict mode any failure to *run*
-/// nextest bails (so cert bundles never silently omit test evidence);
-/// in dev mode a spawn failure degrades to a warning.
-pub(super) fn run_tests_and_capture(
-    builder: &mut EvidenceBuilder,
-    skip_tests: bool,
-    strict: bool,
-    quiet: bool,
-    json_output: bool,
-) -> Result<()> {
-    if skip_tests {
-        return Ok(());
-    }
-    let mut test_cmd = std::process::Command::new("cargo");
-    test_cmd.args([
-        "nextest",
-        "run",
-        "--workspace",
-        // Record every test's outcome even when some fail — evidence
-        // generation must not stop at the first failure (nextest's
-        // default), or the bundle would omit results for the rest.
-        "--no-fail-fast",
-        "--message-format",
-        "libtest-json-plus",
-    ]);
-    // The libtest-json format is gated behind this env in current
-    // nextest; NO_COLOR keeps the JSON stream free of ANSI escapes.
-    test_cmd.env("NEXTEST_EXPERIMENTAL_LIBTEST_JSON", "1");
-    test_cmd.env("NO_COLOR", "1");
-    match builder.run_capture(
-        test_cmd,
-        "tests",
-        "cargo_test",
-        "cargo nextest run --workspace",
-    ) {
-        Ok((stdout, _stderr)) => {
-            let stdout_str = String::from_utf8_lossy(&stdout);
-            let run = parse_nextest_libtest_json(&stdout_str);
-            // The suite-level summary and the per-test records are two
-            // independent tallies of the same stream; if they disagree
-            // the capture dropped an event. Fail closed in strict mode
-            // (a cert bundle must not ship inconsistent test evidence);
-            // warn on dev.
-            let discrepancies = run.reconcile();
-            if !discrepancies.is_empty() {
-                let detail = discrepancies
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                if strict {
-                    return Err(anyhow::anyhow!(
-                        "nextest summary does not reconcile with per-test records \
-                         ({detail}); captured test evidence is inconsistent"
-                    ));
-                }
-                tracing::warn!("nextest summary/record reconciliation mismatch: {detail}");
-            }
-            if !quiet && !json_output {
-                println!(
-                    "evidence: tests: {} passed, {} failed, {} ignored",
-                    run.summary.passed, run.summary.failed, run.summary.ignored
-                );
-            }
-            builder.set_test_summary(run.summary);
-            if !run.records.is_empty() {
-                // Write is deferred to `enrich_and_write_test_outcomes`,
-                // which runs after the trace phase loads LLR data and
-                // populates the per-test → LLR back-links.
-                builder.set_test_outcomes(run.records);
-            }
-        }
-        Err(e) => {
-            // run_capture returns Err only on subprocess spawn
-            // failure; non-zero exit goes through the Ok arm and is
-            // recorded inside run_capture. Record spawn failures here
-            // so verify sees the bundle as incomplete either way.
-            builder.record_command_failure(evidence_core::ToolCommandFailure {
-                command_name: "cargo nextest run --workspace".to_string(),
-                exit_code: -1,
-                stderr_tail: e.to_string(),
-            });
-            if strict {
-                return Err(anyhow::Error::new(e).context("running cargo nextest"));
-            }
-            tracing::warn!("cargo nextest could not be spawned: {}", e);
-        }
-    }
-    Ok(())
-}
+// Phase 5 lives in the sibling `phases/test_capture.rs` module,
+// re-exported below as `run_tests_and_capture`.
+#[path = "phases/test_capture.rs"]
+mod test_capture;
+pub(super) use test_capture::run_tests_and_capture;
 
 // Phase 5b lives in the sibling `phases/output_inventory.rs` module,
 // re-exported below as `inventory_and_hash_outputs`.

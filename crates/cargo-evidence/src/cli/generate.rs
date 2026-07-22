@@ -23,7 +23,8 @@ use anyhow::Result;
 use serde::Serialize;
 
 use closure::generator_closure;
-use evidence_core::diagnostic::{Diagnostic, Severity};
+use evidence_core::diagnostic::{Diagnostic, DiagnosticCode, Severity};
+use evidence_core::policy::ResolutionPolicy;
 use evidence_core::{EvidencePolicy, Profile};
 
 use super::args::{EXIT_SUCCESS, EXIT_VERIFICATION_FAILURE, detect_profile};
@@ -77,6 +78,8 @@ pub struct GenerateArgs {
     /// the profile-derived default). See [`crate::cli::args::CoverageChoice`]
     /// + HLR-053.
     pub coverage: Option<crate::cli::args::CoverageChoice>,
+    /// `--online`: dev-only online resolution opt-in (never a cert/record claim).
+    pub online: bool,
     /// Suppress non-error stdout.
     pub quiet: bool,
     /// Emit a JSON envelope on stdout instead of human-readable text.
@@ -147,6 +150,7 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         skip_tests,
         inventory_outputs,
         coverage,
+        online,
         quiet,
         json_output,
         jsonl_output,
@@ -170,6 +174,11 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
     };
 
     let profile = resolve_profile(profile_arg.as_deref())?;
+    // Dependency-resolution policy (LLR-139): cert/record + `--online` is refused up front.
+    let resolution_policy = match ResolutionPolicy::for_profile(profile, online) {
+        Ok(p) => p,
+        Err(e) => return fail_dispatch(profile, format!("{}: {e}", e.code())),
+    };
     let boundary_path = boundary.unwrap_or_else(|| PathBuf::from("cert/boundary.toml"));
     // Assurance-selection gate (LLR-109): cert/record named-claim
     // evaluation fails closed when the boundary carries no explicit
@@ -208,8 +217,13 @@ pub fn cmd_generate(args: GenerateArgs) -> Result<i32> {
         );
     };
 
-    let (config, derived) =
-        phases::build_config(profile, output_root, &boundary_path, trace_roots_arg);
+    let (config, derived) = phases::build_config(
+        profile,
+        output_root,
+        &boundary_path,
+        trace_roots_arg,
+        resolution_policy,
+    );
     if let Some(code) = policy::enforce_boundary_policy(&derived, profile, json_output)? {
         return Ok(code);
     }

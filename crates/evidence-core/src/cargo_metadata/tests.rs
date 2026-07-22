@@ -15,17 +15,20 @@ fn raw_fixture() -> String {
             {
                 "name": "z_proc",
                 "id": "path+file:///z#0.1.0",
+                "version": "0.1.0",
                 "targets": [{"kind": ["proc-macro"]}],
                 "links": null
             },
             {
                 "name": "a_lib",
                 "id": "path+file:///a#0.1.0",
+                "version": "0.1.0",
                 "targets": [{"kind": ["lib"]}]
             },
             {
                 "name": "m_ffi",
                 "id": "path+file:///m#0.1.0",
+                "version": "0.1.0",
                 "targets": [
                     {"kind": ["lib"]},
                     {"kind": ["custom-build"]}
@@ -34,7 +37,25 @@ fn raw_fixture() -> String {
             }
         ],
         "workspace_members": [],
-        "resolve": {"nodes": []}
+        "resolve": {
+            "nodes": [
+                {
+                    "id": "path+file:///a#0.1.0",
+                    "deps": [
+                        {"pkg": "path+file:///z#0.1.0"},
+                        {"pkg": "path+file:///m#0.1.0"}
+                    ]
+                },
+                {
+                    "id": "path+file:///m#0.1.0",
+                    "deps": []
+                },
+                {
+                    "id": "path+file:///z#0.1.0",
+                    "deps": [{"pkg": "path+file:///z#0.1.0"}]
+                }
+            ]
+        }
     })
     .to_string()
 }
@@ -78,6 +99,99 @@ fn projection_round_trip() {
     let json = original.to_canonical_json().unwrap();
     let reread = CargoMetadataProjection::from_projection_json(&json).unwrap();
     assert_eq!(original, reread);
+}
+
+/// TEST-158 (a): the projection binds the RESOLVED dependency
+/// graph — each resolved package's `"name version"` identity maps
+/// to the identities it depends on, and every resolved package
+/// appears as a key (empty set when it depends on nothing).
+#[test]
+fn projection_binds_resolved_dependency_graph() {
+    let raw = raw_fixture();
+    let proj = CargoMetadataProjection::from_raw_metadata(&raw).unwrap();
+    let deps = &proj.dependencies;
+
+    // Key set == the full resolved package set.
+    let mut keys: Vec<&str> = deps.keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    assert_eq!(keys, vec!["a_lib 0.1.0", "m_ffi 0.1.0", "z_proc 0.1.0"]);
+
+    // a_lib's resolved edges land on resolved identities — the
+    // graph resolution produced, not declared specs.
+    let a_deps = &deps["a_lib 0.1.0"];
+    assert!(a_deps.contains("m_ffi 0.1.0"));
+    assert!(a_deps.contains("z_proc 0.1.0"));
+
+    // m_ffi resolved to zero dependencies: present with an empty set.
+    assert!(deps["m_ffi 0.1.0"].is_empty());
+
+    // A self-edge (z_proc depends on itself) is preserved as-is —
+    // the projection reports the resolved graph, it does not editorialize.
+    assert!(deps["z_proc 0.1.0"].contains("z_proc 0.1.0"));
+}
+
+/// TEST-158 (b): dependency sets are deduplicated and the map is
+/// BTree-ordered, so the serialized artifact is byte-stable; a
+/// dangling dep id or an identity collision fails closed.
+#[test]
+fn projection_dependencies_are_sorted_and_deduplicated() {
+    let dup = serde_json::json!({
+        "packages": [
+            {"name": "a", "id": "path+file:///a#1.0.0", "version": "1.0.0", "targets": []},
+            {"name": "b", "id": "path+file:///b#2.0.0", "version": "2.0.0", "targets": []}
+        ],
+        "resolve": {
+            "nodes": [
+                {
+                    "id": "path+file:///a#1.0.0",
+                    "deps": [
+                        {"pkg": "path+file:///b#2.0.0"},
+                        {"pkg": "path+file:///b#2.0.0"}
+                    ]
+                },
+                {"id": "path+file:///b#2.0.0", "deps": []}
+            ]
+        }
+    })
+    .to_string();
+    let proj = CargoMetadataProjection::from_raw_metadata(&dup).unwrap();
+    assert_eq!(proj.dependencies["a 1.0.0"].len(), 1, "deduplicated");
+
+    let dangling = serde_json::json!({
+        "packages": [
+            {"name": "a", "id": "path+file:///a#1.0.0", "version": "1.0.0", "targets": []}
+        ],
+        "resolve": {
+            "nodes": [
+                {"id": "path+file:///a#1.0.0", "deps": [{"pkg": "registry+x#b@9.9.9"}]}
+            ]
+        }
+    })
+    .to_string();
+    let err = CargoMetadataProjection::from_raw_metadata(&dangling).unwrap_err();
+    assert!(
+        matches!(err, ProjectionError::UnresolvablePackageId(_)),
+        "dangling dep id must fail closed: {err:?}"
+    );
+
+    let collision = serde_json::json!({
+        "packages": [
+            {"name": "a", "id": "registry+x#a@1.0.0", "version": "1.0.0", "targets": []},
+            {"name": "a", "id": "git+y#a@1.0.0", "version": "1.0.0", "targets": []}
+        ],
+        "resolve": {
+            "nodes": [
+                {"id": "registry+x#a@1.0.0", "deps": []},
+                {"id": "git+y#a@1.0.0", "deps": []}
+            ]
+        }
+    })
+    .to_string();
+    let err = CargoMetadataProjection::from_raw_metadata(&collision).unwrap_err();
+    assert!(
+        matches!(err, ProjectionError::AmbiguousPackageIdentity(_)),
+        "identity collision must fail closed: {err:?}"
+    );
 }
 
 #[test]

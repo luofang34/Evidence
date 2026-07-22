@@ -2373,4 +2373,5 @@ test_selectors = [
     "evidence_core::verify::resolution_policy::tests::online_opt_in_dev_bundle_is_allowed",
     "evidence_core::verify::resolution_policy::tests::locked_offline_cert_bundle_is_allowed",
     "resolution_policy::generate_dev_with_online_flag_records_online_opt_in",
+    "resolution_policy::verify_rejects_online_opt_in_cert_bundle",
 ]

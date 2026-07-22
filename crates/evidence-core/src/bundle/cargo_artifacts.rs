@@ -11,9 +11,11 @@
 //! proc-macros are excluded). Each artifact is keyed by its path
 //! relative to cargo's `target_directory` — never an absolute path.
 //!
-//! The build follows the profile's flags: cert/record profiles build
-//! `--release --locked` (the deliverable + a pinned dependency graph),
-//! not an implicit debug build. Output digests are host/build-specific —
+//! The build follows the profile's flags plus the shared
+//! [`ResolutionPolicy`]: cert/record profiles build `--release` (the
+//! deliverable), and every profile carries the policy's resolution
+//! flags — `--locked --offline` under `locked_offline`, none under the
+//! development online opt-in. Output digests are host/build-specific —
 //! they belong to the content-integrity channel, not the cross-host
 //! reproducibility channel.
 
@@ -23,7 +25,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::policy::Profile;
+use crate::policy::{Profile, ResolutionPolicy};
 use crate::util::{CmdError, cmd_stdout};
 
 /// One inventoried deliverable: a canonical key relative to cargo's
@@ -49,6 +51,11 @@ pub enum ArtifactError {
         #[source]
         source: CmdError,
     },
+    /// The `--locked --offline` `cargo metadata` / `cargo build`
+    /// invocation failed — the locked dependency graph could not be
+    /// resolved from the local cargo cache (LLR-140).
+    #[error(transparent)]
+    LockedGraphUnavailable(#[from] crate::policy::LockedGraphError),
     /// The workspace metadata JSON was not the shape this module reads.
     #[error("parsing cargo metadata for output inventory")]
     ParseMetadata(#[source] serde_json::Error),
@@ -136,38 +143,55 @@ pub fn parse_workspace_artifacts(
 /// Build the workspace with the profile's build flags and inventory its
 /// deliverables. Blocks on I/O. `cargo metadata` supplies the exact
 /// `workspace_members` set and the `target_directory`; cert/record
-/// profiles build `--release --locked` so the inventory attests the
-/// deliverable and a pinned dependency graph rather than an implicit
-/// debug build.
-pub fn inventory_outputs_blocking(profile: Profile) -> Result<Vec<OutputArtifact>, ArtifactError> {
-    let meta_json = cmd_stdout("cargo", &["metadata", "--format-version", "1", "--no-deps"])
-        .map_err(|source| ArtifactError::Cargo {
-            cmd: "cargo metadata",
-            source,
-        })?;
+/// profiles build `--release` so the inventory attests the deliverable
+/// rather than an implicit debug build. Both invocations carry the
+/// given [`ResolutionPolicy`] flags (LLR-140), so the inventory attests
+/// the pinned, offline-resolved dependency graph under `locked_offline`
+/// and fails closed with [`ArtifactError::LockedGraphUnavailable`] when
+/// that graph is unavailable from the local cache.
+pub fn inventory_outputs_blocking(
+    profile: Profile,
+    policy: ResolutionPolicy,
+) -> Result<Vec<OutputArtifact>, ArtifactError> {
+    let mut meta_args = vec!["metadata", "--format-version", "1", "--no-deps"];
+    meta_args.extend_from_slice(policy.cargo_args());
+    let meta_json = cmd_stdout("cargo", &meta_args).map_err(|e| {
+        match policy.offline_failure("cargo metadata", e) {
+            Ok(g) => ArtifactError::LockedGraphUnavailable(g),
+            Err(e) => ArtifactError::Cargo {
+                cmd: "cargo metadata",
+                source: e,
+            },
+        }
+    })?;
     let meta: RawMeta = serde_json::from_str(&meta_json).map_err(ArtifactError::ParseMetadata)?;
     let members: BTreeSet<String> = meta.workspace_members.into_iter().collect();
     let target_directory = PathBuf::from(&meta.target_directory);
 
-    let build_json =
-        cmd_stdout("cargo", &build_args(profile)).map_err(|source| ArtifactError::Cargo {
+    let build_json = cmd_stdout("cargo", &build_args(profile, policy)).map_err(|e| match policy
+        .offline_failure("cargo build", e)
+    {
+        Ok(g) => ArtifactError::LockedGraphUnavailable(g),
+        Err(e) => ArtifactError::Cargo {
             cmd: "cargo build",
-            source,
-        })?;
+            source: e,
+        },
+    })?;
     parse_workspace_artifacts(&build_json, &members, &target_directory)
 }
 
 /// The `cargo build` args for a profile's output inventory. Cert/record
-/// append `--release --locked` (release deliverable + a pinned
-/// dependency graph); dev stays on the default debug build for fast
-/// iteration. Split out so the profile→flags mapping is unit-testable
-/// without spawning cargo.
-fn build_args(profile: Profile) -> Vec<&'static str> {
+/// append `--release` (release deliverable); the resolution-policy
+/// flags come from [`ResolutionPolicy::cargo_args`] — `--locked
+/// --offline` under `locked_offline`, none under the development
+/// online opt-in. Split out so the profile→flags mapping is
+/// unit-testable without spawning cargo.
+fn build_args(profile: Profile, policy: ResolutionPolicy) -> Vec<&'static str> {
     let mut args = vec!["build", "--workspace", "--message-format=json"];
     if matches!(profile, Profile::Cert | Profile::Record) {
         args.push("--release");
-        args.push("--locked");
     }
+    args.extend_from_slice(policy.cargo_args());
     args
 }
 

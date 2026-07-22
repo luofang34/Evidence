@@ -215,6 +215,14 @@ impl std::fmt::Display for VerifyError {
                      not evidence"
                 )
             }
+            VerifyError::OnlineResolutionBundle { profile } => {
+                write!(
+                    f,
+                    "profile='{profile}' bundle records resolution_policy=online_opt_in — \
+                     its dependency graph was resolved with network access, so it \
+                     cannot back a cert/record claim"
+                )
+            }
         }
     }
 }

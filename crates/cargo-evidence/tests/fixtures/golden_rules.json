@@ -119,6 +119,13 @@
     "terminal": false
   },
   {
+    "code": "BUNDLE_LOCKED_GRAPH_UNAVAILABLE",
+    "severity": "error",
+    "domain": "bundle",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "BUNDLE_PARSE_ENV_FAILED",
     "severity": "error",
     "domain": "bundle",
@@ -686,6 +693,13 @@
     "terminal": false
   },
   {
+    "code": "POLICY_ONLINE_RESOLUTION_FORBIDDEN",
+    "severity": "error",
+    "domain": "policy",
+    "has_fix_hint": false,
+    "terminal": false
+  },
+  {
     "code": "POLICY_UNKNOWN_DAL",
     "severity": "error",
     "domain": "policy",
@@ -1104,6 +1118,13 @@
     "domain": "verify",
     "has_fix_hint": false,
     "terminal": true
+  },
+  {
+    "code": "VERIFY_ONLINE_RESOLUTION",
+    "severity": "error",
+    "domain": "verify",
+    "has_fix_hint": false,
+    "terminal": false
   },
   {
     "code": "VERIFY_OUTPUT_MANIFEST_EMPTY",

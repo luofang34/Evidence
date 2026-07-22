@@ -336,7 +336,7 @@
       "uid": "ed4284df-5a2e-4241-bbd9-e744edd43f79",
       "layer": "llr",
       "title": "coverage subprocess + llvm-cov JSON parser + bundle write",
-      "description": "`evidence_core::coverage::report::CoverageReport` models the\ntyped wire shape of `coverage/coverage_summary.json`. Top-level\nfields: `schema_version: String` (pinned to\n`schema_versions::COVERAGE`), `measurements: Vec<Measurement>`.\nEach `Measurement` carries a `level: CoverageLevel` enum with\nfour variants (`statement`, `branch`, `pattern_decision`,\n`mcdc` — the latter two reserved, not emitted), plus\n`engine: String`, `engine_version: String`, and\n`per_file: Vec<FileMeasurement>`. Each `FileMeasurement` has a\nworkspace-relative `path: String`, `lines: LineCoverage\n{covered, total}`, `branches: Option<BranchCoverage {covered,\ntotal}>`, `decisions: Vec<DecisionCoverage>`, and\n`conditions: Vec<ConditionCoverage>`. `branches` is `Some` at\n`CoverageLevel::Branch` and `None` at `Statement` —\naggregation over a Branch measurement reads the `branches`\nfield, never `lines`. `decisions` / `conditions` stay reserved\nfor v2 pattern-decision / MC/DC; both are empty today\nregardless of level.\n\n`evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export`\nconsumes `cargo-llvm-cov`'s JSON export format (documented\nshape: `{data: [{files: [...], functions: [...], totals: {...}}],\nversion, cargo_llvm_cov: {version}}`), normalizes absolute file\npaths to workspace-relative, and returns a `CoverageReport` with\none measurement per requested level. Filename normalization\nstrips the workspace root prefix deterministically so hashes are\ncross-host stable.\n\n`cargo_evidence::cli::generate::coverage_phase::run_coverage_phase`\nis the new Phase 5b of `cmd_generate`. It is invoked after the\nplain `cargo test` phase when `CoverageChoice != None`. The\nfunction spawns `cargo llvm-cov --workspace --json --output-path\n<tmp.json> --lcov --output-path <tmp.lcov>` (via\n`std::process::Command`), parses the JSON, and stages both files\ninto the builder via `EvidenceBuilder::set_coverage_report` and\n`EvidenceBuilder::stage_coverage_lcov`. On ENOENT (binary\nmissing) the phase emits a `COVERAGE_LLVMCOV_MISSING`\ndiagnostic whose severity is Warning for `Profile::Dev` and\nError for `Profile::Cert` / `Profile::Record`; on JSON parse\nfailure it emits `COVERAGE_PARSE_FAILED` (always Error).\nSuccessful completion emits `COVERAGE_OK` (Info non-terminal)\nnaming the engine version and per-level line counts.\n",
+      "description": "`evidence_core::coverage::report::CoverageReport` models the\ntyped wire shape of `coverage/coverage_summary.json`. Top-level\nfields: `schema_version: String` (pinned to\n`schema_versions::COVERAGE`), `measurements: Vec<Measurement>`.\nEach `Measurement` carries a `level: CoverageLevel` enum with\nfour variants (`statement`, `branch`, `pattern_decision`,\n`mcdc` — the latter two reserved, not emitted), plus\n`engine: String`, `engine_version: String`, and\n`per_file: Vec<FileMeasurement>`. Each `FileMeasurement` has a\nworkspace-relative `path: String`, `lines: LineCoverage\n{covered, total}`, `branches: Option<BranchCoverage {covered,\ntotal}>`, `decisions: Vec<DecisionCoverage>`, and\n`conditions: Vec<ConditionCoverage>`. `branches` is `Some` at\n`CoverageLevel::Branch` and `None` at `Statement` —\naggregation over a Branch measurement reads the `branches`\nfield, never `lines`. `decisions` / `conditions` stay reserved\nfor v2 pattern-decision / MC/DC; both are empty today\nregardless of level.\n\n`evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export`\nconsumes `cargo-llvm-cov`'s JSON export format (documented\nshape: `{data: [{files: [...], functions: [...], totals: {...}}],\nversion, cargo_llvm_cov: {version}}`), normalizes absolute file\npaths to workspace-relative, and returns a `CoverageReport` with\none measurement per requested level. Filename normalization\nstrips the workspace root prefix deterministically so hashes are\ncross-host stable.\n\n`cargo_evidence::cli::generate::coverage_phase::run_coverage_phase`\nis the new Phase 5b of `cmd_generate`. It is invoked after the\nplain `cargo test` phase when `CoverageChoice != None`. The\nfunction spawns `cargo llvm-cov --workspace --json --output-path\n<tmp.json> --lcov --output-path <tmp.lcov>` (via\n`std::process::Command`), parses the JSON, and stages both files\ninto the builder via `EvidenceBuilder::set_coverage_report` and\n`EvidenceBuilder::stage_coverage_lcov`. Each llvm-cov spawn\ncarries the shared resolution-policy flags (LLR-140). On ENOENT (binary\nmissing) the phase emits a `COVERAGE_LLVMCOV_MISSING`\ndiagnostic whose severity is Warning for `Profile::Dev` and\nError for `Profile::Cert` / `Profile::Record`; on JSON parse\nfailure it emits `COVERAGE_PARSE_FAILED` (always Error).\nSuccessful completion emits `COVERAGE_OK` (Info non-terminal)\nnaming the engine version and per-level line counts.\n",
       "modules": [
         "evidence_core::coverage::report::CoverageReport",
         "evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export",
@@ -632,7 +632,7 @@
       "uid": "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001",
       "layer": "llr",
       "title": "package-name -> manifest-dir resolution + control-input planning + generate-time fail-closed",
-      "description": "`resolve_in_scope_units` parses `cargo metadata` and maps each\nin-scope package name to its workspace-relative manifest\ndirectory via `manifest_path`, failing closed with\n`MissingPackage` (name absent) or `PathEscape` (manifest not\nunder `workspace_root`).\n\n`assemble_input_plan` merges the per-unit `git ls-files` results,\nthe declared required inputs (`boundary.toml` `[inputs].required`),\nand the `WORKSPACE_CONTROL_PATHSPECS` results into a deduplicated,\nprovenance-tagged, sorted set (precedence unit > declared-required\n> control), failing closed with `EmptyScope` (a unit resolved to\nzero files) or `NoInputs` (an empty total). Declared required\ninputs are existence-checked against the workspace root\n(`check_required_inputs_exist`) and fail closed with\n`MissingRequiredInput` — a git-ignored generated input that is\nrequired but absent cannot be silently dropped.\n\n`build_input_plan_blocking` orchestrates the subprocess calls and\nthe pure helpers. `hash_in_scope_sources` consumes the plan,\nhashing each entry into `inputs_hashes.json`; strict (cert/record)\nmode propagates any planning error as a generate failure, so a\ncert bundle can never record an empty or mis-resolved source\nbaseline.\n",
+      "description": "`resolve_in_scope_units` parses `cargo metadata` and maps each\nin-scope package name to its workspace-relative manifest\ndirectory via `manifest_path`, failing closed with\n`MissingPackage` (name absent) or `PathEscape` (manifest not\nunder `workspace_root`).\n\n`assemble_input_plan` merges the per-unit `git ls-files` results,\nthe declared required inputs (`boundary.toml` `[inputs].required`),\nand the `WORKSPACE_CONTROL_PATHSPECS` results into a deduplicated,\nprovenance-tagged, sorted set (precedence unit > declared-required\n> control), failing closed with `EmptyScope` (a unit resolved to\nzero files) or `NoInputs` (an empty total). Declared required\ninputs are existence-checked against the workspace root\n(`check_required_inputs_exist`) and fail closed with\n`MissingRequiredInput` — a git-ignored generated input that is\nrequired but absent cannot be silently dropped.\n\n`build_input_plan_blocking` orchestrates the subprocess calls and\nthe pure helpers; its `cargo metadata --no-deps` invocation\ncarries the shared resolution-policy flags (LLR-140).\n`hash_in_scope_sources` consumes the plan,\nhashing each entry into `inputs_hashes.json`; strict (cert/record)\nmode propagates any planning error as a generate failure, so a\ncert bundle can never record an empty or mis-resolved source\nbaseline.\n",
       "modules": [
         "evidence_core::bundle::input_scope::resolve_in_scope_units",
         "evidence_core::bundle::input_scope::assemble_input_plan",
@@ -652,7 +652,7 @@
       "uid": "b7e107fa-7fb0-435d-823c-a786221be3a7",
       "layer": "llr",
       "title": "nextest libtest-json-plus parser preserves per-test identity",
-      "description": "`parse_nextest_libtest_json` reads nextest's `libtest-json-plus`\nstream: `test` events (`{crate}::{binary}${module::path::name}`)\nbecome `TestOutcomeRecord`s with package, binary, harness, and a\n`module_path` reconstructed to begin with the binary, so\n`{module_path}::{name}` equals the trace `test_selector` format;\n`suite` events supply the aggregate `TestSummary`. nextest may emit\nmore than one `suite` summary for the same binary when it partitions\nthat binary's tests; suite counts are reduced per binary identity\n(`passed`/`failed` summed over disjoint partitions, `ignored` and\n`filtered_out` reduced as whole-binary tallies) so a partitioned\nbinary does not double-count and `reconcile` stays exact against the\nper-test records. Per-test `exec_time` is deliberately not recorded\nand records are sorted, so `test_outcomes.jsonl` stays\nbyte-deterministic (SYS-003).\n\n`run_tests_and_capture` runs `cargo nextest run --workspace\n--no-fail-fast --message-format libtest-json-plus` through the\nbuilder's `run_capture` and feeds its stdout to the parser.\n",
+      "description": "`parse_nextest_libtest_json` reads nextest's `libtest-json-plus`\nstream: `test` events (`{crate}::{binary}${module::path::name}`)\nbecome `TestOutcomeRecord`s with package, binary, harness, and a\n`module_path` reconstructed to begin with the binary, so\n`{module_path}::{name}` equals the trace `test_selector` format;\n`suite` events supply the aggregate `TestSummary`. nextest may emit\nmore than one `suite` summary for the same binary when it partitions\nthat binary's tests; suite counts are reduced per binary identity\n(`passed`/`failed` summed over disjoint partitions, `ignored` and\n`filtered_out` reduced as whole-binary tallies) so a partitioned\nbinary does not double-count and `reconcile` stays exact against the\nper-test records. Per-test `exec_time` is deliberately not recorded\nand records are sorted, so `test_outcomes.jsonl` stays\nbyte-deterministic (SYS-003).\n\n`run_tests_and_capture` runs `cargo nextest run --workspace\n--no-fail-fast --message-format libtest-json-plus` through the\nbuilder's `run_capture` and feeds its stdout to the parser. The\nnextest argv carries the shared resolution-policy flags\n(LLR-140).\n",
       "modules": [
         "evidence_core::bundle::nextest::parse_nextest_libtest_json",
         "cargo_evidence::cli::generate::phases::run_tests_and_capture"
@@ -688,7 +688,7 @@
       "uid": "0a85bb33-ef4c-4686-9a5e-c1ce2aa851db",
       "layer": "llr",
       "title": "compiler-artifact inventory hashes workspace deliverables into outputs_hashes.json",
-      "description": "`parse_workspace_artifacts` reads `cargo build\n--message-format=json` output, keeping `compiler-artifact`\nmessages whose `package_id` is an exact `cargo metadata`\n`workspace_members` entry and whose target is a `lib` or `bin`.\nEvery produced filename becomes an `OutputArtifact { key, path }`\nkeyed by its path relative to cargo's `target_directory` — never\nan absolute path. It fails closed on a malformed build message\n(`MalformedMessage`) or an artifact outside `target_directory`\n(`ArtifactOutsideTargetDir`) rather than silently skipping;\nresults are sorted and deduplicated for determinism.\n\n`inventory_outputs_blocking` reads `workspace_members` and\n`target_directory` from `cargo metadata`, then builds with the\nbundle's recipe — cert/record build `--release --locked` so the\ninventory attests the deliverable and a pinned dependency graph,\nnot an implicit debug build. `inventory_and_hash_outputs` hashes\neach artifact into `outputs_hashes.json` via `builder.add_output`;\nstrict mode fails closed on zero deliverables or an unhashable\nartifact. The inventory does its own build, so it is independent of\nthe test phase: `should_inventory` runs it on a full generate,\nunder `--skip-tests --inventory-outputs`, or unconditionally in\nstrict (cert/record) mode.\n",
+      "description": "`parse_workspace_artifacts` reads `cargo build\n--message-format=json` output, keeping `compiler-artifact`\nmessages whose `package_id` is an exact `cargo metadata`\n`workspace_members` entry and whose target is a `lib` or `bin`.\nEvery produced filename becomes an `OutputArtifact { key, path }`\nkeyed by its path relative to cargo's `target_directory` — never\nan absolute path. It fails closed on a malformed build message\n(`MalformedMessage`) or an artifact outside `target_directory`\n(`ArtifactOutsideTargetDir`) rather than silently skipping;\nresults are sorted and deduplicated for determinism.\n\n`inventory_outputs_blocking` reads `workspace_members` and\n`target_directory` from `cargo metadata`, then builds with the\nbundle's recipe — cert/record build `--release` plus the shared\nresolution-policy flags (LLR-140) so the inventory attests the\ndeliverable and the pinned, offline-resolved dependency graph,\nnot an implicit debug build. `inventory_and_hash_outputs` hashes\neach artifact into `outputs_hashes.json` via `builder.add_output`;\nstrict mode fails closed on zero deliverables or an unhashable\nartifact. The inventory does its own build, so it is independent of\nthe test phase: `should_inventory` runs it on a full generate,\nunder `--skip-tests --inventory-outputs`, or unconditionally in\nstrict (cert/record) mode.\n",
       "modules": [
         "evidence_core::bundle::cargo_artifacts::parse_workspace_artifacts",
         "evidence_core::bundle::cargo_artifacts::inventory_outputs_blocking",
@@ -759,6 +759,51 @@
       ],
       "traces_to": [
         "f5b3e685-06d9-42fc-a045-0478d5f661d0"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-139",
+      "uid": "d591c58b-aa28-46a0-8a79-1abd39d2da8d",
+      "layer": "llr",
+      "title": "policy::resolution::ResolutionPolicy gates locked_offline vs online_opt_in on profile and owns the online-resolution refusal",
+      "description": "`ResolutionPolicy::for_profile(profile, online_opt_in)` is the\nsingle decision point for dependency resolution: the development\nprofile with an explicit `--online` opt-in yields `OnlineOptIn`;\nevery profile without the opt-in yields `LockedOffline`;\ncert/record with the opt-in is refused with the typed\n`ResolutionPolicyError` carrying\n`POLICY_ONLINE_RESOLUTION_FORBIDDEN`. `cargo_args()` renders the\npolicy as subprocess argv — `[\"--locked\", \"--offline\"]` for\n`LockedOffline`, `[]` for `OnlineOptIn` — so every call site\napplies the same flags, and `as_str()` renders the\n`locked_offline` / `online_opt_in` wire label recorded in\n`index.json`. `cmd_generate` resolves the policy immediately\nafter profile resolution, before the assurance-selection gate,\nso the refusal fires before any bundle work.\n",
+      "modules": [
+        "evidence_core::policy::resolution::ResolutionPolicy",
+        "evidence_core::policy::resolution::ResolutionPolicyError",
+        "cargo_evidence::cli::generate::cmd_generate"
+      ],
+      "emits": [
+        "POLICY_ONLINE_RESOLUTION_FORBIDDEN"
+      ],
+      "traces_to": [
+        "0c1f3ac4-e0df-4c3c-b24c-15eb11ce2ede"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-140",
+      "uid": "c9899d50-b100-4a19-b6cf-1269460b5470",
+      "layer": "llr",
+      "title": "every generate-time cargo subprocess carries the resolution policy flags; locked/offline failures map to BUNDLE_LOCKED_GRAPH_UNAVAILABLE",
+      "description": "Every cargo invocation the generate pipeline spawns appends\n`ResolutionPolicy::cargo_args()` to its argv: the boundary policy\ngates' `cargo metadata`, input-scope resolution's\n`cargo metadata --no-deps`, the output inventory's\n`cargo metadata` + `cargo build`, the `cargo_metadata.json`\nprojection's full `cargo metadata`, `cargo nextest run`, and the\nthree `cargo llvm-cov` spawns. Cert/record keeps `--release` on\nits build; the resolution flags are policy-driven, not\nprofile-hardcoded.\n\nUnder `LockedOffline`, a non-zero exit from one of these\ninvocations maps to the shared `LockedGraphError` — code\n`BUNDLE_LOCKED_GRAPH_UNAVAILABLE` — whose message names the\ncommand, the policy, and the remediation (`cargo fetch --locked`\nin an online environment). The policy makes the cause class\nunambiguous (missing cache or lock drift), so no stderr\nheuristics are consulted; launch and non-UTF-8 failures keep\ntheir existing codes.\n",
+      "modules": [
+        "evidence_core::boundary_check::run_cargo_metadata",
+        "evidence_core::bundle::input_scope::build_input_plan_blocking",
+        "evidence_core::bundle::cargo_artifacts::inventory_outputs_blocking",
+        "evidence_core::bundle::builder::write_cargo_metadata_projection",
+        "cargo_evidence::cli::generate::phases::run_tests_and_capture",
+        "cargo_evidence::cli::generate::coverage_phase::run_coverage_phase"
+      ],
+      "emits": [
+        "BUNDLE_LOCKED_GRAPH_UNAVAILABLE"
+      ],
+      "traces_to": [
+        "0c1f3ac4-e0df-4c3c-b24c-15eb11ce2ede"
       ],
       "verification_methods": [
         "test"
@@ -1055,6 +1100,15 @@
       ]
     },
     {
+      "id": "HLR-109",
+      "uid": "0c1f3ac4-e0df-4c3c-b24c-15eb11ce2ede",
+      "layer": "hlr",
+      "title": "Generate applies one locked/offline resolution policy to every cargo subprocess; online resolution is a development-only opt-in that cert/record refuses",
+      "traces_to": [
+        "36d6b5ec-6ddb-4d42-9299-5ed9df5e7b21"
+      ]
+    },
+    {
       "id": "SYS-002",
       "uid": "0e42b90f-88d7-408f-8843-0a3335279360",
       "layer": "sys",
@@ -1228,6 +1282,13 @@
       "layer": "sys",
       "title": "Coverage percentages are engineering metrics, never compliance proof; cert claims require explicit assurance selection",
       "traces_to": []
+    },
+    {
+      "id": "SYS-047",
+      "uid": "36d6b5ec-6ddb-4d42-9299-5ed9df5e7b21",
+      "layer": "sys",
+      "title": "Certification evidence generation resolves dependencies only from a locked, offline cargo baseline",
+      "traces_to": []
     }
   ],
   "tests": [
@@ -1291,6 +1352,20 @@
       ],
       "traces_to": [
         "548b7b36-1d03-487d-a6a1-f2b37bdee2a1"
+      ]
+    },
+    {
+      "id": "TEST-156",
+      "uid": "63647cc0-ddef-489e-a339-13106d4109d9",
+      "name": "ResolutionPolicy truth table, argv rendering, and the cert/record online refusal at the CLI gate",
+      "selectors": [
+        "evidence_core::policy::resolution::tests::cargo_args_match_policy",
+        "evidence_core::policy::resolution::tests::for_profile_truth_table",
+        "evidence_core::policy::resolution::tests::online_forbidden_error_carries_policy_code",
+        "resolution_policy::generate_cert_with_online_flag_is_refused"
+      ],
+      "traces_to": [
+        "d591c58b-aa28-46a0-8a79-1abd39d2da8d"
       ]
     },
     {
@@ -1361,6 +1436,22 @@
       ],
       "traces_to": [
         "a95ed852-94ba-499b-bd17-76d26b75ebe5"
+      ]
+    },
+    {
+      "id": "TEST-157",
+      "uid": "77b0bcfb-b9a0-45a2-b51e-935dc10582e7",
+      "name": "all cargo subprocess argv carry the policy flags; missing-cache and prepared-cache runs prove offline behavior end to end",
+      "selectors": [
+        "evidence_core::bundle::cargo_artifacts::tests::cert_and_record_build_args_are_release_locked_offline",
+        "evidence_core::bundle::cargo_artifacts::tests::dev_locked_offline_build_args_carry_policy_flags",
+        "evidence_core::bundle::cargo_artifacts::tests::online_opt_in_build_args_carry_no_resolution_flags",
+        "evidence_core::policy::resolution::tests::offline_failure_maps_only_locked_nonzero_exits",
+        "resolution_policy::missing_cache_locked_offline_fails_with_actionable_diagnostic",
+        "resolution_policy::prepared_cache_offline_generate_succeeds_and_records_policy"
+      ],
+      "traces_to": [
+        "c9899d50-b100-4a19-b6cf-1269460b5470"
       ]
     },
     {
@@ -1846,6 +1937,7 @@
   ],
   "diagnostic_codes": [
     "BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC",
+    "BUNDLE_LOCKED_GRAPH_UNAVAILABLE",
     "CHECK_TEST_RUNTIME_FAILURE",
     "CLI_INVALID_ARGUMENT",
     "CLI_UNSUPPORTED_FORMAT",
@@ -1888,6 +1980,7 @@
     "KEYGEN_KEY_EXISTS",
     "KEYGEN_OK",
     "POLICY_ASSURANCE_SELECTION_MISSING",
+    "POLICY_ONLINE_RESOLUTION_FORBIDDEN",
     "SCHEMA_COMPILE_FAILED",
     "SCHEMA_INSTANCE_INVALID",
     "SCHEMA_PARSE_FAILED",
@@ -1919,8 +2012,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 188,
-      "floor": 188
+      "current": 193,
+      "floor": 193
     }
   ],
   "boundary": {

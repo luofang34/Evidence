@@ -277,6 +277,7 @@ pub fn cmd_verify(
                     VE::OutputManifestEmpty             => "output_manifest_empty",
                     VE::TraceEvidenceNotAdopted { .. }  => "trace_evidence_not_adopted",
                     VE::TraceEvidenceEmpty { .. }       => "trace_evidence_empty",
+                    VE::OnlineResolutionBundle { .. }   => "online_resolution_bundle",
                 };
                 checks.push(VerifyCheck {
                     name: name.to_string(),

@@ -153,6 +153,7 @@ fn build_bundle(
         tool_command_failures: failures,
         dal_map: BTreeMap::new(),
         boundary_policy: evidence_core::BoundaryPolicy::default(),
+        resolution_policy: evidence_core::policy::ResolutionPolicy::LOCKED_OFFLINE,
     };
     fs::write(
         bundle_dir.join("index.json"),

@@ -197,6 +197,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             skip_tests,
             inventory_outputs,
             coverage,
+            online,
         }) => cmd_generate(GenerateArgs {
             profile_arg: args.profile,
             out_dir: args.out_dir,
@@ -207,6 +208,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             skip_tests,
             inventory_outputs,
             coverage,
+            online,
             quiet: args.quiet,
             json_output: args.json,
             jsonl_output: args.format == OutputFormat::Jsonl,
@@ -317,6 +319,7 @@ fn dispatch(args: EvidenceArgs) -> anyhow::Result<i32> {
             skip_tests: false,
             inventory_outputs: false,
             coverage: None,
+            online: false,
             quiet: args.quiet,
             json_output: args.json,
             jsonl_output: args.format == OutputFormat::Jsonl,

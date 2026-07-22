@@ -10,6 +10,7 @@
 //! | `standards` | `StandardsPack` versioned objective-mapping binding    |
 //! | `boundary`  | `BoundaryConfig` + `Schema` + scope/policy + loaders   |
 //! | `evidence`  | `EvidencePolicy::for_dal` + `TracePolicy`              |
+//! | `resolution`| `ResolutionPolicy` locked/offline vs online opt-in     |
 //!
 //! Re-exports below keep the crate's public API flat — consumers
 //! continue to `use evidence_core::policy::{Profile, Dal, BoundaryConfig,
@@ -20,6 +21,7 @@ mod boundary;
 mod dal;
 mod evidence;
 mod profile;
+mod resolution;
 mod standards;
 
 pub use assurance::{AssuranceLevel, AssuranceSelection, AssuranceSelectionError, StandardEdition};
@@ -30,4 +32,5 @@ pub use boundary::{
 pub use dal::{AuxiliaryMcdcTool, Dal, DalConfig, DalCoverageThresholds, ParseDalError};
 pub use evidence::{EvidencePolicy, TracePolicy};
 pub use profile::{ParseProfileError, Profile};
+pub use resolution::{LockedGraphError, ResolutionPolicy, ResolutionPolicyError};
 pub use standards::{DO_178C_PACK, StandardsPack, a7_applicability};

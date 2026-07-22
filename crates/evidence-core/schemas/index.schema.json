@@ -176,6 +176,11 @@
         }
       },
       "additionalProperties": false
+    },
+    "resolution_policy": {
+      "type": "string",
+      "enum": ["locked_offline", "online_opt_in"],
+      "description": "Dependency-resolution policy the bundle was generated under (LLR-142). `locked_offline`: every cargo subprocess ran `--locked --offline`, resolving only from the committed lockfile and local cargo cache. `online_opt_in`: development-mode online resolution; the bundle cannot back a cert/record claim (verify rejects that pairing with VERIFY_ONLINE_RESOLUTION). Absent in legacy bundles, which deserialize as `locked_offline`."
     }
   },
   "additionalProperties": false

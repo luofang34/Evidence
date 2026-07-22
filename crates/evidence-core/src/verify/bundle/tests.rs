@@ -50,6 +50,7 @@ fn idx_with_policy(policy: BoundaryPolicy, in_scope: &[&str]) -> EvidenceIndex {
         tool_command_failures: Vec::new(),
         dal_map,
         boundary_policy: policy,
+        resolution_policy: crate::policy::ResolutionPolicy::LOCKED_OFFLINE,
     }
 }
 
@@ -65,6 +66,7 @@ fn raw_metadata_with_build_rs() -> String {
         "packages": [{
             "name": "in_scope",
             "id": "path+file:///s#0.1.0",
+            "version": "0.1.0",
             "targets": [
                 {"kind": ["lib"]},
                 {"kind": ["custom-build"]}
@@ -82,6 +84,7 @@ fn raw_metadata_with_proc_macro() -> String {
         "packages": [{
             "name": "in_scope",
             "id": "path+file:///s#0.1.0",
+            "version": "0.1.0",
             "targets": [{"kind": ["proc-macro"]}]
         }],
         "workspace_members": [],
@@ -95,6 +98,7 @@ fn raw_metadata_clean() -> String {
         "packages": [{
             "name": "in_scope",
             "id": "path+file:///s#0.1.0",
+            "version": "0.1.0",
             "targets": [{"kind": ["lib"]}]
         }],
         "workspace_members": [],
