@@ -78,7 +78,7 @@ use super::records::validate_vendored_wire_path;
 
 pub(super) mod error;
 
-pub use error::SourcePayloadError;
+pub use error::{DigestMismatchDetail, SourcePayloadError};
 
 /// The fixed payload-root directory name beneath the corpus root.
 /// Vendored payloads resolve beneath `<corpus-root>/sources/` and
@@ -306,13 +306,15 @@ fn verify_vendored_head(
     })?;
     let actual = SourceContentDigest::from_hasher_output(actual);
     if &actual != record_digest {
-        return Err(SourcePayloadError::DigestMismatch {
-            source_uid: revision.uid.clone(),
-            document_key: document_key.to_string(),
-            path: candidate,
-            expected: record_digest.clone(),
-            actual,
-        });
+        return Err(SourcePayloadError::DigestMismatch(Box::new(
+            DigestMismatchDetail {
+                source_uid: revision.uid.clone(),
+                document_key: document_key.to_string(),
+                path: candidate,
+                expected: record_digest.clone(),
+                actual,
+            },
+        )));
     }
     Ok(SourceVerificationState::VerifiedBytes)
 }

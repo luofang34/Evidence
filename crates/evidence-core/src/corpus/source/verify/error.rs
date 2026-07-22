@@ -106,23 +106,12 @@ pub enum SourcePayloadError {
         path: PathBuf,
     },
     /// The vendored payload bytes were read but digest differently
-    /// than the source revision declares.
-    #[error(
-        "vendored payload for source {source_uid} (document key {document_key}) \
-         at {path} digests to {actual}, but the record declares {expected}"
-    )]
-    DigestMismatch {
-        /// Uid of the source revision whose payload mismatches.
-        source_uid: String,
-        /// Document key of the source revision.
-        document_key: String,
-        /// Resolved payload path whose bytes were hashed.
-        path: PathBuf,
-        /// The digest the source revision declares.
-        expected: SourceContentDigest,
-        /// The digest of the exact bytes read from disk.
-        actual: SourceContentDigest,
-    },
+    /// than the source revision declares. Boxed because the payload
+    /// detail (uid, key, path, two digests) is large enough to trip
+    /// `result_large_err` on some platforms; the typed fields are
+    /// carried whole either way.
+    #[error(transparent)]
+    DigestMismatch(Box<DigestMismatchDetail>),
     /// The `sources.lock` entry for the head disagrees with the
     /// source revision record — the availability, capture mode, or
     /// digest bound in the lock differs from the record. Unreachable
@@ -160,4 +149,26 @@ pub enum SourcePayloadError {
         #[source]
         source: std::io::Error,
     },
+}
+
+/// The typed payload of [`SourcePayloadError::DigestMismatch`],
+/// boxed at the variant so the error enum stays small on every
+/// platform.
+#[derive(Debug, Error)]
+#[error(
+    "vendored payload for source {source_uid} (document key {document_key}) \
+     at {} digests to {actual}, but the record declares {expected}",
+    path.display()
+)]
+pub struct DigestMismatchDetail {
+    /// Uid of the source revision whose payload mismatches.
+    pub source_uid: String,
+    /// Document key of the source revision.
+    pub document_key: String,
+    /// Resolved payload path whose bytes were hashed.
+    pub path: PathBuf,
+    /// The digest the source revision declares.
+    pub expected: SourceContentDigest,
+    /// The digest of the exact bytes read from disk.
+    pub actual: SourceContentDigest,
 }

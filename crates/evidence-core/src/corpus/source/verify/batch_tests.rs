@@ -125,11 +125,8 @@ fn one_bad_payload_never_hides_later_findings() {
     assert!(
         matches!(
             &results[2].outcome,
-            Err(SourcePayloadError::DigestMismatch {
-                source_uid,
-                actual,
-                ..
-            }) if source_uid == SRC_3 && actual.as_str() == digest_of(altered)
+            Err(SourcePayloadError::DigestMismatch(detail))
+                if detail.source_uid == SRC_3 && detail.actual.as_str() == digest_of(altered)
         ),
         "the digest mismatch reports, got: {:?}",
         results[2].outcome

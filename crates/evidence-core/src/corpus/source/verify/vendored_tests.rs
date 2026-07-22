@@ -130,17 +130,12 @@ fn altered_bytes_report_expected_and_actual_digests() {
     assert!(
         matches!(
             &results[0].outcome,
-            Err(SourcePayloadError::DigestMismatch {
-                source_uid,
-                document_key,
-                path,
-                expected,
-                actual,
-            }) if source_uid == SRC_1
-                && document_key == DOC_1
-                && path.ends_with(VENDORED_PATH)
-                && expected.as_str() == declared
-                && actual.as_str() == digest_of(altered)
+            Err(SourcePayloadError::DigestMismatch(detail))
+                if detail.source_uid == SRC_1
+                && detail.document_key == DOC_1
+                && detail.path.ends_with(VENDORED_PATH)
+                && detail.expected.as_str() == declared
+                && detail.actual.as_str() == digest_of(altered)
         ),
         "altered bytes fail as DigestMismatch with both digests, got: {:?}",
         results[0].outcome

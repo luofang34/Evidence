@@ -87,7 +87,8 @@ pub use source::lock::{
     render_lock_canonical, validate_committed_lock,
 };
 pub use source::verify::{
-    SourcePayloadError, SourceVerification, SourceVerificationState, verify_effective_sources,
+    DigestMismatchDetail, SourcePayloadError, SourceVerification, SourceVerificationState,
+    verify_effective_sources,
 };
 
 #[cfg(test)]
