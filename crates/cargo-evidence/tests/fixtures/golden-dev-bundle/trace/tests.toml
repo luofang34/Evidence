@@ -1,0 +1,2440 @@
+[schema]
+version = "0.0.1"
+
+[meta]
+document_id = "TOOL-TESTS"
+revision = "1.0"
+
+[[tests]]
+uid = "c688bd6f-7514-43c4-97c5-d22cadba8e26"
+id = "TEST-001"
+title = "verify --format=jsonl happy path ends with VERIFY_OK"
+owner = "tool"
+traces_to = ["ef688fd5-21e0-4cf7-9ed5-b1819b5ae50d"]
+test_selector = "verify_jsonl::verify_ok_terminates_with_verify_ok_and_exit_zero"
+
+[[tests]]
+uid = "3da79a9f-157a-47e5-a6b6-a160c3854b43"
+id = "TEST-002"
+title = "stdout under --format=jsonl is strict JSONL"
+owner = "tool"
+traces_to = ["36491f32-293f-4f39-a2f5-cdb7e746330c"]
+test_selector = "verify_jsonl::verify_jsonl_stdout_is_strict_jsonl_only"
+
+[[tests]]
+uid = "0a9b48cb-7dae-4e49-903d-c5d92d8fac3c"
+id = "TEST-003"
+title = "DiagnosticCode impls are locked: regex + uniqueness"
+owner = "tool"
+traces_to = ["f2df39c3-48d2-4128-a037-82e6f9a2a0ab"]
+test_selector = "diagnostic_codes_locked::diagnostic_codes_locked"
+
+[[tests]]
+uid = "4d724f11-6be6-448b-a38a-b22f5c6549ce"
+id = "TEST-004"
+title = "Runtime-error JSONL path ends with VERIFY_ERROR terminal"
+owner = "tool"
+traces_to = ["217bd203-fa16-45a7-89ef-b3c42a589d57"]
+test_selector = "verify_jsonl::verify_runtime_error_ends_with_verify_error_terminal"
+
+[[tests]]
+uid = "9f2d6691-d7f0-4949-a4d4-ef87babedf24"
+id = "TEST-005"
+title = "FixHint::Other tolerates unknown kind payload"
+owner = "tool"
+traces_to = ["f0d8f7ed-60fa-4c56-8d71-7145d2bd85dd"]
+test_selector = "evidence_core::diagnostic::tests::fix_hint_unknown_kind_falls_back_to_other"
+
+[[tests]]
+uid = "1191eb4c-9891-48f3-852b-aaf879d437bc"
+id = "TEST-006"
+title = "GitSnapshot captures atomically via GitProvider"
+owner = "tool"
+traces_to = ["bed8bdf2-13f3-4823-8c07-dd74162e182d"]
+test_selector = "git_and_hashes::test_git_snapshot_with_mock_provider"
+
+[[tests]]
+uid = "67c0ccf5-3c99-48b6-bb8a-7689a7cce817"
+id = "TEST-007"
+title = "Cert profile requires rustc/cargo probes to succeed"
+owner = "tool"
+traces_to = ["59e86206-9a09-4bb9-bf41-ccd6e4bd0022"]
+test_selector = "git_and_hashes::test_cert_mode_strict_errors_missing_git"
+
+[[tests]]
+uid = "228d4c2c-cba8-4491-becd-acbbfd42d2fe"
+id = "TEST-008"
+title = "SHA256SUMS is byte-identical across re-runs"
+owner = "tool"
+traces_to = ["37164358-b015-4bf7-b66a-aebe442533b7"]
+test_selector = "cross_platform_determinism::sha256sums_contents_are_cross_platform_deterministic"
+
+[[tests]]
+uid = "595c2dba-91dc-4f6f-8d6c-c398c77d16f3"
+id = "TEST-009"
+title = "content_hash is cross-platform deterministic"
+owner = "tool"
+traces_to = ["c5b6d67a-603c-4e74-9197-10419a5495c0"]
+test_selector = "cross_platform_determinism::content_hash_is_cross_platform_deterministic"
+
+[[tests]]
+uid = "174385eb-99a8-4a23-a303-d97a70bf8d0f"
+id = "TEST-010"
+title = "TOCTOU mid-run SHA drift aborts finalize"
+owner = "tool"
+traces_to = ["65bf54da-9f0e-49a0-876e-ada775d65f0a"]
+test_selector = "bundle_lifecycle::test_toctou_detection"
+
+[[tests]]
+uid = "63a679ae-c101-48d0-8a8c-8771c25e4d80"
+id = "TEST-011"
+title = "Verify detects content-layer tampering"
+owner = "tool"
+traces_to = ["723bc544-3db6-4140-9708-4c003454bd05"]
+test_selector = "bundle_content::test_tampering_detection"
+
+[[tests]]
+uid = "b17bdfd6-9e68-4dc5-9b2c-f8444676b904"
+id = "TEST-012"
+title = "Verify detects env.json vs index.json profile drift"
+owner = "tool"
+traces_to = ["240aad6f-3111-4087-a3e2-8f59972b55d4"]
+test_selector = "verify_consistency::test_verify_detects_env_index_profile_mismatch"
+
+[[tests]]
+uid = "fb5d4772-2c56-4abd-9c13-abef0be37320"
+id = "TEST-013"
+title = "Verify rejects git source with non-hex SHA on cert"
+owner = "tool"
+traces_to = ["f00c60a2-f4e2-4d6a-a107-5a6a81489e6f"]
+test_selector = "verify_consistency::test_verify_rejects_git_source_with_nonhex_sha"
+
+[[tests]]
+uid = "e18d21f1-19cd-45aa-aa3c-773f685081b4"
+id = "TEST-014"
+title = "Verify rejects trace_outputs entries missing from SHA256SUMS"
+owner = "tool"
+traces_to = ["699b17f9-3e28-4af1-8949-b3d94c75ba8c"]
+test_selector = "verify_consistency::test_verify_rejects_phantom_trace_output_not_in_sha256sums"
+
+[[tests]]
+uid = "c818cd84-8d25-457e-b18e-a613c691964d"
+id = "TEST-015"
+title = "init-scaffolded template does not trip the policy-implementable gate"
+owner = "tool"
+traces_to = ["bb176fd9-7859-4ec1-bbc0-088d2518dc54"]
+test_selector = "cli::test_init_template_does_not_trip_policy_gate"
+
+[[tests]]
+uid = "a8bc1428-d088-40b5-8b9f-84c33667fc4c"
+id = "TEST-016"
+title = "Finding path ends with VERIFY_FAIL terminal on exit 2"
+owner = "tool"
+traces_to = ["77b0a3dc-2b31-4d25-a375-2bc51f5f6497"]
+test_selector = "verify_jsonl::verify_finding_emits_terminal_fail_and_exit_two"
+
+[[tests]]
+uid = "383598b3-4a32-470c-a73e-c4645e22fe6c"
+id = "TEST-017"
+title = "Verify with --json on nonexistent bundle returns JSON"
+owner = "tool"
+traces_to = ["c5f2b95b-5555-4261-a92c-76ce3ec2e5cf"]
+test_selector = "cli::test_verify_json_nonexistent"
+
+[[tests]]
+uid = "f7cd1dd3-8a82-4442-9c19-93f6729329af"
+id = "TEST-018"
+title = "schema show index prints the embedded schema"
+owner = "tool"
+traces_to = ["dfc19912-4b1f-4a0c-8e18-a66d6e0738c3"]
+test_selector = "cli::test_schema_show_index"
+
+[[tests]]
+uid = "e1316d7a-cbea-418f-8444-1da1ca110651"
+id = "TEST-019"
+title = "SYS→HLR→LLR→Test chain validates"
+owner = "tool"
+traces_to = ["7a74ec14-14e1-4876-914b-66c898028d56"]
+test_selector = "trace_sys_layer::sys_hlr_llr_test_chain_validates"
+
+[[tests]]
+uid = "ba80f1d3-65a0-44b7-afc7-85ca0fd1bc3c"
+id = "TEST-020"
+title = "Unwired --format=jsonl on an unwired subcommand hard-errors with terminal"
+owner = "tool"
+traces_to = ["00578a4a-d6fe-420a-92c3-3cf4cb3387d6"]
+test_selector = "verify_jsonl::unwired_diff_jsonl_is_rejected"
+
+[[tests]]
+uid = "09a155a3-efd5-4117-86e5-1e9fecafc106"
+id = "TEST-021"
+title = "Policy gate rejects HLR with empty traces_to"
+owner = "tool"
+traces_to = ["c4492c70-fa65-4e61-a201-9cd2d07c489a"]
+test_selector = "trace_sys_layer::require_hlr_sys_trace_rejects_empty_traces_to"
+
+[[tests]]
+uid = "ef0d337d-cea8-4adb-b5dd-48a09aeae72d"
+id = "TEST-022"
+title = "Selector resolver flags dangling pointers"
+owner = "tool"
+traces_to = ["4dd702cf-714a-4f70-9100-27770e1535c5"]
+test_selector = "trace_sys_layer::selector_check_flags_dangling_selector"
+
+[[tests]]
+uid = "f9278d5b-373f-4493-a607-0e105ac84a0a"
+id = "TEST-023"
+title = "Trace defaults to cert/trace when --trace-roots is absent"
+owner = "tool"
+traces_to = ["6be1b61b-0aeb-4c05-b2ef-f82fc7c00e55"]
+test_selector = "trace_discovery::trace_defaults_to_tool_trace_when_flag_absent"
+
+[[tests]]
+uid = "aecdd54a-7cd0-4ce9-9b09-68b3107462b6"
+id = "TEST-024"
+title = "CI yaml carries both enforcement flags"
+owner = "tool"
+traces_to = ["1f7977da-6692-45ad-8a29-72a1d3efa60a"]
+test_selector = "ci_self_check::ci_yaml_has_enforcement_flags"
+
+[[tests]]
+uid = "3dc79eb5-3ffc-4b04-ba4c-e2a2e458feeb"
+id = "TEST-025"
+title = "check dispatches source mode on a workspace directory"
+owner = "tool"
+traces_to = ["7df3b426-c9ea-426b-8fb9-64ce247312a0"]
+test_selector = "check_source_tree::check_source_mode_on_clean_workspace"
+
+[[tests]]
+uid = "e515c2c0-bf93-4768-8141-f4c0e5424301"
+id = "TEST-026"
+title = "REQ_GAP on blanked HLR.traces_to carries AddTomlKey FixHint"
+owner = "tool"
+traces_to = ["8738fc8e-353a-47d8-a6d4-e256673061d0"]
+test_selector = "check_source_tree::req_gap_on_blank_traces_to_has_fixhint"
+
+[[tests]]
+uid = "ea000db3-f2d2-44f0-9121-6c5f84192cd7"
+id = "TEST-027"
+title = "Derived REQ_GAPs carry root_cause_uid"
+owner = "tool"
+traces_to = ["03795ca7-d5d3-48bc-9774-490cd6d4c2e0"]
+test_selector = "check_source_tree::derived_gaps_carry_root_cause_uid"
+
+[[tests]]
+uid = "4650b356-6c50-4ea8-b548-e650ce923973"
+id = "TEST-028"
+title = "check bundle mode byte-matches verify --format=jsonl"
+owner = "tool"
+traces_to = ["7df3b426-c9ea-426b-8fb9-64ce247312a0"]
+test_selector = "check_bundle_mode::check_bundle_mode_matches_verify"
+
+[[tests]]
+uid = "ad68d844-d00a-4c4d-8963-0bfcb20f4e3b"
+id = "TEST-029"
+title = "rules --json emits stable JSON and --format=jsonl is rejected"
+owner = "tool"
+traces_to = ["0835d2e8-3a84-4a4a-97e0-46985be02892"]
+test_selector = "rules_cmd::rules_json_matches_rules_json_helper"
+
+[[tests]]
+uid = "06f559d1-7d02-4c7e-82ac-ef58aeb4bf53"
+id = "TEST-030"
+title = "Bijection fires when a code is added without a RULES entry"
+owner = "tool"
+traces_to = ["1e35264b-eda4-43ae-b991-fc325e8a2a79"]
+test_selector = "diagnostic_codes_locked::rules_contains_every_code"
+
+[[tests]]
+uid = "ea8a269b-ca43-4532-8d17-1958d1d68a30"
+id = "TEST-031"
+title = "Bijection fires when a code is not claimed by any LLR.emits"
+owner = "tool"
+traces_to = ["04d734bc-d8c5-4a1a-9fd4-4511abdc1476"]
+test_selector = "diagnostic_codes_locked::every_code_is_claimed_by_an_llr"
+
+[[tests]]
+uid = "350f209b-a63b-433b-8c66-fd3f46f4aeb2"
+id = "TEST-032"
+title = "RULES.terminal set equals TERMINAL_CODES"
+owner = "tool"
+traces_to = ["92fe3e5e-8a56-4f35-b01d-31d8607dc094"]
+test_selector = "diagnostic_codes_locked::rules_terminal_set_matches_terminal_codes"
+
+[[tests]]
+uid = "0ba72ddf-2264-43a6-9539-80b099f3e9a0"
+id = "TEST-033"
+title = "Committed golden JSONL fixtures byte-match current tool output"
+owner = "tool"
+traces_to = ["673ee175-fc1c-4720-919c-4beb915f3eea"]
+test_selector = "golden_fixtures::golden_rules_json_byte_diff"
+
+[[tests]]
+uid = "7c07f263-3e23-4ace-b668-ba54165f8ab0"
+id = "TEST-034"
+title = "Self-compliance baseline matches current generation"
+owner = "tool"
+traces_to = ["d091f446-f196-49cd-8360-fccc139d19d9"]
+test_selector = "self_compliance_baseline::baseline_matches_current_generation"
+
+[[tests]]
+uid = "ba385e00-6646-4a41-afe2-0aabdf4dafba"
+id = "TEST-035"
+title = "evidence_core::floors helpers return the committed current values"
+owner = "tool"
+traces_to = ["338d51d5-9068-4984-9826-4b84e698c62a"]
+test_selector = "evidence_core::floors::tests::current_measurements_satisfy_committed_floors"
+
+[[tests]]
+uid = "e5ec5aab-828f-4540-8bc6-20c586adf45f"
+id = "TEST-036"
+title = "cargo evidence floors fires FLOORS_BELOW_MIN on a tampered floor"
+owner = "tool"
+traces_to = ["74f50e68-3a78-4557-a7c3-13340e52543a"]
+test_selector = "floors_gate::floors_gate_fires_on_below_min_floor"
+
+[[tests]]
+uid = "3ddd0b31-da12-4e4e-ae4b-e91cd830588c"
+id = "TEST-037"
+title = "floors-lower-lint refuses unjustified numeric decreases"
+owner = "tool"
+traces_to = ["7fc5f9fc-83e2-44a0-b2d9-e6e1d8501349"]
+test_selector = "floors_lower_lint::refuses_decrease_without_justification_line"
+
+[[tests]]
+uid = "222fcee8-cd91-4ef4-9214-5c5e83cd2bea"
+id = "TEST-038"
+title = "HLR.surfaces bijection fires on orphan surface or unknown claim"
+owner = "tool"
+traces_to = ["e9e20795-fba7-4c63-bc6d-e76c3a3dada6"]
+test_selectors = [
+    "trace_decomposition::surface_unknown_fires_with_typed_code",
+    "trace_decomposition::surface_unclaimed_fires_with_typed_code",
+]
+
+[[tests]]
+uid = "79466752-19d0-4c49-85e8-3e71a13c3a60"
+id = "TEST-039"
+title = "test_selectors accepts StringOrVec shorthand and array"
+owner = "tool"
+traces_to = ["1fd29203-a496-494a-b981-cf6730172f50"]
+test_selector = "trace_decomposition::test_selectors_deserializes_both_shapes"
+
+[[tests]]
+uid = "442b55a6-b374-4f6a-aabf-1ee6c7f89df1"
+id = "TEST-040"
+title = "DerivedEntry without rationale fires TRACE_DERIVED_MISSING_RATIONALE"
+owner = "tool"
+traces_to = ["9968bdb9-3e20-40c9-ad84-3310621bd102"]
+test_selector = "derived_trace_validation::derived_missing_rationale_fires_at_dal_a"
+
+[[tests]]
+uid = "f1b8ebca-d919-4810-b0ca-81f3c39b3095"
+id = "TEST-041"
+title = "LinkError variants each fire with the right code"
+owner = "tool"
+traces_to = ["297a6b28-9a54-4581-abeb-6b8ff33bb9c7"]
+description = """
+Matrix test over every LinkError variant: constructs the minimal
+trace input that trips each rule, asserts the returned
+`TraceValidationError::Link { errors }` contains exactly one
+LinkError whose `code()` matches the expected TRACE_* string.
+Flips the PR #49-era prose-contains assertions in
+trace_decomposition.rs to code-equals.
+"""
+test_selectors = [
+    "trace_decomposition::surface_unknown_fires_with_typed_code",
+    "trace_decomposition::surface_unclaimed_fires_with_typed_code",
+]
+
+[[tests]]
+uid = "453db165-a0b4-45d3-9c12-895537b2f067"
+id = "TEST-042"
+title = "trace --validate --format=jsonl emits one event per LinkError"
+owner = "tool"
+traces_to = ["61f2c36a-0d47-4485-acca-f2d4403ec339"]
+description = """
+Spawns `cargo evidence trace --validate --format=jsonl` over a
+tampered trace root with N known violations; asserts stdout
+contains exactly N JSONL events before the terminal, each with
+the right `code` field and non-empty `location.file`.
+"""
+test_selectors = ["trace_cmd_jsonl::trace_validate_jsonl_emits_per_variant"]
+
+[[tests]]
+uid = "adcc0fe7-e6c4-4f27-a04d-025b96b9fbec"
+id = "TEST-043"
+title = "RULES manifest includes every LinkError code; bijection closed"
+owner = "tool"
+traces_to = ["becd7d00-a7e4-435b-9f06-398494529ab7"]
+description = """
+`diagnostic_codes_locked` already enforces walker⇔RULES⇔LLR.emits
+bijection; TEST-043 is the explicit regression that every
+LinkError variant's code appears in RULES and is claimed by
+LLR-041's `emits` list. Fires if a new variant lands without the
+matching RULES + LLR edits.
+"""
+test_selectors = ["diagnostic_codes_locked::link_error_codes_in_rules_and_claimed"]
+
+[[tests]]
+uid = "1c2ce9ee-2675-4b5d-8eca-550a2b634738"
+id = "TEST-044"
+title = "rot-prone marker gate: comment-scoped Rust scanning, dogfoods, clean-tree regression"
+owner = "tool"
+traces_to = ["d5fa6b1b-315e-4cce-9a39-085cd266f4ad"]
+description = """
+Positive dogfoods: every banned-narration shape in Rust comments —
+line, outer doc, inner doc, block, multi-line block (hit reported
+at the middle line), and nested block — fires the gate. Negative
+dogfoods: the same words inside string literals, raw strings (any
+hash count), URLs, char literals, and lifetimes stay runtime data
+and do not fire. Also asserts the workspace's current tree is
+clean, that the exemption mechanism carries no `path:line` pins,
+and that a clean fixture passes.
+"""
+test_selectors = [
+    "rot_prone_markers_locked::current_tree_is_clean",
+    "rot_prone_markers_locked::fires_on_banned_pattern",
+    "rot_prone_markers_locked::fires_on_bare_issue_number",
+    "rot_prone_markers_locked::fires_on_temporal_phrasing",
+    "rot_prone_markers_locked::does_not_fire_on_upstream_refs_or_ordinals",
+    "rot_prone_markers_locked::passes_on_clean_fixture",
+    "rot_prone_markers_locked::reserved_text_refs_carry_no_line_pins",
+    "rot_prone_markers_locked::rust_comments::fires_on_line_comment_temporal",
+    "rot_prone_markers_locked::rust_comments::fires_on_outer_doc_comment_temporal",
+    "rot_prone_markers_locked::rust_comments::fires_on_inner_doc_comment_temporal",
+    "rot_prone_markers_locked::rust_comments::fires_on_block_comment_temporal",
+    "rot_prone_markers_locked::rust_comments::fires_on_multiline_block_comment_middle_line",
+    "rot_prone_markers_locked::rust_comments::fires_on_nested_block_comment",
+    "rot_prone_markers_locked::rust_comments::still_fires_on_comment_after_tricky_literals",
+    "rot_prone_markers_locked::rust_comments::does_not_fire_on_string_literal_data",
+    "rot_prone_markers_locked::rust_comments::does_not_fire_on_double_hash_raw_string",
+    "rot_prone_markers_locked::rust_comments::does_not_fire_on_url_in_string",
+    "rot_prone_markers_locked::rust_comments::does_not_fire_on_char_literal_and_lifetime",
+]
+
+[[tests]]
+uid = "e6740452-a38f-4bee-b7ce-34d1f7227a66"
+id = "TEST-045"
+title = "cross-time determinism lint accepts match, rejects silent drift, honors override"
+owner = "tool"
+traces_to = ["7539445f-e53f-4300-80fa-ecf12948e121"]
+description = """
+Integration tests for the baseline-override lint script.
+Positive (match): two manifests with identical toolchain
+projections → exit 0.
+Drift-without-override: differing projections + empty PR body →
+exit 1 with instructions.
+Drift-with-override: differing projections + PR body containing
+`Override-Deterministic-Baseline: dep bump` → exit 0 with a
+logged notice.
+Missing-prior-artifact fallback: bundle path doesn't exist →
+exit 0 (degraded skip).
+"""
+test_selectors = [
+    "cross_time_determinism::match_exit_zero",
+    "cross_time_determinism::drift_without_override_fails",
+    "cross_time_determinism::drift_with_override_passes",
+    "cross_time_determinism::drift_with_override_in_commit_message_passes",
+    "cross_time_determinism::override_in_commit_when_pr_body_has_unrelated_prose_passes",
+    "cross_time_determinism::missing_prior_artifact_is_skip",
+    "cross_time_determinism::override_without_reason_does_not_pass",
+    "cross_time_determinism::malformed_current_manifest_exit_two",
+    "cross_time_determinism::git_state_fields_are_projected_out",
+]
+
+[[tests]]
+uid = "9fc1181b-aa76-4a1b-b7c5-06928911bcce"
+id = "TEST-046"
+title = "trace-ID reference bijection fires on ghost ref, passes on clean tree"
+owner = "tool"
+traces_to = ["b269e51d-f656-4ecc-832e-8004a287a790"]
+description = """
+Positive + negative + current-tree-clean assertions:
+- Fixture with a ghost LLR-999 ref fires the gate (exit nonzero
+  with file:line listing).
+- Fixture with only resolvable refs passes.
+- The committed workspace tree is free of stale refs (the
+  load-bearing regression).
+"""
+test_selectors = [
+    "trace_id_refs_locked::current_tree_is_clean",
+    "trace_id_refs_locked::fires_on_ghost_reference",
+    "trace_id_refs_locked::passes_on_clean_fixture",
+]
+
+[[tests]]
+uid = "8ac6516a-d40f-4fb5-9d7a-7f41a8a9c5ff"
+id = "TEST-047"
+title = "walker-usage gate fires on unallowlisted fs::read_dir, passes on allowlisted file"
+owner = "tool"
+traces_to = ["dfa658f2-e6f3-4931-be56-78e2de986214"]
+description = """
+Positive + negative + current-tree-clean assertions:
+- Fixture that plants a raw `fs::read_dir(` call in an
+  unallowlisted file fires the gate.
+- Fixture placed at an allowlisted path (`tests/verify_jsonl.rs`
+  shape) passes even when it contains the banned substring.
+- The committed workspace tree is free of unallowlisted recursive
+  walkers (the load-bearing regression).
+"""
+test_selectors = [
+    "walker_usage_locked::no_unauthorized_read_dir",
+    "walker_usage_locked::fires_on_unallowlisted_call",
+    "walker_usage_locked::passes_on_allowlisted_file",
+]
+
+[[tests]]
+uid = "11c798f0-62c9-4669-9cc5-2f596544cfb9"
+id = "TEST-048"
+title = "cargo evidence doctor passes on rigorous fixture, fails on sloppy fixture, blocks cert generate"
+owner = "tool"
+traces_to = ["ec50f98b-9a1d-4f7b-bc33-df56c7faab2a"]
+description = """
+Integration tests in `crates/cargo-evidence/tests/doctor_cmd.rs`:
+- Rigorous fixture (synthetic repo with cert/trace, cert/floors.toml,
+  cert/boundary.toml, .github/workflows/ci.yml mentioning cargo
+  evidence, README with `Override-Deterministic-Baseline:`) exits 0
+  with `DOCTOR_OK` terminal and one `_OK` diagnostic per check.
+- Sloppy fixture (missing trace + floors + boundary) exits 2 with
+  `DOCTOR_FAIL` terminal; stream contains `DOCTOR_TRACE_INVALID`,
+  `DOCTOR_FLOORS_MISSING`, `DOCTOR_BOUNDARY_MISSING` with
+  `severity=error`.
+- Cert-profile integration: `generate --profile cert` against the
+  sloppy fixture exits non-zero with a `GENERATE_ERROR` terminal
+  whose diagnostic enumerates the triggered doctor codes, proving
+  the audit runs BEFORE bundle assembly.
+- Self-dogfood: the current workspace passes `cargo evidence
+  doctor` (load-bearing regression — if the tool's own rigor
+  slips below its published checklist, this test fires).
+"""
+test_selectors = [
+    "doctor_cmd::rigorous_fixture_passes",
+    "doctor_cmd::sloppy_fixture_fails_with_named_codes",
+    "doctor_cmd::cert_generate_blocks_on_doctor_fail",
+    "doctor_cmd::current_workspace_passes_doctor",
+]
+
+[[tests]]
+uid = "2856e53c-8c90-42e8-ad9b-3da6f3a14a25"
+id = "TEST-049"
+title = "Pre-release tool flag propagates into env.json, blocks verify under cert/record, passes dev"
+owner = "tool"
+traces_to = ["548b7b36-1d03-487d-a6a1-f2b37bdee2a1"]
+description = """
+Four assertions:
+- `is_prerelease_version` correctly classifies `0.1.0-pre.1`,
+  `0.0.1-alpha.2`, `1.0.0-rc.3` as pre-release and `0.1.0`,
+  `1.0.0+build.42` as release (pure detection).
+- `EnvFingerprint` round-trips `tool_prerelease` through serde;
+  absent field deserializes as `false` (backwards compat for
+  older bundles that predate the flag).
+- Verify dev on a bundle with `tool_prerelease = true` exits 0
+  and emits `VERIFY_PRERELEASE_TOOL` at warning severity (not
+  terminal).
+- Verify cert on the same bundle exits 2 with
+  `VERIFY_PRERELEASE_TOOL` error + `VERIFY_FAIL` terminal.
+
+The generate-time warning banner in `init_builder` is a
+`tracing::warn!` gated on the compile-time const
+`TOOL_IS_PRERELEASE`. Exercising it would require rebuilding
+the CLI with a pre-release `CARGO_PKG_VERSION`; it is verified
+by manual dogfood each time a pre-release publish is cut.
+"""
+test_selectors = [
+    "evidence_core::env::capture::prerelease_tests::classifies_semver_shapes",
+    "evidence_core::env::fingerprint::tests::tool_prerelease_explicit_true_roundtrips",
+    "verify_prerelease::dev_profile_warning_passes",
+    "verify_prerelease::cert_profile_blocks_with_verify_fail",
+]
+
+[[tests]]
+uid = "539ac44a-c3d1-455e-9e6a-0d45d1c7528a"
+id = "TEST-050"
+title = "evidence-mcp smoke tests exercise rules, doctor, and check over the MCP surface"
+owner = "tool"
+traces_to = ["65b81ee1-b646-490e-8c1b-c2f9ad183970"]
+description = """
+Five assertions that pin the MCP wrapper's pass-through
+contract to the published CLI:
+
+- `evidence_rules` round-trips the rules manifest; the
+  returned `count` equals `evidence_core::RULES.len()`.
+  Catches any future drift between CLI output shape and the
+  library source-of-truth const via the full MCP surface.
+- `evidence_rules` returns `exit_code == 0` on success —
+  pins the exit-code wiring so later changes to rmcp
+  result-conversion don't silently drop the signal.
+- `evidence_doctor` on the tool's own repository returns
+  `terminal == "DOCTOR_OK"` and `exit_code == 0`. Mirrors
+  the CLI's `doctor_cmd::current_workspace_passes_doctor`
+  through the MCP layer.
+- `evidence_check` (source mode) on an empty tempdir returns
+  a structured failure — `terminal` is either
+  `"VERIFY_FAIL"` or `"CLI_INVALID_ARGUMENT"`, exit_code
+  is 2. Specifically does NOT panic or return an rmcp
+  transport error: a failed underlying command must still
+  produce a well-formed MCP tool response.
+- `evidence_check` (source mode) on the tool's own repository
+  returns `terminal == "VERIFY_OK"`. Opt-in via
+  `MCP_RUN_LONG_CHECK=1` env / `cargo test -- --ignored`
+  because it spawns `cargo test --workspace` under nested
+  cargo-test contexts (historical `target/` lock contention;
+  see `crates/cargo-evidence/src/cli/check.rs:191-196`).
+
+The rmcp integration uses in-process client/server pairs if
+exposed at 1.5.0; falls back to spawning the release binary
+via `assert_cmd` if not.
+"""
+test_selectors = [
+    "mcp_surface::evidence_rules_count_matches_library_const",
+    "mcp_surface::evidence_rules_exit_code_zero_on_success",
+    "mcp_surface::evidence_doctor_on_self_repo_passes",
+    "mcp_surface::evidence_check_source_on_empty_dir_fails_gracefully",
+]
+
+[[tests]]
+uid = "d5b838db-5b8a-44c8-ac32-0b1ce95ff3b3"
+id = "TEST-051"
+title = "Per-test outcomes round-trip: libtest text → failure_message populated → jsonl → compliance upgrade"
+owner = "tool"
+traces_to = ["75e00b58-28a5-42d2-b4c9-57193c06093b"]
+description = """
+Four assertions across the parser extension, the bundle
+artifact, and the compliance wire-up:
+
+- `parse_cargo_test_output_with_outcomes` captures the panic
+  message from a libtest failure-block into
+  `failure_message` on the corresponding `Failed` outcome.
+  Golden-fixture input
+  (`crates/evidence-core/tests/fixtures/libtest_failure_sample.txt`)
+  → byte-exact expected map.
+
+- Edge cases — empty stdout, no failures, multi-failure
+  (failure blocks for N different tests all captured
+  independently), and a malformed block (fallback to
+  `TESTS_OUTCOME_PARSE_FAILED`, graceful degradation).
+
+- End-to-end bundle shape — `cargo evidence generate` on a
+  workspace writes `tests/test_outcomes.jsonl` at the bundle
+  root. Every line parses as a `TestOutcomeRecord`. Required
+  keys present: `name`, `module_path`, `passed`, `ignored`.
+  File is hashed into `SHA256SUMS`.
+
+- Compliance emitter upgrades `A7-3` from `Partial` → `Met`
+  when every failed-test record carries a non-empty
+  `failure_message`; stays `Partial` otherwise.
+"""
+test_selectors = [
+    "evidence_core::bundle::test_summary::detailed::tests::parse_failure_block_captures_message",
+    "evidence_core::bundle::test_summary::detailed::tests::parse_tolerates_missing_failure_block",
+    "evidence_core::bundle::outcome_record::tests::jsonl_roundtrip",
+    "evidence_core::compliance::status::tests::a7_3_upgrades_to_met_with_per_test_outcomes",
+    "evidence_core::bundle::outcome_record::tests::write_outcomes_jsonl_end_to_end",
+]
+
+[[tests]]
+uid = "da6f4884-9fdc-45bc-b6f7-21f115103ee2"
+id = "TEST-052"
+title = "Dangling LLR (test-verified, no matching test record) fires VERIFY_LLR_TEST_SELECTOR_UNRESOLVED"
+owner = "tool"
+traces_to = ["4bd86c6c-1743-4a78-9d17-c284b3ad8e04"]
+test_selectors = [
+    "evidence_core::verify::llr_selectors::tests::llr_with_no_matching_test_outcome_fires_unresolved",
+    "evidence_core::verify::llr_selectors::tests::llr_present_in_requirement_uids_passes",
+]
+
+[[tests]]
+uid = "1a56e1f7-4d7b-42a6-b242-16d4df9d74b9"
+id = "TEST-053"
+title = "cargo llvm-cov export parser + graceful degradation on missing binary"
+owner = "tool"
+traces_to = ["ed4284df-5a2e-4241-bbd9-e744edd43f79"]
+test_selectors = [
+    "evidence_core::coverage::llvm_cov_json::tests::parses_trivial_export",
+    "evidence_core::coverage::llvm_cov_json::tests::normalizes_absolute_paths_to_workspace_relative",
+    "evidence_core::coverage::report::tests::coverage_report_roundtrips_json",
+    "coverage_e2e::coverage_none_does_not_invoke_llvmcov",
+    "coverage_e2e::coverage_line_on_dev_degrades_gracefully_when_llvmcov_missing",
+]
+
+[[tests]]
+uid = "1c3bf7f3-6b30-490c-a299-36667f7ed909"
+id = "TEST-054"
+title = "MCP handlers reject unknown-field typos + surface workspace-fallback signal"
+owner = "tool"
+traces_to = ["02c17b07-0364-4769-ae43-e86a139c25c3"]
+test_selectors = [
+    "mcp_surface::evidence_check_rejects_unknown_field_typo",
+    "mcp_surface::evidence_check_missing_workspace_path_emits_fallback_signal",
+]
+
+[[tests]]
+uid = "03576b1a-f72e-4ab9-a8f8-f5d1110f85c2"
+id = "TEST-055"
+title = "Derived-requirement traces_to references resolve in cmd_trace validation"
+owner = "tool"
+traces_to = ["4e98e1d9-6017-425e-b613-52853e97c2f3"]
+test_selectors = ["derived_trace_validation::derived_uids_resolve_in_trace_validation"]
+
+[[tests]]
+uid = "08d7bcfb-bab9-406d-9acd-8da679cce356"
+id = "TEST-056"
+title = "parser populates BranchCoverage structurally; None at Statement, Some at Branch (normal + BVA)"
+owner = "tool"
+traces_to = ["5ff642cf-c33c-4775-8573-1da2ac04cdba"]
+test_selectors = [
+    "evidence_core::coverage::llvm_cov_json::tests::branch_level_populates_branches_field_statement_leaves_none",
+    "evidence_core::coverage::llvm_cov_json::tests::zero_branches_file_parses_as_some_zero_zero",
+    "evidence_core::coverage::llvm_cov_json::tests::all_branches_covered_preserves_equal_counts",
+    "evidence_core::coverage::report::tests::pre_branch_split_bundle_deserializes_with_none",
+    "evidence_core::coverage::report::tests::branches_none_is_omitted_not_null_in_json",
+]
+
+[[tests]]
+uid = "33d5f462-f1b6-4176-8fe5-47de0cacb083"
+id = "TEST-057"
+title = "aggregate_lines_percent normal + robustness + BVA"
+owner = "tool"
+traces_to = ["a95ed852-94ba-499b-bd17-76d26b75ebe5"]
+test_selectors = [
+    "evidence_core::coverage::thresholds::tests::aggregate_lines_normal_three_files_weighted_average",
+    "evidence_core::coverage::thresholds::tests::aggregate_lines_robustness_empty_per_file_returns_zero",
+    "evidence_core::coverage::thresholds::tests::aggregate_lines_robustness_single_file_zero_total_returns_zero",
+    "evidence_core::coverage::thresholds::tests::aggregate_lines_bva_one_over_one_is_hundred",
+    "evidence_core::coverage::thresholds::tests::aggregate_lines_bva_zero_over_one_is_zero",
+    "evidence_core::coverage::thresholds::tests::aggregate_lines_bva_forty_two_over_hundred_is_exact",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_lines_sums_line_field_only",
+]
+
+[[tests]]
+uid = "78b4217f-700b-4058-959b-5f8c1e7170f4"
+id = "TEST-058"
+title = "aggregate_branches_percent normal + robustness + BVA (incl. bug-fix anchor)"
+owner = "tool"
+traces_to = ["84c30007-3c84-4d23-bdf8-f540339b507a"]
+test_selectors = [
+    "evidence_core::coverage::thresholds::tests::aggregate_branches_normal_two_files_sum_to_half",
+    "evidence_core::coverage::thresholds::tests::aggregate_branches_robustness_none_file_contributes_nothing",
+    "evidence_core::coverage::thresholds::tests::aggregate_branches_robustness_all_none_returns_zero",
+    "evidence_core::coverage::thresholds::tests::aggregate_branches_robustness_empty_per_file_returns_zero",
+    "evidence_core::coverage::thresholds::tests::aggregate_branches_bva_zero_zero_single_file_returns_zero",
+    "evidence_core::coverage::thresholds::tests::aggregate_branches_bva_all_covered_is_hundred",
+    "evidence_core::coverage::thresholds::tests::aggregate_branches_ignores_line_counts_at_branch_level",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_branches_reads_branches_not_lines",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_branches_robustness_all_none_returns_zero",
+    "evidence_core::bundle::builder_coverage::tests::aggregate_branches_bva_zero_zero_single_file_returns_zero",
+]
+
+[[tests]]
+uid = "a1d3ac91-35ed-4171-8646-1e3cce4c3e96"
+id = "TEST-059"
+title = "evaluate_thresholds normal + robustness + BVA (strict <, per-level dispatch)"
+owner = "tool"
+traces_to = ["b1377fb5-f879-4edc-9c50-46c5e67c71ad"]
+test_selectors = [
+    "evidence_core::coverage::thresholds::tests::threshold_normal_branch_below_dalb_statement_above",
+    "evidence_core::coverage::thresholds::tests::threshold_robustness_none_threshold_skips_check",
+    "evidence_core::coverage::thresholds::tests::threshold_robustness_measurement_absent_no_violation",
+    "evidence_core::coverage::thresholds::tests::threshold_bva_exact_equality_passes",
+    "evidence_core::coverage::thresholds::tests::threshold_bva_just_below_fires",
+    "evidence_core::coverage::thresholds::tests::threshold_integration_high_lines_low_branches_fires_branch_only",
+]
+
+[[tests]]
+uid = "64b360d1-a9be-4097-a011-ed6f0625fe1c"
+id = "TEST-060"
+title = "load_max_dal derives trace DAL as max over dal_map; normal + robustness + BVA"
+owner = "tool"
+traces_to = ["a88f2efa-7aa7-4bfc-9554-610a906f2e2e"]
+test_selectors = [
+    "doctor_max_dal::override_raises_dal_past_qualification_gate",
+    "doctor_max_dal::no_override_at_default_d_leaves_gate_skipped",
+    "doctor_max_dal::empty_in_scope_falls_back_to_default_dal_not_hard_d",
+    "doctor_max_dal::mixed_overrides_take_highest",
+    "doctor_max_dal::single_crate_at_dal_c_fires_gate_inclusively",
+]
+
+[[tests]]
+uid = "cff40a9c-4036-4918-99e3-0611bee227c8"
+id = "TEST-061"
+title = "trace_validation_passed honesty — A3-6 / A4-6 Met/Partial/NotMet per (has_trace, passed) matrix"
+owner = "tool"
+traces_to = ["d67f45bf-c9d0-4f2a-87d1-0dfbf14d9262"]
+test_selectors = [
+    "compliance_trace_honesty::a3_6_normal_passed_and_present_is_met",
+    "compliance_trace_honesty::a4_6_normal_passed_and_present_is_met",
+    "compliance_trace_honesty::a3_6_robustness_warned_continuing_is_partial",
+    "compliance_trace_honesty::a4_6_robustness_warned_continuing_is_partial",
+    "compliance_trace_honesty::a3_6_partial_carries_reason_naming_the_gap",
+    "compliance_trace_honesty::a3_6_bva_no_trace_data_is_notmet_even_when_passed_true",
+    "compliance_trace_honesty::a3_6_bva_no_trace_data_is_notmet_even_when_passed_false",
+    "compliance_trace_honesty::a3_6_notmet_reason_is_no_trace_data_not_validation_failure",
+]
+
+[[tests]]
+uid = "4af1f209-8ef9-49c5-8f7f-a856ad363e93"
+id = "TEST-062"
+title = "initialize handshake advertises evidence-mcp identity, not rmcp default"
+owner = "tool"
+traces_to = ["c3290288-af0f-4177-9ac4-1cfbc6f4de83"]
+test_selectors = ["mcp_surface::initialize_server_info_advertises_evidence_mcp_identity"]
+
+[[tests]]
+uid = "3c38c10a-e399-4712-9b62-41dca06f529e"
+id = "TEST-118"
+title = "initialize handshake pins rmcp protocol negotiation (echoes 2024-11-05; latest supported is 2025-11-25)"
+owner = "tool"
+traces_to = ["c3290288-af0f-4177-9ac4-1cfbc6f4de83"]
+test_selector = "mcp_initialize_surface::initialize_protocol_negotiation_is_pinned"
+
+[[tests]]
+uid = "32fad80a-0d58-46cd-80bc-f52d76ed5ce0"
+id = "TEST-063"
+title = "detect_with_probe + skew_diagnostic normal / robustness / BVA"
+owner = "tool"
+traces_to = ["6c371c79-f9fa-498d-9e11-07c7d75533a9"]
+test_selectors = [
+    "evidence_mcp::version_probe::tests::normal_matching_versions_yield_matched_no_diagnostic",
+    "evidence_mcp::version_probe::tests::robustness_differing_versions_yield_skewed_with_both_strings",
+    "evidence_mcp::version_probe::tests::robustness_probe_error_yields_probe_failed_with_reason",
+    "evidence_mcp::version_probe::tests::bva_empty_probe_output_treated_as_probe_failed",
+    "evidence_mcp::version_probe::tests::bva_prerelease_suffix_counts_as_skew",
+]
+
+[[tests]]
+uid = "41ebd13a-0384-48fa-b27d-1cfa9dda8d1b"
+id = "TEST-064"
+title = "MCP tool-layer failures surface as structured diagnostics with MCP_* codes"
+owner = "tool"
+traces_to = ["759ac6b4-ef4c-4d1d-8bfc-79f07ecef6eb"]
+description = """
+Pins the four legs of LLR-064's contract:
+
+- `RunError::code` returns the declared `MCP_*` string for
+  each enum variant (catches a future variant landing
+  without a code at the type).
+- `parse_jsonl` synthesizes `MCP_MALFORMED_JSONL` and
+  `MCP_NO_OUTPUT` with the prefix-aligned names.
+- `evidence_check` invoked with a `PATH` that cannot
+  resolve `cargo` returns a well-formed `JsonlToolResponse`
+  carrying `MCP_CARGO_NOT_FOUND` in its `diagnostics` and
+  `exit_code == 2`.
+- Every code in `HAND_EMITTED_MCP_CODES` appears as a string
+  literal somewhere under `crates/evidence-mcp/src`. Mirrors
+  the `every_doctor_code_emitted_in_source` meta-check on the
+  CLI hand-emitted set — keeps the MCP registry anchored to
+  real emit sites.
+"""
+test_selectors = [
+    "evidence_mcp::subprocess::tests::run_error_code_is_self_describing",
+    "evidence_mcp::subprocess::tests::parse_jsonl_empty_stream_is_mcp_no_output",
+    "evidence_mcp::subprocess::tests::parse_jsonl_malformed_line_surfaces_mcp_marker",
+    "mcp_failure_surface::evidence_check_cargo_not_found_returns_structured_diagnostic",
+    "mcp_codes_audit::every_mcp_code_emitted_in_source",
+]
+
+[[tests]]
+uid = "e7e350a1-0aaf-4ece-b73d-cfcdcd68d569"
+id = "TEST-065"
+title = "EVIDENCE_MCP_TIMEOUT_SECS overrides spawn cap; out-of-range clamps"
+owner = "tool"
+traces_to = ["acd0506f-3442-45f4-9256-fcde9d1b82ce"]
+description = """
+Pins the three legs of LLR-065's contract:
+
+- Unset / empty / malformed env yields the 600-second default
+  and does not panic.
+- Valid in-range values become the effective timeout.
+- Out-of-range values (below 60 or above 7200) clamp to the
+  nearest bound and the diagnostic's `timeout_secs` reports
+  the clamped value.
+- A `cargo evidence` spawn that exceeds the effective timeout
+  surfaces as `MCP_SUBPROCESS_TIMEOUT` at the MCP surface
+  (structured `JsonlToolResponse`, `exit_code == 2`).
+"""
+test_selectors = [
+    "evidence_mcp::subprocess::tests::resolve_timeout_defaults_when_env_unset",
+    "evidence_mcp::subprocess::tests::resolve_timeout_defaults_when_env_empty",
+    "evidence_mcp::subprocess::tests::resolve_timeout_parses_valid_value",
+    "evidence_mcp::subprocess::tests::resolve_timeout_clamps_below_minimum",
+    "evidence_mcp::subprocess::tests::resolve_timeout_clamps_above_maximum",
+    "evidence_mcp::subprocess::tests::resolve_timeout_falls_back_on_malformed_env",
+]
+
+[[tests]]
+uid = "b5c6d5ba-432a-4447-b7d1-d978c8d816a0"
+id = "TEST-066"
+title = "evidence_ping returns matched/skewed/probe_failed with mcp/cli version strings"
+owner = "tool"
+traces_to = ["1f75c55d-4091-4d86-a429-e9954575ae03"]
+description = """
+Pins the three shape legs of LLR-066's contract:
+
+- Matched: the self-repo's cargo-evidence matches the
+  evidence-mcp version; `skew == "matched"`, `cli_version ==
+  Some(mcp_version)`, `probe_error == None`.
+- Skewed / ProbeFailed: unit-tested at the response-builder
+  level with fabricated `VersionSkew` values (surface tests
+  cannot force the real probe to return arbitrary strings
+  without spawning a fake cargo; the builder level gives
+  deterministic coverage without flakiness).
+- Input contract: `#[serde(deny_unknown_fields)]` rejects a
+  typo'd argument, matching the convention set for the other
+  three MCP verbs (HLR-054).
+"""
+test_selectors = [
+    "mcp_ping_surface::evidence_ping_matched_returns_versions_and_matched_skew",
+    "mcp_ping_surface::evidence_ping_rejects_unknown_field_typo",
+    "evidence_mcp::server::responses::tests::ping_response_shapes_for_matched_skewed_probe_failed",
+]
+
+[[tests]]
+uid = "65e2d3df-102f-403d-9973-aabc3c0f7c2c"
+id = "TEST-067"
+title = "evidence_floors pipes the CLI's JSONL stream through the MCP surface"
+owner = "tool"
+traces_to = ["bb4cf169-cb26-4c99-b647-3854406e33f2"]
+description = """
+Pins the three shape legs of LLR-067's contract:
+
+- `evidence_floors` on the self-repo terminates with
+  `FLOORS_OK` (the workspace's ratchet gate is green) and
+  carries `FLOORS_DIMENSION_OK` entries in `diagnostics` —
+  one per measured dimension.
+- Omitting `workspace_path` prepends `MCP_WORKSPACE_FALLBACK`
+  as the first diagnostic (same convention as the other
+  streaming verbs).
+- `#[serde(deny_unknown_fields)]` on `FloorsRequest` rejects a
+  typo'd argument at the MCP layer rather than falling
+  through to the CLI.
+"""
+test_selectors = [
+    "mcp_floors_surface::evidence_floors_on_self_repo_terminates_with_floors_ok",
+    "mcp_floors_surface::evidence_floors_missing_workspace_path_emits_fallback_signal",
+    "mcp_floors_surface::evidence_floors_rejects_unknown_field_typo",
+]
+
+[[tests]]
+uid = "abd7c310-bce2-4da6-b7bd-702e78893a2d"
+id = "TEST-068"
+title = "evidence_diff returns the CLI's structured diff blob"
+owner = "tool"
+traces_to = ["ad4f1565-8ad1-46fa-b516-377e676052e7"]
+description = """
+Pins the three shape legs of LLR-068's contract:
+
+- `evidence_diff` on two nonexistent bundle paths surfaces a
+  tool-layer failure with `diff == null`, `error` carrying a
+  well-formed MCP_* diagnostic, and `exit_code == 2`. This
+  also exercises the plumbing end-to-end (handler wiring,
+  schema serialization, `deny_unknown_fields` tolerance of a
+  valid but failing request).
+- `#[serde(deny_unknown_fields)]` on `DiffRequest` rejects a
+  typo'd argument at the MCP layer.
+- Missing required arguments (either `bundle_a_path` or
+  `bundle_b_path`) fail at deserialization, not silently.
+"""
+test_selectors = [
+    "mcp_diff_surface::evidence_diff_on_missing_bundles_surfaces_structured_error",
+    "mcp_diff_surface::evidence_diff_rejects_unknown_field_typo",
+    "mcp_diff_surface::evidence_diff_rejects_missing_required_arguments",
+]
+
+[[tests]]
+uid = "c0135830-dc4a-4dcf-9ec8-871cec30e3ad"
+id = "TEST-069"
+title = "tools/list advertises every MCP verb the server claims to expose"
+owner = "tool"
+traces_to = ["65b81ee1-b646-490e-8c1b-c2f9ad183970"]
+description = """
+Drift-prevention pin on the rmcp `ToolRouter` registration.
+A regression that silently drops a `#[tool]` method from the
+generated router (for example, a macro-expansion failure that
+skips one method) would pass the per-verb surface tests but
+leave the dropped verb absent from `tools/list`. The test
+issues a `tools/list` request after the init handshake and
+asserts that all six advertised verbs
+(`evidence_rules`, `evidence_doctor`, `evidence_check`,
+`evidence_ping`, `evidence_floors`, `evidence_diff`) appear
+in the response.
+"""
+test_selectors = ["mcp_surface::tools_list_advertises_all_six_verbs"]
+
+[[tests]]
+uid = "1ad01fde-ee89-4f0f-9213-8d3cd8321eec"
+id = "TEST-070"
+title = "evidence_floors on an unsatisfiable config surfaces FLOORS_FAIL + FLOORS_BELOW_MIN"
+owner = "tool"
+traces_to = ["bb4cf169-cb26-4c99-b647-3854406e33f2"]
+description = """
+Pins the failure-path shape of the MCP floors verb. The
+happy-path test (TEST-067) covers FLOORS_OK on the self-repo;
+this one fabricates a tempdir config declaring an
+unsatisfiable `diagnostic_codes` floor and asserts the full
+failure-response triad:
+
+- `terminal == "FLOORS_FAIL"`.
+- `exit_code == 2`.
+- `diagnostics[]` contains at least one
+  `FLOORS_BELOW_MIN` entry naming the failing dimension.
+
+Also strengthens `evidence_floors_missing_workspace_path_emits_fallback_signal`
+(TEST-067) to pin the terminal on the fallback path — the
+existing assertion only checks the prepended signal; the
+full-response-shape assertion catches a regression that
+would leave terminal empty or drop it to something else.
+"""
+test_selectors = [
+    "mcp_floors_surface::evidence_floors_below_floor_terminates_with_floors_fail",
+    "mcp_floors_surface::evidence_floors_missing_workspace_path_emits_fallback_signal",
+]
+
+[[tests]]
+uid = "bc7fa234-110a-437d-82c9-d5bfcfb13ba3"
+id = "TEST-071"
+title = "every MCP_* literal under crates/evidence-mcp/src is registered in HAND_EMITTED_MCP_CODES"
+owner = "tool"
+traces_to = ["759ac6b4-ef4c-4d1d-8bfc-79f07ecef6eb"]
+description = """
+Reverse-bijection pin on `HAND_EMITTED_MCP_CODES`. The
+existing `every_mcp_code_emitted_in_source` (TEST-064) goes
+registry → source: every declared code must appear in source.
+This one goes source → registry: every `MCP_*` string literal
+appearing in `crates/evidence-mcp/src` must be in the registry.
+Catches the silent-contract-break case where a new code is
+emitted from the server but never added to the public
+vocabulary — agents pattern-matching on `.code` against the
+rules manifest would miss it.
+"""
+test_selectors = ["mcp_codes_audit::every_mcp_literal_in_source_is_registered"]
+
+[[tests]]
+uid = "33ed3802-036f-443a-b465-b56a500c6428"
+id = "TEST-072"
+title = "verify --verify-key I/O failure emits structured diag + VERIFY_ERROR terminal"
+owner = "tool"
+traces_to = ["4abf426c-da46-4307-ba7d-9d7dbfd86f63"]
+description = """
+Four selectors covering the variant + the three CLI formats:
+
+  - The unit test on `VerifyRuntimeError::ReadVerifyKey` pins
+    `code()` and `location()` so the variant’s
+    `DiagnosticCode` impl stays bijective with
+    `VERIFY_RUNTIME_READ_VERIFY_KEY`.
+  - The `--format=jsonl` integration test verifies that
+    pointing `--verify-key` at a nonexistent path produces
+    exactly two JSONL lines: a finding line carrying
+    `code = VERIFY_RUNTIME_READ_VERIFY_KEY` + the
+    user-supplied path, and the terminal line
+    `code = VERIFY_ERROR`. Exit code = 1.
+  - The `--format=json` integration test verifies the wrapped
+    `VerifyOutput { success: false, checks: [{ name:
+    "verify_key", status: "fail", message: ... }],
+    error: Some(msg) }` shape. Exit code = 1.
+  - The `--format=human` integration test verifies the
+    `error: reading verify key from <path>` line on stderr.
+    Exit code = 1.
+"""
+test_selectors = [
+    "evidence_core::verify::runtime_error::tests::read_verify_key_code_and_location",
+    "verify_e2e::jsonl_emits_terminal_on_unreadable_verify_key",
+    "verify_e2e::json_wraps_verify_key_io_failure",
+    "verify_e2e::human_prints_error_on_unreadable_verify_key",
+]
+
+[[tests]]
+uid = "cd052b29-706a-4763-99d6-7a067361d657"
+id = "TEST-075"
+title = "clean fixture workspace passes both boundary policies"
+owner = "tool"
+traces_to = [
+    "6737b21f-831a-4350-aa6e-b20f29c5417c",
+    "192b70f3-50a9-4df7-ac74-34b3aea4347a",
+]
+description = """
+Negative-case baseline: a fixture workspace where every in-scope
+crate is a plain library (no `build.rs`, no `proc-macro` target)
+and `boundary.toml` enables both `forbid_build_rs = true` and
+`forbid_proc_macros = true` must pass `check_no_build_rs` and
+`check_no_proc_macros` cleanly. Without this baseline, the two
+positive-case tests below would not pin per-crate scoping — a
+broken implementation could fire on every workspace and still
+look correct on the violation tests.
+"""
+test_selectors = [
+    "evidence_core::boundary_check::tests::clean_workspace_passes_forbid_build_rs",
+    "evidence_core::boundary_check::tests::clean_workspace_passes_forbid_proc_macros",
+]
+
+[[tests]]
+uid = "160d174b-e54f-47e7-8e80-78d2e3278540"
+id = "TEST-076"
+title = "in-scope crate with build.rs fires BOUNDARY_FORBIDDEN_BUILD_RS"
+owner = "tool"
+traces_to = ["6737b21f-831a-4350-aa6e-b20f29c5417c"]
+description = """
+Fixture has one in-scope crate with `build.rs` and (separately)
+one in-scope crate with `build.rs` + `links = "libz"`. The first
+fires `BOUNDARY_FORBIDDEN_BUILD_RS` with no `links` annotation in
+the message; the second fires the same code with `links =
+"libz"` interpolated into the message. Pins both the detection
+and the Layer-2 informational `links` surfacing.
+"""
+test_selectors = [
+    "evidence_core::boundary_check::tests::in_scope_build_rs_fires_violation",
+    "evidence_core::boundary_check::tests::in_scope_build_rs_with_links_surfaces_links_in_message",
+]
+
+[[tests]]
+uid = "b58f1d4a-1cfd-485a-b360-88b1093f8c48"
+id = "TEST-077"
+title = "in-scope crate with proc-macro target fires BOUNDARY_FORBIDDEN_PROC_MACRO"
+owner = "tool"
+traces_to = ["192b70f3-50a9-4df7-ac74-34b3aea4347a"]
+description = """
+Fixture has one in-scope crate exposing a `[lib] proc-macro =
+true` target. `check_no_proc_macros` returns
+`BoundaryCheckError::ForbiddenProcMacro` with the offending
+crate name; the diagnostic carries
+`BOUNDARY_FORBIDDEN_PROC_MACRO`.
+"""
+test_selectors = ["evidence_core::boundary_check::tests::in_scope_proc_macro_fires_violation"]
+
+[[tests]]
+uid = "8144c774-5c22-4463-9765-9323f88401c8"
+id = "TEST-078"
+title = "out-of-scope crate with build.rs / proc-macro does not fire either check"
+owner = "tool"
+traces_to = [
+    "6737b21f-831a-4350-aa6e-b20f29c5417c",
+    "192b70f3-50a9-4df7-ac74-34b3aea4347a",
+]
+description = """
+Per-crate scoping invariant. A `build.rs` or proc-macro target
+in a crate that is NOT listed in `boundary.toml`’s `in_scope`
+set is fine — the policy applies only to the certified surface.
+Fixture exercises both negative cases in one workspace.
+"""
+test_selectors = [
+    "evidence_core::boundary_check::tests::out_of_scope_build_rs_does_not_fire",
+    "evidence_core::boundary_check::tests::out_of_scope_proc_macro_does_not_fire",
+]
+
+[[tests]]
+uid = "154e2d72-14c9-497d-95e2-9f3c4141f27d"
+id = "TEST-079"
+title = "cargo_metadata.json projection + verify-time recheck + missing-artifact BVA"
+owner = "tool"
+traces_to = ["a939e8ed-6a1e-4982-8639-0414ee32c33a"]
+description = """
+Four branches:
+
+  - Projection determinism: `CargoMetadataProjection::from_metadata_json`
+    on the same input produces byte-identical JSON across runs
+    (sorted packages by name; kind / links retained verbatim).
+  - Schema round-trip: writing then re-reading the projection
+    yields the same struct (Serialize/Deserialize symmetry).
+  - Recheck path: a tampered `cargo_metadata.json` claiming a
+    violating in-scope package fires the same
+    `BOUNDARY_FORBIDDEN_BUILD_RS` /
+    `BOUNDARY_FORBIDDEN_PROC_MACRO` code at verify time as
+    generate would.
+  - BVA path: when `index.boundary_policy` claims
+    `forbid_build_rs = true` but the bundle is missing
+    `cargo_metadata.json` (older bundle / tamper),
+    `verify_bundle_with_key` emits
+    `BOUNDARY_VERIFY_METADATA_MISSING`.
+"""
+test_selectors = [
+    "evidence_core::cargo_metadata::tests::projection_is_deterministic",
+    "evidence_core::cargo_metadata::tests::projection_round_trip",
+    "evidence_core::verify::bundle::tests::tampered_cargo_metadata_fires_recheck",
+    "evidence_core::verify::bundle::tests::missing_cargo_metadata_fires_metadata_missing",
+]
+
+[[tests]]
+uid = "313c6de1-f7a2-43cb-8e9f-887dc09f87c7"
+id = "TEST-080"
+title = "DAL-A MC/DC fail-loud at cert/record; warn-only at dev; bypass when auxiliary tool set"
+owner = "tool"
+traces_to = ["08152f7f-56c4-47f7-ae99-f03d0e114a67"]
+description = """
+Four selectors covering the full decision matrix of the
+LLR-073 gate:
+
+  - Pure-library check passes when DAL-A is absent or the
+    auxiliary tool reference is present.
+  - Pure-library check returns the typed error variant with
+    sorted offender names when DAL-A is in scope without an
+    auxiliary tool reference.
+  - Integration test: `cargo evidence generate --profile cert`
+    on a fixture with one DAL-A crate + no `[dal.auxiliary_mcdc_tool]`
+    fails with the JSON failure envelope carrying the
+    `BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC`-shaped message.
+  - Integration test: same fixture under `--profile dev`
+    emits a stderr warning and continues to bundle assembly.
+"""
+test_selectors = [
+    "evidence_core::boundary_check::tests::dal_a_mcdc_check_passes_when_no_dal_a_in_scope",
+    "evidence_core::boundary_check::tests::dal_a_mcdc_check_passes_when_auxiliary_tool_set",
+    "evidence_core::boundary_check::tests::dal_a_mcdc_check_fires_on_dal_a_without_tool",
+    "dal_qualification_gate::test_generate_dev_profile_warns_on_dal_a_without_mcdc_tool_but_continues",
+]
+
+[[tests]]
+uid = "af0b2d2c-1f59-49f5-9480-17a956929127"
+id = "TEST-081"
+title = "ToolResponse.success boolean across all four shapes + happy/failure paths"
+owner = "tool"
+traces_to = ["c27cc5cb-ab24-4928-8d5c-2a2bdeb0659d"]
+description = """
+Coverage matrix for the success boolean derivation:
+
+  - `JsonlToolResponse`: success is true on a `_OK`-terminal +
+    exit 0 (verify happy path); false on a `_FAIL` terminal + exit 2
+    (verification failure); false on an `MCP_*` terminal + exit 2
+    (tool-layer failure synthesized when subprocess can't spawn).
+  - `RulesToolResponse`: success is true when `error.is_none()` +
+    exit 0; false when subprocess produced unparseable JSON
+    (`error = Some(MCP_MALFORMED_RULES_BLOB)`); server-layer
+    warnings (version-skew prepends) leave success unchanged.
+  - `DiffToolResponse`: success is true on exit 0 even when bundles
+    differ (diff reports, doesn't judge); false on tool-layer
+    failure.
+  - `PingResponse`: not part of this contract — ping has no failure
+    path that would warrant a success bool, and its three skew
+    states are already structured.
+"""
+test_selectors = [
+    "evidence_mcp::server::responses::tests::jsonl_response_success_true_on_ok_terminal",
+    "evidence_mcp::server::responses::tests::jsonl_response_success_false_on_fail_terminal",
+    "evidence_mcp::server::responses::tests::jsonl_response_success_false_on_mcp_synthetic",
+    "evidence_mcp::server::responses::tests::rules_response_success_true_when_error_none",
+    "evidence_mcp::server::responses::tests::rules_response_success_false_when_error_some",
+    "evidence_mcp::server::responses::tests::rules_response_warnings_do_not_flip_success",
+    "evidence_mcp::server::responses::tests::diff_response_success_true_when_error_none",
+    "evidence_mcp::server::responses::tests::diff_response_success_false_when_error_some",
+]
+
+[[tests]]
+uid = "281db1d7-43e7-4b4e-8cf8-be6d12133dd9"
+id = "TEST-082"
+title = "cargo-evidence --help direct invocation lists every subcommand"
+owner = "tool"
+traces_to = ["76f2567f-3d6d-4633-9d2c-00d03cc2b529"]
+description = """
+Spawns the built `cargo-evidence` binary with `--help` directly
+(no cargo dispatch), captures stdout, and asserts:
+
+  - Exit code 0.
+  - Banner line names the version + both invocation forms.
+  - Every subcommand variant in `cli::args::Commands` appears as a
+    standalone token in the rendered output, asserted by walking
+    the enum at runtime via a strum-like fallback (the test pins
+    against a hand-curated list `["generate", "verify", "check",
+    "diff", "doctor", "init", "schema", "trace", "rules",
+    "floors"]` — adding a new subcommand without updating this list
+    fails the test, which is the desired drift-guard).
+  - `cargo-evidence -h` produces identical output (clap renders
+    short and long help separately; this test pins long help, but
+    a sibling assertion confirms `-h` exits 0 with non-empty
+    stdout).
+
+Negative branch: `cargo-evidence` (no args) still parses through
+clap's `CargoCli::parse()` and surfaces clap's "missing required
+subcommand" error on stderr with exit 2 — the intercept's only job
+is to handle `--help` / `--version`, not all unhandled invocations.
+"""
+test_selectors = [
+    "help_listing::test_cargo_evidence_help_lists_subcommands",
+    "help_listing::test_cargo_evidence_dash_h_exits_zero",
+]
+
+[[tests]]
+uid = "d7e510f6-733b-451e-9902-db37efba063d"
+id = "TEST-083"
+title = "editor_duplicates_locked: clean tree + dogfood fires on synthetic duplicate"
+owner = "tool"
+traces_to = ["f634ed35-6c3e-4d71-90a2-dbaee1d086ab"]
+description = """
+Three branches mirroring the pattern of
+`rot_prone_markers_locked`:
+
+  - Load-bearing regression: the current tree is clean. Walks
+    the workspace via `walkdir::WalkDir::new(root)
+    .follow_links(false)`, applies the editor-duplicate regex
+    to each basename, asserts the hit list is empty.
+
+  - Positive dogfood: writes a synthetic `crates/fake/src/
+    helpers 2.rs` into a tempdir tree and asserts the same scan
+    function fires on it (1+ hit, the basename appears in the
+    failure listing).
+
+  - Negative dogfood: writes a tempdir tree containing
+    `mcdc_2024.rs` (a legitimate filename whose digits happen to
+    follow non-space characters) and asserts zero hits — the
+    leading-space anchor must not over-flag.
+"""
+test_selectors = [
+    "editor_duplicates_locked::current_tree_is_clean",
+    "editor_duplicates_locked::fires_on_synthetic_duplicate",
+    "editor_duplicates_locked::passes_on_legitimate_digits_filename",
+]
+
+[[tests]]
+uid = "92ca41f0-30ba-4c22-8dd0-0aa0b7d96111"
+id = "TEST-084"
+title = "keygen lifecycle: create / refuse-overwrite / rotate / log"
+owner = "tool"
+traces_to = ["2edcdfa5-d7e7-4115-a3fa-8ed36354aa1b"]
+description = """
+Six tests exercising cmd_keygen against tempdirs, plus a Unix-only
+permission check:
+  - first_time_create_writes_both_files: keypair files appear, no
+    KEY-ROTATION-LOG is written.
+  - refuses_overwrite_without_rotate: second create returns
+    EXIT_ERROR.
+  - rotate_requires_existing_pair: --rotate against an empty dir
+    returns EXIT_ERROR.
+  - rotate_overwrites_and_logs: keypair changes; log records the
+    --reason text.
+  - rotate_without_reason_is_an_error: --rotate without --reason is
+    a top-level anyhow error.
+  - rotate_appends_each_log_line: two rotations produce two lines.
+  - signing_key_chmod_600_on_unix: signing.key has owner-rw mode.
+"""
+test_selectors = [
+    "cargo_evidence::cli::keygen::tests::first_time_create_writes_both_files",
+    "cargo_evidence::cli::keygen::tests::refuses_overwrite_without_rotate",
+    "cargo_evidence::cli::keygen::tests::rotate_requires_existing_pair",
+    "cargo_evidence::cli::keygen::tests::rotate_overwrites_and_logs",
+    "cargo_evidence::cli::keygen::tests::rotate_without_reason_is_an_error",
+    "cargo_evidence::cli::keygen::tests::rotate_appends_each_log_line",
+    "cargo_evidence::cli::keygen::tests::signing_key_chmod_600_on_unix",
+]
+
+[[tests]]
+uid = "eb395589-4eb1-4052-b215-2d424085e694"
+id = "TEST-085"
+title = "anchor consistency: missing / match / mismatch"
+owner = "tool"
+traces_to = ["3f015ac7-8a76-405b-a180-a2f0183a4b85"]
+description = """
+Three tests exercising check_pubkey_anchor_at against tempdir
+anchor files:
+  - anchor_absent_is_ok: missing anchor file → Ok(()).
+  - anchor_match_is_ok: anchor pubkey == signing-key.verifying_key →
+    Ok(()).
+  - anchor_mismatch_refuses: anchor written from a different signing
+    seed → anyhow error carrying SIGN_PUBKEY_ANCHOR_MISMATCH.
+Plus two helpers covering signing-key path resolution priority:
+  - resolve_signing_key_path_prefers_explicit_flag.
+  - resolve_signing_key_path_returns_none_when_neither_explicit_nor_env.
+"""
+test_selectors = [
+    "cargo_evidence::cli::generate::finalize::tests::anchor_absent_is_ok",
+    "cargo_evidence::cli::generate::finalize::tests::anchor_match_is_ok",
+    "cargo_evidence::cli::generate::finalize::tests::anchor_mismatch_refuses",
+    "cargo_evidence::cli::generate::finalize::tests::resolve_signing_key_path_prefers_explicit_flag",
+    "cargo_evidence::cli::generate::finalize::tests::resolve_signing_key_path_returns_none_when_neither_explicit_nor_env",
+]
+
+[[tests]]
+uid = "15234eb6-8e95-4779-b963-5829d18261a8"
+id = "TEST-086"
+title = "every workspace crate ships a lean-layered CLAUDE.md"
+owner = "tool"
+traces_to = ["288c920a-c667-4f84-9d0b-f4e8419ac141"]
+description = """
+Walks crates/* and accumulates per-crate violations: missing
+CLAUDE.md, fewer than 10 non-blank lines, more than 80 lines, or
+missing the literal `cargo test -p <crate-name>` scoped command.
+Asserts the accumulated failure list is empty. Failure message
+joins every offending crate so a single run names them all.
+"""
+test_selectors = ["layered_claude_md_doctrine::every_workspace_crate_has_lean_layered_claude_md"]
+
+[[tests]]
+uid = "27d05430-5ccf-4b77-a303-d6c0555c19c9"
+id = "TEST-087"
+title = "context::resolver classifies every selector kind with documented priority"
+owner = "tool"
+traces_to = ["7ad19cf7-98ae-40e0-8fcb-76c3a6077883"]
+description = """
+Six co-located cases pin the resolver invariants in one place:
+`raw = None` → Workspace; empty/whitespace input → Workspace; a
+relative path under `crates/evidence-core/src/...` → File with the
+expected crate_name; a bare `evidence-core` token → Crate; a
+`evidence_core::trace` token → Module; an unrecognized
+`not-a-crate` / `does/not/exist.rs` → SelectorOutOfScope. Each
+case asserts the variant and the carried fields verbatim so a
+priority regression names the failing case.
+"""
+test_selectors = [
+    "evidence_core::context::tests::resolve_none_returns_workspace",
+    "evidence_core::context::tests::resolve_empty_string_returns_workspace",
+    "evidence_core::context::tests::resolve_file_under_crates_dir",
+    "evidence_core::context::tests::resolve_crate_by_package_name",
+    "evidence_core::context::tests::resolve_module_by_dotted_path",
+    "evidence_core::context::tests::resolve_unknown_returns_out_of_scope",
+    "evidence_core::context::tests::selector_out_of_scope_preserves_raw_input",
+]
+
+[[tests]]
+uid = "ff93d679-d83a-4dca-aa29-b6bf389c0f25"
+id = "TEST-088"
+title = "context::lookup composes ContextReport from the live trace + boundary + floors"
+owner = "tool"
+traces_to = ["fd1c2f88-9511-430f-a30b-f9f81a20407e"]
+description = """
+Six co-located cases run `context_for` against the repo's own
+`cert/` data: workspace overview carries the root CLAUDE.md; file
+selector carries the per-crate CLAUDE.md; file selector pulls
+non-empty requirements + a parent rollup; crate selector carries
+per_crate_floor `test_count` and per_crate_ceiling library_panics
+rows; crate selector aggregates a non-empty + alphabetically-sorted
+diagnostic_codes set; boundary slice reports in_scope = true for
+in-tree crates. A seventh case round-trips the ContextReport
+through serde_json so the wire shape stays stable.
+"""
+test_selectors = [
+    "evidence_core::context::tests::workspace_overview_carries_root_claude_md",
+    "evidence_core::context::tests::file_selector_carries_per_crate_claude_md",
+    "evidence_core::context::tests::file_selector_pulls_requirements_and_parents",
+    "evidence_core::context::tests::crate_selector_carries_per_crate_floor_rows",
+    "evidence_core::context::tests::requirements_emit_set_aggregates_diagnostic_codes",
+    "evidence_core::context::tests::boundary_slice_reports_in_scope_for_workspace_crate",
+    "evidence_core::context::tests::context_report_round_trips_via_serde_json",
+]
+
+[[tests]]
+uid = "27e2ee62-9591-4353-9ced-2f009ba7de97"
+id = "TEST-089"
+title = "context::error variants map to documented CONTEXT_* codes"
+owner = "tool"
+traces_to = ["ca6f202f-8957-4ba3-adb5-fbc7054e9197"]
+description = """
+Two cases pin the error path: `missing_trace_root_returns_trace_not_configured`
+asserts the variant + carried path for a tempdir with no
+`cert/trace/`, the graceful path the CLI translates into
+`CONTEXT_NO_TRACE_CONFIGURED` + `CONTEXT_OK` (exit 0).
+`selector_out_of_scope_preserves_raw_input` asserts the variant
+carries the raw selector string verbatim so the CLI can echo it
+back in a fix hint.
+"""
+test_selectors = [
+    "evidence_core::context::tests::missing_trace_root_returns_trace_not_configured",
+    "evidence_core::context::tests::selector_out_of_scope_preserves_raw_input",
+]
+
+[[tests]]
+uid = "e92cf358-fdbb-4213-8362-a66c89331653"
+id = "TEST-090"
+title = "cargo evidence context CLI is byte-locked against the golden fixture"
+owner = "tool"
+traces_to = ["ca6f202f-8957-4ba3-adb5-fbc7054e9197"]
+description = """
+Three co-located cases drive the CLI: a `--json` invocation with a
+known selector is byte-diffed against
+`crates/cargo-evidence/tests/fixtures/golden_context.json` —
+regenerate via `tools/regen-golden-fixtures.sh`; a `--format=jsonl`
+invocation against an empty tempdir asserts the
+`CONTEXT_NO_TRACE_CONFIGURED` + `CONTEXT_OK` terminal pair (exit 0);
+a `--format=jsonl` invocation with a typo'd selector asserts the
+`CONTEXT_SELECTOR_OUT_OF_SCOPE` + `CONTEXT_FAIL` pair (exit 2).
+"""
+test_selectors = [
+    "cli_context::golden_context_json_byte_diff",
+    "cli_context::context_jsonl_non_adopter_graceful_path",
+    "cli_context::context_jsonl_invalid_selector_emits_fail_terminal",
+]
+
+[[tests]]
+uid = "8a81c73c-6e6e-4e61-abb5-4db2c1f3bbce"
+id = "TEST-091"
+title = "evidence_context workspace-overview returns a well-formed ContextReport"
+owner = "tool"
+traces_to = ["dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"]
+description = """
+Spawns the built `evidence-mcp` binary, drives a `tools/call` for
+`evidence_context` with no selector / crate_name / module fields,
+and asserts on the structured response. `context` is a non-null
+JSON object whose `selector.kind` is `"workspace"`. `exit_code ==
+0`, `success == true`, no transport-layer error. Pins the happy-
+path plumbing end-to-end without depending on a specific
+requirements count.
+"""
+test_selectors = ["context_roundtrip::evidence_context_workspace_overview_returns_report"]
+
+[[tests]]
+uid = "86f4d5a7-852e-4bdf-96ab-7dd0dcb8474f"
+id = "TEST-092"
+title = "evidence_context file selector resolves to governing requirements"
+owner = "tool"
+traces_to = ["dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"]
+description = """
+Two co-located cases pin the file-selector path:
+
+- `evidence_context_file_selector_pulls_requirements`: passes
+  `crates/evidence-mcp/src/server.rs` and asserts the response's
+  `context.requirements` array is non-empty (the CLI exercises the
+  live `cert/trace/` against the real workspace). `selector.kind`
+  is `"file"`, `success == true`.
+- `evidence_context_unmapped_file_carries_no_requirements_warning`:
+  passes a workspace file (`Cargo.toml`) that no LLR claims via
+  `modules`; asserts the response stays well-formed and surfaces
+  the graceful warning path through the MCP layer.
+"""
+test_selectors = [
+    "context_roundtrip::evidence_context_file_selector_pulls_requirements",
+    "context_roundtrip::evidence_context_unmapped_file_carries_no_requirements_warning",
+]
+
+[[tests]]
+uid = "2d6c95c4-8b28-4b8d-92a4-cbc81e7107d6"
+id = "TEST-093"
+title = "evidence_context mutual-exclusivity guard rejects multiple selector fields"
+owner = "tool"
+traces_to = ["dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"]
+description = """
+Two co-located cases pin the request-validation contract:
+
+- `evidence_context_rejects_multiple_selector_fields`: submits a
+  request with both `selector` and `crate_name` set; asserts the
+  response is either a JSON-RPC error or carries `isError == true`
+  — not a silent success against one of the two values. Defense
+  against agent misuse of the three equivalent entry points.
+- `evidence_context_rejects_unknown_field_typo`: pins the
+  `#[serde(deny_unknown_fields)]` contract on `ContextRequest`
+  (mirrors `evidence_check_rejects_unknown_field_typo`).
+"""
+test_selectors = [
+    "context_roundtrip::evidence_context_rejects_multiple_selector_fields",
+    "context_roundtrip::evidence_context_rejects_unknown_field_typo",
+]
+
+[[tests]]
+uid = "38cb6b28-ddb8-4bd9-b2ef-3fdd3a223db2"
+id = "TEST-094"
+title = "pick_selector_arg lifts ContextRequest into the CLI argument vector"
+owner = "tool"
+traces_to = ["9d8d4f30-d591-40fc-beab-5f9eda6c91fa"]
+description = """
+Unit tests on the request-mapping helper that turns
+`ContextRequest` into the argument vector passed to `cargo
+evidence context`. Five cases cover: workspace overview (all
+unset), positional selector wins when set, `--crate <name>`
+disambiguator, `--module <path>` disambiguator, and the mutual-
+exclusivity rejection path. Together they pin the
+`ContextRequest` ⇄ CLI-arg bijection at the request-shape layer
+so the integration test only has to verify the wire-level
+plumbing.
+"""
+test_selectors = [
+    "evidence_mcp::server::context::tests::pick_selector_arg_none_when_all_unset",
+    "evidence_mcp::server::context::tests::pick_selector_arg_positional_wins_when_selector_set",
+    "evidence_mcp::server::context::tests::pick_selector_arg_crate_flag_emits_crate_arg_pair",
+    "evidence_mcp::server::context::tests::pick_selector_arg_module_flag_emits_module_arg_pair",
+    "evidence_mcp::server::context::tests::pick_selector_arg_rejects_multiple_fields_set",
+]
+
+[[tests]]
+uid = "f563389d-b209-4258-a482-7508c11f87aa"
+id = "TEST-097"
+title = "init --with-agent-context scaffolds CLAUDE.md + .claude/settings.json"
+owner = "tool"
+traces_to = ["b402bcc1-f3bb-4fb5-a616-c3e18ffd321a"]
+description = """
+Integration tests under `crates/cargo-evidence/tests/init_agent_context.rs`
+that spawn the `cargo-evidence` binary against fresh tempdirs:
+  - init_with_agent_context_writes_root_files: the happy path;
+    asserts root CLAUDE.md + .claude/settings.json appear with
+    the lean-template content (title, MCP/CLI pointers, per-crate
+    section) and that settings.json parses as JSON registering
+    `evidence-mcp` + denying `evidence/**`.
+  - init_no_agent_context_skips_scaffold: opt-out leaves no
+    CLAUDE.md and no .claude/ behind while still writing cert/.
+  - init_with_agent_context_preserves_existing_files: pre-existing
+    CLAUDE.md or .claude/settings.json are read back byte-for-byte
+    after `init`.
+  - init_with_agent_context_jsonl_lists_new_files: --format=jsonl
+    emits INIT_TEMPLATE_WRITTEN entries for both new files plus
+    the INIT_OK terminal as last line.
+  - init_rejects_both_flags: clap's conflicts_with rejects the
+    combination of --with-agent-context and --no-agent-context.
+"""
+test_selectors = [
+    "init_agent_context::init_with_agent_context_writes_root_files",
+    "init_agent_context::init_no_agent_context_skips_scaffold",
+    "init_agent_context::init_with_agent_context_preserves_existing_files",
+    "init_agent_context::init_with_agent_context_jsonl_lists_new_files",
+    "init_agent_context::init_rejects_both_flags",
+]
+
+[[tests]]
+uid = "41ccc9a0-1e7f-4b4f-8898-fedd3ece4833"
+id = "TEST-098"
+title = "in-scope package name resolves to its manifest directory"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::resolves_package_name_to_manifest_dir"
+
+[[tests]]
+uid = "2c5551d4-9cd7-46e8-9c3d-9dfad7834a19"
+id = "TEST-099"
+title = "unknown in-scope package fails closed"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::missing_package_fails_closed"
+
+[[tests]]
+uid = "6f21dcf2-2f62-4429-a4a3-a9875b15abbb"
+id = "TEST-100"
+title = "manifest outside workspace root is a path escape"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::manifest_outside_workspace_is_path_escape"
+
+[[tests]]
+uid = "5e8819db-f902-4788-bfce-23b84c740bbe"
+id = "TEST-101"
+title = "in-scope unit with zero tracked files fails closed"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::empty_unit_fails_closed"
+
+[[tests]]
+uid = "811d48cf-51a1-41f2-9db4-b76c84590250"
+id = "TEST-102"
+title = "verify rejects an empty inputs_hashes.json"
+owner = "tool"
+traces_to = ["7d8dc29d-16a4-4415-96cf-0c1df7ec894b"]
+test_selector = "evidence_core::verify::source_baseline::tests::empty_object_is_rejected"
+
+[[tests]]
+uid = "7fe4cbea-84f9-4712-ba5f-c7a5f98490cb"
+id = "TEST-103"
+title = "verify accepts a non-empty source baseline"
+owner = "tool"
+traces_to = ["7d8dc29d-16a4-4415-96cf-0c1df7ec894b"]
+test_selector = "evidence_core::verify::source_baseline::tests::non_empty_object_passes"
+
+[[tests]]
+uid = "0ee9d7c1-ac76-4856-b4ec-3db21ad7c3e5"
+id = "TEST-104"
+title = "captured baseline agrees with an independent enumeration (hermetic temp worktree)"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::plan_agrees_with_independent_git_enumeration_in_a_temp_worktree"
+
+[[tests]]
+uid = "a62df89e-3e18-42dc-9215-b0c69de20b6f"
+id = "TEST-105"
+title = "declared required controlled input fails closed when absent, passes when present"
+owner = "tool"
+traces_to = ["4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"]
+test_selector = "evidence_core::bundle::input_scope::tests::required_input_presence_is_checked"
+
+[[tests]]
+uid = "32e6f48e-9421-4301-b70a-d6c7c51b228e"
+id = "TEST-106"
+title = "per-test outcome parser builds an outcome map from libtest text"
+owner = "tool"
+traces_to = ["b0569bd5-c609-440b-9389-a7996fffddad"]
+test_selector = "evidence_core::bundle::test_summary::tests::test_parse_cargo_test_output_failed"
+
+[[tests]]
+uid = "dd5a798f-aa1c-4e67-b88c-1e5832b55dce"
+id = "TEST-107"
+title = "cli context verb emits CONTEXT_* terminals over the wire"
+owner = "tool"
+traces_to = ["dde74fce-62f8-4f33-b161-e21ee8b4627d"]
+test_selector = "cli_context::context_human_mode_workspace_overview_exits_zero"
+
+[[tests]]
+uid = "b9bba1ed-4ffe-4c82-b782-5e203afebd47"
+id = "TEST-108"
+title = "context_roundtrip pins the MCP evidence_context wire shape"
+owner = "tool"
+traces_to = ["802701d1-9770-40fa-8a74-d65c3c34c8ca"]
+test_selector = "context_roundtrip::evidence_context_file_selector_pulls_requirements"
+
+[[tests]]
+uid = "60969bce-5b4a-4997-a442-5659f51151be"
+id = "TEST-109"
+title = "nextest parser reconstructs selector-matching identity for unit and integration tests"
+owner = "tool"
+traces_to = ["b7e107fa-7fb0-435d-823c-a786221be3a7"]
+test_selectors = [
+    "evidence_core::bundle::nextest::tests::unit_test_identity_matches_selector_format",
+    "evidence_core::bundle::nextest::tests::integration_test_bare_fn_identity",
+]
+
+[[tests]]
+uid = "db6175ca-a05e-4b78-a5f2-00754a3a86fa"
+id = "TEST-110"
+title = "nextest parser aggregates suite counts and emits deterministic sorted records"
+owner = "tool"
+traces_to = ["b7e107fa-7fb0-435d-823c-a786221be3a7"]
+test_selectors = [
+    "evidence_core::bundle::nextest::tests::summary_aggregates_across_suites",
+    "evidence_core::bundle::nextest::tests::records_are_sorted_for_determinism",
+]
+
+[[tests]]
+uid = "4f88de51-55ee-44a6-b29e-b105a2424256"
+id = "TEST-116"
+title = "nextest parser dedupes repeated suite summaries so a partitioned binary reconciles"
+owner = "tool"
+traces_to = ["b7e107fa-7fb0-435d-823c-a786221be3a7"]
+test_selectors = [
+    "evidence_core::bundle::nextest::tests::repeated_suite_summaries_dedupe_whole_binary_dimensions",
+    "evidence_core::bundle::nextest::tests::partitioned_binary_stream_reconciles_clean",
+]
+
+[[tests]]
+uid = "ac19b5e2-212f-47a2-96ae-17a70dc8012b"
+id = "TEST-111"
+title = "verify rejects an outcome record that lost its binary identity"
+owner = "tool"
+traces_to = ["50e04423-81fb-436d-a088-62e4639301a6"]
+test_selector = "evidence_core::verify::test_identity::tests::unknown_binary_record_is_rejected"
+
+[[tests]]
+uid = "c610d1fc-683d-43b9-b2d4-75f21532f4c8"
+id = "TEST-115"
+title = "generator closure blocks the right verify findings per profile"
+owner = "tool"
+traces_to = ["89f9de65-c963-4993-ab16-6d153e8c5dd7"]
+test_selectors = [
+    "cargo_evidence::cli::generate::closure::tests::prerelease_tool_is_non_blocking_only_on_dev",
+    "cargo_evidence::cli::generate::closure::tests::every_other_finding_blocks_on_every_profile",
+]
+
+[[tests]]
+uid = "094f9fee-f5f9-49c7-be4a-d47132eb459b"
+id = "TEST-112"
+title = "compiler-artifact parser keeps only workspace lib/bin deliverables, keyed relative to the target directory"
+owner = "tool"
+traces_to = ["0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"]
+test_selectors = [
+    "evidence_core::bundle::cargo_artifacts::tests::keeps_only_workspace_member_lib_and_bin_keyed_under_target_dir",
+    "evidence_core::bundle::cargo_artifacts::tests::artifact_outside_target_dir_is_rejected",
+]
+
+[[tests]]
+uid = "9e5c599b-2463-45ab-af2a-5bb5c130acf0"
+id = "TEST-113"
+title = "compiler-artifact parser excludes build scripts and external deps"
+owner = "tool"
+traces_to = ["0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"]
+test_selector = "evidence_core::bundle::cargo_artifacts::tests::excludes_build_scripts_and_non_member_deps"
+
+[[tests]]
+uid = "367ed850-4ad2-4fda-b017-3202634fa6bb"
+id = "TEST-114"
+title = "verify rejects an empty output manifest when a build ran, allows it under skip-build"
+owner = "tool"
+traces_to = ["8b9b283e-27a8-401f-b846-413bdf94ea11"]
+test_selectors = [
+    "evidence_core::verify::output_manifest::tests::empty_outputs_after_build_is_rejected",
+    "evidence_core::verify::output_manifest::tests::skip_build_allows_empty_outputs",
+]
+
+[[tests]]
+uid = "95e3e6f2-c4ac-4f56-ba08-f6ce3293f46e"
+id = "TEST-117"
+title = "output inventory is independent of test execution: opt-in under --skip-tests, always under strict"
+owner = "tool"
+traces_to = ["0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"]
+test_selectors = [
+    "cargo_evidence::cli::generate::phases::output_inventory::tests::full_generate_always_inventories",
+    "cargo_evidence::cli::generate::phases::output_inventory::tests::skip_tests_inventories_only_when_opted_in",
+    "cargo_evidence::cli::generate::phases::output_inventory::tests::strict_inventories_even_without_the_flag",
+]
+
+[[tests]]
+uid = "5120e61a-cb2f-4b07-becd-79d96e20f80d"
+id = "TEST-119"
+title = "corpus.toml index is strict and fails closed on degenerate input"
+owner = "tool"
+traces_to = ["1e6b28ad-913c-414f-b9db-283d064d9cfc"]
+test_selectors = [
+    "evidence_core::corpus::tests::index::index_parses_minimal",
+    "evidence_core::corpus::tests::index::index_rejects_unknown_field",
+    "evidence_core::corpus::tests::index::index_refuses_newer_schema",
+    "evidence_core::corpus::tests::index::index_empty_resolution_is_error",
+    "evidence_core::corpus::tests::index::index_unsupported_kind_fails_closed",
+]
+
+[[tests]]
+uid = "026b141c-f99b-4afd-86b2-7182649fbd2b"
+id = "TEST-120"
+title = "corpus graph enforces identities, canonical edges, and typed endpoints"
+owner = "tool"
+traces_to = ["bbbadd81-3db1-40c0-8355-c5fe10dc4b7f"]
+test_selectors = [
+    "evidence_core::corpus::tests::records::records_reject_invalid_native_uid",
+    "evidence_core::corpus::tests::graph_validation::graph_rejects_duplicate_identities_and_edges",
+    "evidence_core::corpus::tests::graph_validation::graph_detects_dangling_and_invalid_edge_kinds",
+]
+
+[[tests]]
+uid = "31c3ed6a-3f1c-4eca-b8ca-2b32a89436c1"
+id = "TEST-121"
+title = "legacy trace loads into the corpus graph with identity and edge-set parity"
+owner = "tool"
+traces_to = ["e86a9580-3495-481e-a912-035c2d5c865a"]
+test_selector = "evidence_core::corpus::tests::legacy_parity::legacy_parity_on_own_trace"
+
+[[tests]]
+uid = "bd7f7e23-16ec-4792-a658-7ca6c232b2f8"
+id = "TEST-122"
+title = "file layout and edge input order are non-semantic"
+owner = "tool"
+traces_to = [
+    "1e6b28ad-913c-414f-b9db-283d064d9cfc",
+    "bbbadd81-3db1-40c0-8355-c5fe10dc4b7f",
+]
+test_selector = "evidence_core::corpus::tests::graph_layout::layout_and_edge_order_produce_identical_graph"
+
+[[tests]]
+uid = "cc46fb7d-e9cc-4e29-aebd-21ce97cecd08"
+id = "TEST-123"
+title = "graph-derived matrix matches legacy bytes and ignores node and edge input order"
+owner = "tool"
+traces_to = ["de536781-44ca-4adc-8036-5e6dd0f7ff76"]
+test_selector = "trace_matrix::corpus_matrix_matches_legacy_and_is_input_order_independent"
+
+[[tests]]
+uid = "4ada778e-ee9e-4055-81c7-da1bfc7e7199"
+id = "TEST-124"
+title = "graph-derived floors preserve counts, reject duplicate identities, and report below-floor values"
+owner = "tool"
+traces_to = ["558eefdf-a737-422b-af28-fc1c8cb1f31b"]
+test_selectors = [
+    "floors_trace_discovery::graph_derived_counts_ignore_record_and_edge_input_order",
+    "floors_trace_discovery::graph_derived_counts_reject_duplicate_identities",
+    "floors_gate::floors_gate_fires_on_below_min_floor",
+]
+
+[[tests]]
+uid = "07645b39-349f-470e-845a-370d8b1ecf77"
+id = "TEST-125"
+title = "graph-derived assurance mappings preserve parity and fail in both bijection directions"
+owner = "tool"
+traces_to = ["f7e9ed92-d71e-4ab4-a810-abb00bda392b"]
+test_selectors = [
+    "assurance_bijections::graph_assurance_mappings_match_legacy_and_ignore_input_order",
+    "assurance_bijections::graph_diagnostic_bijection_reports_unknown_and_unclaimed_codes",
+    "trace_decomposition::surface_unknown_fires_with_typed_code",
+    "trace_decomposition::surface_unclaimed_fires_with_typed_code",
+    "diagnostic_codes_locked::every_code_is_claimed_by_an_llr",
+]
+
+[[tests]]
+uid = "9c68275c-dce1-41a2-b501-84bd8d06351c"
+id = "TEST-126"
+title = "graph-derived requirement reports preserve parity and cover every structural gap"
+owner = "tool"
+traces_to = ["f3b6a143-1b94-4423-9274-a44e9454f3a3"]
+test_selectors = [
+    "corpus_gap_reports::corpus_gap_report_matches_adapter_and_ignores_input_order",
+    "corpus_gap_reports::corpus_gap_report_covers_structural_and_execution_gaps",
+    "corpus_gap_reports::corpus_gap_report_rejects_unsupported_edge_kinds",
+]
+
+[[tests]]
+uid = "1ef5feb6-b848-46b9-9bb1-17097536762a"
+id = "TEST-127"
+title = "trace evidence evaluation truth table and the empty-valid boundary"
+owner = "tool"
+traces_to = ["68338cc4-53c8-4e75-a644-f5e73e885b36"]
+test_selectors = [
+    "evidence_core::trace::evidence_state::tests::no_roots_is_not_configured",
+    "evidence_core::trace::evidence_state::tests::zero_requirements_is_empty",
+    "evidence_core::trace::evidence_state::tests::minimal_linked_graph_is_valid",
+    "evidence_core::trace::evidence_state::tests::root_order_is_non_semantic",
+]
+
+[[tests]]
+uid = "85dfddd2-d3ce-438a-9830-bf34b43654e5"
+id = "TEST-128"
+title = "derived completeness gates and no-evidence surfaces fire typed diagnostics"
+owner = "tool"
+traces_to = [
+    "33e25394-8ff2-4114-8dad-f60701bab8fd",
+    "75300bff-0ffc-4977-ba33-37a0ceb84911",
+]
+test_selectors = [
+    "trace_decomposition::derived_missing_disposition_fires_with_typed_code",
+    "trace_decomposition::derived_unreviewed_fires_with_typed_code",
+    "trace_cmd_jsonl::trace_validate_jsonl_empty_root_fails_closed",
+    "doctor_cmd::adoption::dal_d_empty_trace_warns_no_evidence",
+]
+
+[[tests]]
+uid = "e70c0946-c2ca-44a6-8077-f09d12f93a58"
+id = "TEST-129"
+title = "coverage verdict truth table: disposition closes statement only, approximation caps at review"
+owner = "tool"
+traces_to = ["0294658f-7c3b-4df7-b4c5-0a9f6431296a"]
+test_selectors = [
+    "compliance_coverage_upgrade::a7_8_met_when_statement_coverage_meets_gate_with_disposition",
+    "compliance_coverage_upgrade::a7_8_manual_review_when_statement_coverage_meets_gate_without_disposition",
+    "compliance_coverage_upgrade::a7_8_partial_when_statement_coverage_below_gate",
+    "compliance_coverage_upgrade::a7_8_not_met_when_no_coverage_report",
+    "compliance_coverage_upgrade::a7_9_manual_review_when_branch_coverage_meets_gate_with_disposition",
+    "compliance_coverage_upgrade::a7_9_manual_review_when_branch_coverage_meets_gate_without_disposition",
+    "compliance_coverage_upgrade::a7_9_partial_when_branch_coverage_below_gate",
+]
+
+[[tests]]
+uid = "008a3795-7cf8-481e-9bcc-d7aacc956236"
+id = "TEST-130"
+title = "explicit assurance selection gates cert profiles and development mode names unclassified"
+owner = "tool"
+traces_to = [
+    "d3ba013c-425c-4dc7-a27e-b17a31a120fa",
+    "4e5e1e62-2913-4587-aba9-694199a6e9fc",
+]
+test_selectors = [
+    "assurance_selection::generate_cert_without_boundary_fails_closed",
+    "assurance_selection::generate_cert_without_dal_section_fails_closed",
+    "assurance_selection::generate_dev_without_dal_section_names_unclassified_in_compliance_report",
+    "evidence_core::policy::assurance::tests::unclassified_maps_to_least_strict_policy_row",
+    "evidence_core::policy::assurance::tests::dal_round_trip_preserves_levels",
+    "evidence_core::policy::assurance::tests::wire_strings_are_snake_case",
+    "evidence_core::policy::boundary::tests::assurance_selection_requires_explicit_dal_and_scope",
+]
+
+[[tests]]
+uid = "9b31bf2c-0b94-4449-bdf2-fda7270c36e7"
+id = "TEST-131"
+title = "review-content digest moves on every normative field, canonicalizes set-like lists, and rejects malformed digest strings"
+owner = "tool"
+traces_to = [
+    "9668a720-3edf-4aee-8835-55899be843bd",
+    "492e8010-6f20-48d3-b9fd-32bedbb8a088",
+]
+test_selectors = [
+    "evidence_core::corpus::review_content::tests::included_field_changes_move_the_digest",
+    "evidence_core::corpus::review_content::tests::set_like_lists_canonicalize_before_encoding",
+    "evidence_core::corpus::digest::tests::from_hex_rejects_malformed_input",
+    "evidence_core::corpus::digest::tests::digest_round_trips_through_serde",
+]
+
+[[tests]]
+uid = "71c37388-a975-4a71-9a3e-aa8e72ff8c8b"
+id = "TEST-132"
+title = "native and legacy projections agree, presentation changes are non-semantic, and a golden fixture byte-locks the v1 encoding"
+owner = "tool"
+traces_to = [
+    "9668a720-3edf-4aee-8835-55899be843bd",
+    "014c6b65-6f77-432f-b2be-30f779586b9d",
+]
+test_selectors = [
+    "corpus_review_content::golden_fixture_byte_locks_canonical_encoding_and_digest",
+    "corpus_review_content::native_and_legacy_projections_match_for_equivalent_records",
+    "corpus_review_content::excluded_changes_leave_the_digest_unchanged",
+    "corpus_review_content::derived_record_safety_impact_presence_moves_the_digest",
+]
+
+[[tests]]
+uid = "54bb8ed7-5f39-4a3d-a8b5-9ce27d710d4b"
+id = "TEST-133"
+title = "review records round-trip into typed nodes and edges, and every strict-schema, node-invariant, and supersession violation fails closed"
+owner = "tool"
+traces_to = [
+    "44f42343-45d6-48fa-a9c7-f2017d6883eb",
+    "3f7c8e17-f56e-42f7-be13-2955609b2d6b",
+]
+test_selectors = [
+    "evidence_core::corpus::review_records::tests::approve_and_reject_records_round_trip",
+    "evidence_core::corpus::review_records::tests::strict_schema_violations_fail_closed",
+    "evidence_core::corpus::review_records::tests::malformed_record_fields_fail_closed",
+    "evidence_core::corpus::graph::supersession::tests::review_edges_enforce_endpoint_kinds",
+    "evidence_core::corpus::graph::supersession::tests::supersession_validation_rejects_invalid_chains",
+    "evidence_core::corpus::graph::supersession::tests::review_with_two_outgoing_supersedes_edges_is_rejected",
+    "evidence_core::corpus::review_records::insert_error_tests::insert_errors_lift_into_review_errors_without_panicking",
+    "evidence_core::corpus::graph::review_invariants::tests::review_node_with_mismatched_requirement_field_and_edge_is_rejected",
+    "evidence_core::corpus::graph::review_invariants::tests::programmatic_review_with_unsupported_content_schema_is_rejected",
+    "evidence_core::corpus::graph::review_invariants::tests::review_node_without_reviews_edge_is_rejected",
+    "evidence_core::corpus::graph::review_invariants::tests::review_node_with_two_reviews_edges_is_rejected",
+    "evidence_core::corpus::graph::review_invariants::tests::supersession_cycle_remains_rejected_after_invariants",
+    "evidence_core::corpus::graph::review_invariants::tests::malformed_review_node_fails_before_chain_validation",
+    "evidence_core::corpus::graph::review_invariants::tests::programmatically_built_valid_graph_validates",
+]
+
+[[tests]]
+uid = "0898a922-6a3a-490a-9f9c-9aceb5ae1f61"
+id = "TEST-134"
+title = "review graphs are layout-independent, preserve independent reviewers, and the index loads requirements before reviews"
+owner = "tool"
+traces_to = [
+    "3f7c8e17-f56e-42f7-be13-2955609b2d6b",
+    "b6cf3b0f-5349-444c-adb8-631e340fa3ec",
+]
+test_selectors = [
+    "evidence_core::corpus::review_records::tests::layout_and_record_order_produce_identical_graphs",
+    "evidence_core::corpus::review_records::tests::independent_reviews_of_one_digest_are_preserved",
+    "evidence_core::corpus::index::tests::index_resolves_reviews_and_loads_requirements_first",
+]
+
+[[tests]]
+uid = "dddae922-38c4-4b16-93b9-341ff9a37fe9"
+id = "TEST-135"
+title = "the lifecycle truth table binds exact digests with fail-closed rejection precedence and mechanical staleness"
+owner = "tool"
+traces_to = ["5c2ce59b-5a6e-4f4c-903e-ca4c2a3cb778"]
+test_selectors = [
+    "evidence_core::corpus::lifecycle::tests::no_reviews_yield_candidate",
+    "evidence_core::corpus::lifecycle::tests::current_approval_yields_approved",
+    "evidence_core::corpus::lifecycle::tests::current_rejection_yields_rejected",
+    "evidence_core::corpus::lifecycle::tests::rejection_takes_precedence_over_approval",
+    "evidence_core::corpus::lifecycle::tests::superseded_reviews_contribute_nothing",
+    "evidence_core::corpus::lifecycle::tests::content_change_after_approval_yields_stale",
+    "evidence_core::corpus::lifecycle::tests::content_change_after_rejection_yields_candidate",
+    "evidence_core::corpus::lifecycle::tests::reverting_to_approved_digest_yields_approved_again",
+    "evidence_core::corpus::lifecycle::tests::multiple_reviewers_compose_deterministically",
+]
+
+[[tests]]
+uid = "9f06c5fb-d1d7-4156-b982-ae5d2aafe95f"
+id = "TEST-136"
+title = "lifecycle evaluation is deterministic across timestamps, file layouts, and hosts, and malformed review graphs fail closed at validation"
+owner = "tool"
+traces_to = ["26725e30-7161-4ff1-a854-4d44a927df9c"]
+test_selectors = [
+    "evidence_core::corpus::lifecycle::tests::timestamps_and_insertion_order_never_affect_evaluation",
+    "corpus_lifecycle::equivalent_file_layouts_evaluate_identically",
+    "evidence_core::corpus::lifecycle::tests::evaluate_all_reports_requirements_in_uid_order",
+    "evidence_core::corpus::lifecycle::tests::review_of_missing_requirement_fails_closed",
+    "evidence_core::corpus::lifecycle::adversarial_tests::mismatched_requirement_field_and_edge_fails_closed",
+    "evidence_core::corpus::lifecycle::adversarial_tests::unsupported_content_schema_fails_closed",
+    "evidence_core::corpus::lifecycle::adversarial_tests::supersession_cycle_fails_closed",
+]
+
+[[tests]]
+uid = "bb27c292-f361-4f91-88c2-9db1af58b72a"
+id = "TEST-137"
+title = "the approval boundary admits approved claims and rejects candidate, rejected, and stale targets with distinct deterministic diagnostics"
+owner = "tool"
+traces_to = [
+    "a81bbe08-6260-4f03-934d-984418dd79c6",
+    "45cb08f4-9051-4780-86fa-9e0adbfcd61f",
+]
+test_selectors = [
+    "evidence_core::corpus::approval_boundary::tests::approved_requirement_accepts_test_and_implementation_claims",
+    "evidence_core::corpus::approval_boundary::tests::candidate_requirement_rejects_verifying_test",
+    "evidence_core::corpus::approval_boundary::tests::rejected_requirement_rejects_modules_claim",
+    "evidence_core::corpus::approval_boundary::tests::stale_requirement_rejects_emits_claim",
+    "evidence_core::corpus::approval_boundary::tests::unapproved_states_produce_distinct_diagnostics",
+    "evidence_core::corpus::approval_boundary::tests::candidate_decomposition_remains_usable",
+    "evidence_core::corpus::approval_boundary::tests::zero_review_graph_fails_closed",
+    "evidence_core::corpus::approval_boundary::tests::zero_reviews_without_gated_claims_passes",
+    "evidence_core::corpus::approval_boundary::tests::enforcement_is_explicit_single_variant",
+    "evidence_core::corpus::approval_boundary::tests::lifecycle_evaluation_error_fails_closed",
+    "evidence_core::corpus::approval_boundary::tests::violations_are_deterministically_ordered",
+    "evidence_core::corpus::approval_boundary::tests::multiple_violations_aggregate_in_one_error",
+]
+
+[[tests]]
+uid = "6ed97e45-e0d1-4917-ac7e-4e7e38c41539"
+id = "TEST-138"
+title = "native corpora pass without gated claims and the legacy trace is gated rather than grandfathered under explicit enforcement"
+owner = "tool"
+traces_to = ["398e24ac-9e53-4181-b3f4-63990270a93d"]
+test_selectors = [
+    "corpus_approval_boundary::native_corpus_without_gated_claims_passes",
+    "corpus_approval_boundary::legacy_trace_gates_every_claim_when_requested",
+    "evidence_core::corpus::approval_boundary::tests::zero_reviews_without_gated_claims_passes",
+    "evidence_core::corpus::approval_boundary::tests::invariant_missing_evaluation_is_a_typed_error",
+]
+
+[[tests]]
+uid = "4db9b93f-7f46-4465-b6f4-3985363254ba"
+id = "TEST-139"
+title = "proposal schema round-trips, store-minted identities, fail-closed roots, exclusive writes, schema-negative tables, and semantic content validation"
+owner = "tool"
+traces_to = [
+    "d91963ae-0de7-4155-a61c-eed53d48290b",
+    "ef446b31-43a2-4c07-9a6e-a821a41c87db",
+]
+test_selectors = [
+    "evidence_core::corpus::proposal::tests::create_proposal_round_trips_through_strict_schema",
+    "evidence_core::corpus::proposal::tests::revise_proposal_round_trips_against_candidate",
+    "evidence_core::corpus::proposal::tests::uids_and_timestamps_are_store_minted",
+    "evidence_core::corpus::proposal::tests::appends_never_overwrite_and_preexisting_path_fails_closed",
+    "evidence_core::corpus::proposal::tests::missing_root_fails_closed",
+    "evidence_core::corpus::proposal::tests::non_directory_root_fails_closed",
+    "evidence_core::corpus::proposal::tests::symlink_root_fails_closed",
+    "evidence_core::corpus::proposal::tests::partial_write_read_back_fails_closed",
+    "evidence_core::corpus::proposal::tests::read_back_refuses_newer_schema_and_bad_fields",
+    "evidence_core::corpus::proposal::tests::schema_negative_actions_fail_closed",
+    "evidence_core::corpus::proposal::tests::wrong_typed_safety_impact_fails_closed",
+    "evidence_core::corpus::proposal::tests::concurrent_appends_never_overwrite",
+    "evidence_core::corpus::proposal::tests_content::canonical_content_appends_and_reads_back",
+    "evidence_core::corpus::proposal::tests_content::blank_title_fails_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::tests_content::revise_rejects_blank_title_before_writing",
+    "evidence_core::corpus::proposal::tests_content::malformed_derives_from_fails_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::tests_content::duplicate_derives_from_fails_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::tests_content::unordered_verification_methods_fail_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::tests_content::duplicate_verification_methods_fail_closed_on_append_and_read",
+    "evidence_core::corpus::proposal::tests_content::create_with_safety_impact_round_trips",
+    "evidence_core::corpus::proposal::tests_content::create_without_safety_impact_round_trips_as_none",
+    "evidence_core::corpus::proposal::record::tests::file_digest_from_hex_rejects_malformed_input",
+    "evidence_core::corpus::proposal::record::tests::file_digest_round_trips_through_serde",
+]
+
+[[tests]]
+uid = "46d61928-011f-4d5b-81cc-7a14f479a897"
+id = "TEST-140"
+title = "revision guards reject stale digests, non-candidate lifecycles, and missing targets, preserve lifecycle sources, and appends leave the corpus byte-identical"
+owner = "tool"
+traces_to = [
+    "ef446b31-43a2-4c07-9a6e-a821a41c87db",
+    "c393a149-d714-4e77-b9d3-45743921bcbe",
+]
+test_selectors = [
+    "evidence_core::corpus::proposal::tests_guards::revise_with_stale_digest_fails_with_typed_mismatch",
+    "evidence_core::corpus::proposal::tests_guards::revise_of_approved_requirement_is_rejected",
+    "evidence_core::corpus::proposal::tests_guards::revise_of_rejected_requirement_is_rejected",
+    "evidence_core::corpus::proposal::tests_guards::revise_of_stale_requirement_is_rejected",
+    "evidence_core::corpus::proposal::tests_guards::revise_of_missing_requirement_fails_closed",
+    "evidence_core::corpus::proposal::tests_guards::revise_with_malformed_base_uid_fails_closed",
+    "evidence_core::corpus::proposal::tests_guards::revise_with_invalid_graph_preserves_lifecycle_source",
+    "evidence_core::corpus::proposal::tests_guards::revise_changing_safety_impact_moves_current_digest",
+    "evidence_core::corpus::proposal::tests_guards::append_leaves_corpus_baseline_byte_identical",
+]
+
+[[tests]]
+uid = "b09560c7-4331-48de-8116-74e65e09c0cf"
+id = "TEST-141"
+title = "the four source record shapes round-trip and every strict-schema, field, and capture violation fails closed with typed context"
+owner = "tool"
+traces_to = ["bf1f5d64-f5df-4f3e-8ca8-26b14e0dc678"]
+test_selectors = [
+    "evidence_core::corpus::source::tests::four_record_shapes_round_trip_into_typed_nodes",
+    "evidence_core::corpus::source::tests::strict_schema_violations_fail_closed",
+    "evidence_core::corpus::source::tests::malformed_identity_and_field_values_fail_closed",
+    "evidence_core::corpus::source::tests::incomplete_capture_combinations_fail_closed",
+    "evidence_core::corpus::source::tests::vendored_paths_reject_unsafe_wire_forms",
+]
+
+[[tests]]
+uid = "b82fbfdc-12d8-4c5d-b67d-ffd015e4692c"
+id = "TEST-142"
+title = "source-revision nodes enforce per-kind identity, canonical iteration, layout independence, and typed material-state distinction"
+owner = "tool"
+traces_to = ["5cae4629-c57b-4bcb-a0c0-3f8a671b0173"]
+test_selectors = [
+    "evidence_core::corpus::source::tests_graph::human_ids_are_unique_within_the_source_kind_only",
+    "evidence_core::corpus::source::tests_graph::source_revision_nodes_iterate_in_canonical_uid_order",
+    "evidence_core::corpus::source::tests_graph::layout_split_and_record_order_produce_identical_graphs",
+    "evidence_core::corpus::source::tests_graph::unavailable_material_is_valid_distinguishable_graph_state",
+]
+
+[[tests]]
+uid = "2f9ef457-aaf5-4f8b-a67e-7727eb27eed0"
+id = "TEST-143"
+title = "the index activates sources, loads them before requirements and reviews, keeps source_graphs rejected, and fails closed on empty resolution"
+owner = "tool"
+traces_to = ["c23eb6b5-2f1f-4d70-9264-acd44456fb9b"]
+test_selectors = [
+    "evidence_core::corpus::index::tests::index_resolves_sources_and_loads_them_before_requirements",
+    "evidence_core::corpus::index::tests::index_source_graphs_kind_stays_unsupported",
+    "evidence_core::corpus::index::tests::index_sources_entry_resolving_to_nothing_fails_closed",
+]
+
+[[tests]]
+uid = "59ef2ba4-2d38-4187-b2fd-38962d2b694e"
+id = "TEST-144"
+title = "the optional supersedes record field projects into one owned source edge and malformed values fail closed"
+owner = "tool"
+traces_to = ["7009cf8b-c608-4aa0-9dc6-9fb8f6065f2e"]
+test_selectors = [
+    "evidence_core::corpus::source::tests_records::supersedes_field_projects_one_owned_edge",
+    "evidence_core::corpus::source::tests_records::malformed_supersedes_uid_fails_closed",
+]
+
+[[tests]]
+uid = "6940574e-7137-4438-bdbb-2e63214ba68b"
+id = "TEST-145"
+title = "source supersedes edges satisfy the endpoint contract, reject every other endpoint pair, and dangle closed"
+owner = "tool"
+traces_to = ["c361eb28-be02-4d61-8f28-5d084bf5d1fb"]
+test_selectors = [
+    "evidence_core::corpus::source::lineage::endpoint_tests::source_supersedes_source_satisfies_endpoint_contract",
+    "evidence_core::corpus::source::lineage::endpoint_tests::non_source_supersedes_endpoints_fail_closed",
+    "evidence_core::corpus::source::lineage::endpoint_tests::dangling_source_supersedes_fails_closed",
+]
+
+[[tests]]
+uid = "51da1053-acf8-4cb1-994c-91c885b68354"
+id = "TEST-146"
+title = "linear chains validate and self-links, cross-document links, duplicate edges, forks, cycles, and multiple roots or heads fail with distinct typed context"
+owner = "tool"
+traces_to = ["c7ad7106-fe17-4997-ba24-bb79d2f925d4"]
+test_selectors = [
+    "evidence_core::corpus::source::lineage::tests::one_two_and_three_revision_chains_validate",
+    "evidence_core::corpus::source::lineage::tests::self_link_fails_closed",
+    "evidence_core::corpus::source::lineage::tests::cross_document_link_fails_closed",
+    "evidence_core::corpus::source::lineage::tests::duplicate_outgoing_edges_fail_closed",
+    "evidence_core::corpus::source::lineage::tests::fork_fails_closed",
+    "evidence_core::corpus::source::lineage::tests::cycle_fails_closed",
+    "evidence_core::corpus::source::lineage::tests::multiple_roots_fail_closed",
+    "evidence_core::corpus::source::lineage::tests::multiple_heads_fail_closed_as_dual_guard",
+    "evidence_core::corpus::source::lineage::tests::review_and_source_chains_validate_in_one_graph",
+]
+
+[[tests]]
+uid = "28c93d1a-5048-4944-a77e-4d1b7d2f98e8"
+id = "TEST-147"
+title = "effective source heads are one deterministic head per document key, invariant under layout, insertion order, and timestamps"
+owner = "tool"
+traces_to = ["965b442b-3d81-455f-94e2-e85a03120ef2"]
+test_selectors = [
+    "evidence_core::corpus::source::lineage::tests::linear_chains_derive_one_deterministic_head",
+    "evidence_core::corpus::source::lineage::tests::layout_and_insertion_order_produce_identical_lineage_and_heads",
+    "evidence_core::corpus::source::lineage::tests::timestamps_never_select_a_head",
+]
+
+[[tests]]
+uid = "91e26cfa-33a8-46fe-bc09-d7554963ed73"
+id = "TEST-148"
+title = "transitions reject mutation, removal, digest replacement, and competing heads with distinct typed errors while proper extensions and non-source differences pass"
+owner = "tool"
+traces_to = ["de0b1eba-151e-4136-bc57-33d810fb1a43"]
+test_selectors = [
+    "evidence_core::corpus::source::lineage::transition_tests::proper_extension_succeeds",
+    "evidence_core::corpus::source::lineage::transition_tests::new_document_key_is_free",
+    "evidence_core::corpus::source::lineage::transition_tests::non_source_differences_are_ignored",
+    "evidence_core::corpus::source::lineage::transition_tests::mutation_of_each_projection_field_fails_naming_the_field",
+    "evidence_core::corpus::source::lineage::transition_tests::silent_removal_fails_closed",
+    "evidence_core::corpus::source::lineage::transition_tests::digest_replacement_at_the_same_uid_fails_closed",
+    "evidence_core::corpus::source::lineage::transition_tests::unlinked_competing_revision_fails_closed",
+    "evidence_core::corpus::source::lineage::transition_tests::mid_chain_insertion_is_a_supersedes_mutation",
+    "evidence_core::corpus::source::lineage::transition_tests::prior_graph_must_validate",
+    "evidence_core::corpus::source::lineage::transition_tests::proposed_graph_must_validate",
+    "evidence_core::corpus::source::lineage::transition_tests::linked_revision_loads_and_transitions_through_corpus_index",
+]
+
+[[tests]]
+uid = "ce47246d-74c3-44b2-a0da-859647c81362"
+id = "TEST-149"
+title = "lock derivation binds effective heads exactly once, excludes historical revisions and storage details, and never invents digests"
+owner = "tool"
+traces_to = ["535e526e-c1cd-4a39-b5a7-3e6fcfb2e6b6"]
+test_selectors = [
+    "evidence_core::corpus::source::lock::tests::derive_lock_binds_effective_heads_only",
+    "evidence_core::corpus::source::lock::tests::layout_and_insertion_order_produce_identical_locks",
+    "evidence_core::corpus::source::lock::tests::recipe_and_storage_details_are_not_lock_identity",
+    "evidence_core::corpus::source::lock::tests::unavailable_heads_derive_without_digest_or_capture",
+    "evidence_core::corpus::source::lock::tests::vendored_paths_timestamps_and_reasons_never_enter_the_lock",
+]
+
+[[tests]]
+uid = "bc29898c-dae5-42a8-892e-ef021cb57d55"
+id = "TEST-150"
+title = "canonical rendering pins the byte template and strict parsing fails closed on malformed input while accepting any entry order"
+owner = "tool"
+traces_to = ["ee77ade4-d3a4-43b2-9bea-0684163f7bd0"]
+test_selectors = [
+    "evidence_core::corpus::source::lock::tests::canonical_render_pins_entry_order_field_order_and_trailing_newline",
+    "evidence_core::corpus::source::lock::tests::render_parse_round_trip",
+    "evidence_core::corpus::source::lock::tests::parse_accepts_any_entry_order",
+    "evidence_core::corpus::source::lock::tests::duplicate_document_key_fails_at_parse",
+    "evidence_core::corpus::source::lock::tests::malformed_digest_fails_at_parse",
+    "evidence_core::corpus::source::lock::tests::unknown_field_and_unavailable_with_digest_fail_at_parse",
+    "evidence_core::corpus::source::lock::tests::newer_schema_fails_closed",
+    "evidence_core::corpus::source::lock::tests::escaping_round_trips_special_strings",
+]
+
+[[tests]]
+uid = "d1b2e9b6-9ce6-42dd-b898-4a811f536c6c"
+id = "TEST-151"
+title = "committed-lock validation applies the three gates in order with typed findings and the blocking reader never mutates"
+owner = "tool"
+traces_to = ["237aafc8-abae-4a20-aad6-685f350e439c"]
+test_selectors = [
+    "evidence_core::corpus::source::lock::validate_tests::canonical_committed_lock_validates",
+    "evidence_core::corpus::source::lock::validate_tests::noncanonical_committed_bytes_fail_gate_two",
+    "evidence_core::corpus::source::lock::validate_tests::missing_and_extra_entries_fail_closed",
+    "evidence_core::corpus::source::lock::validate_tests::changed_fields_fail_naming_the_field",
+    "evidence_core::corpus::source::lock::validate_tests::graph_is_validated_before_the_gates",
+    "evidence_core::corpus::source::lock::validate_tests::read_lock_blocking_reads_without_mutation",
+    "evidence_core::corpus::source::lock::validate_tests::validate_lock_file_blocking_applies_the_gates_to_file_bytes",
+    "evidence_core::corpus::source::lock::validate_tests::unavailable_head_round_trips_digest_free_through_the_gates",
+]
+
+[[tests]]
+uid = "454ecf0f-5d4d-41f8-895b-a05d2df8b915"
+id = "TEST-152"
+title = "a golden fixture byte-locks the canonical lock bytes and equivalent graphs render byte-identical locks"
+owner = "tool"
+traces_to = ["ee77ade4-d3a4-43b2-9bea-0684163f7bd0"]
+test_selectors = [
+    "corpus_sources_lock::golden_fixture_byte_locks_canonical_lock_bytes",
+    "corpus_sources_lock::equivalent_graphs_render_byte_identical_locks",
+    "corpus_sources_lock::golden_lock_validates_against_its_graph",
+]
+
+[[tests]]
+uid = "c49e2cf5-d440-46b9-b058-7efa5da9bad6"
+id = "TEST-153"
+title = "each capture mode verifies to its typed state and URL-located records complete offline without network access"
+owner = "tool"
+traces_to = ["3d0f4f2d-2a8e-4dc5-8d1b-16c18dcc8522"]
+test_selectors = [
+    "evidence_core::corpus::source::verify::tests::every_capture_mode_reports_its_typed_state",
+    "evidence_core::corpus::source::verify::tests::state_wire_strings_are_stable",
+    "evidence_core::corpus::source::verify::tests::url_locations_complete_offline_without_network",
+]
+
+[[tests]]
+uid = "3a117578-aeff-42f0-95a6-542c37cabed7"
+id = "TEST-154"
+title = "vendored payloads resolve beneath the fixed root and every unsafe or disagreeing input fails closed with typed context"
+owner = "tool"
+traces_to = ["1746aa02-06b0-4bb3-9d7d-52799a3a36ad"]
+test_selectors = [
+    "evidence_core::corpus::source::verify::vendored_tests::matching_vendored_bytes_verify",
+    "evidence_core::corpus::source::verify::vendored_tests::missing_payload_and_directory_targets_fail_closed",
+    "evidence_core::corpus::source::verify::vendored_tests::altered_bytes_report_expected_and_actual_digests",
+    "evidence_core::corpus::source::verify::vendored_tests::unsafe_wire_paths_are_rejected_as_escapes",
+    "evidence_core::corpus::source::verify::vendored_tests::symlink_root_and_components_fail_closed",
+    "evidence_core::corpus::source::verify::vendored_tests::lock_record_disagreement_is_typed",
+]
+
+[[tests]]
+uid = "e803f8e2-087d-4eda-8f2b-556ea13f541c"
+id = "TEST-155"
+title = "the batch gates on global prerequisites, isolates per-head findings in sorted order, and never mutates the corpus"
+owner = "tool"
+traces_to = ["262dcfe8-148e-4d67-a89b-ef116de0b32c"]
+test_selectors = [
+    "evidence_core::corpus::source::verify::batch_tests::prerequisite_failures_stop_before_payload_work",
+    "evidence_core::corpus::source::verify::batch_tests::one_bad_payload_never_hides_later_findings",
+    "evidence_core::corpus::source::verify::batch_tests::batch_results_sort_by_document_key_then_uid",
+    "evidence_core::corpus::source::verify::batch_tests::verification_never_mutates_the_corpus",
+    "corpus_source_verification::corpus_index_loads_and_verifies_end_to_end",
+]
+
+[[tests]]
+uid = "63647cc0-ddef-489e-a339-13106d4109d9"
+id = "TEST-156"
+title = "ResolutionPolicy truth table, argv rendering, and the cert/record online refusal at the CLI gate"
+owner = "tool"
+traces_to = ["d591c58b-aa28-46a0-8a79-1abd39d2da8d"]
+test_selectors = [
+    "evidence_core::policy::resolution::tests::for_profile_truth_table",
+    "evidence_core::policy::resolution::tests::cargo_args_match_policy",
+    "evidence_core::policy::resolution::tests::online_forbidden_error_carries_policy_code",
+    "resolution_policy::generate_cert_with_online_flag_is_refused",
+]
+
+[[tests]]
+uid = "77b0bcfb-b9a0-45a2-b51e-935dc10582e7"
+id = "TEST-157"
+title = "all cargo subprocess argv carry the policy flags; missing-cache and prepared-cache runs prove offline behavior end to end"
+owner = "tool"
+traces_to = ["c9899d50-b100-4a19-b6cf-1269460b5470"]
+test_selectors = [
+    "evidence_core::bundle::cargo_artifacts::tests::dev_locked_offline_build_args_carry_policy_flags",
+    "evidence_core::bundle::cargo_artifacts::tests::cert_and_record_build_args_are_release_locked_offline",
+    "evidence_core::bundle::cargo_artifacts::tests::online_opt_in_build_args_carry_no_resolution_flags",
+    "evidence_core::policy::resolution::tests::offline_failure_maps_only_locked_nonzero_exits",
+    "resolution_policy::missing_cache_locked_offline_fails_with_actionable_diagnostic",
+    "resolution_policy::prepared_cache_offline_generate_succeeds_and_records_policy",
+]
+
+[[tests]]
+uid = "02c4f0c0-8ced-4d90-8ddc-4d09633066dd"
+id = "TEST-158"
+title = "the projection binds the resolved dependency graph deterministically and round-trips"
+owner = "tool"
+traces_to = ["e4ffc9e7-2698-459f-911f-f1156b47697e"]
+test_selectors = [
+    "evidence_core::cargo_metadata::tests::projection_binds_resolved_dependency_graph",
+    "evidence_core::cargo_metadata::tests::projection_dependencies_are_sorted_and_deduplicated",
+]
+
+[[tests]]
+uid = "eb27c893-1af5-4c81-880e-b2726e61ccde"
+id = "TEST-159"
+title = "index.json records the policy with a safe legacy default; verify rejects online cert/record bundles and accepts dev"
+owner = "tool"
+traces_to = ["ff850748-3a41-4d11-93dc-68d7bd72cd4d"]
+test_selectors = [
+    "evidence_core::bundle::index::tests::resolution_policy_defaults_to_locked_offline_for_legacy_bundles",
+    "evidence_core::verify::resolution_policy::tests::online_opt_in_cert_bundle_is_rejected",
+    "evidence_core::verify::resolution_policy::tests::online_opt_in_dev_bundle_is_allowed",
+    "evidence_core::verify::resolution_policy::tests::locked_offline_cert_bundle_is_allowed",
+    "resolution_policy::generate_dev_with_online_flag_records_online_opt_in",
+    "resolution_policy::verify_rejects_online_opt_in_cert_bundle",
+]
+
+[[tests]]
+uid = "f58ac0b2-906c-47cf-b9bf-3a0a0fdd23c7"
+id = "TEST-160"
+title = "recipe manifest projection carries the recipe fields in canonical order and stays deterministic"
+owner = "tool"
+traces_to = ["c5b6d67a-603c-4e74-9197-10419a5495c0"]
+test_selectors = [
+    "evidence_core::env::fingerprint::tests::recipe_manifest_records_recipe_fields_in_canonical_order",
+    "evidence_core::env::fingerprint::tests::recipe_manifest_is_byte_deterministic",
+    "evidence_core::env::manifest::tests::digests_match_canonical_serializations",
+    "evidence_core::env::manifest::tests::recipe_inputs_from_bundle_round_trip",
+]
+
+[[tests]]
+uid = "e8639fef-4bff-4ba2-bf42-bca0ff184215"
+id = "TEST-161"
+title = "index.json emits recipe_hash and reads legacy deterministic_hash via the serde alias"
+owner = "tool"
+traces_to = ["b65fc892-2555-489d-bd75-0a0d3abd96dc"]
+test_selectors = [
+    "evidence_core::bundle::index::tests::recipe_hash_serializes_under_new_name",
+    "evidence_core::bundle::index::tests::legacy_deterministic_hash_deserializes_via_alias",
+]
+
+[[tests]]
+uid = "e349d4e2-b63a-45a0-a82a-fe27171793d9"
+id = "TEST-162"
+title = "finalize writes the enriched recipe manifest; verify re-projects it and detects drift"
+owner = "tool"
+traces_to = [
+    "a8412e0d-3f73-4d90-9d5a-be02f98c1605",
+    "2536ac17-57b2-4d0e-a2e4-b821bc179fc1",
+]
+test_selectors = [
+    "evidence_core::bundle::builder::tests::finalize_writes_recipe_manifest_and_recipe_hash",
+    "evidence_core::verify::bundle::tests::recipe_manifest_reprojection_detects_tampered_inputs",
+]
+
+[[tests]]
+uid = "40ee9fc9-28c5-4241-bfaa-a86c71672676"
+id = "TEST-163"
+title = "reproduced-output comparison: equal fixtures, per-field findings, missing and unverifiable planes"
+owner = "tool"
+traces_to = ["3263d49d-1511-4e07-98f7-326b6728ff14"]
+test_selectors = [
+    "evidence_core::verify::reproduction::tests::identical_bundles_compare_equal",
+    "evidence_core::verify::reproduction::tests::changed_target_triple_yields_recipe_field_finding",
+    "evidence_core::verify::reproduction::tests::changed_features_yields_recipe_field_finding",
+    "evidence_core::verify::reproduction::tests::changed_rustflags_yields_recipe_field_finding",
+    "evidence_core::verify::reproduction::tests::changed_cargo_lock_yields_dependency_lock_finding",
+    "evidence_core::verify::reproduction::tests::changed_inputs_hash_yields_recipe_field_finding",
+    "evidence_core::verify::reproduction::tests::changed_command_recipe_hash_yields_recipe_field_finding",
+    "evidence_core::verify::reproduction::tests::changed_input_digest_yields_input_changed",
+    "evidence_core::verify::reproduction::tests::changed_output_digest_yields_output_changed",
+    "evidence_core::verify::reproduction::tests::removed_output_yields_output_missing",
+    "evidence_core::verify::reproduction::tests::added_output_yields_output_extra",
+    "evidence_core::verify::reproduction::tests::malformed_input_digest_yields_input_unverifiable",
+    "evidence_core::verify::reproduction::tests::missing_inputs_file_yields_input_unverifiable",
+    "evidence_core::verify::reproduction::tests::missing_outputs_file_yields_output_unverifiable",
+    "evidence_core::verify::reproduction::tests::missing_manifest_yields_recipe_unavailable",
+    "evidence_core::verify::reproduction::tests::findings_sort_deterministically",
+]

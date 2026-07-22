@@ -5,7 +5,7 @@
 //! | Sub-module       | Concern                                                    |
 //! |------------------|------------------------------------------------------------|
 //! | `host`           | `Host` enum (Linux/macOS/Windows) + per-OS detection fns   |
-//! | `manifest`       | `DeterministicManifest` — cross-host reproducibility contract |
+//! | `manifest`       | `RecipeManifest` — canonical recipe identity contract      |
 //! | `fingerprint`    | `EnvFingerprint` — full env.json struct + projection       |
 //! | `capture`        | `env_fingerprint` runtime capture + tool detection helpers |
 //!
@@ -24,4 +24,7 @@ pub use capture::{
 };
 pub use fingerprint::EnvFingerprint;
 pub use host::Host;
-pub use manifest::DeterministicManifest;
+pub use manifest::{
+    GatherFailure, RecipeInputs, RecipeManifest, RecipeProjectionError, commands_digest,
+    inputs_digest, locked_graph_digest,
+};

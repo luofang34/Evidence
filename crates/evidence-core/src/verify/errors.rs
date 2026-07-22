@@ -55,18 +55,19 @@ pub enum VerifyError {
         /// Value read from `env.json`.
         env_value: String,
     },
-    /// `deterministic_hash` in `index.json` does not match the actual
+    /// `recipe_hash` in `index.json` does not match the actual
     /// SHA-256 of `deterministic-manifest.json`.
     DeterministicHashMismatch {
-        /// Value recorded in `index.json.deterministic_hash`.
+        /// Value recorded in `index.json.recipe_hash` (accepted via
+        /// the `deterministic_hash` alias on legacy bundles).
         index_hash: String,
         /// `SHA-256(deterministic-manifest.json)` computed at verify time.
         actual_hash: String,
     },
-    /// Re-projecting `env.json`'s `DeterministicManifest` subset
-    /// does not byte-equal the committed `deterministic-manifest.json`.
-    /// Indicates tampering or a CLI bug that let the two drift apart
-    /// at generation time.
+    /// Re-projecting the bundle's `RecipeManifest` from `env.json`
+    /// plus the recorded recipe inputs does not byte-equal the
+    /// committed `deterministic-manifest.json`. Indicates tampering
+    /// or a CLI bug that let the two drift apart at generation time.
     ManifestProjectionDrift {
         /// Short description — byte lengths, parse failure, or
         /// serialization failure.

@@ -15,7 +15,7 @@ Convention for `WalkDir` callsites:
 
 - **Always pin `.follow_links(false)` explicitly.** Three reasons:
   - *Soundness*: the tool produces certification bundles. A walker that follows symlinks can include out-of-tree content (e.g., a symlink to `/etc/passwd`) in the SHA256SUMS or integrity scan — audit signs off on files that aren't in the repo. `fs::read_dir`'s default-no-follow is the cert-correct behavior; walkdir's default-follow inverts it.
-  - *Determinism*: symlink targets can differ across checkouts of the same git state, breaking `deterministic_hash` parity (SYS-003). The cross-host gate assumes same-git-state implies same-bundle.
+  - *Determinism*: symlink targets can differ across checkouts of the same git state, breaking `recipe_hash` parity (SYS-003). The cross-host gate assumes same-git-state implies same-bundle.
   - *Loop safety*: symlink cycles (`a → b → a`) consume resources even with walkdir's loop detection.
   No production callsite today has a legitimate reason to follow symlinks; if one ever does, state *why* at the callsite and add a `walker_usage_locked` exemption rather than weakening the rule.
 - **Prune subtrees with `.filter_entry(|e| !is_skipped(e))`**, not post-filter. `filter_entry` runs before descent, so returning `false` for a directory prunes its subtree cheaply.

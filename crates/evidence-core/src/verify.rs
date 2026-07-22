@@ -11,6 +11,7 @@
 //! | `consistency`   | trace_outputs / test_summary / dal_map cross-checks |
 //! | `runtime_error` | `VerifyRuntimeError` enum + `DiagnosticCode` impl   |
 //! | `bundle`        | orchestrator: `verify_bundle[_with_key]`            |
+//! | `reproduction`  | `compare_reproduction` — reproduced-output equality |
 //!
 //! Re-exports below keep the crate's public API flat — consumers
 //! continue to `use evidence_core::verify::{verify_bundle, VerifyError, …}`
@@ -26,6 +27,7 @@ mod errors_display;
 mod llr_selectors;
 mod output_manifest;
 mod paths;
+mod reproduction;
 mod resolution_policy;
 mod runtime_error;
 mod source_baseline;
@@ -35,4 +37,5 @@ mod trace_evidence;
 pub use bundle::{verify_bundle, verify_bundle_with_key};
 pub use errors::{VerifyError, VerifyResult};
 pub use paths::REQUIRED_FILES;
+pub use reproduction::{ReproductionError, ReproductionFinding, compare_reproduction};
 pub use runtime_error::VerifyRuntimeError;

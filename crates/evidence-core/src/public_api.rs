@@ -37,7 +37,10 @@ pub use crate::trace::{
     validate_trace_links_with_policy,
 };
 pub use crate::traits::GitProvider;
-pub use crate::verify::{VerifyError, VerifyResult, verify_bundle, verify_bundle_with_key};
+pub use crate::verify::{
+    ReproductionError, ReproductionFinding, VerifyError, VerifyResult, compare_reproduction,
+    verify_bundle, verify_bundle_with_key,
+};
 pub use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 
 #[doc(hidden)]
@@ -57,7 +60,7 @@ pub use crate::coverage::{
 #[doc(hidden)]
 pub use crate::diagnostic::FixHint;
 #[doc(hidden)]
-pub use crate::env::DeterministicManifest;
+pub use crate::env::RecipeManifest;
 #[doc(hidden)]
 pub use crate::floors::LoadOutcome;
 #[doc(hidden)]

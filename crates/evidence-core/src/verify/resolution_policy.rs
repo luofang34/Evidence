@@ -67,7 +67,7 @@ mod tests {
             trace_outputs: Vec::new(),
             bundle_complete: true,
             content_hash: "deadbeef".repeat(8),
-            deterministic_hash: "cafebabe".repeat(8),
+            recipe_hash: "cafebabe".repeat(8),
             test_summary: None,
             tool_command_failures: Vec::new(),
             dal_map: BTreeMap::new(),

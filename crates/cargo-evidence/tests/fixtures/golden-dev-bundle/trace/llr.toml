@@ -1,0 +1,4375 @@
+[schema]
+version = "0.0.1"
+
+[meta]
+document_id = "TOOL-LLR"
+revision = "1.0"
+
+[[requirements]]
+uid = "ef688fd5-21e0-4cf7-9ed5-b1819b5ae50d"
+id = "LLR-001"
+title = "cmd_verify_jsonl emits a terminal on every exit path"
+owner = "tool"
+traces_to = ["f6d35f65-4a38-4ad9-ba2a-b5c4e3d7da41"]
+modules = ["cargo_evidence::cli::verify::cmd_verify_jsonl"]
+description = """
+Each arm of cmd_verify_jsonl (pass, fail, skipped, runtime error,
+strict-signature-missing) emits exactly one hand-built terminal
+(VERIFY_OK, VERIFY_FAIL, or VERIFY_ERROR) as its last stdout line
+before returning the matching exit code.
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_OK",
+    "VERIFY_FAIL",
+    "VERIFY_ERROR",
+]
+
+[[requirements]]
+uid = "36491f32-293f-4f39-a2f5-cdb7e746330c"
+id = "LLR-002"
+title = "emit_jsonl flushes stdout per event"
+owner = "tool"
+traces_to = ["da30287c-8223-448b-ad94-7a09cc981347"]
+modules = ["cargo_evidence::cli::output::emit_jsonl"]
+description = '''
+The emit_jsonl helper locks stdout, writes one compact JSON line +
+'\n', and calls handle.flush() before returning. This is the only
+path that writes JSONL to stdout; tracing is routed to stderr by
+init_tracing.
+'''
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "f2df39c3-48d2-4128-a037-82e6f9a2a0ab"
+id = "LLR-003"
+title = "DiagnosticCode impls use exhaustive match self"
+owner = "tool"
+traces_to = ["9296020e-761f-4d47-9081-7858c699e3f8"]
+modules = [
+    "evidence_core::diagnostic::DiagnosticCode",
+    "evidence_core::verify::errors::VerifyError",
+    "evidence_core::hash::HashError",
+]
+description = """
+Each DiagnosticCode::code impl matches self exhaustively so adding a
+new variant without a code fails at compile time. The
+diagnostic_codes_locked integration test is the runtime half,
+asserting regex + uniqueness across the walked source tree.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "217bd203-fa16-45a7-89ef-b3c42a589d57"
+id = "LLR-004"
+title = "TERMINAL_CODES is the source of truth for terminals"
+owner = "tool"
+traces_to = ["3181e08a-934f-4031-99ec-d55e609399c7"]
+modules = ["evidence_core::diagnostic::TERMINAL_CODES"]
+description = """
+pub const TERMINAL_CODES: &[&str] enumerates every hand-emitted
+terminal. diagnostic_codes_locked asserts (a) internal uniqueness,
+(b) disjointness with the walked DiagnosticCode registry, (c) every
+walked code ending in a reserved suffix is also in TERMINAL_CODES,
+(d) every TERMINAL_CODES entry ends in a reserved suffix.
+"""
+verification_methods = ["test"]
+emits = ["CLI_SUBCOMMAND_ERROR"]
+
+[[requirements]]
+uid = "f0d8f7ed-60fa-4c56-8d71-7145d2bd85dd"
+id = "LLR-005"
+title = "FixHint::Other catches unknown kind via #[serde(other)]"
+owner = "tool"
+traces_to = ["ba4d711e-f3e9-4af5-951c-682755799f18"]
+modules = ["evidence_core::diagnostic::FixHint"]
+description = """
+FixHint is a tagged enum with #[serde(tag = "kind")]. An unknown
+kind string deserializes to FixHint::Other (the #[serde(other)]
+variant) rather than failing. The payload is discarded because serde
+#[serde(other)] requires unit variants; preserving it is scope for
+PR #5.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "bed8bdf2-13f3-4823-8c07-dd74162e182d"
+id = "LLR-006"
+title = "GitSnapshot::capture queries git once at builder construction"
+owner = "tool"
+traces_to = ["78a03d07-7314-46bc-8b63-776104d99c35"]
+modules = ["evidence_core::git::GitSnapshot::capture"]
+description = """
+GitSnapshot::capture reads HEAD SHA, branch, and dirty status in one
+atomic set. Subsequent pipeline steps read the snapshot; they do not
+re-query git. The snapshot is owned by EvidenceBuilder.
+"""
+verification_methods = ["test"]
+emits = [
+    "GIT_CMD_FAILED",
+    "GIT_NON_UTF8_PATH",
+    "GIT_OTHER",
+    "GIT_SHALLOW_CLONE",
+    "GIT_STRICT_BRANCH_REQUIRED",
+    "GIT_STRICT_DIRTY_REQUIRED",
+    "GIT_STRICT_STATE_REQUIRED",
+    "GIT_SUBCOMMAND_FAILED",
+]
+
+[[requirements]]
+uid = "59e86206-9a09-4bb9-bf41-ccd6e4bd0022"
+id = "LLR-007"
+title = "env_fingerprint records toolchain + host identity"
+owner = "tool"
+traces_to = ["2e3840ff-7803-4ba0-b88d-9cc6ec8b6062"]
+modules = ["evidence_core::env::capture::env_fingerprint"]
+description = """
+env_fingerprint runs rustc --version, cargo --version, reads
+Cargo.lock and rust-toolchain.toml, captures RUSTFLAGS and NAV_*
+env vars, and builds a Host struct. Under strict mode, missing
+rustc or cargo raises EnvCaptureError::Strict{Rustc,Cargo}Required.
+"""
+verification_methods = ["test"]
+emits = [
+    "ENV_STRICT_CARGO_REQUIRED",
+    "ENV_STRICT_RUSTC_REQUIRED",
+    "CMD_LAUNCH_FAILED",
+    "CMD_NON_UTF8_OUTPUT",
+    "CMD_NON_ZERO_EXIT",
+    "POLICY_UNKNOWN_DAL",
+    "POLICY_UNKNOWN_PROFILE",
+]
+
+[[requirements]]
+uid = "37164358-b015-4bf7-b66a-aebe442533b7"
+id = "LLR-008"
+title = "write_sha256sums sorts and normalizes paths"
+owner = "tool"
+traces_to = ["48f569e5-6671-4fb6-b36f-b04b446bd6c1"]
+modules = ["evidence_core::hash::write_sha256sums"]
+description = """
+write_sha256sums walks the bundle root, collects file paths, sorts
+them, normalizes backslashes to forward slashes, and writes
+'<sha>  <rel-path>' lines. Skips SHA256SUMS itself, index.json, and
+BUNDLE.sig so the content layer is stable.
+"""
+verification_methods = ["test"]
+emits = [
+    "HASH_NON_UTF8_PATH",
+    "HASH_NOT_UNDER_BASE",
+    "HASH_OPEN_FAILED",
+    "HASH_READ_FAILED",
+    "HASH_WALK_FAILED",
+    "HASH_WRITE_FAILED",
+]
+
+[[requirements]]
+uid = "c5b6d67a-603c-4e74-9197-10419a5495c0"
+id = "LLR-009"
+title = "RecipeManifest projects the canonical recipe identity"
+owner = "tool"
+traces_to = ["6947e635-4f6b-4833-a101-f896b8ae59c9"]
+modules = [
+    "evidence_core::env::manifest::RecipeManifest",
+    "evidence_core::env::fingerprint::EnvFingerprint::recipe_manifest",
+]
+description = """
+RecipeManifest is derived from EnvFingerprint plus the recorded
+build inputs by projecting the canonical recipe identity in a
+documented field order: toolchain (rustc, cargo, llvm_version,
+rust_toolchain_toml, rustflags), cargo_lock_hash, target_triple,
+profile, features (empty until the tool gains cargo feature
+selection), locked_graph_hash (SHA-256 of the canonical
+resolved-dependency projection, null when the bundle carries no
+cargo_metadata.json), command_recipe_hash (SHA-256 of the
+canonical commands.json content), inputs_hash (SHA-256 of the
+canonical source-input digest map), and resolution_policy, with
+git_sha / git_branch / git_dirty retained as source metadata.
+Its SHA-256 lands in index.json.recipe_hash. The hash proves
+same declared recipe — never that outputs reproduce; output
+equality is the reproduction comparison's claim.
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_MANIFEST_PROJECTION_DRIFT",
+    "VERIFY_DETERMINISTIC_HASH_MISMATCH",
+]
+
+[[requirements]]
+uid = "65bf54da-9f0e-49a0-876e-ada775d65f0a"
+id = "LLR-010"
+title = "EvidenceBuilder::finalize re-reads git SHA"
+owner = "tool"
+traces_to = ["f08c9da9-627c-471e-90af-0c286332a41f"]
+modules = ["evidence_core::bundle::EvidenceBuilder::finalize"]
+description = """
+finalize() calls GitProvider::head_sha() a second time and compares
+against the snapshot. On mismatch it returns BuilderError::Toctou
+with both SHAs so the operator can see the drift. This closes the
+time-of-check / time-of-use gap for the bundle's git provenance.
+"""
+verification_methods = ["test"]
+emits = [
+    "BUNDLE_ALREADY_EXISTS",
+    "BUNDLE_CURRENT_DIR_FAILED",
+    "BUNDLE_DIRTY_GIT_TREE",
+    "BUNDLE_GIT_FAILED",
+    "BUNDLE_HASH_FAILED",
+    "BUNDLE_IO_FAILED",
+    "BUNDLE_PARSE_ENV_FAILED",
+    "BUNDLE_RUN_COMMAND_FAILED",
+    "BUNDLE_SERIALIZE_FAILED",
+    "BUNDLE_TOCTOU",
+    "BOUNDARY_CARGO_METADATA_FAILED",
+    "BOUNDARY_CONFIG_PARSE_FAILED",
+    "BOUNDARY_CONFIG_READ_FAILED",
+    "BOUNDARY_OUT_OF_SCOPE_DEPS",
+    "BOUNDARY_PARSE_METADATA_FAILED",
+    "BOUNDARY_UNKNOWN_IN_SCOPE_CRATE",
+]
+
+[[requirements]]
+uid = "723bc544-3db6-4140-9708-4c003454bd05"
+id = "LLR-011"
+title = "verify_hash_list rehashes every SHA256SUMS entry"
+owner = "tool"
+traces_to = ["6cabc09d-8556-48f9-800b-7c1111fc0877"]
+modules = [
+    "evidence_core::verify::bundle::verify_bundle_with_key",
+    "evidence_core::verify::completeness::check_bundle_completeness",
+]
+description = """
+verify_bundle_with_key parses SHA256SUMS, recomputes the SHA-256 of
+each listed file with streaming io::copy, and pushes VerifyError
+variants onto the findings vec for mismatches, missing files, and
+unexpected-but-unlisted files. All findings accumulate (no early
+bail).
+
+check_bundle_completeness cross-checks the three fields the
+builder wires strict-consistent at finalize time: `bundle_complete`,
+`tool_command_failures`, and `test_summary`. bundle_complete=true
+with non-empty tool_command_failures fires
+VERIFY_BUNDLE_INCOMPLETELY_CLAIMED (tamper/builder-bug signal).
+bundle_complete=false on cert/record profile fires
+VERIFY_TOOL_COMMANDS_FAILED_SILENTLY. A cargo-test failure with
+no test_summary fires VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN.
+The CLI emits VERIFY_BUNDLE_INCOMPLETE (Warning) on dev-profile
+bundles with bundle_complete=false so local iteration stays
+unblocked while the completeness signal is still visible.
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_HASH_MISMATCH",
+    "VERIFY_UNEXPECTED_FILE",
+    "VERIFY_MISSING_HASHED_FILE",
+    "VERIFY_CONTENT_HASH_MISMATCH",
+    "VERIFY_UNSAFE_PATH",
+    "VERIFY_RUNTIME_BUNDLE_NOT_FOUND",
+    "VERIFY_RUNTIME_HASH",
+    "VERIFY_RUNTIME_PARSE_INDEX",
+    "VERIFY_RUNTIME_READ_FILE",
+    "VERIFY_RUNTIME_SIGNING",
+    "VERIFY_RUNTIME_WALK",
+    "VERIFY_BUNDLE_INCOMPLETE",
+    "VERIFY_BUNDLE_INCOMPLETELY_CLAIMED",
+    "VERIFY_TOOL_COMMANDS_FAILED_SILENTLY",
+    "VERIFY_TEST_SUMMARY_ABSENT_ON_FAILED_RUN",
+]
+
+[[requirements]]
+uid = "240aad6f-3111-4087-a3e2-8f59972b55d4"
+id = "LLR-012"
+title = "check_env_vs_index cross-checks duplicated fields"
+owner = "tool"
+traces_to = ["2e7d1836-c8b0-461f-8704-45ddefce31a5"]
+modules = ["evidence_core::verify::cross_file::check_env_vs_index"]
+description = """
+check_env_vs_index reads env.json (tolerating tamper-failure via
+if let Ok), compares profile / git_sha / git_branch / git_dirty
+against index.json, and emits VerifyError::CrossFileInconsistency
+per disagreement.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_CROSS_FILE_INCONSISTENCY"]
+
+[[requirements]]
+uid = "f00c60a2-f4e2-4d6a-a107-5a6a81489e6f"
+id = "LLR-013"
+title = "check_dal_map cross-checks index.json ↔ compliance/"
+owner = "tool"
+traces_to = ["214ab4da-5328-4ace-9626-326dd95894a6"]
+modules = ["evidence_core::verify::consistency::check_dal_map"]
+description = """
+check_dal_map iterates index.json.dal_map, reads each
+compliance/<crate>.json, and asserts the dal string matches.
+Orphans in either direction emit VerifyError::DalMapOrphan with the
+offending crate name.
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_DAL_MAP_MISMATCH",
+    "VERIFY_DAL_MAP_ORPHAN",
+]
+
+[[requirements]]
+uid = "699b17f9-3e28-4af1-8949-b3d94c75ba8c"
+id = "LLR-014"
+title = "check_trace_outputs_hashed enforces trace-file hashing"
+owner = "tool"
+traces_to = ["fd304d26-ba40-4beb-9ab8-18f2185abbf3"]
+modules = ["evidence_core::verify::consistency::check_trace_outputs_hashed"]
+description = """
+check_trace_outputs_hashed iterates index.json.trace_outputs and
+asserts each path is present in the SHA256SUMS key set. Missing
+entries emit VerifyError::TraceOutputNotHashed.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_TRACE_OUTPUT_NOT_HASHED"]
+
+[[requirements]]
+uid = "bb176fd9-7859-4ec1-bbc0-088d2518dc54"
+id = "LLR-015"
+title = "cmd_verify_jsonl strict-mode ed25519 signature guard"
+owner = "tool"
+traces_to = ["904ad11d-7b76-4707-8a08-cab8224b64c9"]
+modules = ["cargo_evidence::cli::verify::cmd_verify_jsonl"]
+description = """
+When strict is true and neither BUNDLE.sig nor --verify-key is
+present, cmd_verify_jsonl emits VERIFY_STRICT_SIGNATURE_MISSING as a
+finding followed by VERIFY_FAIL terminal, returning
+EXIT_VERIFICATION_FAILURE (2). When --verify-key is supplied but the
+key file is unreadable (I/O fault) or has invalid content (bad hex,
+wrong length, invalid ed25519 point) the run terminates with
+VERIFY_ERROR (exit 1) carrying the structured cause:
+VERIFY_RUNTIME_READ_VERIFY_KEY for I/O, SIGN_INVALID_KEY /
+SIGN_INVALID_SIGNATURE_HEX for parse. Successful key load with a
+present BUNDLE.sig that fails ed25519 verification surfaces
+VERIFY_SIGNATURE_INVALID + VERIFY_FAIL.
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_SIGNATURE_INVALID",
+    "SIGN_INVALID_KEY",
+    "SIGN_INVALID_SIGNATURE_HEX",
+    "SIGN_READ_FAILED",
+    "SIGN_WRITE_FAILED",
+]
+
+[[requirements]]
+uid = "77b0a3dc-2b31-4d25-a375-2bc51f5f6497"
+id = "LLR-016"
+title = "terminal_{ok,fail,error} construct fixed-code diagnostics"
+owner = "tool"
+traces_to = ["f11c7b59-7dea-490f-a355-bb07459bb49b"]
+modules = [
+    "cargo_evidence::cli::verify::terminal_ok",
+    "cargo_evidence::cli::verify::terminal_fail",
+    "cargo_evidence::cli::verify::terminal_error",
+]
+description = """
+The three terminal-builder helpers in cli/verify.rs hand-construct
+Diagnostic { code = VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR, severity,
+message, location: None, fix_hint: None, subcommand: None }. The
+code strings correspond 1:1 to the exit-code mapping in Schema
+Rule 1.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "c5f2b95b-5555-4261-a92c-76ce3ec2e5cf"
+id = "LLR-017"
+title = "OutputFormat::resolve folds --json + --format precedence"
+owner = "tool"
+traces_to = ["cb2b1464-3b2b-43a2-bffe-a41c16efefe6"]
+modules = ["cargo_evidence::cli::args::OutputFormat::resolve"]
+description = """
+resolve returns format_flag unchanged if it is not Human; otherwise
+it returns Json when json_flag is true, else Human. Explicit
+--format always wins over the legacy --json bool.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_INVALID_FORMAT"]
+
+[[requirements]]
+uid = "dfc19912-4b1f-4a0c-8e18-a66d6e0738c3"
+id = "LLR-018"
+title = "cmd_schema_show writes embedded schema source to stdout"
+owner = "tool"
+traces_to = ["9ea226b0-852f-4047-a953-2ab0f4778da1"]
+modules = [
+    "cargo_evidence::cli::schema::cmd_schema_show",
+    "evidence_core::schema::Schema::source",
+]
+description = """
+cmd_schema_show maps the CLI SchemaName to evidence_core::schema::Schema
+and prints the include_str!()'d source verbatim. Schema::for_filename
+deliberately returns None for diagnostic.schema.json so schema
+validate never matches it by filename.
+"""
+verification_methods = ["test"]
+emits = [
+    "SCHEMA_COMPILE_FAILED",
+    "SCHEMA_INSTANCE_INVALID",
+    "SCHEMA_PARSE_FAILED",
+]
+
+[[requirements]]
+uid = "7a74ec14-14e1-4876-914b-66c898028d56"
+id = "LLR-019"
+title = "validate_trace_links_with_policy is two-phase"
+owner = "tool"
+traces_to = ["bfa93e37-0469-468b-b89a-d8b165b42168"]
+modules = ["evidence_core::trace::validation::validate_trace_links_with_policy"]
+description = """
+validate_trace_links_with_policy first registers every SYS / HLR /
+LLR / TEST / DERIVED entry into a uid_index + item_index,
+returning TraceValidationError::Register on duplicates or bad UUIDs.
+Only after the register pass is clean does it run the link pass,
+which enforces the expected target kind and ownership rules for
+HLR→SYS, LLR→HLR, and TEST→LLR.
+"""
+verification_methods = ["test"]
+emits = [
+    "TRACE_LINK_FAILED",
+    "TRACE_PARSE_FAILED",
+    "TRACE_READ_FAILED",
+    "TRACE_REGISTER_FAILED",
+    "TRACE_BACKFILL_READ_FAILED",
+    "TRACE_BACKFILL_SERIALIZE_FAILED",
+    "TRACE_BACKFILL_WRITE_FAILED",
+]
+
+[[requirements]]
+uid = "00578a4a-d6fe-420a-92c3-3cf4cb3387d6"
+id = "LLR-020"
+title = "dispatch guard emits CLI_SUBCOMMAND_ERROR terminal"
+owner = "tool"
+traces_to = ["62498de7-e6b9-4805-8b6c-afead78b33ac"]
+modules = ["cargo_evidence::main::emit_unsupported_jsonl_terminal"]
+description = """
+When --format=jsonl is passed to any non-verify subcommand,
+dispatch calls emit_unsupported_jsonl_terminal, which streams
+CLI_UNSUPPORTED_FORMAT (finding) then CLI_SUBCOMMAND_ERROR
+(terminal, with subcommand field set), returning EXIT_ERROR. Stderr
+stays silent.
+"""
+verification_methods = ["test"]
+emits = ["CLI_UNSUPPORTED_FORMAT"]
+
+[[requirements]]
+uid = "c4492c70-fa65-4e61-a201-9cd2d07c489a"
+id = "LLR-021"
+title = "validate_trace_links_with_policy honors require_hlr_sys_trace"
+owner = "tool"
+traces_to = ["3aec2a02-644b-4e58-a718-17ed879372ba"]
+modules = [
+    "evidence_core::policy::TracePolicy",
+    "evidence_core::trace::validation::validate_trace_links_with_policy",
+]
+description = """
+TracePolicy gains a `require_hlr_sys_trace: bool` (serde default false).
+When true, the HLR loop in validate_trace_links_with_policy emits a
+Link-phase error for every HLR with empty traces_to. Wired from the
+new CLI flag --require-hlr-sys-trace on the `trace` subcommand.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "4dd702cf-714a-4f70-9100-27770e1535c5"
+id = "LLR-022"
+title = "selector_check::resolve_test_selectors greps source tree"
+owner = "tool"
+traces_to = ["2c6f5903-b666-4f72-97d9-877e9b1ee787"]
+modules = [
+    "evidence_core::trace::selector_check::resolve_test_selectors",
+    "evidence_core::trace::validation::TraceValidationError::SelectorUnresolved",
+]
+description = """
+resolve_test_selectors takes &[TestEntry] + workspace root, scans each
+non-empty test_selector against .rs files, returns unresolvable list.
+SelectorUnresolved variant on TraceValidationError with diagnostic
+code TRACE_SELECTOR_UNRESOLVED. CLI flag --check-test-selectors
+enables the check.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "6be1b61b-0aeb-4c05-b2ef-f82fc7c00e55"
+id = "LLR-023"
+title = "default_trace_roots picks cert/trace or cert/trace"
+owner = "tool"
+traces_to = ["911fe168-04d7-49ee-99f4-d7a5a7a6fb1c"]
+modules = ["cargo_evidence::cli::trace::default_trace_roots"]
+description = """
+default_trace_roots returns Option<Vec<String>> by probing for
+./cert/trace/ then ./cert/trace/. cmd_trace calls it only when
+--trace-roots is absent; explicit flag always wins. Logs chosen root
+via tracing::info!.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "1f7977da-6692-45ad-8a29-72a1d3efa60a"
+id = "LLR-024"
+title = "ci_self_check greps committed ci.yml for both flags"
+owner = "tool"
+traces_to = ["a86e0c73-4ffd-4f46-8733-ce5cd0abba76"]
+modules = ["evidence_core::tests::ci_self_check"]
+description = """
+An integration test reads .github/workflows/ci.yml verbatim, locates
+the trace-self-validate job's run: block, asserts both
+--require-hlr-sys-trace and --check-test-selectors appear in it.
+Fires if a future edit strips either flag.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "7df3b426-c9ea-426b-8fb9-64ce247312a0"
+id = "LLR-025"
+title = "cmd_check dispatches on --mode and argument shape"
+owner = "tool"
+traces_to = ["6c6eeac3-d491-42da-940f-97714e78e351"]
+modules = [
+    "cargo_evidence::cli::args::CheckMode",
+    "cargo_evidence::cli::check::cmd_check",
+]
+description = """
+cmd_check reads --mode (Auto/Source/Bundle, default Auto) and the
+optional path arg (default "."). Auto precedence: SHA256SUMS at
+PATH → bundle mode; else Cargo.toml at PATH → source mode; else
+CLI_INVALID_ARGUMENT + VERIFY_FAIL terminal. Explicit mode always
+wins; mismatch between mode and shape also errors cleanly.
+"""
+verification_methods = ["test"]
+emits = [
+    "CHECK_TEST_RUNTIME_FAILURE",
+    "CLI_INVALID_ARGUMENT",
+]
+
+[[requirements]]
+uid = "03795ca7-d5d3-48bc-9774-490cd6d4c2e0"
+id = "LLR-026"
+title = "build_requirement_report emits one diag per entry"
+owner = "tool"
+traces_to = ["9766fba0-eac5-4678-a548-b04c799ee527"]
+modules = [
+    "evidence_core::trace::requirement_report::build_requirement_report",
+    "evidence_core::trace::requirement_report::RequirementStatus",
+]
+description = """
+build_requirement_report walks sys/hlr/llr/tests, looks each entry's
+test_selector up in the outcome map, and emits REQ_PASS / REQ_GAP /
+REQ_SKIP. REQ_GAP events that trace to a root cause carry
+root_cause_uid (propagating upstream from a failing TEST through
+LLR → HLR → SYS). Rule 7 compliance without event-suppression.
+"""
+verification_methods = ["test"]
+emits = [
+    "REQ_PASS",
+    "REQ_GAP",
+    "REQ_SKIP",
+]
+
+[[requirements]]
+uid = "8738fc8e-353a-47d8-a6d4-e256673061d0"
+id = "LLR-027"
+title = "fix_hint_for_gap picks the right FixHint variant per sub-case"
+owner = "tool"
+traces_to = ["7c6672c3-5a20-42b6-bf73-04aa6c00a914"]
+modules = ["evidence_core::trace::requirement_report::fix_hint_for_gap"]
+description = """
+Internal helper returning Option<FixHint> for a given GAP sub-case:
+missing-uid → AssignUuid; empty traces_to under policy → AddTomlKey
+with traces_to key + SYS-UUID stub; unresolvable selector →
+AddTomlKey with test_selector key + suggested resolved form; real
+test failure → None (the fix lives in source, not the trace). Unit-
+tested per sub-case to prove hints match the claimed shape.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "b0569bd5-c609-440b-9389-a7996fffddad"
+id = "LLR-028"
+title = "parse_cargo_test_output builds a per-test outcome map"
+owner = "tool"
+traces_to = ["c50517f8-23e6-4d1e-814e-c3b0938c3cb8"]
+modules = [
+    "evidence_core::bundle::testing::parse_cargo_test_output",
+    "evidence_core::bundle::testing::TestOutcome",
+]
+description = """
+Extends the counters-only parser to also produce BTreeMap<String,
+TestOutcome>. Tracks the `Running target/debug/deps/<binary>-<hash>`
+header so integration-test fn-only lines get their binary_name
+prefix at parse time; unit-test lines keep cargo's printed module
+path verbatim. Pinned libtest_output_sample.txt fixture is the
+format-stability canary.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_TEST_SUMMARY_MISMATCH"]
+
+[[requirements]]
+uid = "0835d2e8-3a84-4a4a-97e0-46985be02892"
+id = "LLR-029"
+title = "RULES const + rules subcommand + rules_json()"
+owner = "tool"
+traces_to = ["17cd860a-cf97-4eba-b54f-1f7d2563e74b"]
+modules = [
+    "evidence_core::rules::RULES",
+    "evidence_core::rules::RuleEntry",
+    "evidence_core::rules::Domain",
+    "evidence_core::rules::rules_json",
+    "cargo_evidence::cli::rules::cmd_rules",
+]
+description = """
+`evidence_core::rules` defines `RuleEntry { code, severity, domain,
+has_fix_hint, terminal }`, the `Domain` enum (closed over code
+prefixes), and `pub const RULES: &[RuleEntry]` exhaustively listing
+every emittable code. `rules_json()` returns a deterministic
+serialized form sorted by code. `cargo_evidence::cli::rules::cmd_rules`
+renders either the JSON array (`--json`) or a human-readable table.
+`--format=jsonl` is not supported (single JSON blob, not a stream)
+and falls through to the existing `CLI_UNSUPPORTED_FORMAT` guard.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "1e35264b-eda4-43ae-b991-fc325e8a2a79"
+id = "LLR-030"
+title = "Locked-codes invariant: RULES <-> source DiagnosticCode walk"
+owner = "tool"
+traces_to = ["93a4a758-4e77-47c0-8c16-1b8e77be05f1"]
+modules = [
+    "diagnostic_codes_locked::rules_contains_every_code",
+    "diagnostic_codes_locked::every_rules_entry_is_implemented",
+]
+description = """
+Two new invariants in the existing `diagnostic_codes_locked` test
+module: (a) the set of source-walked `DiagnosticCode::code()`
+return strings is a subset of `RULES.code`; (b) `RULES.code` is a
+subset of the source-walked set. Together they form a bijection.
+Uses the existing source-walk helper so the walk side of the check
+is never skipped.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "04d734bc-d8c5-4a1a-9fd4-4511abdc1476"
+id = "LLR-031"
+title = "Locked-codes invariant: every code is claimed by >=1 LLR.emits"
+owner = "tool"
+traces_to = ["460e5ca4-901f-4086-b660-2e2490dfecdc"]
+modules = [
+    "evidence_core::trace::entries::LlrEntry::emits",
+    "diagnostic_codes_locked::every_code_is_claimed_by_an_llr",
+]
+description = """
+`LlrEntry` gains `emits: Vec<String>` with `#[serde(default,
+skip_serializing_if = "Vec::is_empty")]`. A locked-codes invariant
+loads `cert/trace/llr.toml` via `read_all_trace_files`, collects
+the union of `emits` across all LLRs, and asserts that union
+equals `RULES.code` minus an explicit `reserved_unclaimed` set. The
+invariant also asserts every `emits` string is a real code in
+RULES. `reserved_unclaimed` lives next to RULES with a doc comment
+enumerating each reserved code and its justification.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "92fe3e5e-8a56-4f35-b01d-31d8607dc094"
+id = "LLR-032"
+title = "Locked-codes invariant: RULES.terminal matches TERMINAL_CODES"
+owner = "tool"
+traces_to = ["163796eb-0063-4b24-8012-96b167e54e20"]
+modules = ["diagnostic_codes_locked::rules_terminal_set_matches_terminal_codes"]
+description = """
+New invariant asserts `{ r.code | r in RULES where r.terminal }`
+equals `TERMINAL_CODES` as a set. A new terminal added to
+TERMINAL_CODES without a RULES entry where `terminal = true` fails,
+and a RULES entry with `terminal = true` not in TERMINAL_CODES also
+fails.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "673ee175-fc1c-4720-919c-4beb915f3eea"
+id = "LLR-033"
+title = "Byte-diff test pins verify + check wire fixtures"
+owner = "tool"
+traces_to = ["4834b99c-bc1c-4061-bbbd-ab05feb3330c"]
+modules = [
+    "golden_fixtures::verify_golden_matches",
+    "golden_fixtures::check_source_golden_matches",
+]
+description = """
+Two integration tests under `crates/cargo-evidence/tests/` run
+`verify --format=jsonl` on a committed golden bundle and `check .`
+on a committed synthetic source tree, normalize known-
+nondeterministic fields (timestamps; libtest `finished in`
+durations), and byte-diff against committed fixture files. The
+synthetic source tree is independent of `cert/trace/` so the
+fixture doesn't drift when the tool's own self-trace grows.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "d091f446-f196-49cd-8360-fccc139d19d9"
+id = "LLR-034"
+title = "Self-compliance baseline diff test"
+owner = "tool"
+traces_to = ["a3593224-76e3-4928-a67f-833f7961e10d"]
+modules = ["self_compliance_baseline::baseline_matches_current_generation"]
+description = """
+Integration test runs `cargo evidence generate` against the tool's
+own workspace into a tempdir, parses every `compliance/*.json`
+produced, serializes the tuples `(crate, objective_id, status)`,
+and asserts the set equals the committed
+`cert/baselines/self_compliance.json`. A diff fires with the exact
+tuple that changed, naming both old and new statuses. The CI job
+`self-compliance` runs this test.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "338d51d5-9068-4984-9826-4b84e698c62a"
+id = "LLR-035"
+title = "evidence_core::floors measurement helpers + cert/floors.toml parser"
+owner = "tool"
+traces_to = ["4c27ff02-bef9-4cab-afa0-faaf3bf5f3c1"]
+modules = [
+    "evidence_core::floors::current_measurements",
+    "evidence_core::floors::count_rules",
+    "evidence_core::floors::count_terminals",
+    "evidence_core::floors::count_trace_per_layer",
+    "evidence_core::floors::count_tests",
+    "evidence_core::floors::count_library_panics",
+    "evidence_core::floors::FloorsConfig",
+]
+description = """
+A `floors` module in the evidence library exports per-dimension
+measurement helpers and a `FloorsConfig` TOML deserializer. Each
+helper reuses existing public surfaces (`RULES.len()`,
+`TERMINAL_CODES.len()`, `read_all_trace_files`) or a small source
+walk (for `#[test] fn` count and library panic macros). Per-helper
+unit tests pin current values so a helper regression surfaces
+independently of the full floors-gate integration.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "74f50e68-3a78-4557-a7c3-13340e52543a"
+id = "LLR-036"
+title = "cmd_floors runs the gate + JSONL support"
+owner = "tool"
+traces_to = ["a3073b5a-ee61-4bdd-bdfe-c3154274e5ea"]
+modules = ["cargo_evidence::cli::floors::cmd_floors"]
+description = """
+`cargo evidence floors [--format={human,jsonl}] [--json] [--base <ref>]`
+reads cert/floors.toml, computes current measurements via
+`evidence_core::floors`, compares each entry against its floor / ceiling,
+and prints a per-dimension table in human mode, a deterministic
+JSON array in `--json` mode, or one JSONL diagnostic per dimension in
+`--format=jsonl` mode. Human + JSONL paths terminate with `FLOORS_OK`
+or `FLOORS_FAIL`; any below-floor / above-ceiling emits
+`FLOORS_BELOW_MIN` naming the dimension, current value, and committed
+threshold; exit 2 if any failure. Non-failure dimensions emit
+`FLOORS_DIMENSION_OK` in the JSONL stream. A `--base` flag scopes the
+`[delta_ceilings]` check to the PR diff.
+"""
+verification_methods = ["test"]
+emits = [
+    "FLOORS_BELOW_MIN",
+    "FLOORS_DIMENSION_OK",
+    "FLOORS_OK",
+    "FLOORS_FAIL",
+]
+
+[[requirements]]
+uid = "7fc5f9fc-83e2-44a0-b2d9-e6e1d8501349"
+id = "LLR-037"
+title = "floors-lower-lint refuses silent decreases via a PR-body grep"
+owner = "tool"
+traces_to = ["410a3c64-c5d5-4619-832e-5415c1fdc090"]
+modules = ["scripts/floors-lower-lint.sh"]
+description = """
+A CI script compares `cert/floors.toml` at base vs HEAD, extracts
+numeric decreases in the [floors] table, and asserts the PR body
+(or commit message on push) contains a `Lower-Floor: <dimension>
+<reason>` line for each decrease. Any unjustified decrease emits
+FLOORS_LOWERED_WITHOUT_JUSTIFICATION and fails. Pattern mirrors
+PR #49's proposed Override-Deterministic-Baseline line so the
+lowering-exception protocol is uniform across baselines.
+"""
+verification_methods = ["test"]
+emits = ["FLOORS_LOWERED_WITHOUT_JUSTIFICATION"]
+
+[[requirements]]
+uid = "e9e20795-fba7-4c63-bc6d-e76c3a3dada6"
+id = "LLR-038"
+title = "HlrEntry.surfaces + KNOWN_SURFACES bijection"
+owner = "tool"
+traces_to = ["80461fe3-aa78-4f86-8320-b298a188f51a"]
+modules = [
+    "evidence_core::trace::entries::HlrEntry::surfaces",
+    "evidence_core::trace::surfaces::KNOWN_SURFACES",
+    "evidence_core::trace::validation::validate_hlr_surfaces",
+]
+description = """
+`HlrEntry.surfaces: Vec<String>` declares user-visible CLI verbs
+and observable contracts. A hand-curated `KNOWN_SURFACES: &[&str]`
+module-level const enumerates the complete surface catalog; a unit
+test asserts it matches the `Commands::*` enum plus hand-listed
+observable contracts. The Link-phase validator pushes prose
+findings for any KNOWN_SURFACES entry with no HLR claiming it and
+for any HLR.surfaces string not in the catalog; all such findings
+surface under the current `TRACE_LINK_FAILED` envelope until typed
+sub-errors land (C6 follow-up).
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "1fd29203-a496-494a-b981-cf6730172f50"
+id = "LLR-039"
+title = "StringOrVec deserializer for test_selectors"
+owner = "tool"
+traces_to = ["b6d5e15c-ce52-4a32-9f6a-8891e9f76022"]
+modules = [
+    "evidence_core::trace::entries::TestEntry::test_selectors",
+    "evidence_core::trace::entries::deserialize_string_or_vec",
+]
+description = """
+Custom `StringOrVec` serde deserializer accepts both shorthand
+(`"X"`) and array (`["X", "Y"]`) TOML forms for `test_selectors`.
+The shorthand matches the 1:1 dominant case; the array enables
+N:M without ceremony. The field is always `Vec<String>` in Rust;
+the deserializer normalizes the shape.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "9968bdb9-3e20-40c9-ad84-3310621bd102"
+id = "LLR-040"
+title = "validate_derived_has_rationale Link-phase rule"
+owner = "tool"
+traces_to = ["a9b74c2e-0644-4f77-a709-63fe66f53cf8"]
+modules = ["evidence_core::trace::validation"]
+description = """
+A Link-phase rule that iterates every `DerivedEntry` row in
+`cert/trace/derived.toml` and asserts `rationale.is_some()` and
+non-empty. Fires `TRACE_DERIVED_MISSING_RATIONALE` (typed
+`LinkError::DerivedMissingRationale`) on violation. Gated by
+`policy.require_derived_rationale` (DAL-C+); per DO-178C §5.2.4
+derived requirements must carry rationale flowing to the system
+safety assessment process.
+
+Note: an earlier version of this rule iterated `LlrEntry` rows
+with `derived = true`. That legacy LLR-side `derived: bool`
+channel was retired in favor of the dedicated `DerivedFile`
+schema (DO-178C §5.2.4 treats derived requirements as a distinct
+category, not a flag on LLR).
+"""
+verification_methods = ["test"]
+emits = ["TRACE_DERIVED_MISSING_RATIONALE"]
+
+[[requirements]]
+uid = "297a6b28-9a54-4581-abeb-6b8ff33bb9c7"
+id = "LLR-041"
+title = "LinkError enum with per-variant DiagnosticCode impl"
+owner = "tool"
+traces_to = ["6733cf01-b823-41c0-90e1-476581f413b1"]
+modules = [
+    "evidence_core::trace::validation::link_errors::LinkError",
+    "evidence_core::trace::validation::TraceValidationError",
+]
+description = """
+`pub enum LinkError` lives in a sibling
+`crates/evidence-core/src/trace/validation/link_errors.rs` file (pulled
+in by `validation.rs` as `mod link_errors;`) to keep the facade
+under the 500-line workspace limit. Variants carry payload fields
+(`hlr_id`, `llr_id`, `source_kind`, `link`, `expected`, etc.) that
+the `#[error(...)]` template formats. `DiagnosticCode::code` matches
+on `self` to return the variant's stable code string.
+`TraceValidationError::Link` carries `Vec<LinkError>`.
+"""
+verification_methods = ["test"]
+emits = [
+    "TRACE_DANGLING_LINK",
+    "TRACE_DERIVED_MISSING_RATIONALE",
+    "TRACE_DUPLICATE_TRACE_LINK",
+    "TRACE_HLR_SURFACE_UNCLAIMED",
+    "TRACE_HLR_SURFACE_UNKNOWN",
+    "TRACE_INVALID_LINK_UUID",
+    "TRACE_LINK_OTHER",
+    "TRACE_LLR_MISSING_PARENT_LINKS",
+    "TRACE_MISSING_HLR_SYS_TRACE",
+    "TRACE_MISSING_VERIFICATION_METHODS",
+    "TRACE_OWNERSHIP_VIOLATION",
+    "TRACE_WRONG_TARGET_KIND",
+]
+
+[[requirements]]
+uid = "61f2c36a-0d47-4485-acca-f2d4403ec339"
+id = "LLR-042"
+title = "cmd_trace stream-emits one Diagnostic per LinkError"
+owner = "tool"
+traces_to = ["b7265ced-3c5b-4558-92d1-5c54cba8657f"]
+modules = ["cargo_evidence::cli::trace::cmd_trace"]
+description = """
+When `trace --validate --format=jsonl` hits
+`Err(TraceValidationError::Link { errors })`, the CLI handler
+iterates `errors` and calls `emit_jsonl` once per variant with
+`code = link_error.code()`, `severity = Error`, `message =
+link_error.to_string()`, and a variant-specific `Location`.
+Legacy `--json` mode keeps the prior aggregate shape (single
+result object with a concatenated `message`) so shell consumers
+that piped through `jq .message` aren't broken. Test-selector
+resolution failures surface as `TRACE_SELECTOR_UNRESOLVED`
+alongside Link-phase variants.
+"""
+verification_methods = ["test"]
+emits = [
+    "TRACE_REGISTER_FAILED",
+    "TRACE_SELECTOR_UNRESOLVED",
+    "VERIFY_FAIL",
+    "VERIFY_OK",
+]
+
+[[requirements]]
+uid = "becd7d00-a7e4-435b-9f06-398494529ab7"
+id = "LLR-043"
+title = "RULES registers every LinkError variant code; bijection closed"
+owner = "tool"
+traces_to = ["5280cbfc-ea87-4a6d-a2ed-172e9cb48c37"]
+modules = ["evidence_core::rules::RULES"]
+description = """
+Every `LinkError::code()` return has a matching entry in the
+`RULES` manifest, and LLR-041's `emits` list claims all of them.
+The `diagnostic_codes_locked` integration test enforces (a) the
+walker picks up each variant's code (uniqueness + regex +
+reserved-suffix), and (b) the PR #47 bijection
+`every_code_is_claimed_by_an_llr` closes the loop. Re-adds the
+three pseudo-codes PR #49 removed (`TRACE_DERIVED_MISSING_RATIONALE`,
+`TRACE_HLR_SURFACE_UNCLAIMED`, `TRACE_HLR_SURFACE_UNKNOWN`) as real
+typed emits + ~9 newly-typed codes for Link-phase rules that had
+no dedicated code before this PR.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "d5fa6b1b-315e-4cce-9a39-085cd266f4ad"
+id = "LLR-044"
+title = "rot_prone_markers_locked integration test"
+owner = "tool"
+traces_to = ["0800ac23-b3d6-4e1e-b2d1-50a0349bd586"]
+modules = ["evidence_core::rot_prone_markers_locked"]
+description = """
+A Rust `#[test] fn` suite in
+`crates/evidence-core/tests/rot_prone_markers_locked.rs` walks every
+`.rs` file under `crates/**/src/**` and `crates/**/tests/**`,
+every `.md` at the workspace root and under `crates/` (excluding
+`cert/trace/` and CHANGELOG.md), and every `cert/**/*.toml` outside
+`cert/trace/`. For `.rs` files the pinned regex pattern set applies
+to extracted comment lines only — line, doc, and block comments
+pulled out by a dependency-free lexer sibling module
+(`rot_prone_markers_locked/rust_comments.rs`) that skips string
+literals, raw strings (any hash count), byte strings, and char
+literals (lifetime heuristic documented in the module) — so runtime
+string data carrying the same words stays legitimate. Markdown and
+TOML are scanned whole-file: they are policy prose with no
+string-literal ambiguity. The pattern set pins PR-number
+breadcrumbs, bare issue numbers, pre-/post-PR and review-round
+narrative, absolute line counts, newness adjectives, forward split
+hints, and the temporal-phrasing class — `migrated from`,
+`previously`, `historically`, `formerly`, `before this module` —
+the CONTRIBUTING WHY-only-comment rule. Failures report `file:line`
+via `assert!`; no `Diagnostic` wire shape; no `RULES` entry.
+Follows the `schema_versions_locked` / `diagnostic_codes_locked` /
+`floors_equal_current_no_slack` pattern — the test's failure
+message is the diagnostic. `RESERVED_TEXT_REFS` is the exemption
+mechanism: filename-suffix entries with written justification,
+currently empty; `path:line` pins are forbidden (an unrelated edit
+that moves the pinned text would silently break the exemption) and
+a dedicated test rejects them. CHANGELOG.md and `cert/trace/**`
+stay excluded as audit journals, and `used to` is deliberately
+unpatterned (its instrumental reading is legitimate).
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "7539445f-e53f-4300-80fa-ecf12948e121"
+id = "LLR-045"
+title = "cross-time-determinism CI job + baseline-override lint"
+owner = "tool"
+traces_to = ["4aad7a9e-ec91-42a6-9360-a4c7f8e50761"]
+modules = [
+    "scripts::cross_time_determinism",
+    "scripts::deterministic_baseline_override_lint",
+]
+description = """
+New CI job `cross-time-determinism` in `.github/workflows/ci.yml`:
+on `pull_request` events downloads the last successful
+`evidence-cross-host` Linux artifact from the main branch via
+`gh run list` + `gh run download`, builds the current PR's
+`cargo-evidence` binary, generates a dev-profile bundle via
+`--skip-tests`, and compares the six-field toolchain projection
+(rustc, cargo, llvm_version, cargo_lock_hash,
+rust_toolchain_toml, rustflags) between the prior artifact's
+`deterministic-manifest.json` and the fresh bundle's. A
+companion bash
+script `scripts/deterministic-baseline-override-lint.sh` greps
+the PR body (or push-mode commit message) for
+`^Override-Deterministic-Baseline: .+` and emits exit 0 when an
+override is present, exit 1 otherwise. The job combines both:
+match → pass silently; mismatch + override → pass with log;
+mismatch without override → fail with the drifted fields
+printed. Missing prior artifact → skip with warning (exit 0),
+same degradation pattern as `floors-lower-lint.sh` under a
+fresh repo.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "b269e51d-f656-4ecc-832e-8004a287a790"
+id = "LLR-046"
+title = "trace_id_refs_locked integration test"
+owner = "tool"
+traces_to = ["1be9fb07-2492-4e2a-b9c6-b089b7eac20d"]
+modules = ["evidence_core::trace_id_refs_locked"]
+description = '''
+A Rust `#[test] fn` in
+`crates/evidence-core/tests/trace_id_refs_locked.rs` walks `.rs` under
+`crates/**/{src,tests}/**`, `.md` (excluding `cert/trace/README.md`),
+and `.toml` outside `cert/trace/`. Greps
+`\b(SYS|HLR|LLR|TEST|DERIVED)-\d+\b`, loads trace IDs via
+`evidence_core::read_all_trace_files`, partitions grep'd refs by kind,
+asserts each exists. Fails via `assert!` with sorted
+`file:line <kind>-<id>` listings; no `Diagnostic` wire shape.
+Pattern mirrors `schema_versions_locked` /
+`rot_prone_markers_locked`. Meta LLR: `emits = []`.
+'''
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "dfa658f2-e6f3-4931-be56-78e2de986214"
+id = "LLR-047"
+title = "walker_usage_locked integration test"
+owner = "tool"
+traces_to = ["29ea38c7-c1d6-4130-a44e-696a1b10802d"]
+modules = ["evidence_core::walker_usage_locked"]
+description = """
+A Rust `#[test] fn` in
+`crates/evidence-core/tests/walker_usage_locked.rs` walks
+`crates/**/*.rs` via the shared `walker_helpers::walk` primitive,
+scans every line for the substrings `fs::read_dir(` and
+`std::fs::read_dir(`, and fails via `assert!` unless the offending
+file is listed in `ALLOWED_READ_DIR_FILES`. Positive / negative
+dogfood tests cover the gate's fire-on-unallowlisted and
+pass-on-allowlisted paths against synthetic tempdir fixtures. Meta
+LLR: `emits = []` — the test produces an assertion message, not a
+typed `Diagnostic`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "ec50f98b-9a1d-4f7b-bc33-df56c7faab2a"
+id = "LLR-048"
+title = "cmd_doctor subcommand implementation"
+owner = "tool"
+traces_to = ["57992e98-fb1e-4248-b340-6dd454db95c1"]
+modules = ["cargo_evidence::cli::doctor"]
+description = """
+`cmd_doctor(args) -> Result<()>` in
+`crates/cargo-evidence/src/cli/doctor.rs` runs each rigor check
+in a fixed deterministic order, emitting one `Diagnostic` per
+check via `evidence_core::diagnostic::emit_jsonl` with a `DOCTOR_*`
+code. Severity is derived per check: trace / floors / boundary
+failures are `error`; CI / merge-style / override-doc gaps are
+`warning`. A check that passes emits an `info`-severity
+`DOCTOR_*_OK` diagnostic so the stream shape stays "one line
+per check" and downstream tooling can detect truncation.
+
+Stream terminates with exactly one terminal diagnostic:
+- `DOCTOR_OK` + exit 0 when no `error`-severity diagnostic fired
+- `DOCTOR_FAIL` + exit 2 when at least one `error` fired
+Per Schema Rule 1 + the existing `TERMINAL_CODES` contract.
+
+`generate` wires doctor via a `precheck_doctor(&config)` call in
+the `Profile::Cert | Profile::Record` branch; the call returns
+`Err(BuilderError::DoctorFailed { codes: Vec<&'static str> })`
+when the audit fails, and the main dispatch translates the error
+into a `GENERATE_ERROR` terminal whose diagnostic enumerates the
+per-check codes so the auditor gets full detail without re-
+running doctor.
+"""
+verification_methods = ["test"]
+emits = [
+    "DOCTOR_OK",
+    "DOCTOR_FAIL",
+    "DOCTOR_CHECK_PASSED",
+    "DOCTOR_TRACE_INVALID",
+    "DOCTOR_TRACE_EMPTY",
+    "DOCTOR_FLOORS_MISSING",
+    "DOCTOR_FLOORS_VIOLATED",
+    "DOCTOR_FLOORS_SLACK",
+    "DOCTOR_FLOORS_BOUNDARY_MISMATCH",
+    "DOCTOR_BOUNDARY_MISSING",
+    "DOCTOR_CI_INTEGRATION_MISSING",
+    "DOCTOR_MERGE_STYLE_RISK",
+    "DOCTOR_MERGE_STYLE_UNKNOWN",
+    "DOCTOR_NEXTEST_MISSING",
+    "DOCTOR_OVERRIDE_PROTOCOL_UNDOCUMENTED",
+    "DOCTOR_QUALIFICATION_MISSING",
+]
+
+[[requirements]]
+uid = "548b7b36-1d03-487d-a6a1-f2b37bdee2a1"
+id = "LLR-049"
+title = "Pre-release detection at build time + verify-side refusal"
+owner = "tool"
+traces_to = ["014adc4d-c545-403c-b4f2-d702a49dff30"]
+modules = [
+    "evidence_core::env::capture",
+    "evidence_core::verify::bundle",
+    "evidence_core::verify::errors",
+    "cargo_evidence::cli::verify",
+    "cargo_evidence::cli::generate::phases",
+]
+description = """
+Four coupled sites:
+
+- `crates/evidence-core/src/env/capture.rs` adds a module-scope
+  `TOOL_IS_PRERELEASE: bool` computed from
+  `env!("CARGO_PKG_VERSION")` by byte-scanning for `-` in
+  const context. `env_fingerprint` appends `tool_prerelease:
+  TOOL_IS_PRERELEASE` to the returned `EnvFingerprint`.
+- `crates/evidence-core/src/env/fingerprint.rs` grows
+  `tool_prerelease: bool` with `#[serde(default)]` so
+  pre-PR-#60 bundles deserialize as `false`.
+- `crates/evidence-core/src/verify/errors.rs` adds
+  `VerifyError::PrereleaseToolDetected { profile,
+  engine_crate_version }` with `DiagnosticCode` returning
+  `"VERIFY_PRERELEASE_TOOL"`.
+- `crates/evidence-core/src/verify/bundle.rs` reads
+  `env.tool_prerelease` after `check_env_vs_index` and pushes
+  the error on every profile — library stays policy-free.
+- `crates/cargo-evidence/src/cli/verify.rs::cmd_verify_jsonl`
+  partitions the error bag: `VERIFY_PRERELEASE_TOOL` on
+  `Profile::Dev` → Warning stream + `VERIFY_OK` terminal +
+  exit 0; same code on Cert/Record → Error + `VERIFY_FAIL` +
+  exit 2. Every other VerifyError stays error-severity.
+- `crates/cargo-evidence/src/cli/generate/phases.rs::init_builder`
+  emits a warning-severity `VERIFY_PRERELEASE_TOOL` in
+  cert/record profile when `TOOL_IS_PRERELEASE` is true. Same
+  init_builder path emits `ENV_ENGINE_RELEASE_PROVENANCE`
+  (Warning) on cert/record when `TOOL_BUILD_SOURCE_IS_RELEASE`
+  is true — a `release-v<version>` engine_git_sha fallback
+  carries weaker provenance than a git-source SHA and a
+  cert-grade run should prefer `cargo install --git`.
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_PRERELEASE_TOOL",
+    "ENV_ENGINE_RELEASE_PROVENANCE",
+]
+
+[[requirements]]
+uid = "65b81ee1-b646-490e-8c1b-c2f9ad183970"
+id = "LLR-050"
+title = "evidence-mcp crate exposes three rmcp tools over stdio"
+owner = "tool"
+traces_to = ["20b4b691-f89f-4453-85f3-9eba5299935e"]
+modules = [
+    "evidence_mcp::lib",
+    "evidence_mcp::subprocess",
+]
+description = """
+New workspace crate `crates/evidence-mcp`. Shape:
+
+- `Cargo.toml` depends on `rmcp = "=1.5.0"` with features
+  `["server", "macros", "transport-io", "schemars"]`, plus
+  `tokio` (features `macros`, `rt-multi-thread`, `io-std`,
+  `process`), `serde`, `serde_json`, `schemars`, `tracing`,
+  `tracing-subscriber`, `thiserror`, `anyhow` (main only),
+  `evidence-core` (workspace). `publish = true`.
+- `src/main.rs` (~30 LOC): tracing_subscriber init → stderr
+  (never stdout — stdio MCP owns stdout). Parses `--help`
+  and `--version`; no other args. Calls
+  `Server::default().serve(stdio()).await?.waiting().await?`.
+- `src/lib.rs`: `#[derive(Clone, Default)] pub struct Server;`
+  with a `#[tool_router(server_handler)]` impl block exposing
+  three `#[tool]` async methods: `evidence_check`,
+  `evidence_rules`, `evidence_doctor`. Each method takes
+  `Parameters<Request>` and returns
+  `Result<CallToolResult, McpError>`.
+- `src/subprocess.rs` (pub(crate)):
+  `async fn run_evidence(args: &[&str], cwd: &Path)
+  -> Result<Captured, RunError>`. Binary resolution: `$CARGO`
+  env var first, then `cargo` on `$PATH` invoking the
+  `evidence` subcommand. Spawns with
+  `CARGO_TERM_COLOR=never` + `NO_COLOR=1`. Inherits `$PATH`,
+  `$CARGO_HOME`, `$RUSTUP_HOME`. Wraps spawn in
+  `tokio::time::timeout(Duration::from_secs(600), ...)`.
+  `RunError` is a `thiserror` enum with variants
+  `BinaryNotFound`, `Spawn(io::Error)`, `NonUtf8Output`,
+  `MalformedJsonl`.
+- `src/schema.rs`: tool input/output structs with
+  `#[derive(Deserialize, Serialize, JsonSchema)]`. Input types
+  `CheckRequest`, `DoctorRequest`, `RulesRequest` (empty).
+  Output type `JsonlToolResponse { exit_code: i32,
+  terminal: String, diagnostics: Vec<serde_json::Value>,
+  summary: BTreeMap<String, u32> }` for check + doctor;
+  `RulesToolResponse { exit_code: i32,
+  rules: Vec<serde_json::Value>, count: usize }` for rules.
+  `diagnostics: Vec<serde_json::Value>` (not typed to
+  `evidence_core::Diagnostic`) avoids a re-serialize cycle and
+  sidesteps adding `JsonSchema` to `evidence_core`.
+- `crates/evidence-mcp/tests/mcp_surface.rs`: integration
+  tests driving the server via rmcp's in-process client (if
+  exposed at 1.5.0) or by spawning the binary with
+  `assert_cmd`. Covers `rules_count_matches_library_const`,
+  `doctor_on_self_repo_passes`,
+  `check_source_on_empty_dir_fails_gracefully`,
+  `check_source_on_self_repo_is_opt_in` (#[ignore]'d under
+  `MCP_RUN_LONG_CHECK=1`), `rules_exit_code_zero_on_success`.
+- `cert/boundary.toml` gains `evidence-mcp` in
+  `scope.in_scope`. `cert/floors.toml` gains
+  `[per_crate.evidence-mcp] test_count = N` and
+  `[per_crate_ceilings.evidence-mcp] library_panics = 0`,
+  with `trace_{sys,hlr,llr,test}` and `known_surfaces`
+  bumped by 1 each.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "75e00b58-28a5-42d2-b4c9-57193c06093b"
+id = "LLR-051"
+title = "Extend libtest parser with failure-block capture; emit TestOutcomeRecord stream"
+owner = "tool"
+traces_to = ["cfeb6d1b-4189-47fd-9d9f-d50b81c57354"]
+modules = [
+    "evidence_core::bundle::test_summary",
+    "evidence_core::tests::outcome_record",
+    "evidence_core::bundle::builder",
+]
+description = """
+Three coupled sites:
+
+- `evidence_core::bundle::test_summary::parse_cargo_test_output_with_outcomes`
+  gains a failure-block scanner. After the `test result:` line
+  it keeps reading for `---- <test_name> stdout ----` headers;
+  for each, captures the following paragraph up to the next
+  `---- ... ----` header or the `failures:` summary line,
+  attaching it to the matching `TestOutcome::Failed` entry in
+  the returned map. ~30 LOC regex / state machine. Ignoring the
+  block leaves behaviour identical for runs with no failures.
+  On parse ambiguity (failure block referencing a test not in
+  the map), emit `TESTS_OUTCOME_PARSE_FAILED` and fall back
+  gracefully — the bundle still ships with the aggregate view.
+
+- New `evidence_core::tests::outcome_record::TestOutcomeRecord`
+  — `{name, module_path, passed, ignored, failure_message:
+  Option<String>, duration_ms: Option<u64>}` with
+  `#[derive(Serialize, Deserialize, JsonSchema)]`. Distinct
+  from `parse_cargo_test_output_with_outcomes`'s internal enum
+  so parser refactors don't touch the wire shape.
+
+- `evidence_core::bundle::builder` (the cert-profile bundle
+  generator) writes `tests/test_outcomes.jsonl` —
+  alphabetically sorted by `(module_path, name)` for
+  determinism — before `SHA256SUMS` seals, so the file is
+  integrity-hashed with the rest of the bundle. On success the
+  terminal `TESTS_OK` fires.
+
+Compliance emitter (`evidence_core::compliance::...`) reads
+the emitted jsonl back, checks non-empty + failure-message on
+every failure, and sets `objectives["A7-3"].status =
+ObjectiveStatusKind::Met` accordingly.
+"""
+verification_methods = ["test"]
+emits = [
+    "TESTS_OK",
+    "TESTS_OUTCOME_PARSE_FAILED",
+]
+
+[[requirements]]
+uid = "4bd86c6c-1743-4a78-9d17-c284b3ad8e04"
+id = "LLR-052"
+title = "resolve_llr_backlinks enriches TestOutcomeRecord + check_llr_test_selectors asserts reverse"
+owner = "tool"
+traces_to = ["e4f127fb-38c5-4f77-971f-143f774716f8"]
+modules = [
+    "evidence_core::trace::test_backlinks::resolve_llr_backlinks",
+    "evidence_core::bundle::outcome_record::TestOutcomeRecord",
+    "evidence_core::verify::llr_selectors::check_llr_test_selectors",
+    "cargo_evidence::cli::generate::test_outcomes::enrich_and_write_test_outcomes",
+]
+description = """
+`evidence_core::trace::test_backlinks::resolve_llr_backlinks`
+mutates a slice of `TestOutcomeRecord` in place, filling each
+record's `requirement_uids` with the deduplicated union of
+`TestEntry.traces_to` across every TestEntry whose
+`all_selectors()` matches `{module_path}::{name}` (exact or
+`::`-boundary prefix, sibling-module-no-match pinned by test).
+
+`cargo_evidence::cli::generate::test_outcomes::enrich_and_write_test_outcomes`
+accumulates `TestEntry` across every configured trace root,
+calls `EvidenceBuilder::enrich_test_outcomes_with_llrs`, then
+writes `tests/test_outcomes.jsonl` with the populated records.
+Runs in Phase 6b after trace validation.
+
+`evidence_core::verify::llr_selectors::check_llr_test_selectors`
+reads `bundle/trace/llr.toml` + `tests/test_outcomes.jsonl`
+inside `verify_bundle_with_key`, accumulates the set of
+`requirement_uids` across all records, then for every LLR with
+`verification_methods.contains("test")` AND a non-None `uid`,
+asserts the uid is present in the set. Missing → push
+`VerifyError::LlrTestSelectorUnresolved { llr_uid, llr_id }`.
+Skip silently when the JSONL file is absent (older bundles).
+Empty-string uids are treated the same as `None` for
+defense-in-depth against corrupt trace data.
+
+`cargo_evidence::cli::verify::skipped_notices::maybe_emit_llr_check_skipped_no_outcomes`
+emits `VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES` (Info) on the
+`VerifyResult::Pass` path when `tests/test_outcomes.jsonl` is
+absent — the library-side check silently returned; this notice
+surfaces that skip so an auditor can distinguish "check ran and
+passed" from "check didn't run."
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_LLR_CHECK_SKIPPED_NO_OUTCOMES",
+    "VERIFY_LLR_TEST_SELECTOR_UNRESOLVED",
+]
+
+[[requirements]]
+uid = "ed4284df-5a2e-4241-bbd9-e744edd43f79"
+id = "LLR-053"
+title = "coverage subprocess + llvm-cov JSON parser + bundle write"
+owner = "tool"
+traces_to = ["468a6894-7121-4936-8432-94163e35d4a1"]
+modules = [
+    "evidence_core::coverage::report::CoverageReport",
+    "evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export",
+    "cargo_evidence::cli::generate::coverage_phase::run_coverage_phase",
+]
+description = """
+`evidence_core::coverage::report::CoverageReport` models the
+typed wire shape of `coverage/coverage_summary.json`. Top-level
+fields: `schema_version: String` (pinned to
+`schema_versions::COVERAGE`), `measurements: Vec<Measurement>`.
+Each `Measurement` carries a `level: CoverageLevel` enum with
+four variants (`statement`, `branch`, `pattern_decision`,
+`mcdc` — the latter two reserved, not emitted), plus
+`engine: String`, `engine_version: String`, and
+`per_file: Vec<FileMeasurement>`. Each `FileMeasurement` has a
+workspace-relative `path: String`, `lines: LineCoverage
+{covered, total}`, `branches: Option<BranchCoverage {covered,
+total}>`, `decisions: Vec<DecisionCoverage>`, and
+`conditions: Vec<ConditionCoverage>`. `branches` is `Some` at
+`CoverageLevel::Branch` and `None` at `Statement` —
+aggregation over a Branch measurement reads the `branches`
+field, never `lines`. `decisions` / `conditions` stay reserved
+for v2 pattern-decision / MC/DC; both are empty today
+regardless of level.
+
+`evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export`
+consumes `cargo-llvm-cov`'s JSON export format (documented
+shape: `{data: [{files: [...], functions: [...], totals: {...}}],
+version, cargo_llvm_cov: {version}}`), normalizes absolute file
+paths to workspace-relative, and returns a `CoverageReport` with
+one measurement per requested level. Filename normalization
+strips the workspace root prefix deterministically so hashes are
+cross-host stable.
+
+`cargo_evidence::cli::generate::coverage_phase::run_coverage_phase`
+is the new Phase 5b of `cmd_generate`. It is invoked after the
+plain `cargo test` phase when `CoverageChoice != None`. The
+function spawns `cargo llvm-cov --workspace --json --output-path
+<tmp.json> --lcov --output-path <tmp.lcov>` (via
+`std::process::Command`), parses the JSON, and stages both files
+into the builder via `EvidenceBuilder::set_coverage_report` and
+`EvidenceBuilder::stage_coverage_lcov`. Each llvm-cov spawn
+carries the shared resolution-policy flags (LLR-140). On ENOENT (binary
+missing) the phase emits a `COVERAGE_LLVMCOV_MISSING`
+diagnostic whose severity is Warning for `Profile::Dev` and
+Error for `Profile::Cert` / `Profile::Record`; on JSON parse
+failure it emits `COVERAGE_PARSE_FAILED` (always Error).
+Successful completion emits `COVERAGE_OK` (Info non-terminal)
+naming the engine version and per-level line counts.
+"""
+verification_methods = ["test"]
+emits = [
+    "COVERAGE_LLVMCOV_MISSING",
+    "COVERAGE_OK",
+    "COVERAGE_PARSE_FAILED",
+]
+
+[[requirements]]
+uid = "02c17b07-0364-4769-ae43-e86a139c25c3"
+id = "LLR-054"
+title = "schema deny_unknown_fields + MCP_WORKSPACE_FALLBACK synthetic diagnostic"
+owner = "tool"
+traces_to = ["00a8b5e6-5526-49a3-902d-870662afe3a5"]
+modules = [
+    "evidence_mcp::schema::CheckRequest",
+    "evidence_mcp::schema::DoctorRequest",
+    "evidence_mcp::schema::RulesRequest",
+    "evidence_mcp::resolve_workspace",
+    "evidence_mcp::emit_workspace_fallback_diagnostic",
+]
+description = """
+Each of the three MCP tool input structs gains
+`#[serde(deny_unknown_fields)]` so a typo'd field name produces
+a clear serde error response at the JSON-RPC layer instead of
+being silently dropped. `resolve_workspace` returns
+`(PathBuf, WorkspaceResolution)` where `WorkspaceResolution`
+distinguishes `Given` (explicit absolute or relative path) from
+`Fallback` (workspace_path was `None`, used server CWD).
+
+`evidence_check` and `evidence_doctor` inspect the
+`WorkspaceResolution` and, when it is `Fallback`, prepend a
+synthetic `{code: "MCP_WORKSPACE_FALLBACK", severity: "warning",
+message: "workspace_path omitted; using MCP server CWD ..."}`
+entry to the `diagnostics` vector before the parsed CLI output.
+The `summary` frequency map is updated correspondingly. Agents
+inspecting `.diagnostics[].code` see the fallback signal ahead
+of the per-check results.
+
+`evidence_rules` does not accept `workspace_path` and therefore
+emits no fallback signal; adding `deny_unknown_fields` there is
+still correctness — rejects `{"workspace_path": "..."}` from a
+confused agent rather than silently ignoring it.
+"""
+verification_methods = ["test"]
+emits = ["MCP_WORKSPACE_FALLBACK"]
+
+[[requirements]]
+uid = "4e98e1d9-6017-425e-b613-52853e97c2f3"
+id = "LLR-055"
+title = "Wire derived entries at cli/trace.rs + cli/generate/phases.rs"
+owner = "tool"
+traces_to = ["fb07d8c2-5d21-4989-b21e-09b62caa0299"]
+modules = [
+    "cargo_evidence::cli::trace::cmd_trace",
+    "cargo_evidence::cli::generate::phases::validate_trace_links_phase",
+]
+description = """
+At `cli/trace.rs:120` and `cli/generate/phases.rs:313`, replace
+the `&[]` placeholder in the `validate_trace_links_with_policy`
+call with `derived.as_ref().map(|d| d.requirements.as_slice()).unwrap_or(&[])`
+(pulling `derived` from the `TraceFiles` destructure in
+both places). The doctor's `check_trace` at
+`cli/doctor/checks.rs:43-45` already does the correct thing
+(accumulates `files.derived.map(|d| d.requirements)` across
+every root); this LLR brings the other two callsites to
+parity. No new diagnostic codes — existing Link-phase errors
+(`TRACE_DANGLING_LINK`, etc.) already fire correctly once the
+derived slice is present.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "5ff642cf-c33c-4775-8573-1da2ac04cdba"
+id = "LLR-056"
+title = "parse_llvm_cov_export populates FileMeasurement.branches structurally"
+owner = "tool"
+traces_to = ["468a6894-7121-4936-8432-94163e35d4a1"]
+modules = ["evidence_core::coverage::report::BranchCoverage"]
+description = """
+`evidence_core::coverage::report::BranchCoverage {covered: u64,
+total: u64}` is a sibling of `LineCoverage` on
+`FileMeasurement`. The parser
+(`evidence_core::coverage::llvm_cov_json::parse_llvm_cov_export`)
+populates `FileMeasurement.branches` from the llvm-cov JSON
+`summary.branches.{covered,count}` pair on Branch-level
+measurements, and leaves it `None` on Statement-level.
+
+The structural split replaces an earlier shim
+(`decisions_from_branch_summary`) that encoded the branch
+numerator/denominator as a single synthetic `DecisionCoverage`
+whose id string was `"file-summary:{covered}/{count}"`. That
+encoding made the counts unreachable to anything downstream
+that didn't parse the id string — in particular, branch-
+threshold aggregation had no way to read them, and silently
+fell back to summing line counts. A file with zero branches
+(straight-line code) serializes as `Some(BranchCoverage{0,0})`,
+not `None`; absence of the field means "this measurement level
+does not carry branch data", not "this file has no branches".
+
+The field is declared with `#[serde(default,
+skip_serializing_if = "Option::is_none")]` so old bundles
+(pre-branch-split) deserialize with `branches: None` — additive
+wire change. Statement-level measurements never emit a
+`"branches": null` key, only omit the field.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "a95ed852-94ba-499b-bd17-76d26b75ebe5"
+id = "LLR-057"
+title = "aggregate_lines_percent sums per_file[].lines over a Statement-level Measurement"
+owner = "tool"
+traces_to = ["bebe9227-5f47-4eb8-89a7-f2157fb96e6c"]
+modules = [
+    "cargo_evidence::cli::generate::coverage_phase::aggregate_lines_percent",
+    "evidence_core::bundle::builder_coverage::aggregate_lines",
+]
+description = """
+`aggregate_lines_percent(m: &Measurement) -> f64` computes
+`sum(per_file[].lines.covered) / sum(per_file[].lines.total)
+* 100.0`. Used by the Statement-level arm of
+`threshold_violations` (enforcement side) and by
+`EvidenceBuilder::coverage_statement_percent` (compliance-
+report side). The two callsites are textually similar but
+non-shared because the enforcement arm lives in
+`cargo-evidence` (needs the CLI-side policy context) and the
+compliance arm lives in `evidence-core` (populates the wire
+`CoverageSummary`). Both are asserted by the same test
+triplet to prevent drift.
+
+Zero denominator (no executable lines across all files)
+returns `0.0`. Without this guard, `u64::sum() / u64::sum()`
+would panic on division-by-zero in release mode and return
+NaN in f64 — either one breaks the `< threshold` comparison
+silently (NaN comparisons always return false, so a NaN
+"current" would never trigger a violation, hiding the gap).
+
+The function has no parameter for the measurement level
+because the level is implicit in the caller's dispatch —
+passing a Branch-level `Measurement` here would sum that
+measurement's `lines` field, which is populated but
+semantically secondary at Branch level. The dispatch in
+`threshold_violations` is what binds "Statement level uses
+lines" to the policy.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "84c30007-3c84-4d23-bdf8-f540339b507a"
+id = "LLR-058"
+title = "aggregate_branches_percent sums per_file[].branches over a Branch-level Measurement"
+owner = "tool"
+traces_to = ["bebe9227-5f47-4eb8-89a7-f2157fb96e6c"]
+modules = [
+    "cargo_evidence::cli::generate::coverage_phase::aggregate_branches_percent",
+    "evidence_core::bundle::builder_coverage::aggregate_branches",
+]
+description = """
+`aggregate_branches_percent(m: &Measurement) -> f64` computes
+`sum(per_file[].branches.map_or(0, |b| b.covered)) /
+sum(per_file[].branches.map_or(0, |b| b.total)) * 100.0`.
+Files where `branches` is `None` contribute `0/0` (no
+contribution) rather than `0/total` (which would pull the
+aggregate toward zero). This distinction matters when a
+Branch-level measurement is assembled from a mixed parser
+run where some files legitimately lacked branch data.
+
+**This function is the core of the bugfix.** Pre-fix, the
+Branch-level arm of `threshold_violations` called a shared
+`aggregate_percent` that always summed `lines.*`. A file at
+95% lines / 50% branches looked like 95% branch coverage —
+DAL-B's 85% branch minimum passed spuriously, and the tool
+certified a bundle whose claim it could not mechanically
+defend.
+
+The symmetry with `aggregate_lines_percent` is deliberate but
+not DRY: collapsing them into a generic `aggregate_percent(m,
+|f| &f.lines)` would re-introduce the risk of a caller
+passing the wrong field-accessor at call site. Two
+single-purpose functions make the Branch vs Statement
+distinction unmissable at every callsite.
+
+Zero denominator → `0.0`, same rationale as LLR-057.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "b1377fb5-f879-4edc-9c50-46c5e67c71ad"
+id = "LLR-059"
+title = "threshold_violations dispatches to level-appropriate aggregator; strict < comparison"
+owner = "tool"
+traces_to = ["bebe9227-5f47-4eb8-89a7-f2157fb96e6c"]
+modules = ["cargo_evidence::cli::generate::coverage_phase::threshold_violations"]
+description = """
+`threshold_violations(report: &CoverageReport, thresholds:
+DalCoverageThresholds) -> Vec<ThresholdViolation>` iterates
+over each `(level, Option<u8>)` threshold entry:
+
+  1. Skip if `thresholds.<level>_percent` is `None` (DAL-D or
+     dev). No violation recorded.
+  2. Skip if no `Measurement` of that level exists in the
+     report. No violation recorded — "measurement absent" is
+     a config-layer issue, not a coverage-layer failure.
+     Treating absence as 0% would mask the true problem
+     (auditor gets COVERAGE_BELOW_THRESHOLD when they
+     should have gotten a "configure your coverage=branch
+     flag" signal).
+  3. Compute `current = aggregate_<level>_percent(m)`.
+  4. If `current < f64::from(threshold)`, append a
+     `ThresholdViolation { dimension, current_percent,
+     threshold_percent }`.
+
+Comparison is strict `<`, not `<=`: the DAL engineering gates
+are applied inclusively (`current == gate` passes), matching
+how the tool states the gates. This is a BVA case the test
+triplet pins — `current == threshold` must not fire. The gates
+are engineering quality bars owned by this tool, not DO-178C
+acceptance minima — no percentage closes an A-7 objective
+(LLR-108).
+
+The two-level dispatch (statement uses
+`aggregate_lines_percent`, branch uses
+`aggregate_branches_percent`) is what enforces the level/
+field binding at the policy layer. The dispatcher is the
+only place in the threshold-enforcement chain where that
+binding is decided; changing it to use a shared aggregator
+would be the regression path.
+"""
+verification_methods = ["test"]
+emits = ["COVERAGE_BELOW_THRESHOLD"]
+
+[[requirements]]
+uid = "a88f2efa-7aa7-4bfc-9554-610a906f2e2e"
+id = "LLR-060"
+title = "load_max_dal: max over dal_map values, fall back to default_dal on empty in_scope, D on load failure"
+owner = "tool"
+traces_to = ["79afc7a1-22dd-450e-8f0c-c29c93b48905"]
+modules = ["cargo_evidence::cli::doctor::checks::load_max_dal"]
+description = """
+`load_max_dal(workspace: &Path) -> (Dal, bool)`:
+
+  1. Load `<workspace>/cert/boundary.toml` via
+     `BoundaryConfig::load`. On any load error (missing file,
+     parse failure), return `(Dal::D, false)`. The `false`
+     sentinel feeds the caller's fallback-note string; the
+     matching `check_boundary` diagnostic names the root cause
+     so this code stays silent on the load-fail path.
+  2. Compute `cfg.dal_map().values().copied().max()` — the
+     highest DAL across every in-scope crate (each in_scope
+     entry mapped to its per-crate override or `default_dal`
+     when no override is set; see `BoundaryConfig::dal_map`).
+  3. If `max()` returns `None` (empty `in_scope`), fall back to
+     `cfg.dal.default_dal`. This preserves user intent in the
+     pre-scoping state — a boundary.toml with `in_scope = []`
+     and `default_dal = "A"` is legitimate (project hasn't
+     scoped crates yet); silently downgrading to `Dal::D` would
+     surprise the auditor.
+  4. Return `(dal, true)`.
+
+The `unwrap_or(cfg.dal.default_dal)` is **not** a second bug-
+opportunity — `default_dal` is already visited by every
+dal_map entry that lacks an override, so the fallback affects
+only the truly-empty-in_scope edge case.
+
+Design note: the `Dal::D` hard floor on load failure is
+stricter than `cfg.dal.default_dal` fallback on empty in_scope.
+This asymmetry is deliberate — a missing/corrupt boundary.toml
+means configuration intent is unknown, so the safest floor is
+D. An empty `in_scope` with a loaded config means intent is
+known; honoring it is the right behavior.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "d67f45bf-c9d0-4f2a-87d1-0dfbf14d9262"
+id = "LLR-061"
+title = "validate_trace_links_phase returns TraceValidationResult; write_compliance_reports takes trace_validation_passed: bool"
+owner = "tool"
+traces_to = ["2087d91a-12ba-4b3a-ab43-632f670bad49"]
+modules = [
+    "cargo_evidence::cli::generate::phases::trace_validation::TraceValidationResult",
+    "cargo_evidence::cli::generate::phases::trace_validation::validate_trace_links_phase",
+    "cargo_evidence::cli::generate::phases::write_compliance_reports",
+]
+description = """
+`TraceValidationResult { passed: bool, short_circuit:
+Option<i32> }` is the return type of
+`validate_trace_links_phase`. Three-state encoding:
+
+  - `Passed = { passed: true, short_circuit: None }` — every
+    root validated; A3-6 claim "Met" is defensible.
+  - `WarnedContinuing = { passed: false, short_circuit: None }`
+    — non-strict profile saw a failure; caller threads
+    `passed: false` to compliance; A3-6 claim becomes
+    "Partial" per `determine_objective_status`.
+  - `StrictFailed = { passed: false, short_circuit: Some(code)
+    }` — strict profile short-circuited; caller returns
+    `code` before running any later phase, so compliance JSON
+    is not written for this run.
+
+`write_compliance_reports` signature adds a required
+`trace_validation_passed: bool` parameter forwarded into
+`CrateEvidence.trace_validation_passed`. The signature change
+is load-bearing: removing the parameter to re-introduce a
+hardcoded literal would be a visible PR diff, not a silent
+in-function change.
+
+`read_all_trace_files` read-failure path (missing or
+corrupt trace TOML) also flips `passed = false` under
+non-strict profile — the pre-fix contract was
+non-observable (returned `Ok(None)` either way); post-fix the
+warned-continue semantics cover both validation failures and
+read failures symmetrically.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "c3290288-af0f-4177-9ac4-1cfbc6f4de83"
+id = "LLR-062"
+title = "tool_handler attribute passes name = evidence-mcp; lib.rs is facade-only"
+owner = "tool"
+traces_to = ["cb44260b-778a-45f0-9a2b-8304dfd836c0"]
+modules = [
+    "evidence_mcp::server::Server",
+    "evidence_mcp::workspace::resolve_workspace",
+]
+description = """
+`#[tool_handler(router = self.tool_router, name = "evidence-mcp")]`
+on `impl ServerHandler for Server` in `server.rs` is the
+load-bearing declaration. The rmcp-macros generator (at
+`build_get_info` in rmcp-macros/src/tool_handler.rs) pattern-
+matches on the `(name, version)` args:
+
+  - `(Some, Some)` → `Implementation::new(name, version)`
+  - `(Some, None)` → `Implementation::new(name, env!("CARGO_PKG_VERSION"))`
+  - `(None, Some)` → `Implementation::new(env!("CARGO_CRATE_NAME"), version)`
+  - `(None, None)` → `Implementation::from_build_env()` (rmcp default)
+
+This crate uses `(Some "evidence-mcp", None)` so the version
+is read via `env!("CARGO_PKG_VERSION")` at evidence-mcp's
+compile-time, not rmcp's — matches the crate's declared
+Cargo.toml version.
+
+The same `initialize` response carries the negotiated MCP
+`protocolVersion` from rmcp's `ServerHandler` default: a supported
+request is echoed, an unsupported one falls back to the rmcp build's
+latest supported protocol. Both the echo and the fallback are pinned
+so a bump of the `=`-locked `rmcp` dependency that shifts the
+handshake is caught for review rather than shipped silently.
+
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "6c371c79-f9fa-498d-9e11-07c7d75533a9"
+id = "LLR-063"
+title = "detect_with_probe + probe_cli_version + skew_diagnostic"
+owner = "tool"
+traces_to = ["4955bb57-af8d-402f-b2bf-42ef5baadc54"]
+modules = [
+    "evidence_mcp::version_probe::VersionSkew",
+    "evidence_mcp::version_probe::detect_with_probe",
+    "evidence_mcp::version_probe::probe_cli_version",
+    "evidence_mcp::version_probe::skew_diagnostic",
+]
+description = '''
+`VersionSkew { Matched(String) | Skewed{mcp,cli} |
+ProbeFailed(String) }` is the three-state outcome of the
+startup probe. `Matched` carries the probed string so the
+byte-equality invariant is expressed at the type level —
+consumers that want the CLI version on a successful probe
+read it off the `Matched` payload rather than substituting
+the evidence-mcp version, which would silently break if
+`Matched` were ever relaxed to a fuzzy semver check.
+
+`detect_with_probe<F: FnOnce() -> Result<String, String>>(F)`
+is the testable core: it takes a closure supplying the CLI
+version (or an error) and returns the `VersionSkew`. Tests
+drive the three branches with simulated probe outcomes so no
+subprocess is spawned during unit verification.
+
+`probe_cli_version()` is the real subprocess path:
+
+  1. `Command::new("cargo").args(["evidence", "--version"])`.
+     Env: `CARGO_TERM_COLOR=never` + `NO_COLOR=1` (match the
+     rest of the subprocess plumbing; defend against ANSI
+     escapes sneaking into stdout).
+  2. `wait_with_timeout(5s)` — cold cargo caches can be slow;
+     past 5s is pathological and we'd rather surface a
+     probe-failed warning than block the MCP handshake on the
+     version check.
+  3. Parse: first non-empty line; last whitespace-separated
+     token. Matches clap's auto-version emit shape
+     (`<bin_name> <version>\n`).
+  4. Empty output after parsing → `Err` (caller maps to
+     ProbeFailed), not Ok("") — an empty version string is
+     not a meaningful CLI response, and a downstream Skewed
+     warning naming an empty CLI version would confuse the
+     agent.
+
+`skew_diagnostic(skew)` synthesizes an MCP-layer diagnostic
+in the same shape as `workspace_fallback_diagnostic`
+(workspace.rs): `{code, severity: "warning", message,
+subcommand: "mcp"}`. `None` for Matched; `Some` with
+`MCP_VERSION_SKEW` / `MCP_VERSION_PROBE_FAILED` otherwise.
+
+Comparison semantics:
+  - Strict string equality between `env!(CARGO_PKG_VERSION)`
+    and the probed CLI string. Pre-release suffixes count as
+    skew (`0.1.2` vs `0.1.2-dev.1` → Skewed). Alternative
+    (semver-equal comparison that smooths pre-release) would
+    hide the signal ambiguously.
+
+Cached via `Arc<VersionSkew>` on the Server struct so
+`#[derive(Clone)]` (required by rmcp) doesn't re-copy the
+strings per-request.
+'''
+verification_methods = ["test"]
+emits = [
+    "MCP_VERSION_PROBE_FAILED",
+    "MCP_VERSION_SKEW",
+]
+
+[[requirements]]
+uid = "759ac6b4-ef4c-4d1d-8bfc-79f07ecef6eb"
+id = "LLR-064"
+title = "MCP tool-layer failures surface as structured diagnostics carrying typed MCP_* codes"
+owner = "tool"
+traces_to = ["20b4b691-f89f-4453-85f3-9eba5299935e"]
+modules = [
+    "evidence_mcp::subprocess",
+    "evidence_mcp::server",
+    "evidence_mcp::schema",
+]
+description = """
+Every `RunError` variant plus the two parse-layer synthesized
+terminals map to a typed `MCP_*` code declared in `RULES`
+under `Domain::Mcp`. Tool-method handlers respond with a
+well-formed `JsonlToolResponse` (or `RulesToolResponse`)
+carrying `exit_code == 2`, the matching terminal, and one
+structured diagnostic event (code + severity `Error` +
+human message) — agents pattern-match on `.code` rather than
+parsing an rmcp `Err(String)`. `Err(String)` is reserved for
+host-contract breakages (server CWD unresolvable, invalid
+enum value for `mode`).
+
+Hand-emitted MCP codes live in a dedicated
+`evidence_core::HAND_EMITTED_MCP_CODES` constant, parallel
+to `HAND_EMITTED_CLI_CODES` and disjoint from it. Each set
+is audited against its own source tree —
+`HAND_EMITTED_CLI_CODES` against `crates/cargo-evidence/src`,
+`HAND_EMITTED_MCP_CODES` against `crates/evidence-mcp/src` —
+so the `diagnostic_codes_locked` bijection stays crate-local.
+
+Registered codes (all `Severity::Error`, `Domain::Mcp`):
+
+  - `MCP_CARGO_NOT_FOUND` — `RunError::BinaryNotFound`.
+  - `MCP_SUBPROCESS_SPAWN_FAILED` — `RunError::Spawn`.
+  - `MCP_SUBPROCESS_TIMEOUT` — `RunError::Timeout`.
+  - `MCP_MALFORMED_JSONL` — a parsed stdout line is not JSON.
+  - `MCP_NO_OUTPUT` — the subprocess produced zero lines.
+
+`MCP_VERSION_PROBE_FAILED` / `MCP_VERSION_SKEW` /
+`MCP_WORKSPACE_FALLBACK` (existing; Warning severity) also
+live in `HAND_EMITTED_MCP_CODES` since they are emitted from
+`crates/evidence-mcp/src`; the CLI-side registry is strictly
+cargo-evidence-emitted codes.
+
+`RunError::code(&self) -> &'static str` lives on the enum,
+so a new variant forces the code declaration at the type.
+The response-building helper reads the code directly off the
+enum — no per-call match arm in `server.rs` that can drift
+out of sync.
+
+`RulesToolResponse` carries
+`error: Option<serde_json::Value>` alongside `rules`,
+`count`, `exit_code`, and the existing `warnings` vec. A
+failed subprocess populates `error` with the structured
+diagnostic, leaves `rules` empty, and sets `count = 0`; a
+successful run leaves `error = None`.
+
+`exit_code` is documentation, not the machine contract. Two
+failure classes — CLI verification failure (the subprocess
+ran to completion and emitted its own `_FAIL` terminal) and
+MCP tool-layer failure (the wrapper synthesized an `MCP_*`
+terminal because the subprocess could not be run to
+completion) — deliberately share `exit_code == 2`. Hosts must
+dispatch on the structured field: `terminal` for JSONL-stream
+verbs, `error.code` for rules / diff. The bit that would
+distinguish the two classes lives in those fields by design;
+collapsing the `exit_code` lane keeps every wire response on
+the same numeric ladder as `cargo evidence` invocations
+without forcing hosts to maintain two parallel decode tables.
+
+Streaming-verb recipe: the JSONL-stream verbs (doctor, check,
+floors — and any future verb of the same shape) share a single
+`Server::run_streaming_verb(args, workspace_path)` helper that
+owns the `resolve_workspace` → `run_evidence` → (on error)
+`jsonl_response_from_run_error` | (on success) `parse_jsonl` →
+`prepend_fallback_signal` → `prepend_skew_signal` →
+`JsonlToolResponse` sequence. Each handler reduces to a
+one-liner naming its CLI args; skipping the skew-signal prepend
+on a new verb is no longer possible by construction, since the
+helper is the only path to the response shape.
+"""
+verification_methods = ["test"]
+emits = [
+    "MCP_CARGO_NOT_FOUND",
+    "MCP_MALFORMED_JSONL",
+    "MCP_NO_OUTPUT",
+    "MCP_SUBPROCESS_SPAWN_FAILED",
+    "MCP_SUBPROCESS_TIMEOUT",
+]
+
+[[requirements]]
+uid = "acd0506f-3442-45f4-9256-fcde9d1b82ce"
+id = "LLR-065"
+title = "EVIDENCE_MCP_TIMEOUT_SECS tunes the per-spawn subprocess cap"
+owner = "tool"
+traces_to = ["20b4b691-f89f-4453-85f3-9eba5299935e"]
+modules = ["evidence_mcp::subprocess"]
+description = """
+`evidence_mcp::subprocess::spawn_timeout()` reads
+`EVIDENCE_MCP_TIMEOUT_SECS` on every call. Parse failures and
+out-of-range values clamp to `[60, 7200]` and emit a
+`tracing::warn!` naming the raw value plus the clamped value;
+absent or empty env yields the 600-second default.
+
+Per-call read (rather than once at `Server::new`) lets an
+operator tune the cap without restarting the MCP server — the
+host can set the variable on the next tool-call dispatch.
+Clamp bounds match practical pressure: 60 s covers the
+shortest runs (`rules`, `doctor` on a small workspace); 7200 s
+(2 hours) covers the largest `cargo test --workspace +
+cargo-llvm-cov` run this tool wraps.
+
+Exceeding the effective timeout yields `RunError::Timeout`
+which surfaces as `MCP_SUBPROCESS_TIMEOUT` (LLR-063); the
+diagnostic's `timeout_secs` field reports the effective cap
+(post-clamp), not the raw env value — agents see the number
+the spawn actually used.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "1f75c55d-4091-4d86-a429-e9954575ae03"
+id = "LLR-066"
+title = "evidence_ping tool returns cached VersionSkew + mcp/cli version strings"
+owner = "tool"
+traces_to = ["1e5aae33-ad51-43c3-b572-52023275175b"]
+modules = [
+    "evidence_mcp::server",
+    "evidence_mcp::schema",
+]
+description = """
+Fourth `#[tool]` on `Server`, alongside `evidence_rules`,
+`evidence_doctor`, `evidence_check`. Takes no arguments
+(empty `PingRequest`; `#[serde(deny_unknown_fields)]` matches
+the other input shapes).
+
+Returns `PingResponse`:
+
+  - `mcp_version: String` — `env!("CARGO_PKG_VERSION")`.
+  - `cli_version: Option<String>` — `Some(v)` on
+    `VersionSkew::Matched(v)` / `Skewed { cli: v, .. }`;
+    `None` on `ProbeFailed`.
+  - `skew: String` — `"matched"`, `"skewed"`, or
+    `"probe_failed"`, a serialized tag derived from the
+    cached `VersionSkew`. Owned `String` (not `&'static str`)
+    because the field is serialized on a `Serialize` struct
+    and the static literals are cloned into it anyway; the
+    JSON Schema is flat so agents pattern-match without
+    serde-format coupling.
+  - `probe_error: Option<String>` — populated only when
+    `skew == "probe_failed"`, carrying the reason string
+    captured at probe time.
+
+Handler body reads `self.version_skew` (cached `Arc<VersionSkew>`
+populated by `Server::new()`; HLR-060) and maps the three
+variants to the response shape. No subprocess spawn; no
+file I/O. The call is effectively a getter.
+
+`evidence_ping` does NOT emit any diagnostic codes — it does
+not prepend `MCP_VERSION_SKEW` / `MCP_VERSION_PROBE_FAILED`
+warnings the way the three streaming verbs do. The
+structured response IS the signal; duplicating it as a
+diagnostic would be redundant on a verb whose whole purpose
+is reporting the skew state.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "bb4cf169-cb26-4c99-b647-3854406e33f2"
+id = "LLR-067"
+title = "evidence_floors handler wraps cargo evidence floors --format=jsonl"
+owner = "tool"
+traces_to = ["0ba7d479-c45b-4786-9ff9-7e7a75565765"]
+modules = [
+    "evidence_mcp::server",
+    "evidence_mcp::schema",
+]
+description = """
+Fifth `#[tool]` on `Server`, alongside `evidence_rules`,
+`evidence_doctor`, `evidence_check`, `evidence_ping`. Takes
+optional `workspace_path` (same input shape as
+`evidence_doctor`: `FloorsRequest` with
+`#[serde(deny_unknown_fields)]`).
+
+Handler body mirrors `evidence_doctor`:
+
+  1. `resolve_workspace(req.workspace_path.as_deref())?` —
+     returns the resolved CWD plus a `WorkspaceResolution`
+     tag. Given-path is honored; absent-path resolves to
+     server CWD with a `MCP_WORKSPACE_FALLBACK` warning
+     prepended.
+  2. `run_evidence(&["floors", "--format=jsonl"], &cwd)` —
+     spawn the CLI under the subprocess-timeout cap
+     (LLR-065). Subprocess failure maps to the structured
+     diagnostic path via `jsonl_response_from_run_error`
+     (LLR-064).
+  3. `parse_jsonl(&captured.stdout)` — stream one
+     `FLOORS_DIMENSION_OK` / `FLOORS_BELOW_MIN` per measured
+     dimension, terminating with `FLOORS_OK` or
+     `FLOORS_FAIL`.
+  4. Prepend `MCP_WORKSPACE_FALLBACK` on fallback resolution,
+     then `MCP_VERSION_SKEW` / `MCP_VERSION_PROBE_FAILED` on
+     skew — same chaining the other streaming verbs use.
+
+No new diagnostic codes. `FLOORS_*` codes already exist in
+`RULES`; `evidence_floors` is a pass-through over the CLI's
+stream shape.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "ad4f1565-8ad1-46fa-b516-377e676052e7"
+id = "LLR-068"
+title = "evidence_diff handler wraps cargo evidence diff --json"
+owner = "tool"
+traces_to = ["b38d6ef2-1287-4087-b580-b81450f596a3"]
+modules = [
+    "evidence_mcp::server",
+    "evidence_mcp::schema",
+]
+description = """
+Sixth `#[tool]` on `Server`, alongside `evidence_rules`,
+`evidence_doctor`, `evidence_check`, `evidence_ping`,
+`evidence_floors`. Takes two required string paths
+(`DiffRequest { bundle_a_path, bundle_b_path }`;
+`#[serde(deny_unknown_fields)]`).
+
+Handler body:
+
+  1. Build `warnings` from `skew_diagnostic(&self.version_skew)`
+     (HLR-060) — same pattern as `evidence_rules`.
+  2. `run_evidence(&["diff", &a, &b, "--json"], &cwd)` under
+     the subprocess-timeout cap (LLR-065). The subprocess
+     inherits the server's CWD — diff does not have a
+     workspace-root concept, the two bundle paths are
+     absolute or resolved relative to server CWD by the
+     underlying CLI.
+  3. On subprocess failure, return a `DiffToolResponse` with
+     `diff = None`, `exit_code = 2`, `error = Some(MCP_*
+     diagnostic)` via `diff_response_from_run_error`.
+  4. On subprocess success, parse stdout as a single
+     `serde_json::Value`. On parse failure, return
+     `MCP_MALFORMED_JSONL` as the error diagnostic (same
+     code used by the streaming verbs for unparseable output;
+     the shape of the mistake is identical).
+
+No new diagnostic codes. `DiffToolResponse` is a new response
+struct in `schema.rs` because the CLI's diff output is a
+single JSON blob, not a JSONL stream — reusing
+`JsonlToolResponse` would force synthetic `terminal` /
+`diagnostics` fields that don't correspond to anything the
+CLI emits.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "4abf426c-da46-4307-ba7d-9d7dbfd86f63"
+id = "LLR-069"
+title = "verify --verify-key I/O failure emits VERIFY_RUNTIME_READ_VERIFY_KEY + VERIFY_ERROR terminal"
+owner = "tool"
+traces_to = ["f6d35f65-4a38-4ad9-ba2a-b5c4e3d7da41"]
+modules = [
+    "evidence_core::verify::bundle",
+    "cargo_evidence::cli::verify",
+]
+description = """
+`cmd_verify_jsonl` and `cmd_verify` both load the
+`--verify-key` file before calling `verify_bundle_with_key`.
+When `fs::read(path)` fails (missing or unreadable key), the
+verify pipeline has already started its user-visible run, so
+Schema Rule 1 (HLR-001) requires exactly one terminal on the
+`--format=jsonl` stream. The handler emits a structured
+`VERIFY_RUNTIME_READ_VERIFY_KEY` finding (path + os-error
+message), then the `VERIFY_ERROR` terminal, then exits 1.
+
+The code is distinct from `VERIFY_RUNTIME_READ_FILE` because
+the failure precedes any bundle-file access — the path
+carried in the diagnostic is the user-supplied key path, not
+a bundle-relative path. The bijection between
+`VerifyRuntimeError` variants and `VERIFY_RUNTIME_*` codes
+stays one-to-one.
+
+For `--format=human` and `--format=json` the same shape
+applies via `fail_verify(&bundle_path, "verify_key", ...,
+EXIT_ERROR)` so all three formats agree (HLR-016): the
+run records a `verify_key` check at status `fail` with the
+os-error message, prints `error: reading verify key from
+<path>` to stderr (human) or wraps the failure in
+`VerifyOutput { success: false, error: Some(msg) }` (json),
+and exits 1.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_RUNTIME_READ_VERIFY_KEY"]
+
+[[requirements]]
+uid = "6737b21f-831a-4350-aa6e-b20f29c5417c"
+id = "LLR-070"
+title = "check_no_build_rs flags in-scope crates with kind=custom-build targets"
+owner = "tool"
+traces_to = ["beae070b-5998-48f4-8fd9-235ed14c93d5"]
+modules = ["evidence_core::boundary_check::check_no_build_rs"]
+description = """
+`check_no_build_rs(in_scope: &[String], workspace_root: &Path)
+-> Result<(), BoundaryCheckError>` parses `cargo metadata
+--format-version 1` (same shell-out as the existing
+`check_no_out_of_scope_deps`) and walks `packages[]`. A package
+is a violation iff its `name` is in `in_scope` AND its
+`targets[]` contains a target with `kind == ["custom-build"]`.
+
+On at least one violation, returns
+`BoundaryCheckError::ForbiddenBuildRs { violations }` where
+each violation carries `(crate_name, build_script_path,
+links)`. The diagnostic message includes `links = "<value>"`
+when the package declares a `links` field, strictly
+informational — it does not gate a separate code, but it tells
+the auditor whether the build.rs is also a native-FFI bridge
+(load-bearing for the determinism analysis).
+
+The enforce_boundary_policy phase runs this only when
+`policy.forbid_build_rs == true`; preserves per-crate scoping
+so a build.rs under an out-of-scope crate (e.g. a test fixture
+or an integration-only utility) does not fire the check.
+"""
+verification_methods = ["test"]
+emits = ["BOUNDARY_FORBIDDEN_BUILD_RS"]
+
+[[requirements]]
+uid = "192b70f3-50a9-4df7-ac74-34b3aea4347a"
+id = "LLR-071"
+title = "check_no_proc_macros flags in-scope crates with kind=proc-macro targets"
+owner = "tool"
+traces_to = ["49d5c8b2-5c51-4046-a08d-ffde61f6c846"]
+modules = ["evidence_core::boundary_check::check_no_proc_macros"]
+description = """
+`check_no_proc_macros(in_scope: &[String], workspace_root:
+&Path) -> Result<(), BoundaryCheckError>` parses `cargo
+metadata --format-version 1` and walks `packages[]`. A package
+is a violation iff its `name` is in `in_scope` AND its
+`targets[]` contains a target with `kind == ["proc-macro"]`.
+
+On at least one violation, returns
+`BoundaryCheckError::ForbiddenProcMacro { violations }` where
+each violation is just the crate name (proc-macro detection has
+no auxiliary metadata to surface, unlike build_rs’s `links`).
+
+The enforce_boundary_policy phase runs this only when
+`policy.forbid_proc_macros == true`; preserves per-crate
+scoping.
+"""
+verification_methods = ["test"]
+emits = ["BOUNDARY_FORBIDDEN_PROC_MACRO"]
+
+[[requirements]]
+uid = "a939e8ed-6a1e-4982-8639-0414ee32c33a"
+id = "LLR-072"
+title = "cargo_metadata.json bundle artifact + verify-time recheck of forbid_build_rs / forbid_proc_macros"
+owner = "tool"
+traces_to = [
+    "beae070b-5998-48f4-8fd9-235ed14c93d5",
+    "49d5c8b2-5c51-4046-a08d-ffde61f6c846",
+]
+modules = [
+    "evidence_core::cargo_metadata::CargoMetadataProjection",
+    "evidence_core::bundle::builder::EvidenceBuilder::finalize",
+    "evidence_core::verify::bundle::verify_bundle_with_key",
+]
+description = """
+The bundle includes a deterministic projection of `cargo
+metadata --format-version 1` as `cargo_metadata.json` whenever
+the generate-time `BoundaryPolicy` enables either
+`forbid_build_rs` or `forbid_proc_macros`; cert/record profiles
+write it unconditionally (LLR-141). Format: a `packages` array
+of `{ name, targets[].kind, links }` entries — the minimum
+needed for the recheck — plus a `dependencies` map binding the
+resolved dependency graph (LLR-141). Packages are sorted by
+`name` ascending so the artifact is byte-stable across re-runs
+and across hosts (SYS-003).
+
+`EvidenceIndex.boundary_policy` (additive, `#[serde(default)]`)
+records the flag values at generate time so verify can replay
+the contract without consulting the verifier’s local
+`boundary.toml`. Old bundles deserialize with the field absent,
+yielding the all-`false` default — verify treats them as
+"forbid_build_rs / forbid_proc_macros not claimed at generate
+time", which is bug-compatible with pre-PR-C bundles.
+
+Verify-time pipeline (in `verify_bundle_with_key`):
+  1. Parse `index.json` and read `boundary_policy`.
+  2. If neither `forbid_build_rs` nor `forbid_proc_macros` is
+     true, skip the recheck (the bundle didn’t claim it).
+  3. Otherwise, look for `cargo_metadata.json` in the bundle.
+     If missing, push a `VerifyError::BoundaryVerifyMetadataMissing`
+     finding (code `BOUNDARY_VERIFY_METADATA_MISSING`).
+  4. If present, parse it as `CargoMetadataProjection` and
+     re-run `check_no_build_rs` / `check_no_proc_macros`
+     against the projection plus `index.dal_map.keys()` as
+     the in-scope set (the same in-scope set generate used).
+     Any violation pushes the same
+     `BOUNDARY_FORBIDDEN_BUILD_RS` /
+     `BOUNDARY_FORBIDDEN_PROC_MACRO` code generate would have.
+
+BOUNDARY_VERIFY_METADATA_MISSING fires only when generate
+claimed the rules but the artifact is absent (older bundle
+that predates PR C, tampered bundle that deleted the file).
+The forward path (artifact present + matches projection) is
+the SHA256SUMS contract — the existing hash check catches
+tampering at the byte level.
+"""
+verification_methods = ["test"]
+emits = [
+    "BOUNDARY_VERIFY_METADATA_MISSING",
+    "BUNDLE_CARGO_METADATA_FAILED",
+    "VERIFY_BOUNDARY_BUILD_RS_DETECTED",
+    "VERIFY_BOUNDARY_PROC_MACRO_DETECTED",
+]
+
+[[requirements]]
+uid = "08152f7f-56c4-47f7-ae99-f03d0e114a67"
+id = "LLR-073"
+title = "check_dal_a_mcdc_evidence + enforce_dal_qualification gate"
+owner = "tool"
+traces_to = ["c222804b-4d4f-4dfd-8765-2fd51a730ecc"]
+modules = [
+    "evidence_core::boundary_check::check_dal_a_mcdc_evidence",
+    "evidence_core::policy::dal::AuxiliaryMcdcTool",
+    "cargo_evidence::cli::generate::policy::enforce_dal_qualification",
+]
+description = """
+Library side: `evidence_core::check_dal_a_mcdc_evidence(dal_map,
+auxiliary_mcdc_tool)` returns `Ok(())` when no in-scope crate is
+at DAL-A OR an `AuxiliaryMcdcTool` reference is present.
+Returns `BoundaryCheckError::DalAMissingAuxiliaryMcdc { dal_a_crates,
+count }` (code `BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC`)
+otherwise. Library is policy-free — the dev/cert severity split
+lives at the CLI layer.
+
+CLI side: `enforce_dal_qualification(derived, profile,
+json_output)` is called from `cmd_generate` immediately after
+`enforce_boundary_policy`. On `Profile::Dev` a violation emits
+a one-line Warning to stderr and the run proceeds. On
+`Profile::Cert` / `Profile::Record` the violation triggers the
+standard failure envelope (`fail` helper) and returns
+`Ok(Some(EXIT_ERROR))` so the orchestrator short-circuits
+before bundle assembly.
+
+The message names every offender crate, points at the three
+remediation paths (record auxiliary tool, lower DAL, wait for
+upstream rustc), and cites rust-lang/rust#144999 +
+rust-lang/rust#124144 so the auditor can verify the upstream
+state independently.
+
+`AuxiliaryMcdcTool` is a public type in
+`evidence_core::policy::dal` carrying `name`, optional
+`qualification_id`, and optional `report` (bundle-relative
+path). `boundary.toml` reads it under `[dal.auxiliary_mcdc_tool]`
+via serde.
+"""
+verification_methods = ["test"]
+emits = ["BOUNDARY_DAL_A_MISSING_AUXILIARY_MCDC"]
+
+[[requirements]]
+uid = "c27cc5cb-ab24-4928-8d5c-2a2bdeb0659d"
+id = "LLR-074"
+title = "ToolResponse.success boolean derivation in evidence-mcp"
+owner = "tool"
+traces_to = ["48a416ff-8555-4a26-b802-bc854cc4d0fd"]
+modules = [
+    "evidence_mcp::schema::JsonlToolResponse",
+    "evidence_mcp::schema::RulesToolResponse",
+    "evidence_mcp::schema::DiffToolResponse",
+]
+description = """
+`JsonlToolResponse`, `RulesToolResponse`, and `DiffToolResponse` each
+carry a top-level `success: bool` field. The boolean is computed by
+`evidence_mcp` after the subprocess produces (or fails to produce)
+output and after any tool-layer error is folded in:
+
+  - `JsonlToolResponse::success = exit_code == 0 && terminal.ends_with("_OK")`
+    where `terminal` is the last parsed JSONL line's `code`. The two-
+    condition rule covers the case where a tool-layer failure
+    synthesizes a `MCP_*` terminal (which is not `_OK`-suffixed) AND
+    sets `exit_code == 2`; success is false in either failure mode
+    independently, so a buggy synthesizer that flips one without the
+    other still produces `success == false`.
+  - `RulesToolResponse::success = exit_code == 0 && error.is_none()`.
+    The CLI's `evidence rules` returns the manifest in stdout and
+    never emits a JSONL terminal — the CLI's success indicator is
+    exit 0 + parseable output. Server-layer warnings (version-skew
+    prepends) are informational and do not affect success.
+  - `DiffToolResponse::success = exit_code == 0 && error.is_none()`.
+    Diff reports differences via the `diff` blob and exits 0 even
+    when bundles differ; the boolean is true in that case.
+
+Field is `pub success: bool` on each struct, schemars-derived (no
+custom `JsonSchema` impl), and serialized by serde — the JSON Schema
+advertised to MCP hosts gains a `"success": {"type": "boolean"}`
+property automatically. Field is mandatory (not `Option<bool>`,
+not `default`-skipped); MCP hosts can rely on it being present in
+every response.
+
+The derivation lives next to the response constructors in
+`evidence_mcp::server::responses` (and equivalents for the other two
+shapes) so a future change to terminal codes or error paths can't
+silently desync the boolean from the structured state.
+
+Crate-level test in `evidence_mcp::schema::tests` pins each derivation
+rule against a known input grid; an additional integration test in
+`crates/evidence-mcp/tests/success_field.rs` rounds the boolean
+across the four MCP verbs (check / doctor / floors / rules) under
+both happy and failure paths.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "76f2567f-3d6d-4633-9d2c-00d03cc2b529"
+id = "LLR-075"
+title = "main.rs --help intercept reuses clap's render tree"
+owner = "tool"
+traces_to = ["34234f8b-9f0b-47d4-829e-aed0ac96d51c"]
+modules = ["cargo_evidence::main"]
+description = """
+`crates/cargo-evidence/src/main.rs`'s `-h` / `--help` intercept builds
+a `clap::Command` for the `EvidenceArgs` parser and renders its
+long-help directly, instead of printing a hand-typed redirect stub.
+
+Concretely: the intercept calls `EvidenceArgs::command()` (the
+clap-generated `CommandFactory` impl), prepends a one-line banner
+naming the binary version and the dual invocation form
+(`cargo evidence` + direct), then writes the long-form help via
+`cmd.write_long_help(&mut stdout)`. The result includes clap's auto-
+generated `Commands:` block — every variant of the `Commands` enum
+in `cli::args` appears with its `#[command(about = …)]` description.
+
+Output stays under 80-column wrap-friendly when terminal width is
+fixed (clap's default render); this is a UX courtesy, not a
+testable contract — the test pins only that each subcommand name
+appears at least once in the rendered output.
+
+Exit code: `0` on success, matching clap's auto-help convention.
+
+The intercept lives at the top of `main()` (before the
+`CargoCli::parse()` call) because the cargo subcommand dispatch form
+(`cargo-evidence evidence …`) and the direct form
+(`cargo-evidence --help`) take different argv shapes — clap's
+`CargoCli::parse()` accepts only the dispatch form. The intercept's
+`std::env::args().nth(1)` peek catches the direct form before clap
+errors out.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "f634ed35-6c3e-4d71-90a2-dbaee1d086ab"
+id = "LLR-076"
+title = "editor_duplicates_locked walks the repo and fires on ` N.<ext>` filenames"
+owner = "tool"
+traces_to = ["202c2281-f2d7-4e43-8a6e-93da96f92add"]
+modules = ["evidence_core::tests::editor_duplicates_locked"]
+description = '''
+Integration test under `crates/evidence-core/tests/`. Walks the
+workspace from `CARGO_MANIFEST_DIR`'s grandparent (the repo root)
+using `walkdir::WalkDir::new(root).follow_links(false)`, prunes
+the conventional skip directories
+(`target`, `.git`, `node_modules`, `fixtures`), and emits a
+collected list of every basename matching the pinned regex:
+
+  ```text
+  ^.+ ([0-9]{1,2})\.(rs|toml|yml|yaml|md|json|lock)$
+  ```
+
+The leading-space-then-digit anchor matters: it specifically
+catches the `cp old.rs 'old 2.rs'` artifact pattern without
+flagging legitimate filenames that happen to contain a number
+(e.g. `mcdc_2024.rs` is fine because there's no space before
+the digits).
+
+Test fails via `assert!` with a complete file:line listing for
+every offending entry. Mirrors the failure shape of
+`rot_prone_markers_locked` — the test's failure message is the
+diagnostic; no `Diagnostic` wire shape, no `RULES` entry.
+
+Exemption escape hatch: `RESERVED_DUPLICATE_PATHS` const in the
+test module names workspace-relative paths (no glob; suffix
+match) where the editor-duplicate-shaped name is actually
+intentional. Initially empty. Each entry requires written
+justification beside the const.
+
+Cross-platform note: walks paths via `walkdir` and normalizes
+separators to `/` before suffix-matching the reserved list, per
+the `project_path_separator_on_windows` memory.
+'''
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "2edcdfa5-d7e7-4115-a3fa-8ed36354aa1b"
+id = "LLR-077"
+title = "cmd_keygen create + rotate dispatch"
+owner = "tool"
+traces_to = ["b874c97f-dbcd-424f-a1fe-15b16cf36876"]
+modules = ["cargo_evidence::cli::keygen::cmd_keygen"]
+description = """
+cmd_keygen branches on the `rotate` flag. The create branch refuses if
+either signing.key or signing.pub already exists (Outcome::RefusedExists
+→ KEYGEN_KEY_EXISTS finding + KEYGEN_FAIL terminal, exit 1). The rotate
+branch refuses if either file is missing (Outcome::RefusedRotateMissing
+→ same code pair) and refuses up-front if --reason is missing (top-level
+anyhow error). On success, both branches generate a fresh keypair via
+evidence_core::{generate_signing_key, write_signing_key,
+write_verifying_key}, best-effort chmod 600 on signing.key (Unix only),
+and emit KEYGEN_OK; the rotate branch additionally appends a single
+line to KEY-ROTATION-LOG carrying timestamp + new pubkey hex + reason.
+If the OS randomness source is unavailable while drawing the key seed,
+generate_signing_key surfaces SIGN_KEYGEN_ENTROPY, which propagates to
+the KEYGEN_FAIL terminal rather than aborting the process.
+"""
+verification_methods = ["test"]
+emits = [
+    "KEYGEN_OK",
+    "KEYGEN_FAIL",
+    "KEYGEN_KEY_EXISTS",
+    "SIGN_KEYGEN_ENTROPY",
+]
+
+[[requirements]]
+uid = "3f015ac7-8a76-405b-a180-a2f0183a4b85"
+id = "LLR-078"
+title = "finalize::check_pubkey_anchor refuses on mismatch"
+owner = "tool"
+traces_to = ["14e47afb-0e80-45e3-b795-c263671a221a"]
+modules = ["cargo_evidence::cli::generate::finalize::check_pubkey_anchor"]
+description = """
+After writing BUNDLE.sig, the finalize phase calls check_pubkey_anchor
+with the just-used signing key. When `cert/signing.pub` exists the
+function reads it via evidence_core::read_verifying_key and compares
+its 32-byte representation to signing_key.verifying_key().to_bytes().
+Mismatch returns an anyhow error carrying SIGN_PUBKEY_ANCHOR_MISMATCH
+and the two paths involved; missing anchor file is a no-op (Ok(())).
+The inner check_pubkey_anchor_at takes the anchor path explicitly so
+unit tests can drive comparisons against tempdir fixtures rather than
+the real cert/signing.pub.
+"""
+verification_methods = ["test"]
+emits = ["SIGN_PUBKEY_ANCHOR_MISMATCH"]
+
+[[requirements]]
+uid = "288c920a-c667-4f84-9d0b-f4e8419ac141"
+id = "LLR-079"
+title = "layered_claude_md_doctrine enforces per-crate CLAUDE.md cap + scope"
+owner = "tool"
+traces_to = ["d33a1a39-c57a-48cc-9138-c4f8ff61f77d"]
+modules = ["layered_claude_md_doctrine::every_workspace_crate_has_lean_layered_claude_md"]
+description = """
+Integration test walks `crates/*/` (max_depth = 1, follow_links =
+false) and asserts for every workspace crate: (a) `CLAUDE.md`
+exists, (b) the file has at least 10 non-blank lines (no stub
+files), (c) the file is under 80 lines (so root-vs-subdir scope
+stays distinct — article's "lean, layered" doctrine), and (d) the
+file contains the literal `cargo test -p <crate-name>` so the
+scoped test command is discoverable for agents working only in
+that crate. Failures are accumulated and reported together so one
+run shows every crate that needs fixing, not just the first.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "7ad19cf7-98ae-40e0-8fcb-76c3a6077883"
+id = "LLR-080"
+title = "context::resolver classifies selectors with File>Crate>Module priority"
+owner = "tool"
+traces_to = ["5ccff935-87c2-4b57-a78b-459d1eb81ad2"]
+modules = [
+    "evidence_core::context::resolver",
+    "evidence_core::context::resolve_selector",
+]
+description = """
+`resolve_selector(workspace_root, raw)` returns a `ResolvedSelector`
+variant: `Workspace` for `None`/empty input, `File` for a
+workspace-relative or absolute path under `crates/<crate>/...`,
+`Crate` for a string matching a `[package].name` in
+`crates/*/Cargo.toml`, or `Module` for a `::`-separated path of
+valid Rust identifiers. On ambiguity (the same input matches more
+than one kind) the highest-priority match wins and the resolver
+records the skipped alternates in `ambiguities` so the lookup phase
+attaches a `CONTEXT_AMBIGUOUS_SELECTOR` warning. Inputs that match
+no kind return `ContextError::SelectorOutOfScope`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "fd1c2f88-9511-430f-a30b-f9f81a20407e"
+id = "LLR-081"
+title = "context::lookup composes ContextReport from trace/boundary/floors/CLAUDE.md"
+owner = "tool"
+traces_to = ["5ccff935-87c2-4b57-a78b-459d1eb81ad2"]
+modules = [
+    "evidence_core::context::lookup",
+    "evidence_core::context::context_for",
+    "evidence_core::context::report",
+]
+description = """
+`context_for(workspace_root, selector)` builds a `ContextReport` by
+reading `cert/trace/*.toml` once, then for the selector: filtering
+LLRs whose `modules` field overlaps the selector's module-prefix
+space, rolling each LLR's `traces_to` up to HLR + SYS parents,
+collecting verifying tests by traceable LLR UID, aggregating every
+diagnostic code claimed in `LLR.emits`, slicing per-crate floor /
+ceiling rows from `cert/floors.toml`, attaching the boundary
+`in_scope` + `forbidden_deps` slice from `cert/boundary.toml`, and
+emitting the nearest `CLAUDE.md` path (per-crate when the selector
+resolves into a crate, root otherwise). Output is deterministically
+sorted: requirements by `id`, tests by `name`, codes alphabetically.
+The wire shape mirrors design spec §3.1 exactly and is round-tripped
+through serde in unit tests.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "dde74fce-62f8-4f33-b161-e21ee8b4627d"
+id = "LLR-082"
+title = "cli::context wires CLI verb to context_for + emits CONTEXT_* terminals"
+owner = "tool"
+traces_to = ["5ccff935-87c2-4b57-a78b-459d1eb81ad2"]
+modules = [
+    "cargo_evidence::cli::context",
+    "cargo_evidence::cli::context::cmd_context",
+]
+description = """
+`cmd_context(positional, --crate, --module, format)` parses the
+selector inputs (positional wins; otherwise `--crate` then
+`--module`), calls `evidence_core::context::resolve_selector`, then
+`context_for`, and renders the result. Human mode prints a compact
+table; `--json` emits the report as a single pretty-printed blob;
+`--format=jsonl` emits one compact report-line on stdout, one
+`Diagnostic` per `ContextWarning` (severity = warning), and a
+hand-built `CONTEXT_OK` / `CONTEXT_FAIL` / `CONTEXT_ERROR` terminal
+on the last line. Exit codes: 0 for `CONTEXT_OK` (also the
+`CONTEXT_NO_TRACE_CONFIGURED` graceful path), 1 for `CONTEXT_ERROR`,
+2 for `CONTEXT_FAIL`. The three terminals are registered in
+`evidence_core::TERMINAL_CODES`.
+"""
+verification_methods = ["test"]
+emits = [
+    "CONTEXT_OK",
+    "CONTEXT_FAIL",
+    "CONTEXT_ERROR",
+]
+
+[[requirements]]
+uid = "ca6f202f-8957-4ba3-adb5-fbc7054e9197"
+id = "LLR-083"
+title = "context content codes register in RULES and gate the golden wire shape"
+owner = "tool"
+traces_to = ["5ccff935-87c2-4b57-a78b-459d1eb81ad2"]
+modules = [
+    "evidence_core::context::lookup",
+    "evidence_core::context::error",
+    "cargo_evidence::cli::context",
+]
+description = """
+The five content-level `CONTEXT_*` codes are registered in
+`evidence_core::RULES` under the `Context` domain. The CLI's
+`cmd_context` emits each at the right point: `CONTEXT_AMBIGUOUS_SELECTOR`
+(warning) when the resolver records skipped alternates;
+`CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR` (warning) when a non-workspace
+selector matches zero LLRs; `CONTEXT_SELECTOR_OUT_OF_SCOPE` (error)
+when the resolver rejects an unrecognized input;
+`CONTEXT_NO_TRACE_CONFIGURED` (info) when `cert/trace/` is missing;
+`CONTEXT_RUNTIME_ERROR` (error) for the runtime / I/O variants of
+`ContextError` (unreadable `Cargo.toml`, `canonicalize` failure on a
+parent dir, underlying trace TOML read error) — distinct from
+`CONTEXT_SELECTOR_OUT_OF_SCOPE` so an agent can tell user-typo from
+tool-fault. A golden fixture at
+`crates/cargo-evidence/tests/fixtures/golden_context.json` is byte-
+diffed by the integration test, regenerated via
+`tools/regen-golden-fixtures.sh`. Drift in the wire shape fires the
+fixture diff with a line-numbered error.
+"""
+verification_methods = ["test"]
+emits = [
+    "CONTEXT_AMBIGUOUS_SELECTOR",
+    "CONTEXT_NO_REQUIREMENTS_FOR_SELECTOR",
+    "CONTEXT_NO_TRACE_CONFIGURED",
+    "CONTEXT_RUNTIME_ERROR",
+    "CONTEXT_SELECTOR_OUT_OF_SCOPE",
+]
+
+[[requirements]]
+uid = "dfa2dfae-d1ec-4cb9-9a88-0d9ea1499907"
+id = "LLR-084"
+title = "evidence_context handler wraps cargo evidence context --json"
+owner = "tool"
+traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
+modules = [
+    "evidence_mcp::server",
+    "evidence_mcp::server::Server::evidence_context",
+]
+description = """
+Seventh `#[tool]` on `Server`, alongside `evidence_rules`,
+`evidence_doctor`, `evidence_check`, `evidence_ping`,
+`evidence_floors`, `evidence_diff`. Single-blob shape (like
+`evidence_diff`), not the streaming-verb shape used by `check` /
+`doctor` / `floors`.
+
+Handler body:
+
+  1. Validate the request: at most one of `selector`, `crate_name`,
+     `module` may be `Some`. Multiple set → `Err(String)` with a
+     human message naming the conflicting fields (mirrors
+     `evidence_check`'s `mode` validation).
+  2. Resolve the workspace path via `workspace::resolve_workspace`
+     (HLR-054); a `Fallback` resolution prepends the
+     `MCP_WORKSPACE_FALLBACK` warning on the response.
+  3. Compose the CLI argument list: `["context", "--json"]` plus
+     `--crate <c>` / `--module <m>` / `<selector>` from whichever
+     field was set.
+  4. Spawn `cargo evidence context ... --json` via
+     `subprocess::run_evidence` under the subprocess-timeout cap
+     (LLR-065). On subprocess failure, return a
+     `ContextToolResponse` with `context = None`, `exit_code = 2`,
+     `error = Some(MCP_* diagnostic)` via `context_response_from_run_error`.
+  5. On subprocess success, parse stdout as a single
+     `serde_json::Value`. On parse failure, return
+     `MCP_MALFORMED_JSONL` as the error diagnostic.
+  6. Build `warnings` from `skew_diagnostic(&self.version_skew)`
+     (HLR-060) plus the optional workspace-fallback signal.
+
+No new diagnostic codes — content vocabulary (`CONTEXT_*`) is
+owned by the wrapped CLI verb (LLR-082, LLR-083).
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "9d8d4f30-d591-40fc-beab-5f9eda6c91fa"
+id = "LLR-085"
+title = "ContextRequest / ContextToolResponse define the evidence_context wire shape"
+owner = "tool"
+traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
+modules = ["evidence_mcp::schema"]
+description = """
+Two new `schemars::JsonSchema`-derived types in `crates/evidence-
+mcp/src/schema.rs`.
+
+`ContextRequest { workspace_path: Option<String>, selector:
+Option<String>, crate_name: Option<String>, module: Option<String> }`
+with `#[serde(deny_unknown_fields)]` so an agent typo (e.g.
+`crate` instead of `crate_name`) fails loud at deserialization
+rather than falling through to the workspace-overview path.
+Field-level doc comments give agents the schema description for
+each input.
+
+`ContextToolResponse { success: bool, exit_code: i32, context:
+Option<serde_json::Value>, warnings: Vec<serde_json::Value>, error:
+Option<serde_json::Value> }`. Mirrors `DiffToolResponse` (the
+sibling single-blob response shape). `success` is derived: `true`
+exactly when `exit_code == 0` AND `error.is_none()`. Warnings
+(version-skew, workspace-fallback) do not flip the bit. The
+`context` field carries the raw JSON the CLI emitted so agents see
+the exact byte-locked wire shape from the underlying golden
+fixture.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "802701d1-9770-40fa-8a74-d65c3c34c8ca"
+id = "LLR-086"
+title = "context_roundtrip integration test pins the MCP wire shape against the CLI"
+owner = "tool"
+traces_to = ["f88508e9-eb70-4ee6-bb3e-13f07e4f181b"]
+modules = ["evidence_mcp::server::Server::evidence_context"]
+description = """
+`crates/evidence-mcp/tests/context_roundtrip.rs` spawns the built
+`evidence-mcp` binary via `assert_cmd`, drives an MCP `tools/call`
+JSON-RPC conversation for `evidence_context`, and asserts on the
+structured response.
+
+Three cases, mirroring the diff-roundtrip pattern:
+
+- Workspace-overview selector (no selector / crate_name / module):
+  `context` is a non-null JSON object whose `selector.kind` is
+  `"workspace"`. `exit_code == 0`, `success == true`, no transport
+  error.
+- File selector that resolves into a crate with at least one
+  governing LLR: `context.requirements` is a non-empty array (the
+  CLI exercises the live `cert/trace/`). `success == true`.
+- Mutual-exclusivity guard: passing both `selector` and `crate_name`
+  surfaces a tool-layer error (either a JSON-RPC error or an
+  `Err(String)` from the handler).
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "b402bcc1-f3bb-4fb5-a616-c3e18ffd321a"
+id = "LLR-090"
+title = "write_agent_context_files emits root CLAUDE.md + .claude/settings.json"
+owner = "tool"
+traces_to = ["e93c01e2-b5e8-48f4-94ee-e08c139245ae"]
+modules = [
+    "cargo_evidence::cli::init::agent_context::write_agent_context_files",
+    "cargo_evidence::cli::init::cmd_init",
+]
+description = """
+`cmd_init` accepts an `agent_context: bool` parameter derived from
+the clap flag pair `--with-agent-context` / `--no-agent-context`
+(mutually exclusive via `conflicts_with`; default on). When true,
+the parent dispatches to `write_agent_context_files(root, jsonl)`
+which:
+  - writes a starter `CLAUDE.md` at the root (lean ≤30 lines,
+    rendered by `render_root_claude_md`) — title naming the
+    project + `evidence_context` / `cargo evidence context`
+    pointer + per-crate-CLAUDE.md guidance, no project rules;
+  - writes `.claude/settings.json` registering `evidence-mcp` as
+    an MCP server and adding a `permissions.deny` entry for
+    `evidence/**` (the default output dir).
+Both writes are skipped when the target file already exists; the
+existing file is never clobbered. When `.claude/settings.json`
+already exists, a single info line on stderr explains the merge
+the user would do by hand. Each successful write goes through
+`emit_template_written` so JSONL consumers see one
+`INIT_TEMPLATE_WRITTEN` per file in the same stream as the
+`cert/` emissions, terminating with the standard `INIT_OK`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "4b6bae0f-5a6b-4b9f-b1b5-8169a389e001"
+id = "LLR-091"
+title = "package-name -> manifest-dir resolution + control-input planning + generate-time fail-closed"
+owner = "tool"
+traces_to = ["2f043730-58ae-4528-aec7-6b30eed81fcf"]
+modules = [
+    "evidence_core::bundle::input_scope::resolve_in_scope_units",
+    "evidence_core::bundle::input_scope::assemble_input_plan",
+    "evidence_core::bundle::input_scope::build_input_plan_blocking",
+    "cargo_evidence::cli::generate::phases::hash_in_scope_sources",
+]
+description = """
+`resolve_in_scope_units` parses `cargo metadata` and maps each
+in-scope package name to its workspace-relative manifest
+directory via `manifest_path`, failing closed with
+`MissingPackage` (name absent) or `PathEscape` (manifest not
+under `workspace_root`).
+
+`assemble_input_plan` merges the per-unit `git ls-files` results,
+the declared required inputs (`boundary.toml` `[inputs].required`),
+and the `WORKSPACE_CONTROL_PATHSPECS` results into a deduplicated,
+provenance-tagged, sorted set (precedence unit > declared-required
+> control), failing closed with `EmptyScope` (a unit resolved to
+zero files) or `NoInputs` (an empty total). Declared required
+inputs are existence-checked against the workspace root
+(`check_required_inputs_exist`) and fail closed with
+`MissingRequiredInput` — a git-ignored generated input that is
+required but absent cannot be silently dropped.
+
+`build_input_plan_blocking` orchestrates the subprocess calls and
+the pure helpers; its `cargo metadata --no-deps` invocation
+carries the shared resolution-policy flags (LLR-140).
+`hash_in_scope_sources` consumes the plan,
+hashing each entry into `inputs_hashes.json`; strict (cert/record)
+mode propagates any planning error as a generate failure, so a
+cert bundle can never record an empty or mis-resolved source
+baseline.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "7d8dc29d-16a4-4415-96cf-0c1df7ec894b"
+id = "LLR-092"
+title = "verify fails closed on an empty source baseline"
+owner = "tool"
+traces_to = ["2f043730-58ae-4528-aec7-6b30eed81fcf"]
+modules = ["evidence_core::verify::source_baseline::check_source_baseline"]
+description = """
+`check_source_baseline` runs inside `verify_bundle_with_key`
+only when the bundle declares in-scope packages (`index.dal_map`
+non-empty). It reads `inputs_hashes.json`; if the file parses to
+an empty object it pushes `VerifyError::SourceBaselineEmpty`. A
+bundle that declares no scope has no baseline to capture and is
+left alone. A missing or unparseable file stays silent here —
+the required-files and hash-manifest checks upstream own that
+finding — so the empty-baseline signal is not duplicated. This
+is the verify-side half of the fail-closed contract whose
+generate-side half is LLR-091.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_SOURCE_BASELINE_EMPTY"]
+
+[[requirements]]
+uid = "b7e107fa-7fb0-435d-823c-a786221be3a7"
+id = "LLR-093"
+title = "nextest libtest-json-plus parser preserves per-test identity"
+owner = "tool"
+traces_to = ["d7fd101f-ff38-4bb1-87c1-4ba486fd3714"]
+modules = [
+    "evidence_core::bundle::nextest::parse_nextest_libtest_json",
+    "cargo_evidence::cli::generate::phases::run_tests_and_capture",
+]
+description = """
+`parse_nextest_libtest_json` reads nextest's `libtest-json-plus`
+stream: `test` events (`{crate}::{binary}${module::path::name}`)
+become `TestOutcomeRecord`s with package, binary, harness, and a
+`module_path` reconstructed to begin with the binary, so
+`{module_path}::{name}` equals the trace `test_selector` format;
+`suite` events supply the aggregate `TestSummary`. nextest may emit
+more than one `suite` summary for the same binary when it partitions
+that binary's tests; suite counts are reduced per binary identity
+(`passed`/`failed` summed over disjoint partitions, `ignored` and
+`filtered_out` reduced as whole-binary tallies) so a partitioned
+binary does not double-count and `reconcile` stays exact against the
+per-test records. Per-test `exec_time` is deliberately not recorded
+and records are sorted, so `test_outcomes.jsonl` stays
+byte-deterministic (SYS-003).
+
+`run_tests_and_capture` runs `cargo nextest run --workspace
+--no-fail-fast --message-format libtest-json-plus` through the
+builder's `run_capture` and feeds its stdout to the parser. The
+nextest argv carries the shared resolution-policy flags
+(LLR-140).
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "50e04423-81fb-436d-a088-62e4639301a6"
+id = "LLR-094"
+title = "verify fails closed on lost test-execution identity"
+owner = "tool"
+traces_to = ["d7fd101f-ff38-4bb1-87c1-4ba486fd3714"]
+modules = ["evidence_core::verify::test_identity::check_test_identity"]
+description = """
+`check_test_identity` scans `tests/test_outcomes.jsonl` inside
+`verify_bundle_with_key` and pushes
+`VerifyError::TestIdentityUnknown` for any record whose
+`module_path` still carries the `__unknown_binary__` sentinel —
+the machine-readable capture never emits it, so its presence
+means identity was lost and LLR selectors would dangle. This is
+the verify-side regression guard for the generate-side capture in
+LLR-093.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_TEST_IDENTITY_UNKNOWN"]
+
+[[requirements]]
+uid = "89f9de65-c963-4993-ab16-6d153e8c5dd7"
+id = "LLR-097"
+title = "generator closure runs the release verifier before emitting GENERATE_OK"
+owner = "tool"
+traces_to = ["d7fd101f-ff38-4bb1-87c1-4ba486fd3714"]
+modules = [
+    "cargo_evidence::cli::generate::generator_closure",
+    "cargo_evidence::cli::generate::verify_error_blocks_generate",
+]
+description = """
+After `finalize_and_sign`, `generator_closure` runs `verify_bundle`
+against the just-written bundle. If the verifier rejects it, generate
+emits `GENERATE_FAIL` and returns a non-zero exit instead of
+`GENERATE_OK` — a generated bundle is not complete when the same tool
+rejects the unchanged bundle. `verify_error_blocks_generate` mirrors
+`verify`'s severity partition: a `PrereleaseToolDetected` finding is
+non-blocking on `dev` only; every other finding, and all findings on
+cert/record, blocks.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "0a85bb33-ef4c-4686-9a5e-c1ce2aa851db"
+id = "LLR-095"
+title = "compiler-artifact inventory hashes workspace deliverables into outputs_hashes.json"
+owner = "tool"
+traces_to = ["a4b1c88d-2f16-4086-86d7-1a7a8094055f"]
+modules = [
+    "evidence_core::bundle::cargo_artifacts::parse_workspace_artifacts",
+    "evidence_core::bundle::cargo_artifacts::inventory_outputs_blocking",
+    "cargo_evidence::cli::generate::phases::inventory_and_hash_outputs",
+]
+description = """
+`parse_workspace_artifacts` reads `cargo build
+--message-format=json` output, keeping `compiler-artifact`
+messages whose `package_id` is an exact `cargo metadata`
+`workspace_members` entry and whose target is a `lib` or `bin`.
+Every produced filename becomes an `OutputArtifact { key, path }`
+keyed by its path relative to cargo's `target_directory` — never
+an absolute path. It fails closed on a malformed build message
+(`MalformedMessage`) or an artifact outside `target_directory`
+(`ArtifactOutsideTargetDir`) rather than silently skipping;
+results are sorted and deduplicated for determinism.
+
+`inventory_outputs_blocking` reads `workspace_members` and
+`target_directory` from `cargo metadata`, then builds with the
+bundle's recipe — cert/record build `--release` plus the shared
+resolution-policy flags (LLR-140) so the inventory attests the
+deliverable and the pinned, offline-resolved dependency graph,
+not an implicit debug build. `inventory_and_hash_outputs` hashes
+each artifact into `outputs_hashes.json` via `builder.add_output`;
+strict mode fails closed on zero deliverables or an unhashable
+artifact. The inventory does its own build, so it is independent of
+the test phase: `should_inventory` runs it on a full generate,
+under `--skip-tests --inventory-outputs`, or unconditionally in
+strict (cert/record) mode.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "8b9b283e-27a8-401f-b846-413bdf94ea11"
+id = "LLR-096"
+title = "verify fails closed on an empty output manifest when a build ran"
+owner = "tool"
+traces_to = ["a4b1c88d-2f16-4086-86d7-1a7a8094055f"]
+modules = ["evidence_core::verify::output_manifest::check_output_manifest"]
+description = """
+`check_output_manifest` runs inside `verify_bundle_with_key` when
+the bundle records a test summary (`index.test_summary.is_some()`
+— a build ran). It reads `outputs_hashes.json`; an empty object
+pushes `VerifyError::OutputManifestEmpty`. A `--skip-tests` bundle
+records no test summary and is left alone. This is the verify-side
+half of the fail-closed contract whose generate-side half is
+LLR-095.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_OUTPUT_MANIFEST_EMPTY"]
+
+[[requirements]]
+uid = "1e6b28ad-913c-414f-b9db-283d064d9cfc"
+id = "LLR-100"
+title = "corpus::index parses and resolves the corpus.toml file index"
+owner = "tool"
+traces_to = ["bdc8bd75-9094-41e4-9102-d52fd2cd395f"]
+modules = ["evidence_core::corpus::index"]
+description = """
+`CorpusIndex::load` deserializes `corpus.toml` with strict serde
+(`deny_unknown_fields`) and gates on `schema_version`: a version
+newer than `SUPPORTED_INDEX_SCHEMA` returns
+`CorpusError::IndexSchemaTooNew` carrying both versions. Each
+per-kind entry resolves to concrete files: a `<dir>/**/*.toml`
+pattern expands via `WalkDir::new(dir).follow_links(false)` with
+results sorted for determinism; any other value is a literal path
+that must exist. An entry resolving to zero files returns
+`CorpusError::EmptyIndexEntry` naming the pattern. Unsupported
+indexed kinds return `CorpusError::UnsupportedKind` when their
+lists are non-empty.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "de536781-44ca-4adc-8036-5e6dd0f7ff76"
+id = "LLR-101"
+title = "matrix view projects canonical corpus nodes and edges into the shared renderer"
+owner = "tool"
+traces_to = ["7d64b353-db6a-44da-8b10-c901fa8c1b35"]
+modules = [
+    "evidence_core::trace::matrix::generate_corpus_traceability_matrix",
+    "evidence_core::trace::matrix::view",
+    "cargo_evidence::cli::generate::phases::copy_trace_and_build_matrix",
+]
+description = """
+`generate_corpus_traceability_matrix` constructs the matrix view by
+iterating `CorpusGraph`: requirement layers select HLR and LLR rows,
+test nodes select test rows, and canonical `DerivesFrom` and
+`Verifies` edges supply relationships. Graph nodes retain the
+presentation metadata needed for exact report parity. Both the
+legacy entry projection and corpus projection feed one renderer, so
+headers, annotations, tables, coverage counts, gaps, and ordering
+cannot drift between two rendering implementations.
+
+Bundle generation adapts the parsed legacy trace into a graph,
+validates it, and calls the corpus generator. The existing
+`generate_traceability_matrix` function retains its signature for
+downstream compatibility.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "bbbadd81-3db1-40c0-8355-c5fe10dc4b7f"
+id = "LLR-098"
+title = "corpus::graph enforces identity and canonical typed edges"
+owner = "tool"
+traces_to = ["5adae145-ba90-4620-8977-a148bfcca2f2"]
+modules = ["evidence_core::corpus::graph"]
+description = """
+`CorpusGraph` stores nodes in a `BTreeMap` keyed by uid. `insert`
+returns `CorpusError::DuplicateUid` when the uid is already present
+regardless of node kind, and `CorpusError::DuplicateHumanId` when a
+human id repeats within `Requirement` or within `Test`. Native
+requirement records accept only `req_<UUIDv4>` identities.
+
+Each node owns outgoing `(EdgeKind, target uid)` pairs. Insertion
+sorts these pairs and rejects an exact duplicate with
+`CorpusError::DuplicateEdge`, making graph equality independent of
+input edge order. `validate` rejects a missing target with
+`CorpusError::DanglingEdge` and rejects any endpoint tuple other
+than requirement→`DerivesFrom`→requirement or
+test→`Verifies`→requirement with `CorpusError::InvalidEdgeKinds`.
+Every edge error carries its source uid, target uid, and edge kind.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "e86a9580-3495-481e-a912-035c2d5c865a"
+id = "LLR-099"
+title = "corpus::legacy adapts the four-file trace into graph nodes"
+owner = "tool"
+traces_to = ["4ceaea71-78e8-4813-938c-1bf03b2857bf"]
+modules = ["evidence_core::corpus::legacy"]
+description = """
+`graph_from_trace_files` maps a parsed `TraceFiles` into a
+`CorpusGraph`: sys, hlr, llr, and derived entries become
+`Requirement` nodes with the matching `RequirementLayer` and their
+`traces_to` lists as `DerivesFrom` edges; test entries become
+`Test` nodes carrying the merged selector set (singular
+`test_selector` unioned with `test_selectors`) and their
+`traces_to` lists as `Verifies` edges. An entry with no uid returns
+`CorpusError::LegacyMissingUid` naming the human id. The adapter
+never renames, drops, or synthesizes entries; identities, titles,
+edge sets, and selectors match the legacy parser, while graph edge
+vectors use canonical order.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "558eefdf-a737-422b-af28-fc1c8cb1f31b"
+id = "LLR-102"
+title = "floors counts validated corpus nodes by requirement layer and test kind"
+owner = "tool"
+traces_to = ["5807f55e-ccbf-4f20-823f-af2f456b43fc"]
+modules = ["evidence_core::floors::count_trace_per_layer"]
+description = """
+`count_trace_per_layer` resolves every configured trace root, adapts
+its parsed entries into graph nodes, inserts those nodes into one
+aggregate `CorpusGraph`, and validates all typed edges. Any read,
+adaptation, insertion, or validation failure returns zero counts for
+all four trace dimensions.
+
+The counter iterates graph nodes only. `RequirementLayer::Sys`,
+`Hlr`, and `Llr` increment their matching dimensions; Source and
+Derived requirements do not contribute; each `Node::Test`
+increments the TEST dimension. Canonical graph insertion makes
+record layout and edge input order irrelevant to the result.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "f7e9ed92-d71e-4ab4-a810-abb00bda392b"
+id = "LLR-103"
+title = "assurance view indexes graph-derived surface and diagnostic claimants"
+owner = "tool"
+traces_to = ["5252323d-c6e1-43df-9646-6966a64e5ab5"]
+modules = [
+    "evidence_core::trace::assurance::AssuranceBijections",
+    "evidence_core::trace::validation::validate_trace_links_with_policy",
+]
+description = """
+`AssuranceBijections::from_graph` iterates requirement nodes and
+their graph-attached trace metadata. HLR `surfaces` populate a
+surface-to-HLR map, while LLR `emits` populate a diagnostic-code-to-
+LLR map. Both maps use ordered keys and claimant sets, making record
+layout, graph iteration order, claim order, and duplicate claims
+non-semantic.
+
+The surface-policy gate converts graph-derived mapping differences
+into the existing `SurfaceUnknown` and `SurfaceUnclaimed` typed
+errors. The diagnostic bijection compares its graph mapping with
+RULES and the reserved-unclaimed catalog in both directions.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "f3b6a143-1b94-4423-9274-a44e9454f3a3"
+id = "LLR-104"
+title = "requirement report projects canonical graph relationships and statuses"
+owner = "tool"
+traces_to = ["8d2878da-a95d-468d-b36e-c6314e3f6f0d"]
+modules = [
+    "evidence_core::trace::requirement_report::build_corpus_requirement_report",
+    "evidence_core::trace::requirement_report::view",
+]
+description = """
+`build_corpus_requirement_report` projects SYS, HLR, LLR, and TEST
+nodes in canonical presentation order. Typed outgoing edges supply
+parent links, and the reverse child index supplies downstream
+coverage. Graph-attached trace metadata supplies verification methods
+and presentation order without making file layout semantic.
+
+Each node receives one status diagnostic. Direct structural gaps use
+the affected node as the cascade root, while execution gaps propagate
+the failing TEST uid through LLR, HLR, and SYS diagnostics. The trace
+entry API adapts through the graph and converts graph construction or
+unsupported-edge failures into a terminal-driving `REQ_GAP`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "68338cc4-53c8-4e75-a644-f5e73e885b36"
+id = "LLR-105"
+title = "evaluate_trace_evidence classifies trace roots into one semantic adoption state"
+owner = "tool"
+traces_to = ["4636d326-4cc8-4efd-aadc-4a7e5e4d821e"]
+modules = ["evidence_core::trace::evidence_state"]
+description = """
+`evaluate_trace_evidence` resolves each configured trace root,
+reads every present root, counts requirements across the SYS, HLR,
+LLR, TEST, and DERIVED layers, and runs the shared link validator
+when the count is nonzero. The result classifies into
+`NotConfigured` (no roots given), `NotAdopted` (every root missing
+on disk), `Empty` (zero requirements), `Invalid` (read, parse, or
+link-validation failure), or `Valid`. The evaluation carries the
+root list, the missing-root list, the requirement count, and any
+validation error so every CLI surface, doctor, generation, and the
+bundle verifier report the same state. Root list order is
+non-semantic.
+"""
+verification_methods = ["test"]
+emits = [
+    "TRACE_EVIDENCE_NOT_CONFIGURED",
+    "TRACE_EVIDENCE_NOT_ADOPTED",
+    "TRACE_EVIDENCE_EMPTY",
+]
+
+[[requirements]]
+uid = "33e25394-8ff2-4114-8dad-f60701bab8fd"
+id = "LLR-106"
+title = "derived completeness policy gates disposition, review, and safety impact"
+owner = "tool"
+traces_to = ["4aa1fd1f-4080-4cdc-991a-ff6217d9c6c2"]
+modules = [
+    "evidence_core::trace::validation::validate_trace_links_with_policy",
+    "evidence_core::trace::entries::DerivedEntry",
+    "evidence_core::policy::evidence::TracePolicy",
+]
+description = """
+`DerivedEntry` carries optional `disposition` (the systems
+disposition or notification record) and `reviewed` (the pre-M2
+human-review attestation) fields alongside `rationale` and
+`safety_impact`. `TracePolicy` grows one gate per field, enabled
+by `EvidencePolicy::for_dal` for DAL-C and above wherever derived
+rationale is already required.
+
+The link validator checks each derived entry against the active
+gates and emits one typed `LinkError` variant per missing field —
+`DerivedMissingDisposition`, `DerivedUnreviewed`, and
+`DerivedMissingSafetyImpact` — each with its own stable diagnostic
+code, so a derived requirement with an absent parent is never
+silently accepted under a claim-grade policy.
+"""
+verification_methods = ["test"]
+emits = [
+    "TRACE_DERIVED_MISSING_DISPOSITION",
+    "TRACE_DERIVED_UNREVIEWED",
+    "TRACE_DERIVED_MISSING_SAFETY_IMPACT",
+]
+
+[[requirements]]
+uid = "75300bff-0ffc-4977-ba33-37a0ceb84911"
+id = "LLR-107"
+title = "doctor and bundle verify fail closed on missing or empty trace evidence"
+owner = "tool"
+traces_to = ["4636d326-4cc8-4efd-aadc-4a7e5e4d821e"]
+modules = [
+    "cargo_evidence::cli::doctor::checks::check_trace",
+    "evidence_core::verify::trace_evidence",
+]
+description = """
+Doctor's trace-validity check consumes the shared evaluation once
+and partitions on the project's DAL: an active claim (DAL-C and
+above) fails with the existing error-severity empty diagnostic
+whose message names the actual state, while development mode
+(DAL-D) reports explicit warning-severity adoption diagnostics —
+one for missing roots, one for zero requirements — and keeps its
+zero exit code.
+
+Bundle verification reuses the same two semantic codes: a cert- or
+record-profile bundle that ships no trace requirement files fails
+with the not-adopted code, and one whose trace set contains zero
+requirements fails with the empty code. Development-profile bundles
+keep their existing skip semantics.
+"""
+verification_methods = ["test"]
+emits = [
+    "DOCTOR_TRACE_NOT_ADOPTED",
+    "DOCTOR_TRACE_NO_EVIDENCE",
+]
+
+[[requirements]]
+uid = "0294658f-7c3b-4df7-b4c5-0a9f6431296a"
+id = "LLR-108"
+title = "coverage_verdict truth table and the coverage_disposition evidence field"
+owner = "tool"
+traces_to = ["8ecf1de8-f7cb-4e17-a7d4-9f98b0097a98"]
+modules = [
+    "evidence_core::compliance::coverage_verdict",
+    "evidence_core::compliance::status",
+    "evidence_core::compliance::report::CrateEvidence",
+]
+description = """
+`coverage_verdict` implements the HLR-088 truth table per
+coverage dimension. Statement: below the engineering gate yields
+Partial; at or above the gate without a disposition yields
+ManualReviewRequired; at or above with a recorded
+analysis/disposition yields Met. Branch (the LLVM approximation
+of decision coverage) caps at ManualReviewRequired in every
+data-present case, and the note names the approximation gap.
+Absent data yields NotMet; absent gate yields
+ManualReviewRequired with a note that a percentage alone cannot
+close the objective.
+
+`CrateEvidence.coverage_disposition` carries the documented
+analysis and disposition of uncovered structure (the A-7
+Obj-5/6 resolution record) as an evidence kind separate from the
+raw percentage; the generate pipeline plumbs None until a
+disposition artifact exists, and producers construct the field
+directly. `a7_8_statement_coverage` and `a7_9_decision_coverage`
+thread the field into the verdict.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "d3ba013c-425c-4dc7-a27e-b17a31a120fa"
+id = "LLR-109"
+title = "AssuranceSelection resolution and the fail-closed named-claim gate"
+owner = "tool"
+traces_to = ["f5b3e685-06d9-42fc-a045-0478d5f661d0"]
+modules = [
+    "evidence_core::policy::assurance",
+    "evidence_core::policy::boundary::BoundaryConfig",
+    "evidence_core::policy::dal::DalConfig",
+    "cargo_evidence::cli::generate::policy",
+]
+description = """
+`AssuranceLevel` (DalA..DalD, Qm, Unclassified; snake_case wire
+strings) plus `StandardEdition` and `AssuranceSelection` model an
+explicit assurance claim. `AssuranceSelection::unclassified()` is
+the development-mode selection: it maps to the least-strict
+policy row (the former DAL-D flag set) via
+`AssuranceLevel::effective_policy_dal` but is named unclassified
+in every diagnostic and report.
+
+`BoundaryConfig.dal` becomes `Option<DalConfig>` and
+`DalConfig.default_dal` becomes `Option<Dal>` so explicit
+presence is detectable; `Dal` loses its Default derive.
+`BoundaryConfig::assurance_selection` returns Some only when the
+[dal] section is present with an explicit default_dal and
+scope.in_scope is non-empty. `AssuranceSelection::require_for_
+named_claim` loads the boundary and fails with
+POLICY_ASSURANCE_SELECTION_MISSING on any gap: missing,
+unreadable, or unparseable file, absent [dal], absent
+default_dal, or empty in-scope set. The generate orchestrator
+runs this gate before the doctor precheck on cert/record
+profiles; per-crate dal_map entries carry AssuranceLevel through
+to index.json so an unclassified crate is recorded by name.
+Development surfaces (check, trace, dev generate) construct the
+unclassified selection explicitly instead of a silent Dal
+default.
+"""
+verification_methods = ["test"]
+emits = ["POLICY_ASSURANCE_SELECTION_MISSING"]
+
+[[requirements]]
+uid = "4e5e1e62-2913-4587-aba9-694199a6e9fc"
+id = "LLR-110"
+title = "Compliance reports bind the versioned DO-178C standards pack and name the assurance level"
+owner = "tool"
+traces_to = ["f5b3e685-06d9-42fc-a045-0478d5f661d0"]
+modules = [
+    "evidence_core::policy::standards",
+    "evidence_core::compliance::generator",
+    "evidence_core::compliance::report::ComplianceReport",
+]
+description = """
+`StandardsPack` is a versioned code-level constant binding the
+DO-178C objective mapping to {id: "do-178c-ac20-115d",
+version: "1.0.0", review_record: pointer to cert/QUALIFICATION.md
+as the applicability, tailoring, and tool-qualification review
+record}. The `a7_applicability` accessor returns the Table A-7
+applicability per level by delegating to the objectives table;
+the table is not duplicated.
+
+`ComplianceReport` gains `standard` ("DO-178C"),
+`standard_edition` ("C"), `assurance_level` (snake_case level
+string, "unclassified" for development reports), and
+`standards_pack` fields, generated by
+`generate_compliance_report` from the crate's AssuranceLevel
+rather than a bare DAL.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "9668a720-3edf-4aee-8835-55899be843bd"
+id = "LLR-111"
+title = "corpus::review_content projects the v1 normative content and encodes canonical bytes"
+owner = "tool"
+traces_to = ["a6b6cdf2-0810-4c68-8e8c-19d49dddc07c"]
+modules = ["evidence_core::corpus::review_content"]
+description = """
+`RequirementReviewContentV1` carries title, layer, description,
+rationale, scope, category, source, verification_methods,
+derives_from, and safety_impact. A derived requirement's safety
+impact is normative assurance content, so the v1 projection binds
+it: changing safety impact from low to high must stale an existing
+approval. Its constructors sort and deduplicate the two set-like
+lists, matching the existing metadata-list contract; duplicate
+typed edges remain a hard error at graph insertion. `from_node`
+pulls the content fields from a `RequirementNode` and the
+canonical targets of its `DerivesFrom` edges only — `Verifies`
+edges are test mappings and excluded. `CorpusGraph::review_content`
+is the pure, non-I/O convenience accessor.
+
+`canonical_bytes_v1` emits the domain tag
+`evidence/requirement-review-content/v1`, one 0x00 separator, then
+the fields in a fixed documented order — title, layer as its serde
+snake_case string, description, rationale, scope, category, source,
+verification method count and entries, derives_from count and
+entries, and safety_impact last — each framed as
+`u64_be(len) || bytes` with `None` encoded as the all-ones `u64`
+sentinel, so the format is independently re-implementable and the
+framing prevents field-boundary collisions.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "492e8010-6f20-48d3-b9fd-32bedbb8a088"
+id = "LLR-112"
+title = "corpus::digest types the lowercase SHA-256 review-content digest and fails closed on malformed input"
+owner = "tool"
+traces_to = ["a6b6cdf2-0810-4c68-8e8c-19d49dddc07c"]
+modules = ["evidence_core::corpus::digest"]
+description = """
+`ReviewContentDigest` is a newtype over a validated 64-character
+lowercase hexadecimal SHA-256 string. `from_hex` rejects empty,
+short, overlong, uppercase, mixed-case, and non-hex input with
+`CorpusError::InvalidDigest` naming the length and character-set
+expectations; equality, ordering, hashing, and `Display` are derived
+over the validated value, and serde deserialization goes through the
+validating constructor so malformed stored digests fail closed.
+`review_content_digest_v1` hashes the `canonical_bytes_v1` output
+with the shared SHA-256 utility. The type carries no lifecycle
+state: candidate, approved, rejected, and stale are neither stored
+nor derived here.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "014c6b65-6f77-432f-b2be-30f779586b9d"
+id = "LLR-113"
+title = "Requirement nodes and both loaders retain the review-sensitive content fields"
+owner = "tool"
+traces_to = ["2cb3e5e3-6a90-449e-9c3c-5a9f02af2201"]
+modules = [
+    "evidence_core::corpus::graph::RequirementNode",
+    "evidence_core::corpus::records",
+    "evidence_core::corpus::legacy",
+]
+description = """
+`RequirementNode` gains description, rationale, scope, category,
+source, canonicalized verification_methods, and safety_impact as
+normative content fields, documented as outside node identity.
+safety_impact is populated for derived requirements — other layers'
+source entries carry no such field and leave it None. The native
+record schema accepts the same optional fields under its strict
+unknown-field policy and projects every one of them into the node —
+description is no longer parsed and discarded. The legacy adapter
+populates the same node fields from SYS/HLR/LLR/derived/test
+entries (description and rationale included, scope/category/source/
+verification-methods from where they already parse, safety_impact
+from the derived entry). TraceMetadata keeps its copies for report
+rendering unchanged. Duplicate set-like values in these lists
+canonicalize silently at construction per the metadata-list
+contract; the bytes hashed are never host-dependent.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "44f42343-45d6-48fa-a9c7-f2017d6883eb"
+id = "LLR-114"
+title = "corpus::review_records parses strict review files and validates every record field closed"
+owner = "tool"
+traces_to = ["31c3ae60-1b17-429a-b222-ce64a98d3816"]
+modules = ["evidence_core::corpus::review_records"]
+description = """
+`ReviewFile` / `ReviewRecord` mirror the requirement-record
+conventions: `deny_unknown_fields`, `schema_version` gated by
+`SUPPORTED_REVIEW_SCHEMA`, and per-record validation in
+`load_reviews_into`. The review uid and the optional supersession
+pointer carry the `rev_` prefix and pass the corpus-native
+`req_`/`rev_` UUIDv4 validation (the requirement-uid validator
+generalized over the typed prefix); `reviewed_content_sha256`
+deserializes through the validating `ReviewContentDigest`;
+`content_schema` must equal `SUPPORTED_REVIEW_CONTENT_SCHEMA`;
+`reviewed_at` must parse as RFC 3339 via the workspace's chrono
+dependency; reviewer and human id must be non-empty after
+trimming; and a reject decision without a non-empty rationale
+fails. Each failure returns a typed `ReviewError` — the review
+error taxonomy split out of `CorpusError`, which wraps it so
+`load_graph` keeps one error type — naming the file path plus the
+record id and uid; valid records insert a `ReviewNode` carrying a
+`Reviews` edge to the requirement and an optional `Supersedes`
+edge to the predecessor review. Graph insertion failures lift
+into the review taxonomy field for field across `insert`'s closed
+contract — identity collisions and duplicate edges — while any
+out-of-contract variant is preserved whole as the typed source of
+`ReviewError::UnexpectedInsertError`: an upstream contract change
+degrades to a typed error, never a panic.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "3f7c8e17-f56e-42f7-be13-2955609b2d6b"
+id = "LLR-115"
+title = "The corpus graph types review nodes and edges and validates supersession chains deterministically"
+owner = "tool"
+traces_to = ["ac1e1019-f2ad-4061-ba29-a42edad03389"]
+modules = ["evidence_core::corpus::graph"]
+description = """
+`NodeKind::Review`, `ReviewDecision` (serde snake_case `approve` /
+`reject`), and `ReviewNode` — uid, human id, requirement uid,
+content schema, typed reviewed-content digest, decision, reviewer,
+RFC 3339 timestamp, optional rationale, and typed edges — join the
+graph alongside requirements and tests. `EdgeKind::Reviews`
+accepts only Review-to-Requirement and `EdgeKind::Supersedes`
+only Review-to-Review; every other combination fails with
+`InvalidEdgeKinds`. `CorpusGraph::validate` then enforces the
+per-node review invariants on every graph — loaded or
+programmatically built — before any chain check: exactly one
+`Reviews` edge per review node, agreement between that edge's
+target and the node's requirement-uid field, and the supported
+content schema, so a malformed review node fails closed instead
+of poisoning chain validation. Supersession validation follows:
+per review node it rejects more than one outgoing `Supersedes`
+edge — a review corrects at most one predecessor — and per edge
+it rejects self-supersession and any reviewer,
+requirement-uid, or digest mismatch against the predecessor with
+distinct errors naming both uids; it then rejects forks (more
+than one incoming supersession per review, the dual direction of
+the per-node outgoing check) and cycles found by walking the
+supersession chain, all in uid-sorted order so
+results are independent of load order. Review violations surface
+as the typed `ReviewError` (split out of `CorpusError`, which
+wraps it); the record loader satisfies the node invariants and
+the singular outgoing supersession by construction — a record
+names a single optional `supersedes_review_uid` — so the
+graph-level checks are what guards programmatically constructed
+graphs.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "b6cf3b0f-5349-444c-adb8-631e340fa3ec"
+id = "LLR-116"
+title = "The corpus index resolves review files through the same deterministic mechanism and loads requirements first"
+owner = "tool"
+traces_to = ["31c3ae60-1b17-429a-b222-ce64a98d3816"]
+modules = ["evidence_core::corpus::index"]
+description = """
+`CorpusIndex` gains `review_files`, resolved from the index's
+`reviews` entries through the same literal-or-`<dir>/**/*.toml`
+WalkDir expansion as requirement files — sorted output, never
+following symlinks, an empty resolution an error — while the
+remaining indexed-but-unsupported kinds stay fail-closed.
+`load_graph` loads every requirement file before any review file,
+so review records validate against present requirement nodes and
+requirement errors surface before review errors in deterministic
+order. Review file layout and load order remain non-semantic:
+equivalent review sets split or reordered across files load to
+equal graphs.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "5c2ce59b-5a6e-4f4c-903e-ca4c2a3cb778"
+id = "LLR-117"
+title = "corpus::lifecycle evaluates the lifecycle truth table over effective review heads as a pure function"
+owner = "tool"
+traces_to = ["6f9137b9-00ea-4cc2-9794-ea0e145a9203"]
+modules = ["evidence_core::corpus::lifecycle"]
+description = """
+`RequirementLifecycle` (`Candidate` / `Approved` / `Rejected` /
+`Stale`, with `as_str` wire strings) and `LifecycleEvaluation`
+(requirement uid, state, current digest, sorted effective review
+uids) are evaluated-view types documented as never stored on
+nodes. `evaluate_lifecycle` computes the current digest with
+`review_content_digest_v1` over the graph's review-content
+projection, collects the effective heads — the requirement's
+reviews minus any review named as a `Supersedes` target — and
+applies the truth table: any current-digest rejection yields
+`Rejected`; else any current-digest approval yields `Approved`;
+else any older-digest approval yields `Stale`; else `Candidate`.
+`reviewed_at` and node order never enter the decision. A review
+whose content schema differs from the supported projection cannot
+load — records fail closed at parse — and the graph invariant
+rejects a programmatically built mismatch at validation, so the
+evaluator needs no runtime schema handling. Both public entry
+points run `CorpusGraph::validate` once per call before any state
+is derived: a malformed graph — a dangling or kind-mismatched
+edge, a review node/edge/schema invariant violation, or
+supersession malformation — fails closed with
+`LifecycleError::InvalidGraph`, which carries the `CorpusError`
+as its typed source so callers can inspect the exact broken
+invariant; no malformed review graph can produce a lifecycle
+state. On a valid graph the per-requirement fail-closed checks
+remain as defense in depth: an absent uid is
+`LifecycleError::RequirementMissing`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "26725e30-7161-4ff1-a854-4d44a927df9c"
+id = "LLR-118"
+title = "evaluate_all_lifecycles reports every requirement in uid order over deterministic graph review accessors"
+owner = "tool"
+traces_to = ["62e50814-47ca-4da7-bd29-9926bcfbd346"]
+modules = [
+    "evidence_core::corpus::lifecycle",
+    "evidence_core::corpus::graph",
+]
+description = """
+Both public entry points run `CorpusGraph::validate` once per
+call — `evaluate_all_lifecycles` validates once, not once per
+requirement — and a malformed graph fails closed with
+`LifecycleError::InvalidGraph` carrying the `CorpusError` as its
+typed source before any state is derived. On a valid graph,
+`evaluate_all_lifecycles` evaluates every requirement node and
+returns a `BTreeMap` keyed by requirement uid so reporting order
+is deterministic; `evaluate_lifecycle` on an absent uid fails
+with `LifecycleError::RequirementMissing`, and the review-target
+scan behind `LifecycleError::ApprovalTargetsMissingRequirement`
+is retained as defense in depth — validation rejects every graph
+that could reach it (the review's `Reviews` edge dangles).
+`CorpusGraph` gains the two read-only accessors the evaluator
+composes: `reviews_for_requirement`, the uid-ordered review nodes
+targeting one requirement, and `superseded_review_uids`, the set
+of reviews named as a `Supersedes` target; nodes carry no
+lifecycle fields. Both entry points are pure functions of the
+graph: no I/O, no environment reads, no statics.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "a81bbe08-6260-4f03-934d-984418dd79c6"
+id = "LLR-119"
+title = "corpus::approval_boundary types make the enforcement policy explicit with no default and no silent weakening"
+owner = "tool"
+traces_to = ["38941e91-e8a1-4977-8c19-38b5640ef5cf"]
+modules = ["evidence_core::corpus::approval_boundary"]
+description = """
+`LifecycleEnforcement` is the explicit policy input: a single
+`Required` variant, no `Default`, no serde — callers must name
+the policy in code, and an exhaustive match in the module's own
+tests pins the variant set so a weaker policy cannot appear
+unnoticed. `ApprovalBoundaryViolation` carries the requirement
+uid, the human-readable id, the evaluated
+`RequirementLifecycle` (candidate, rejected, or stale — never
+approved), and the `ReferringArtifact`: `Test` (test uid and
+id), `ImplementationModules` (claimed modules), or
+`EmittedDiagnostics` (claimed codes); its `Ord` derivation
+documents the deterministic sort — test violations first, then
+module claims, then emitted-diagnostic claims, payload fields
+breaking ties. `ApprovalBoundaryError` is a flat thiserror enum:
+`Violations` aggregating every violation with a one-line-per-
+violation uid-sorted `Display`, and `Lifecycle` wrapping a
+`LifecycleError` for fail-closed evaluator failures.
+Impossible-invariant failures keep their full typed source chain
+through the boundary — `LifecycleError::InvalidGraph` carrying
+the `CorpusError` (itself possibly wrapping a `ReviewError`) as
+its typed source, never a string — so callers can match the exact
+broken invariant; they are never flattened into `Violations` and
+never silently skipped.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "45cb08f4-9051-4780-86fa-9e0adbfcd61f"
+id = "LLR-120"
+title = "validate_approval_boundary scans verifies edges and metadata claims against evaluated lifecycles in deterministic order"
+owner = "tool"
+traces_to = ["db587696-1d94-451f-a275-0b504af4f6aa"]
+modules = ["evidence_core::corpus::approval_boundary"]
+description = """
+`validate_approval_boundary` runs `evaluate_all_lifecycles`
+once — which validates the whole graph first, so a malformed
+graph (a dangling edge, a review-graph invariant violation)
+fails closed as `ApprovalBoundaryError::Lifecycle` wrapping
+`LifecycleError::InvalidGraph` with the `CorpusError` source
+chain preserved, before any claim is scanned — then scans every
+test node's `Verifies` edge: a target
+whose evaluated state is not `Approved` yields a
+`ReferringArtifact::Test` violation naming the test uid and id.
+The scan's own `LifecycleError::RequirementMissing` branch for a
+target naming no requirement node is defense in depth:
+validation rejects every such graph first (the edge dangles or
+its target kind mismatches), so the branch is unreachable
+through validate-first evaluation. For
+every requirement node it reads the graph's trace metadata and
+gates legacy-populated claims: non-empty `modules` yields an
+`ImplementationModules` violation and non-empty `emits` an
+`EmittedDiagnostics` violation when the requirement is not
+approved — two distinct violation kinds, one node may produce
+both. Violations aggregate and sort by requirement uid then
+referring artifact; approved targets pass silently;
+`DerivesFrom` edges are never scanned. The function is pure:
+no I/O, no environment reads, no statics.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "398e24ac-9e53-4181-b3f4-63990270a93d"
+id = "LLR-121"
+title = "the approval boundary fails closed over zero reviews and never grandfathers legacy graphs"
+owner = "tool"
+traces_to = ["db587696-1d94-451f-a275-0b504af4f6aa"]
+modules = ["evidence_core::corpus::approval_boundary"]
+description = """
+A graph with no review nodes evaluates every requirement as
+`Candidate` (missing reviews are never implicitly approved), so
+under explicit enforcement every would-be-gated claim — each
+verifies edge and each module or emitted-diagnostic claim —
+produces a violation: an explicitly requested approval claim
+over zero reviews can never succeed. Zero reviews alone are not
+a failure, though: an empty review set fails closed only when a
+gated claim exists, and a zero-review graph with no gated claims
+yields `Ok(())` — enforcement gates claims, not the existence
+of requirements. The module rustdoc states
+the compatibility boundary: legacy graphs are not grandfathered
+inside the validator — callers that have not adopted corpus
+lifecycle simply do not call it — and native requirement records
+carry no modules or emits fields, so the implementation-claim
+gate applies to claims present in the graph (populated by the
+legacy adapter); native-record support is a documented non-goal.
+Candidate decomposition stays usable because `DerivesFrom`
+edges are never gated. A requirement node missing from the
+lifecycle evaluation map is an impossible invariant: the scan
+returns the typed
+`ApprovalBoundaryError::InvariantMissingEvaluation` naming the
+requirement uid rather than silently skipping its claims.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "d91963ae-0de7-4155-a61c-eed53d48290b"
+id = "LLR-122"
+title = "corpus::proposal schema types represent exactly two actions and fail closed on every other shape"
+owner = "tool"
+traces_to = ["bd2ff320-9f15-432f-bc1b-54c2e6b3116d"]
+modules = ["evidence_core::corpus::proposal"]
+description = """
+`SUPPORTED_PROPOSAL_SCHEMA` pins the record schema at 1 and
+`PROPOSAL_UID_PREFIX` at `prop_`. `ProposalAction` is a serde
+snake_case tagged enum with exactly two variants:
+`CreateCandidate { candidate_uid, content }` — the candidate uid
+is store-minted, validated as req_UUIDv4 on read — and
+`ReviseCandidate { base_uid, expected_current_digest, content }`;
+unknown action tags fail deserialization, so approve, reject,
+delete, review-mutation, source-mutation, baseline-write, and
+file-path-write actions are unrepresentable.
+`ProposedRequirementContent` mirrors the
+`RequirementReviewContentV1` projection fields — title, layer,
+description, rationale, scope, category, source, verification
+methods, derives_from, and safety_impact — and nothing else;
+safety_impact is optional free text under the same contract as
+the native record: normative for derived-layer proposals,
+tolerated as `None` for other layers. `ProposalFile` and
+`ProposalRecord` are strict `deny_unknown_fields` structs: record
+uid validated through the shared corpus-native uid helper,
+submitter required non-empty as audit identity that the rustdoc
+states is never authority, and `submitted_at` chrono-validated as
+RFC 3339 metadata that never orders. The proposed content is
+validated semantically on BOTH append (before any write) and
+strict read-back: `title` must be non-empty after trimming
+(`ProposalContentTitle`); every `derives_from` entry must be a
+valid `req_<UUIDv4>` — routed through the shared corpus-native
+uid helper with the proposal error constructors — and the list
+duplicate-free (`ProposalContentDerivesFrom` naming the
+duplicate); and `verification_methods`, allowed to be empty in
+mirroring of the review-content contract, must be sorted and
+duplicate-free as written
+(`ProposalContentVerificationMethodsOrder` naming the first
+out-of-order pair, `ProposalContentVerificationMethodsDuplicate`
+naming the duplicate). The ordering rule is deliberately stricter
+than the projection's silent canonicalization: a proposal must
+arrive in canonical form. Every validation failure is a typed
+`ProposalError` naming the file path.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "ef446b31-43a2-4c07-9a6e-a821a41c87db"
+id = "LLR-123"
+title = "ProposalStore validates its root, mints all identities, writes exclusively, and reads back fail-closed"
+owner = "tool"
+traces_to = ["2ba5d4a0-78c9-4e81-aa80-f3781b6547fd"]
+modules = ["evidence_core::corpus::proposal"]
+description = """
+`ProposalStore::new` rejects a missing root, a non-directory
+root, and a symlink root via `symlink_metadata`, then stores the
+canonicalized path. `append_create_candidate_blocking` mints both
+the `prop_` proposal uid and the `req_` candidate uid with
+`uuid::Uuid::new_v4`; `append_revise_candidate_blocking` mints
+only the proposal uid; both mint `submitted_at` from
+`chrono::Utc::now` so no caller clock or uid reaches the record.
+Each append serializes the full `ProposalFile` with
+`toml::to_string_pretty` and writes it to the generated basename
+`<prop_uid>.toml` inside the root using
+`OpenOptions::create_new(true)` exclusive creation: an existing
+file yields `ProposalExists` and is never overwritten, and any
+mid-write I/O error removes the partial file best-effort before
+returning `ProposalWrite`. `AppendOutcome` returns the created
+path, proposal uid, optional candidate uid, and the typed digest
+of the exact bytes written — a `ProposalFileDigest`: SHA-256 over
+the raw proposal FILE BYTES, a domain distinct from
+`ReviewContentDigest` (SHA-256 over the canonical review-content
+encoding). The two domains are separate validated types and never
+interchangeable; `ProposalFileDigest` mirrors the review-digest
+contract style, with `from_hex` failing closed on anything but
+exactly 64 lowercase hexadecimal characters and serde
+deserializing through the validating constructor.
+`read_proposal_blocking` parses the
+record strictly so a malformed or partially written proposal
+fails closed with the path. The store never lists the root and
+never touches anything outside it.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "c393a149-d714-4e77-b9d3-45743921bcbe"
+id = "LLR-124"
+title = "revision guards enforce candidate lifecycle and optimistic concurrency with typed ProposalError context"
+owner = "tool"
+traces_to = ["2ba5d4a0-78c9-4e81-aa80-f3781b6547fd"]
+modules = ["evidence_core::corpus::proposal"]
+description = """
+Before any write, `append_revise_candidate_blocking` validates
+`base_uid` through the shared corpus-native uid helper with the
+`req_` prefix, requires the uid to name an existing requirement
+in the graph — otherwise `ProposalTargetMissing`, checked
+directly against the graph — requires `evaluate_lifecycle` to
+report `Candidate`, rejecting approved,
+rejected, and stale targets with `ProposalLifecycle` naming the
+uid and the evaluated state so a proposal can never demote
+approved content, and requires `review_content_digest_v1` of the
+current content to equal the caller's `expected_current_digest`,
+failing with `ProposalDigestMismatch` carrying the uid and both
+digests. A lifecycle evaluation that itself fails — a malformed
+graph — is `ProposalLifecycleEvaluation` carrying the original
+`LifecycleError` as its typed `#[source]`, never stringified and
+never collapsed into target-missing. Every proposal failure
+reports through the flat `ProposalError` type — root, read,
+write, serialize, parse, schema, submitter, timestamp,
+target-missing, lifecycle, lifecycle-evaluation,
+digest-mismatch, and exists variants, native-uid mirrors, and
+the semantic content variants — which `CorpusError::Proposal`
+wraps transparently so mixed corpus call sites keep one error
+type.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "bf1f5d64-f5df-4f3e-8ca8-26b14e0dc678"
+id = "LLR-125"
+title = "corpus::source::records parses strict source-revision files and validates every record field closed"
+owner = "tool"
+traces_to = ["fa2308f1-89b1-4733-acf6-755e8d1ddb9e"]
+modules = ["evidence_core::corpus::source::records"]
+description = """
+`SourceFile` / `SourceRevisionRecord` mirror the requirement- and
+review-record conventions: `deny_unknown_fields`, `schema_version`
+gated by `SUPPORTED_SOURCE_SCHEMA`, and per-record validation in
+`load_sources_into`. The record uid carries the `src_` prefix and
+passes the shared corpus-native UUIDv4 validation; `sha256`
+deserializes through the same validating lowercase-hex digest
+contract the review-content domain uses, with the field name
+carrying the source domain; `retrieved_at` must parse as RFC 3339
+via the workspace's chrono dependency; and the media type must
+match a pinned RFC 6838 `type/subtype` token grammar. The
+material state is an internally tagged enum — `available` with
+`retrieved_at`, `sha256`, and a `capture` value tagged `vendored`,
+`hash_only`, or `external_controlled`, or `unavailable` with
+`reason` — so an incomplete combination fails deserialization and
+an unavailable record declares no digest field at all. Blank
+validation rejects whitespace-only `document_key`, `title`,
+`canonical_location`, `reason`, `system`, and `immutable_id`
+values while storing accepted text untrimmed, and the pure
+`validate_vendored_wire_path` rejects empty, absolute, drive- or
+UNC-prefixed, and backslash-bearing paths and any empty, `.`, or
+`..` component lexically, with filesystem containment deferred to
+the acquisition layer. Each failure returns a typed `SourceError`
+— a flat taxonomy `CorpusError::Source` wraps so `load_graph`
+keeps one error type — naming the file path plus the record id
+and uid; graph insertion failures lift into the source taxonomy
+field for field across `insert`'s closed contract, and any
+out-of-contract variant is preserved whole as the typed source of
+`SourceError::UnexpectedInsertError`, never a panic.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "5cae4629-c57b-4bcb-a0c0-3f8a671b0173"
+id = "LLR-126"
+title = "corpus::graph::nodes carries the source-revision node kind with per-kind identity and canonical iteration"
+owner = "tool"
+traces_to = ["fb3c2661-2807-427f-bbff-309b6685802e"]
+modules = ["evidence_core::corpus::graph::nodes"]
+description = """
+`SourceRevisionNode` joins the corpus graph as the typed node for
+one frozen document revision: uid, human-readable revision id,
+stable document lineage key, title, media type, canonical
+location, and the typed material state mirroring the record
+schema, with no edges at this layer. `NodeKind::SourceRevision`
+serializes as `source_revision`, the `Node` accessors report uid,
+kind, id, and an empty edge set for the new variant, and graph
+identity uniqueness treats the source-revision id namespace as
+its own: the same human id may coexist across kinds while a
+repeat within the kind fails insertion naming both uids. Nodes
+iterate in canonical uid order from the uid-keyed `BTreeMap`, and
+graph equality derives from nodes and metadata only, so source
+records split or reordered across files load into equal graphs.
+An unavailable revision reads back as its typed material state —
+valid graph state, distinguishable from available content and
+never byte-verified.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "c23eb6b5-2f1f-4d70-9264-acd44456fb9b"
+id = "LLR-127"
+title = "corpus::index resolves the sources kind and loads sources before requirements and reviews"
+owner = "tool"
+traces_to = ["fb3c2661-2807-427f-bbff-309b6685802e"]
+modules = ["evidence_core::corpus::index"]
+description = """
+`CorpusIndex` gains a resolved `source_files` list fed by the
+index's `sources` entries through the same deterministic
+literal-or-`<dir>/**/*.toml` resolution as the other kinds —
+walked without following symlinks, sorted, and failing closed on
+an entry that resolves to nothing. `sources` leaves the
+unsupported-kind rejection set while `source_graphs` stays
+rejected until structural source graph nodes land, so an index
+listing it still fails closed naming the kind. `load_graph`
+inserts source records before requirement files and review files,
+so a source error surfaces first and later kinds validate against
+a graph already carrying the source revisions; the resolved
+ordering is deterministic and file layout carries no semantic
+meaning.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "7009cf8b-c608-4aa0-9dc6-9fb8f6065f2e"
+id = "LLR-128"
+title = "corpus::source::records projects the optional supersedes field into one owned source Supersedes edge"
+owner = "tool"
+traces_to = ["ec6dcc6d-3502-4bb0-80f3-eee16091080d"]
+modules = ["evidence_core::corpus::source::records"]
+description = """
+`SourceRevisionRecord` gains an optional `supersedes` field
+naming the prior revision's `src_<UUIDv4>` uid. The record
+validator rejects a malformed value through the shared
+corpus-native uid check — a wrong prefix or a non-UUIDv4 suffix
+fails closed naming the file path and the record — and the loader
+projects a present value into the graph node's edge set as
+exactly one owned `Supersedes` edge from the newer revision to
+the prior revision, an absent value leaving the edge set empty.
+The record schema stays strict on unknown fields, and source
+records split or reordered across files load into equal graphs.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "c361eb28-be02-4d61-8f28-5d084bf5d1fb"
+id = "LLR-129"
+title = "corpus::graph::validation permits SourceRevision Supersedes SourceRevision endpoints and nothing else"
+owner = "tool"
+traces_to = ["ec6dcc6d-3502-4bb0-80f3-eee16091080d"]
+modules = ["evidence_core::corpus::graph::validation"]
+description = """
+The edge endpoint contract gains
+`SourceRevision -> Supersedes -> SourceRevision` alongside the
+retained `Review -> Supersedes -> Review` rule. Every other edge
+combination touching a source revision — a source revision
+superseding a requirement, test, or review, a review superseding
+a source revision, or a source revision owning a `DerivesFrom`,
+`Verifies`, or `Reviews` edge — fails closed with
+`InvalidEdgeKinds` naming both endpoints and their kinds, and a
+source supersedes edge naming an absent uid fails as
+`DanglingEdge` before any domain validation runs. Edge
+canonicalization keeps outgoing edges sorted and duplicate-free
+so graph equality is independent of input edge order.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "c7ad7106-fe17-4997-ba24-bb79d2f925d4"
+id = "LLR-130"
+title = "corpus::source::lineage validates single-chain document lineage inside CorpusGraph::validate"
+owner = "tool"
+traces_to = ["ec6dcc6d-3502-4bb0-80f3-eee16091080d"]
+modules = [
+    "evidence_core::corpus::source::lineage",
+    "evidence_core::corpus::graph",
+]
+description = """
+`validate_source_lineage` runs inside `CorpusGraph::validate`
+after edge resolution, review invariants, and review supersession
+validation, iterating in uid order so the reported violation is
+independent of load order: at most one outgoing supersedes edge
+per revision, no self-links, both revisions of a link sharing one
+document key, at most one incoming supersedes edge per revision
+(fork rejection), no cycles, and exactly one root per document
+key — each violation a distinct typed `SourceError` naming the
+revisions and, for multiple roots, the document key. A dual
+multiple-heads check guards the exactly-one-effective-head
+invariant as defense in depth. Review supersession validation is
+untouched, and source lineage failures surface as
+`CorpusError::Source` wrapping the typed source error.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "965b442b-3d81-455f-94e2-e85a03120ef2"
+id = "LLR-131"
+title = "corpus::source::lineage derives effective source heads as a sorted document-key map"
+owner = "tool"
+traces_to = ["f98775e6-d2b3-4eef-9415-828869141bcc"]
+modules = ["evidence_core::corpus::source::lineage"]
+description = """
+`effective_source_heads` returns a `BTreeMap<String, String>`
+from document key to the effective head revision uid — the
+revision of that document key no other revision supersedes — so
+the view is deterministic, independent of file layout and record
+insertion order, and never selected by timestamps. On a validated
+graph each document key yields exactly one head. The function is
+pure: no I/O, no environment reads, no stored state.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "de0b1eba-151e-4136-bc57-33d810fb1a43"
+id = "LLR-132"
+title = "corpus::source::lineage compares source baselines as a pure immutable-superset transition"
+owner = "tool"
+traces_to = ["ede76850-01e5-4518-987b-023c375f892a"]
+modules = ["evidence_core::corpus::source::lineage"]
+description = """
+`validate_source_transition` compares a prior graph with a
+proposed graph as a pure function of both: the prior graph is
+validated first, then every prior source revision uid must remain
+present with a byte-for-byte-equal typed
+`SourceRevisionProjection` — every node field plus the owned
+supersession edge — with a missing revision a typed
+`SourceTransitionRemoval` and any field difference a typed
+`SourceTransitionMutation` naming the revision uid and the
+differing field, so a replaced digest is a mutation, never an
+update. A new revision of an existing document key must own a
+supersession edge to that document's prior effective head or fail
+as a typed `SourceTransitionCompetingHead`; new document keys are
+free, non-source nodes are ignored, and the proposed graph is
+itself validated so an `Ok` transition implies two valid graphs.
+Both validations and every comparison run with no I/O and no
+environment reads.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "535e526e-c1cd-4a39-b5a7-3e6fcfb2e6b6"
+id = "LLR-133"
+title = "corpus::source::lock derives the lock value from effective source heads as a pure projection"
+owner = "tool"
+traces_to = ["60a9bf68-4a18-44ae-8fc5-81b63606945d"]
+modules = ["evidence_core::corpus::source::lock"]
+description = """
+`SourceLock` shall hold `schema_version` plus entries sorted by
+document key then source uid; `SourceLockEntry` shall bind the
+document key, the effective source uid, and a typed `LockMaterial`
+— `Available` carrying a validated `SourceContentDigest` and a
+`LockCapture` (`Vendored` | `HashOnly` |
+`ExternalControlled(ExternalControlId)`, the identity binding the
+controlling system plus immutable id), or `Unavailable` carrying
+neither — so a digest or capture mode without availability and an
+external-control identity without the external-controlled mode are
+unrepresentable in the domain type; the flat `availability`,
+`sha256`, `capture_mode`, and `external_control` fields exist only
+in the canonical wire form. `derive_lock` shall project each
+effective head reported by `effective_source_heads`: available
+material binds its declared digest, capture mode, and — for
+external-controlled capture — the controlling system and immutable
+id; unavailable material yields an explicit unavailable entry with
+no digest and no capture mode, never a synthetic value. Retrieval
+timestamps, unavailability reasons, vendored wire paths, titles,
+media types, canonical locations, file layout, and record order
+shall never enter the projection, and historical non-head
+revisions shall never appear as active entries. The function
+shall be pure: no I/O, no environment reads.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "ee77ade4-d3a4-43b2-9bea-0684163f7bd0"
+id = "LLR-134"
+title = "corpus::source::lock renders one canonical byte template and parses strict lock bytes"
+owner = "tool"
+traces_to = ["60a9bf68-4a18-44ae-8fc5-81b63606945d"]
+modules = ["evidence_core::corpus::source::lock"]
+description = """
+`render_lock_canonical` shall emit the documented canonical TOML
+template — the schema header, then one `[[entries]]` table per
+entry in sorted order with fields in fixed order (`document_key`,
+`source_uid`, `availability`, then `sha256` and `capture_mode` for
+available entries, then an inline `external_control` table for
+external-controlled entries), LF line endings, exactly one blank
+line between tables, and a single trailing newline — so equivalent
+locks render byte-identically and a golden fixture can byte-lock
+the complete contract. `parse_lock` shall parse strict bytes:
+unknown fields, malformed digests, a digest or capture field on an
+unavailable entry, and a `schema_version` newer than
+`SUPPORTED_LOCK_SCHEMA` shall fail closed with typed errors;
+duplicate document keys shall fail at parse with a typed
+duplicate-key error; entry order shall be accepted as written and
+left for the canonicality gate.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "237aafc8-abae-4a20-aad6-685f350e439c"
+id = "LLR-135"
+title = "corpus::source::lock validates a committed lock through three ordered gates and reads lock files without mutation"
+owner = "tool"
+traces_to = ["26085b95-4b44-42b4-8d82-db3e6283c4c3"]
+modules = [
+    "evidence_core::corpus::source::lock",
+    "evidence_core::corpus::source::error",
+]
+description = """
+`validate_committed_lock` shall validate the graph first — a
+failure surfaces as a typed error carrying the `CorpusError` as
+its source — then apply the three ordered gates: strict parse
+(typed parse, schema-too-new, and duplicate-key failures),
+canonical-byte equality (a typed non-canonical error carrying
+first-difference detail), and projection equality (typed missing,
+extra, and changed errors, the change naming the document key and
+the field — uid, digest, availability, capture mode, or external
+identity). Difference reports shall iterate in sorted document-key
+order so the reported entry is load-order independent. All gate
+functions shall be pure; the blocking file entries shall be the
+only I/O: `validate_lock_file_blocking`, the file-level validation
+entry, shall read the committed file bytes once and apply the full
+three gates to them without writing, and `read_lock_blocking`
+shall be the value-only blocking reader returning the parsed lock
+without writing. Lock failures shall report through a
+`SourceLockError` taxonomy wrapped by `SourceError`, keeping
+`CorpusError::Source` the only corpus wrapper.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "3d0f4f2d-2a8e-4dc5-8d1b-16c18dcc8522"
+id = "LLR-136"
+title = "corpus::source::verify reports one typed verification state per effective head capture mode"
+owner = "tool"
+traces_to = ["c4c2fd84-1783-43c7-b603-6d887758dfb0"]
+modules = ["evidence_core::corpus::source::verify"]
+description = """
+`SourceVerificationState` shall be a deterministic typed enum —
+`VerifiedBytes`, `DigestDeclared`, `ExternallyControlled`, and
+`Unavailable { reason }` — with a stable `as_str` wire string per
+state and rustdoc recording that only `VerifiedBytes` is local byte
+verification. `SourceVerification` shall bind one
+`(document_key, source_uid)` pair to a
+`Result<SourceVerificationState, SourcePayloadError>` outcome so a
+payload finding is data, never an abort. Per-head dispatch shall
+map unavailable material to `Unavailable` with its recorded reason,
+hash-only material to `DigestDeclared` (the record's canonical
+location and digest are guaranteed by record validation; nothing is
+fetched), and external-controlled material to `ExternallyControlled`
+(the external system is never contacted); vendored material shall
+run the resolution and hashing pipeline of LLR-137.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "1746aa02-06b0-4bb3-9d7d-52799a3a36ad"
+id = "LLR-137"
+title = "corpus::source::verify resolves vendored payloads beneath the fixed sources root and hashes raw bytes with typed payload errors"
+owner = "tool"
+traces_to = ["c4c2fd84-1783-43c7-b603-6d887758dfb0"]
+modules = ["evidence_core::corpus::source::verify"]
+description = """
+Vendored resolution shall treat the record's wire path as
+corpus-root-relative with its leading `sources/` component — the
+stored wire form — joining it against the corpus root and requiring
+the result beneath the fixed `<corpus-root>/sources/` payload root.
+The record-load lexical check shall be re-run as defense in depth;
+an absolute path, a parent component, or a path not beneath the
+payload root shall fail as `PathEscape`. Every filesystem step
+shall use `symlink_metadata`: a symlinked payload root fails as
+`SymlinkRoot`, a symlinked path component as `SymlinkComponent`, a
+missing path as `MissingPayload`, and a non-regular-file final
+component as `NotAFile`; the canonicalized target shall stay
+beneath the canonicalized payload root or fail as `PathEscape`.
+The exact raw bytes shall then stream through SHA-256; a lock entry
+disagreeing with the record shall fail as `LockDisagreement`
+naming the field, and bytes digesting differently than declared
+shall fail as `DigestMismatch` carrying the expected and actual
+digests. Every payload error shall carry the source uid, document
+key, and path where applicable, and I/O failures shall carry the
+underlying `io::Error`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "262dcfe8-148e-4d67-a89b-ef116de0b32c"
+id = "LLR-138"
+title = "corpus::source::verify gates the batch on the committed-lock gates and isolates sorted per-head findings"
+owner = "tool"
+traces_to = ["bacd6664-7fd4-4cbc-aa70-447018a066ac"]
+modules = ["evidence_core::corpus::source::verify"]
+description = """
+`verify_effective_sources(corpus_root, graph, lock_bytes)` shall
+run `validate_committed_lock` first so graph validation, strict
+lock parsing, canonical byte equality, and graph-lock equality
+remain one implementation whose typed failure stops the batch
+before any payload is read. After the gates pass, the batch shall
+iterate `effective_source_heads` — `BTreeMap` order, so results
+are sorted by document key then source uid with no re-sort — and
+shall collect exactly one `SourceVerification` per head, matching
+each head to its lock entry; a missing entry shall be a typed
+`LockDisagreement` finding, never a panic. A per-head payload
+finding shall never abort the loop. The only I/O shall be
+read-only: payload reads and hashing beneath the payload root; the
+batch shall never write registry, lock, review, or payload files,
+shall never touch the network, and retrieval timestamps shall never
+affect ordering or state selection.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "d591c58b-aa28-46a0-8a79-1abd39d2da8d"
+id = "LLR-139"
+title = "policy::resolution::ResolutionPolicy gates locked_offline vs online_opt_in on profile and owns the online-resolution refusal"
+owner = "tool"
+traces_to = ["0c1f3ac4-e0df-4c3c-b24c-15eb11ce2ede"]
+modules = [
+    "evidence_core::policy::resolution::ResolutionPolicy",
+    "evidence_core::policy::resolution::ResolutionPolicyError",
+    "cargo_evidence::cli::generate::cmd_generate",
+]
+description = """
+`ResolutionPolicy::for_profile(profile, online_opt_in)` is the
+single decision point for dependency resolution: the development
+profile with an explicit `--online` opt-in yields `OnlineOptIn`;
+every profile without the opt-in yields `LockedOffline`;
+cert/record with the opt-in is refused with the typed
+`ResolutionPolicyError` carrying
+`POLICY_ONLINE_RESOLUTION_FORBIDDEN`. `cargo_args()` renders the
+policy as subprocess argv — `["--locked", "--offline"]` for
+`LockedOffline`, `[]` for `OnlineOptIn` — so every call site
+applies the same flags, and `as_str()` renders the
+`locked_offline` / `online_opt_in` wire label recorded in
+`index.json`. `cmd_generate` resolves the policy immediately
+after profile resolution, before the assurance-selection gate,
+so the refusal fires before any bundle work.
+"""
+verification_methods = ["test"]
+emits = ["POLICY_ONLINE_RESOLUTION_FORBIDDEN"]
+
+[[requirements]]
+uid = "c9899d50-b100-4a19-b6cf-1269460b5470"
+id = "LLR-140"
+title = "every generate-time cargo subprocess carries the resolution policy flags; locked/offline failures map to BUNDLE_LOCKED_GRAPH_UNAVAILABLE"
+owner = "tool"
+traces_to = ["0c1f3ac4-e0df-4c3c-b24c-15eb11ce2ede"]
+modules = [
+    "evidence_core::boundary_check::run_cargo_metadata",
+    "evidence_core::bundle::input_scope::build_input_plan_blocking",
+    "evidence_core::bundle::cargo_artifacts::inventory_outputs_blocking",
+    "evidence_core::bundle::builder::write_cargo_metadata_projection",
+    "cargo_evidence::cli::generate::phases::run_tests_and_capture",
+    "cargo_evidence::cli::generate::coverage_phase::run_coverage_phase",
+]
+description = """
+Every cargo invocation the generate pipeline spawns appends
+`ResolutionPolicy::cargo_args()` to its argv: the boundary policy
+gates' `cargo metadata`, input-scope resolution's
+`cargo metadata --no-deps`, the output inventory's
+`cargo metadata` + `cargo build`, the `cargo_metadata.json`
+projection's full `cargo metadata`, `cargo nextest run`, and the
+three `cargo llvm-cov` spawns. Cert/record keeps `--release` on
+its build; the resolution flags are policy-driven, not
+profile-hardcoded.
+
+Under `LockedOffline`, a non-zero exit from one of these
+invocations maps to the shared `LockedGraphError` — code
+`BUNDLE_LOCKED_GRAPH_UNAVAILABLE` — whose message names the
+command, the policy, and the remediation (`cargo fetch --locked`
+in an online environment). The policy makes the cause class
+unambiguous (missing cache or lock drift), so no stderr
+heuristics are consulted; launch and non-UTF-8 failures keep
+their existing codes.
+"""
+verification_methods = ["test"]
+emits = ["BUNDLE_LOCKED_GRAPH_UNAVAILABLE"]
+
+[[requirements]]
+uid = "e4ffc9e7-2698-459f-911f-f1156b47697e"
+id = "LLR-141"
+title = "cargo_metadata.json binds the resolved dependency graph and is written for every cert/record bundle"
+owner = "tool"
+traces_to = ["11ad8fea-6494-4948-834d-3150fea0c6ac"]
+modules = [
+    "evidence_core::cargo_metadata::CargoMetadataProjection",
+    "evidence_core::bundle::builder::EvidenceBuilder::finalize",
+]
+description = """
+`CargoMetadataProjection` gains `dependencies`: a
+`BTreeMap<name version, BTreeSet<name version>>` projected from
+`resolve.nodes` — the RESOLVED graph (post-resolution package
+versions), not the declared dependency specs. Keys and values
+are `BTree`-ordered and deduplicated so the artifact stays
+byte-deterministic across runs and hosts (SYS-003); a resolve
+node whose dependency id is absent from `packages[]` fails the
+projection closed. The existing `packages` projection is
+untouched, so the verify-time boundary recheck keeps replaying
+against the same fields.
+
+`EvidenceBuilder::finalize` writes the artifact unconditionally
+on cert/record profiles — the development profile keeps the
+boundary-policy-flag gating — before SHA256SUMS is assembled, so
+the integrity chain binds the graph the baseline resolved to,
+not just the lockfile pathname.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "ff850748-3a41-4d11-93dc-68d7bd72cd4d"
+id = "LLR-142"
+title = "EvidenceIndex.resolution_policy records the policy; verify rejects an online-resolution cert/record bundle"
+owner = "tool"
+traces_to = ["11ad8fea-6494-4948-834d-3150fea0c6ac"]
+modules = [
+    "evidence_core::bundle::index::EvidenceIndex",
+    "evidence_core::verify::resolution_policy::check_resolution_policy",
+    "evidence_core::verify::bundle::verify_bundle_with_key",
+]
+description = """
+`EvidenceIndex.resolution_policy` (typed `ResolutionPolicy`,
+serialized snake_case, `#[serde(default)]` resolving to
+`locked_offline`) records which policy produced the bundle;
+bundles written before the field existed parse with the safe
+default.
+
+`check_resolution_policy` runs inside `verify_bundle_with_key`
+and pushes `VerifyError::OnlineResolutionBundle`
+(`VERIFY_ONLINE_RESOLUTION`) when a bundle records
+`online_opt_in` under a cert/record profile — defense in depth
+behind the generate-time refusal, so a hand-assembled or
+tampered bundle cannot launder a development online opt-in into
+a certification claim. A development-profile bundle under the
+opt-in verifies normally: the flag narrows what the bundle can
+claim, not its integrity.
+"""
+verification_methods = ["test"]
+emits = ["VERIFY_ONLINE_RESOLUTION"]
+
+[[requirements]]
+uid = "b65fc892-2555-489d-bd75-0a0d3abd96dc"
+id = "LLR-143"
+title = "EvidenceIndex.recipe_hash renames deterministic_hash behind a read-time serde alias"
+owner = "tool"
+traces_to = ["79601c1c-8372-4b2e-9b79-b09ffbca00c8"]
+modules = ["evidence_core::bundle::index::EvidenceIndex"]
+description = """
+`EvidenceIndex.recipe_hash` records SHA-256 of
+`deterministic-manifest.json`. The field serializes under
+`recipe_hash`; `#[serde(alias = "deterministic_hash")]` accepts
+the pre-rename key when reading bundles written before the
+rename, so a legacy index.json still deserializes while every
+new bundle emits only the new name. The rustdoc narrows the
+claim the old name overreached: the hash proves the two bundles
+declare the same recipe, not that their outputs reproduce.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "a8412e0d-3f73-4d90-9d5a-be02f98c1605"
+id = "LLR-144"
+title = "EvidenceBuilder::finalize computes the recipe inputs and writes the canonical recipe manifest"
+owner = "tool"
+traces_to = ["79601c1c-8372-4b2e-9b79-b09ffbca00c8"]
+modules = ["evidence_core::bundle::builder::EvidenceBuilder::finalize"]
+description = """
+`finalize` writes `cargo_metadata.json` BEFORE the recipe
+manifest (cert/record unconditionally, development under the
+boundary-policy flags) so `locked_graph_hash` can bind the
+SHA-256 of the canonical resolved-dependency projection.
+`inputs_hash` / `command_recipe_hash` are computed over the
+canonical serializations of the recorded input and command
+state — byte-identical to what `write_inputs` / `write_commands`
+persist — and `features` is recorded as an empty list until the
+tool gains cargo feature selection. `resolution_policy` comes
+from the build config. The manifest lands before SHA256SUMS is
+assembled so the integrity chain binds it, and its SHA-256 is
+recorded as `index.json.recipe_hash`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "2536ac17-57b2-4d0e-a2e4-b821bc179fc1"
+id = "LLR-145"
+title = "Verify re-checks recipe_hash and re-projects the recipe manifest from bundle content"
+owner = "tool"
+traces_to = ["79601c1c-8372-4b2e-9b79-b09ffbca00c8"]
+modules = ["evidence_core::verify::bundle::verify_bundle_with_key"]
+description = """
+Verify compares `index.json.recipe_hash` against the SHA-256 of
+`deterministic-manifest.json` and re-projects the manifest from
+the bundle's own content — env.json for the fingerprint fields,
+inputs_hashes.json and commands.json for the two aggregate
+hashes, cargo_metadata.json for the locked-graph hash, and
+index.resolution_policy for the policy — byte-comparing the
+re-projection against the committed manifest. Missing projection
+inputs skip the re-projection (the absence already fired
+MissingHashedFile upstream); unparseable ones surface
+ManifestProjectionDrift rather than passing silently.
+"""
+verification_methods = ["test"]
+emits = [
+    "VERIFY_DETERMINISTIC_HASH_MISMATCH",
+    "VERIFY_MANIFEST_PROJECTION_DRIFT",
+]
+
+[[requirements]]
+uid = "3263d49d-1511-4e07-98f7-326b6728ff14"
+id = "LLR-146"
+title = "compare_reproduction classifies two bundles into typed reproduction findings"
+owner = "tool"
+traces_to = ["056a024e-3c14-4877-8728-26f7e18f3aae"]
+modules = ["evidence_core::verify::reproduction::compare_reproduction"]
+description = """
+`compare_reproduction(baseline, candidate)` reads each side's
+inputs_hashes.json, deterministic-manifest.json recipe fields,
+and outputs_hashes.json, and returns a deterministically sorted
+`Vec<ReproductionFinding>`; the two bundles are
+reproduction-equal iff the vector is empty. Input-plane: a
+digest mismatch yields InputChanged, a key present on exactly
+one side yields InputMissing, a malformed digest or an
+unreadable inputs file yields InputUnverifiable. Recipe plane:
+each recipe field (toolchain, target_triple, profile, features,
+locked_graph_hash, command_recipe_hash, inputs_hash,
+resolution_policy, and the lockfile plane reported as
+`dependency_lock`) is compared individually, yielding
+RecipeFieldChanged per differing field; git identity is
+excluded; a missing or unparseable manifest on either side
+yields RecipeUnavailable. Output plane: digest mismatch yields
+OutputChanged, baseline-only keys yield OutputMissing,
+candidate-only keys yield OutputExtra, and malformed digests or
+an unreadable outputs file yield OutputUnverifiable.
+`ReproductionError` stays an uncoded thiserror family — the
+comparison is a library API, not a diagnostic surface.
+"""
+verification_methods = ["test"]

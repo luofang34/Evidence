@@ -1,14 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://navigate.dev/schema/evidence/deterministic-manifest.schema.json",
-  "title": "DeterministicManifest",
-  "description": "Projection of env.json onto cross-host-stable fields; its SHA-256 is recorded as index.json.deterministic_hash.",
+  "title": "RecipeManifest",
+  "description": "Canonical recipe identity committed as deterministic-manifest.json; its SHA-256 is recorded as index.json.recipe_hash. Covers toolchain, target triple, profile, feature selection, locked dependency graph, command recipe, source-input digests, and resolution policy, with git identity retained as source metadata.",
   "type": "object",
   "required": [
     "schema_version",
     "profile",
     "rustc",
     "cargo",
+    "target_triple",
+    "features",
+    "locked_graph_hash",
+    "command_recipe_hash",
+    "inputs_hash",
+    "resolution_policy",
     "git_sha",
     "git_branch",
     "git_dirty"
@@ -47,17 +53,46 @@
       "type": "string",
       "description": "Value of RUSTFLAGS env var if set"
     },
+    "target_triple": {
+      "type": "string",
+      "description": "Build target triple from rustc -vV"
+    },
+    "features": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Cargo feature selection; empty until the tool gains feature selection"
+    },
+    "locked_graph_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 of the canonical resolved-dependency projection from cargo_metadata.json; null when the bundle carries no such artifact"
+    },
+    "command_recipe_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 of the canonical commands.json content"
+    },
+    "inputs_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 of the canonical inputs_hashes.json content"
+    },
+    "resolution_policy": {
+      "type": "string",
+      "enum": ["locked_offline", "online_opt_in"],
+      "description": "Dependency-resolution policy the bundle was generated under"
+    },
     "git_sha": {
       "type": "string",
-      "description": "Source commit SHA"
+      "description": "Source commit SHA (metadata, not recipe content)"
     },
     "git_branch": {
       "type": "string",
-      "description": "Source branch name"
+      "description": "Source branch name (metadata, not recipe content)"
     },
     "git_dirty": {
       "type": "boolean",
-      "description": "Whether working tree is dirty at capture time"
+      "description": "Whether working tree is dirty at capture time (metadata, not recipe content)"
     }
   },
   "additionalProperties": false

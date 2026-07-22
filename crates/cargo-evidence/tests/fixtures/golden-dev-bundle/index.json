@@ -1,14 +1,14 @@
 {
   "schema_version": "0.0.1",
   "boundary_schema_version": "0.0.1",
-  "trace_schema_version": "0.0.3",
+  "trace_schema_version": "0.0.1",
   "profile": "dev",
-  "timestamp_rfc3339": "2026-04-17T16:51:06.353337+00:00",
-  "git_sha": "984a91b0aaa88b543b2964ea25e27ab56afbe0b7",
-  "git_branch": "pr/19-keep-index-0-0-1",
+  "timestamp_rfc3339": "2026-07-22T11:24:46.617384+00:00",
+  "git_sha": "415f0653de181fe9ad064570416b2a639b7ca4ad",
+  "git_branch": "agent/139-recipe-identity",
   "git_dirty": true,
-  "engine_crate_version": "0.1.0",
-  "engine_git_sha": "984a91b0aaa88b543b2964ea25e27ab56afbe0b7",
+  "engine_crate_version": "0.1.5",
+  "engine_git_sha": "f23dd35dcb4c105ad35dd7c0aff2dcc1bb8720ad",
   "engine_build_source": "git",
   "inputs_hashes_file": "inputs_hashes.json",
   "outputs_hashes_file": "outputs_hashes.json",
@@ -17,8 +17,21 @@
   "trace_roots": [
     "cert/trace"
   ],
-  "trace_outputs": [],
+  "trace_outputs": [
+    "trace/matrix.md"
+  ],
   "bundle_complete": true,
-  "content_hash": "b68d87da18df26209613b37b443dfe649ac7af3cc19231e7b9814efd2d4f184d",
-  "deterministic_hash": "33115ca17d95e6d03ed9aa8a4a6753cae86dbf4474a8df3522833e76a4660711"
+  "content_hash": "0983e055ab468958c50f16a294618047b033dc7ed1a1059e9184fc2790cbc641",
+  "recipe_hash": "8912d936461723f54eb73f6570ae8bff8c77612e2b69b419b18c541046c71eb4",
+  "dal_map": {
+    "cargo-evidence": "D",
+    "evidence-core": "D",
+    "evidence-mcp": "D"
+  },
+  "boundary_policy": {
+    "no_out_of_scope_deps": true,
+    "forbid_build_rs": false,
+    "forbid_proc_macros": false
+  },
+  "resolution_policy": "locked_offline"
 }
