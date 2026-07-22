@@ -2553,3 +2553,113 @@ test_selectors = [
     "init_scaffold_idempotency::init_force_rewrites_managed_templates_only",
     "init_scaffold_idempotency::documented_adoption_sequence_executes_end_to_end",
 ]
+
+[[tests]]
+uid = "9e3217e2-1738-4b83-9bb2-eb7499579284"
+id = "TEST-168"
+title = "source-graph record files round-trip strictly and unknown fields, newer schemas, and malformed values fail closed"
+owner = "tool"
+traces_to = ["1816917d-36e8-4a85-aa2e-4eab8a79f73d"]
+test_selectors = [
+    "evidence_core::corpus::source_graph::tests::strict_file_round_trip_preserves_every_field",
+    "evidence_core::corpus::source_graph::tests::unknown_fields_and_newer_schema_fail_closed",
+    "evidence_core::corpus::source_graph::tests::malformed_digests_and_field_values_fail_closed",
+]
+
+[[tests]]
+uid = "a362380e-f43d-444c-ba52-68376e84fb6a"
+id = "TEST-169"
+title = "snode and src uid prefixes validate as UUIDv4 and the structural digest domain stays separate"
+owner = "tool"
+traces_to = [
+    "1816917d-36e8-4a85-aa2e-4eab8a79f73d",
+    "799ca792-eea5-441c-9926-0efc3285c4d7",
+]
+test_selectors = [
+    "evidence_core::corpus::source_graph::tests::snode_and_src_uids_validate_prefix_and_version",
+    "evidence_core::corpus::source_graph::tests::source_node_identity_stays_separate_from_revision_identity",
+    "evidence_core::corpus::digest::tests::structural_content_digest_validation_and_serde_round_trip",
+]
+
+[[tests]]
+uid = "a76d3418-2fdf-4889-bde8-fa86b3a53df1"
+id = "TEST-170"
+title = "golden normalization vectors byte-lock prose and code normalization plus digest contracts"
+owner = "tool"
+traces_to = ["f2d9a4a5-034a-4c5c-82fe-00616c7b43df"]
+test_selectors = [
+    "corpus_source_graph::golden_normalization_vectors_byte_lock_prose_code_and_digests",
+    "evidence_core::corpus::source_graph::tests_normalization::prose_folds_nfc_whitespace_and_trim",
+    "evidence_core::corpus::source_graph::tests_normalization::code_preserves_spaces_and_line_boundaries",
+    "evidence_core::corpus::source_graph::tests_normalization::fingerprint_excludes_positions_and_binds_ancestry",
+]
+
+[[tests]]
+uid = "b0ec52cd-beeb-481b-9dc4-709d3e55989f"
+id = "TEST-171"
+title = "every locator variant round-trips and malformed, mixed-format, or media-mismatched locators fail closed"
+owner = "tool"
+traces_to = [
+    "f41f5ab2-7ac4-473e-b979-6852f15aa894",
+    "75d4411b-cda1-40d7-8c9b-f587f9ceb061",
+]
+test_selectors = [
+    "evidence_core::corpus::source_graph::tests_locator::markdown_html_pdf_locators_round_trip",
+    "evidence_core::corpus::source_graph::tests_locator::malformed_locator_fields_fail_closed",
+    "evidence_core::corpus::source_graph::tests_locator::mixed_format_fields_fail_closed",
+    "evidence_core::corpus::source_graph::tests_locator::locator_media_mismatch_fails_closed",
+]
+
+[[tests]]
+uid = "37cde5e0-6e0b-4ec9-9707-3f3692c8f818"
+id = "TEST-172"
+title = "reordered files, records, and parser events load to equal graphs and byte-identical canonical renderings"
+owner = "tool"
+traces_to = [
+    "8375047f-97d9-412c-9b78-ef966be7fee8",
+    "75d4411b-cda1-40d7-8c9b-f587f9ceb061",
+]
+test_selectors = [
+    "corpus_source_graph::reordered_layouts_load_equal_graphs_and_identical_canonical_bytes",
+    "evidence_core::corpus::source_graph::tests_graph::record_order_and_file_split_are_non_semantic",
+]
+
+[[tests]]
+uid = "66b56733-88ff-406a-a77e-3a977c2ad274"
+id = "TEST-173"
+title = "forest, binding, ordinal, kind, and digest violations fail with typed context"
+owner = "tool"
+traces_to = ["75d4411b-cda1-40d7-8c9b-f587f9ceb061"]
+test_selectors = [
+    "evidence_core::corpus::source_graph::tests_graph::cycles_dangling_and_cross_revision_parents_fail_closed",
+    "evidence_core::corpus::source_graph::tests_graph::duplicate_ordinals_and_gaps_fail_closed",
+    "evidence_core::corpus::source_graph::tests_graph::illegal_parent_child_kinds_fail_closed",
+    "evidence_core::corpus::source_graph::tests_graph::digest_and_fingerprint_mismatches_fail_closed",
+    "evidence_core::corpus::source_graph::tests_graph::duplicate_uids_and_human_identities_fail_closed",
+    "evidence_core::corpus::source_graph::tests_graph::unbound_source_revision_fails_closed",
+]
+
+[[tests]]
+uid = "ec195273-957f-4242-8dd6-b062d4db924b"
+id = "TEST-174"
+title = "initial ingestion mints UUIDv4 identities and re-ingestion reconciles by structural-key precedence"
+owner = "tool"
+traces_to = ["719faafa-e571-42ff-a1e4-59cd702b753b"]
+test_selectors = [
+    "evidence_core::corpus::source_graph::tests_identity::initial_ingestion_mints_valid_unique_snode_uids",
+    "evidence_core::corpus::source_graph::tests_identity::reconciliation_reuses_committed_uids_by_structural_key",
+    "evidence_core::corpus::source_graph::tests_identity::structural_key_precedence_is_deterministic",
+    "evidence_core::corpus::source_graph::tests_identity::content_change_moves_digest_not_identity",
+]
+
+[[tests]]
+uid = "78fe3a9d-d413-4699-9083-53f3ad96be31"
+id = "TEST-175"
+title = "the index activates source_graphs, loads them after sources and before requirements, and wraps errors"
+owner = "tool"
+traces_to = ["63370779-8cbe-4991-81b5-421484dd218f"]
+test_selectors = [
+    "evidence_core::corpus::index::tests::index_resolves_source_graphs_and_loads_them_after_sources",
+    "evidence_core::corpus::index::tests::index_source_graph_entry_resolving_to_nothing_fails_closed",
+    "evidence_core::corpus::index::tests::source_graph_errors_surface_through_the_corpus_wrapper",
+]

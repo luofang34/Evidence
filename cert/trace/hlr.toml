@@ -3080,3 +3080,105 @@ terminal.
 verification_methods = ["test"]
 traces_to = ["09d6a8fc-2d41-45b3-a733-7355081e3707"]
 surfaces = ["init"]
+
+[[requirements]]
+uid = "20ab2a14-035d-4c34-b01f-81c4134881fa"
+id = "HLR-116"
+title = "Structural source-node identity is permanent and reconciled by deterministic structural keys"
+owner = "tool"
+scope = "component"
+description = """
+Every structural source node shall carry a permanent committed
+identity `snode_<UUIDv4>` distinct from the `src_<UUIDv4>`
+frozen document-revision identity. Initial ingestion mints fresh
+UUIDv4 identities. Re-ingestion reconciles candidate nodes
+against the committed graph through a deterministic structural
+key and reuses the committed uid on a match; unmatched
+candidates mint fresh UUIDv4 identities. UUIDs shall never be
+derived from content. The structural key is a precedence chain:
+explicit document numbering or anchor first, then parent path
+plus sibling ordinal, then structural fingerprint. Page, DOM,
+byte, and line positions are diagnostic locators and shall never
+enter permanent identity. A content change moves the node's
+content digest and produces drift between revisions; it never
+silently replaces identity.
+"""
+verification_methods = ["test"]
+traces_to = ["f2f526ca-3eb4-4acc-9275-2035e8bff6e3"]
+
+[[requirements]]
+uid = "ca0b9e20-b3fe-4c68-86ec-390deece03aa"
+id = "HLR-117"
+title = "Source-node records and locators load through a strict fail-closed schema"
+owner = "tool"
+scope = "component"
+description = """
+Source-graph files named by the corpus index `source_graphs`
+kind shall parse under a `schema_version`-gated strict TOML
+schema that denies unknown fields, mirroring the requirement-,
+review-, and source-record conventions. Each record shall carry:
+an `snode_<UUIDv4>` permanent uid; the `src_<UUIDv4>` of the
+revision it was parsed from; an optional `snode_<UUIDv4>`
+parent; a closed structural kind; a sibling ordinal; an optional
+label; canonical text; a validated content digest; a validated
+structural fingerprint; and exactly one typed locator. The
+locator shall be a closed enum over Markdown, HTML, and PDF
+variants with per-variant validation: unsafe paths, invalid
+ranges, non-finite coordinates, mixed-format fields, and
+locator/source media mismatches all fail closed with typed
+diagnostics naming the file, the record, and the offending
+field.
+"""
+verification_methods = ["test"]
+traces_to = ["f2f526ca-3eb4-4acc-9275-2035e8bff6e3"]
+
+[[requirements]]
+uid = "f266baf1-25bf-472b-86ba-42ab50b464a6"
+id = "HLR-118"
+title = "Canonical text, digests, and graph bytes are normalization-pinned and layout-independent"
+owner = "tool"
+scope = "component"
+description = """
+Canonical text shall be normalized by node kind. Prose
+normalization applies Unicode NFC, folds whitespace runs to a
+single space, and trims. Code-block normalization applies
+Unicode NFC and line-ending normalization only, preserving
+significant spaces and line boundaries — prose folding shall
+never touch code. The content digest shall cover the canonical
+text; the structural fingerprint shall cover stable kind, label,
+and ancestry inputs and shall exclude diagnostic positions.
+Canonical record and node ordering shall be independent of input
+file layout, parser event order, map iteration, and source
+record order, so equivalent linked layouts load to equal graphs
+and render byte-identical canonical fixtures.
+"""
+verification_methods = ["test"]
+traces_to = ["f2f526ca-3eb4-4acc-9275-2035e8bff6e3"]
+
+[[requirements]]
+uid = "f89519cc-35d8-4ef7-89bb-258bdad54a61"
+id = "HLR-119"
+title = "Committed source graphs enforce forest, binding, ordinal, kind, and digest invariants through typed diagnostics"
+owner = "tool"
+scope = "component"
+description = """
+A committed source graph shall form an acyclic rooted forest
+within one source revision: every parent link resolves inside
+the same revision, sibling ordinals are unique and contiguous
+after canonicalization, and parent/child kind combinations
+follow a closed legality table. Every node's
+`source_revision_uid` shall name a committed source revision,
+and the locator variant shall agree with that revision's media
+type. Duplicate uids, duplicate human identities within the
+structural-node kind, dangling or cross-document parents,
+cycles, illegal kind combinations, duplicate ordinals, digest
+mismatches, and unsupported schema versions shall each fail
+closed with a typed diagnostic carrying the source revision,
+node uid, field, and conflicting values. The corpus index shall
+activate the `source_graphs` kind, loading source graphs after
+source revisions and before requirements and reviews, without
+changing the requirement, review, and source-revision
+contracts.
+"""
+verification_methods = ["test"]
+traces_to = ["f2f526ca-3eb4-4acc-9275-2035e8bff6e3"]
