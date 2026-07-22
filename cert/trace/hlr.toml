@@ -3039,3 +3039,44 @@ unverifiable.
 """
 verification_methods = ["test"]
 traces_to = ["bb638b12-db15-4312-a04a-66187ddf80ec"]
+
+[[requirements]]
+uid = "1cba1b0c-4578-4113-9c61-336d5af0eaba"
+id = "HLR-115"
+title = "cargo evidence init writes a schema-valid, adoption-incomplete, non-fake cert/ scaffold"
+owner = "tool"
+scope = "component"
+description = """
+`cargo evidence init` shall write every file the tool's own
+surfaces expect on a fresh project: `cert/boundary.toml`, the
+`cert/profiles/{dev,cert,record}.toml` stubs, `cert/floors.toml`,
+and the five `cert/trace/{sys,hlr,llr,tests,derived}.toml` files.
+Each trace file shall carry `[schema]` + `[meta]` plus an
+explicitly empty entry list, with worked example entries present
+only as fully commented blocks, so nothing placeholder parses as a
+live requirement or can enter a bundle (SYS-050); the commented
+examples name `cargo evidence trace --backfill-uuids` as the
+UUID-assignment step for real entries. `cert/floors.toml` shall
+carry `schema_version = 1` with every workspace-true floor
+dimension at zero and per-crate tables shown only as commented
+examples, so doctor's floors check passes on a fresh scaffold
+instead of reporting the configuration missing. A fresh scaffold's
+trace tree therefore classifies as the Empty adoption state:
+`trace --validate` reports `TRACE_EVIDENCE_EMPTY` and doctor
+reports `DOCTOR_TRACE_NO_EVIDENCE` at warning severity, ending
+`DOCTOR_OK` — the intended adoption-incomplete signal, replacing
+the former fake-uid register failure. Init shall be idempotent: a
+re-run without `--force` preserves every existing managed file
+byte-for-byte (user edits included) and exits successfully, while
+`--force` rewrites exactly the managed template set and nothing
+outside it; the former `INIT_CERT_DIR_EXISTS` hard refusal is
+retired. Init shall also name the resulting state itself: human
+output prints the complete ordered next-step sequence (edit the
+boundary, add real requirements, backfill UUIDs, validate, doctor,
+generate), and the jsonl stream carries an
+`INIT_ADOPTION_INCOMPLETE` info diagnostic ahead of the `INIT_OK`
+terminal.
+"""
+verification_methods = ["test"]
+traces_to = ["09d6a8fc-2d41-45b3-a733-7355081e3707"]
+surfaces = ["init"]

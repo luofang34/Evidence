@@ -183,6 +183,7 @@ pub const RULES: &[RuleEntry] = &[
     r("HASH_READ_FAILED", Severity::Error, Domain::Hash),
     r("HASH_WALK_FAILED", Severity::Error, Domain::Hash),
     r("HASH_WRITE_FAILED", Severity::Error, Domain::Hash),
+    r("INIT_ADOPTION_INCOMPLETE", Severity::Info, Domain::Init),
     r("INIT_CERT_DIR_EXISTS", Severity::Error, Domain::Init),
     terminal("INIT_FAIL", Severity::Error),
     terminal("INIT_OK", Severity::Info),

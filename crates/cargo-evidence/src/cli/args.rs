@@ -202,7 +202,12 @@ pub enum Commands {
 
     /// Initialize evidence tracking for a project
     Init {
-        /// Overwrite existing files
+        /// Rewrite init's managed template files (cert/boundary.toml,
+        /// cert/floors.toml, cert/profiles/*.toml,
+        /// cert/trace/*.toml) even when they already exist,
+        /// discarding edits made to those files. Files outside the
+        /// managed set are never touched. Without --force, existing
+        /// files are preserved and only missing ones are written.
         #[arg(long)]
         force: bool,
 

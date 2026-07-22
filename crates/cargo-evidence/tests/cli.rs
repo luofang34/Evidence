@@ -42,7 +42,7 @@ fn test_init_creates_cert_structure() {
 }
 
 #[test]
-fn test_init_refuses_without_force() {
+fn test_init_rerun_preserves_without_force() {
     let tmp = TempDir::new().unwrap();
     // First init succeeds
     cargo_evidence()
@@ -52,14 +52,15 @@ fn test_init_refuses_without_force() {
         .assert()
         .success();
 
-    // Second init without --force fails
+    // Second init without --force succeeds and preserves the
+    // existing managed files (idempotent re-run).
     cargo_evidence()
         .arg("evidence")
         .arg("init")
         .current_dir(tmp.path())
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("--force"));
+        .success()
+        .stdout(predicate::str::contains("preserved"));
 }
 
 #[test]

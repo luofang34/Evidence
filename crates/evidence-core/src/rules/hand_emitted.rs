@@ -25,6 +25,13 @@
 /// Audited against `crates/cargo-evidence/src` by
 /// `doctor_checks_locked::every_doctor_code_emitted_in_source`
 /// (and parallel meta-checks per domain).
+///
+/// `INIT_CERT_DIR_EXISTS` is the one registered-but-unemitted
+/// entry: the refusal it named was retired when init became
+/// idempotent (LLR-151). It stays in `RULES` + this registry —
+/// with no `DiagnosticCode` impl and no terminal status, removal
+/// from here would orphan the `RULES` row — and
+/// [`RESERVED_UNCLAIMED_CODES`] carries the disposition note.
 pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "CHECK_TEST_RUNTIME_FAILURE",
     "CLI_INVALID_ARGUMENT",
@@ -58,6 +65,7 @@ pub const HAND_EMITTED_CLI_CODES: &[&str] = &[
     "FLOORS_BELOW_MIN",
     "FLOORS_DIMENSION_OK",
     "FLOORS_LOWERED_WITHOUT_JUSTIFICATION",
+    "INIT_ADOPTION_INCOMPLETE",
     "INIT_CERT_DIR_EXISTS",
     "INIT_TEMPLATE_WRITTEN",
     "KEYGEN_KEY_EXISTS",
@@ -87,15 +95,17 @@ pub const HAND_EMITTED_MCP_CODES: &[&str] = &[
 ];
 
 /// Codes in [`crate::RULES`] intentionally NOT claimed by any
-/// LLR's `emits` list. `INIT_*` + `GENERATE_OK` + `GENERATE_FAIL`
-/// ride the universal-JSONL surface; `cmd_init` and
-/// `cmd_generate` don't yet have dedicated HLR/LLR chains — a
-/// follow-up PR adds them and empties this list.
+/// LLR's `emits` list. `GENERATE_OK` / `GENERATE_FAIL` ride the
+/// universal-JSONL surface; `cmd_generate` doesn't yet have a
+/// dedicated HLR/LLR chain — a follow-up PR adds it and empties
+/// those two entries. `INIT_CERT_DIR_EXISTS` and `INIT_FAIL` are
+/// registered-but-unemitted: the cert-exists refusal was retired
+/// when init became idempotent (LLR-151), and the jsonl failure
+/// terminal has no wired emit path — both stay in `RULES` so the
+/// published code namespace never silently shrinks.
 pub const RESERVED_UNCLAIMED_CODES: &[&str] = &[
     "GENERATE_FAIL",
     "GENERATE_OK",
     "INIT_CERT_DIR_EXISTS",
     "INIT_FAIL",
-    "INIT_OK",
-    "INIT_TEMPLATE_WRITTEN",
 ];
