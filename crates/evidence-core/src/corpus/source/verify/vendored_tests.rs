@@ -6,7 +6,7 @@ use super::{
     SourcePayloadError, SourceVerificationState, resolve_vendored_path, verify_effective_sources,
     verify_vendored_head,
 };
-use crate::corpus::{LockAvailability, LockCaptureMode, SourceContentDigest, SourceLockEntry};
+use crate::corpus::{LockCapture, LockMaterial, SourceContentDigest, SourceLockEntry};
 
 /// A vendored head whose on-disk bytes match the record and lock
 /// digest verifies; nested path components resolve (TEST-154).
@@ -282,10 +282,10 @@ fn lock_record_disagreement_is_typed() {
     let agreeing = SourceLockEntry {
         document_key: DOC_1.to_string(),
         source_uid: SRC_1.to_string(),
-        availability: LockAvailability::Available,
-        sha256: Some(record_digest.clone()),
-        capture_mode: Some(LockCaptureMode::Vendored),
-        external_control: None,
+        material: LockMaterial::Available {
+            sha256: record_digest.clone(),
+            capture: LockCapture::Vendored,
+        },
     };
     let verified = verify_vendored_head(
         corpus.root(),
@@ -300,8 +300,13 @@ fn lock_record_disagreement_is_typed() {
         "an agreeing lock entry verifies, got: {verified:?}"
     );
 
-    let mut wrong_digest = agreeing.clone();
-    wrong_digest.sha256 = Some(SourceContentDigest::from_hex(&"f".repeat(64)).unwrap());
+    let wrong_digest = SourceLockEntry {
+        material: LockMaterial::Available {
+            sha256: SourceContentDigest::from_hex(&"f".repeat(64)).unwrap(),
+            capture: LockCapture::Vendored,
+        },
+        ..agreeing.clone()
+    };
     let err = verify_vendored_head(
         corpus.root(),
         DOC_1,
@@ -323,8 +328,13 @@ fn lock_record_disagreement_is_typed() {
         "got: {err:?}"
     );
 
-    let mut wrong_mode = agreeing.clone();
-    wrong_mode.capture_mode = Some(LockCaptureMode::HashOnly);
+    let wrong_mode = SourceLockEntry {
+        material: LockMaterial::Available {
+            sha256: record_digest.clone(),
+            capture: LockCapture::HashOnly,
+        },
+        ..agreeing.clone()
+    };
     let err = verify_vendored_head(
         corpus.root(),
         DOC_1,
@@ -343,9 +353,7 @@ fn lock_record_disagreement_is_typed() {
     );
 
     let unavailable = SourceLockEntry {
-        availability: LockAvailability::Unavailable,
-        sha256: None,
-        capture_mode: None,
+        material: LockMaterial::Unavailable,
         ..agreeing
     };
     let err = verify_vendored_head(

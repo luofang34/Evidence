@@ -276,6 +276,63 @@ fn read_lock_blocking_reads_without_mutation() {
     );
 }
 
+/// The file-level validation entry reads the committed bytes once
+/// and applies the full three gates to them: a canonical lock
+/// passes; a byte-level canonicality break the value-only reader
+/// cannot see fails gate 2; a graph disagreement fails gate 3; an
+/// unreadable path fails closed. The file is never mutated
+/// (TEST-151).
+#[test]
+fn validate_lock_file_blocking_applies_the_gates_to_file_bytes() {
+    let graph = four_document_graph();
+    let canonical = canonical_text();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("sources.lock");
+    std::fs::write(&path, &canonical).expect("write lock file");
+
+    validate_lock_file_blocking(&path, &graph).expect("a canonical committed file validates");
+    let after = std::fs::read(&path).expect("re-read lock file");
+    assert_eq!(
+        after,
+        canonical.as_bytes(),
+        "validation must not mutate the file"
+    );
+
+    // Reordered entries parse to an equivalent value, so only a
+    // check over the preserved file bytes can fail this.
+    let (header, blocks) = split_blocks(&canonical);
+    let mut swapped = blocks.clone();
+    swapped.swap(0, 1);
+    std::fs::write(&path, join_blocks(header, &swapped)).expect("write reordered lock file");
+    let err =
+        validate_lock_file_blocking(&path, &graph).expect_err("non-canonical file bytes must fail");
+    assert!(
+        matches!(err, SourceError::Lock(SourceLockError::NonCanonical { .. })),
+        "expected NonCanonical, got: {err:?}"
+    );
+
+    // Gate 3 runs on the file bytes against the given graph.
+    std::fs::write(&path, &canonical).expect("restore canonical lock file");
+    let empty_graph = crate::corpus::CorpusGraph::new();
+    let err = validate_lock_file_blocking(&path, &empty_graph)
+        .expect_err("a graph disagreement must fail");
+    assert!(
+        matches!(
+            err,
+            SourceError::Lock(SourceLockError::Extra { ref document_key })
+            if document_key.as_str() == DOC_1
+        ),
+        "expected Extra naming DOC-1, got: {err:?}"
+    );
+
+    let err = validate_lock_file_blocking(&dir.path().join("absent.lock"), &graph)
+        .expect_err("an unreadable path must fail");
+    assert!(
+        matches!(err, SourceError::Lock(SourceLockError::Read { .. })),
+        "expected Read, got: {err:?}"
+    );
+}
+
 /// An unavailable effective head round-trips through derive,
 /// render, parse, and the full three-gate validation without ever
 /// carrying a digest (TEST-151).
@@ -293,11 +350,7 @@ fn unavailable_head_round_trips_digest_free_through_the_gates() {
 
     let parsed = parse_lock(&bytes).expect("canonical bytes parse");
     assert_eq!(parsed.entries.len(), 1);
-    assert_eq!(parsed.entries[0].sha256, None);
-    assert_eq!(
-        parsed.entries[0].availability,
-        LockAvailability::Unavailable
-    );
+    assert_eq!(parsed.entries[0].material, LockMaterial::Unavailable);
 
     validate_committed_lock(&bytes, &graph).expect("the round-tripped lock validates");
 }

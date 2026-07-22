@@ -72,7 +72,7 @@ use super::super::graph::{CorpusGraph, Node, SourceCapture, SourceMaterial, Sour
 use super::error::SourceError;
 use super::lineage::effective_source_heads;
 use super::lock::{
-    LockAvailability, LockCaptureMode, SourceLockEntry, parse_lock, validate_committed_lock,
+    LockCapture, LockMaterial, SourceLockEntry, parse_lock, validate_committed_lock,
 };
 use super::records::validate_vendored_wire_path;
 
@@ -276,13 +276,17 @@ fn verify_vendored_head(
         document_key: document_key.to_string(),
         field,
     };
-    if lock_entry.availability != LockAvailability::Available {
+    let LockMaterial::Available {
+        sha256: lock_digest,
+        capture,
+    } = &lock_entry.material
+    else {
         return Err(disagreement("availability"));
-    }
-    if lock_entry.capture_mode != Some(LockCaptureMode::Vendored) {
+    };
+    if !matches!(capture, LockCapture::Vendored) {
         return Err(disagreement("capture_mode"));
     }
-    if lock_entry.sha256.as_ref() != Some(record_digest) {
+    if lock_digest != record_digest {
         return Err(disagreement("digest"));
     }
 

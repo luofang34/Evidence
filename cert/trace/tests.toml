@@ -2265,6 +2265,7 @@ test_selectors = [
     "evidence_core::corpus::source::lock::validate_tests::changed_fields_fail_naming_the_field",
     "evidence_core::corpus::source::lock::validate_tests::graph_is_validated_before_the_gates",
     "evidence_core::corpus::source::lock::validate_tests::read_lock_blocking_reads_without_mutation",
+    "evidence_core::corpus::source::lock::validate_tests::validate_lock_file_blocking_applies_the_gates_to_file_bytes",
     "evidence_core::corpus::source::lock::validate_tests::unavailable_head_round_trips_digest_free_through_the_gates",
 ]
 

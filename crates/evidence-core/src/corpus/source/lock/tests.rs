@@ -33,25 +33,22 @@ fn derive_lock_binds_effective_heads_only() {
     );
 
     let doc_1 = &lock.entries[0];
-    assert_eq!(doc_1.availability, LockAvailability::Available);
-    assert_eq!(
-        doc_1.sha256.as_ref().map(|digest| digest.as_str()),
-        Some(DIGEST_A)
-    );
-    assert_eq!(doc_1.capture_mode, Some(LockCaptureMode::Vendored));
-    assert_eq!(doc_1.external_control, None);
+    let LockMaterial::Available { sha256, capture } = &doc_1.material else {
+        panic!("DOC-1 is available")
+    };
+    assert_eq!(sha256.as_str(), DIGEST_A);
+    assert_eq!(capture, &LockCapture::Vendored);
 
     let doc_3 = &lock.entries[2];
     assert_eq!(
-        doc_3.capture_mode,
-        Some(LockCaptureMode::ExternalControlled)
-    );
-    assert_eq!(
-        doc_3.external_control,
-        Some(ExternalControlId {
-            system: "plm-hd".to_string(),
-            immutable_id: "DOC-3@revC".to_string(),
-        })
+        doc_3.material,
+        LockMaterial::Available {
+            sha256: SourceContentDigest::from_hex(DIGEST_C).unwrap(),
+            capture: LockCapture::ExternalControlled(ExternalControlId {
+                system: "plm-hd".to_string(),
+                immutable_id: "DOC-3@revC".to_string(),
+            }),
+        }
     );
 }
 
@@ -126,10 +123,11 @@ fn unavailable_heads_derive_without_digest_or_capture() {
     let lock = derive_lock(&graph);
     assert_eq!(lock.entries.len(), 1);
     let entry = &lock.entries[0];
-    assert_eq!(entry.availability, LockAvailability::Unavailable);
-    assert_eq!(entry.sha256, None, "unavailable heads never get a digest");
-    assert_eq!(entry.capture_mode, None);
-    assert_eq!(entry.external_control, None);
+    assert_eq!(
+        entry.material,
+        LockMaterial::Unavailable,
+        "unavailable heads never get a digest or a capture mode"
+    );
 }
 
 /// Vendored paths, retrieval timestamps, and unavailability reasons
@@ -417,13 +415,13 @@ fn escaping_round_trips_special_strings() {
         entries: vec![SourceLockEntry {
             document_key: tricky.to_string(),
             source_uid: SRC_1H.to_string(),
-            availability: LockAvailability::Available,
-            sha256: Some(SourceContentDigest::from_hex(DIGEST_A).unwrap()),
-            capture_mode: Some(LockCaptureMode::ExternalControlled),
-            external_control: Some(ExternalControlId {
-                system: tricky.to_string(),
-                immutable_id: "plain".to_string(),
-            }),
+            material: LockMaterial::Available {
+                sha256: SourceContentDigest::from_hex(DIGEST_A).unwrap(),
+                capture: LockCapture::ExternalControlled(ExternalControlId {
+                    system: tricky.to_string(),
+                    immutable_id: "plain".to_string(),
+                }),
+            },
         }],
     };
     let rendered = render_lock_canonical(&lock);
