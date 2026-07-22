@@ -2,10 +2,8 @@
 //! fixed payload root (TEST-154).
 
 use super::fixtures::*;
-use super::{
-    SourcePayloadError, SourceVerificationState, resolve_vendored_path, verify_effective_sources,
-    verify_vendored_head,
-};
+use super::vendored::{resolve_vendored_path, verify_vendored_head};
+use super::{SourcePayloadError, SourceVerificationState, verify_effective_sources};
 use crate::corpus::{LockCapture, LockMaterial, SourceContentDigest, SourceLockEntry};
 
 /// A vendored head whose on-disk bytes match the record and lock

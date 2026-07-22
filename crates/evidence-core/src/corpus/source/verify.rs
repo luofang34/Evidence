@@ -65,18 +65,15 @@
 //!   payload finding reports through (LLR-137)
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use super::super::digest::SourceContentDigest;
 use super::super::graph::{CorpusGraph, Node, SourceCapture, SourceMaterial, SourceRevisionNode};
 use super::error::SourceError;
 use super::lineage::effective_source_heads;
-use super::lock::{
-    LockCapture, LockMaterial, SourceLockEntry, parse_lock, validate_committed_lock,
-};
-use super::records::validate_vendored_wire_path;
+use super::lock::{SourceLockEntry, parse_lock, validate_committed_lock};
 
 pub(super) mod error;
+pub(super) mod vendored;
 
 pub use error::{DigestMismatchDetail, SourcePayloadError};
 
@@ -246,7 +243,7 @@ fn verify_head(
                         field: "uid",
                     });
                 };
-                verify_vendored_head(
+                vendored::verify_vendored_head(
                     corpus_root,
                     document_key,
                     revision,
@@ -257,191 +254,6 @@ fn verify_head(
             }
         },
     }
-}
-
-/// Verify one vendored head (LLR-137): the lock entry must agree
-/// with the record, the payload must resolve safely beneath the
-/// fixed payload root, and the exact raw bytes must digest to the
-/// declared value.
-fn verify_vendored_head(
-    corpus_root: &Path,
-    document_key: &str,
-    revision: &SourceRevisionNode,
-    wire_path: &str,
-    record_digest: &SourceContentDigest,
-    lock_entry: &SourceLockEntry,
-) -> Result<SourceVerificationState, SourcePayloadError> {
-    let disagreement = |field: &'static str| SourcePayloadError::LockDisagreement {
-        source_uid: revision.uid.clone(),
-        document_key: document_key.to_string(),
-        field,
-    };
-    let LockMaterial::Available {
-        sha256: lock_digest,
-        capture,
-    } = &lock_entry.material
-    else {
-        return Err(disagreement("availability"));
-    };
-    if !matches!(capture, LockCapture::Vendored) {
-        return Err(disagreement("capture_mode"));
-    }
-    if lock_digest != record_digest {
-        return Err(disagreement("digest"));
-    }
-
-    let candidate = resolve_vendored_path(corpus_root, document_key, &revision.uid, wire_path)?;
-    let actual = crate::hash::sha256_file(&candidate).map_err(|err| {
-        let source = match err {
-            crate::hash::HashError::Open { source, .. }
-            | crate::hash::HashError::Read { source, .. } => source,
-            // `sha256_file` only opens and reads; the remaining
-            // `HashError` variants belong to other helpers and are
-            // unreachable here, but degrade to a typed I/O finding
-            // rather than a panic if that ever changes.
-            other => std::io::Error::other(other),
-        };
-        SourcePayloadError::Io {
-            source_uid: revision.uid.clone(),
-            document_key: document_key.to_string(),
-            path: candidate.clone(),
-            source,
-        }
-    })?;
-    let actual = SourceContentDigest::from_hasher_output(actual);
-    if &actual != record_digest {
-        return Err(SourcePayloadError::DigestMismatch(Box::new(
-            DigestMismatchDetail {
-                source_uid: revision.uid.clone(),
-                document_key: document_key.to_string(),
-                path: candidate,
-                expected: record_digest.clone(),
-                actual,
-            },
-        )));
-    }
-    Ok(SourceVerificationState::VerifiedBytes)
-}
-
-/// Resolve a vendored wire path to a verified regular file beneath
-/// the fixed `<corpus-root>/sources/` payload root (LLR-137).
-///
-/// The wire path is corpus-root-relative with a leading `sources/`
-/// component (the stored wire form), so the candidate is
-/// `corpus_root.join(wire_path)`. Every step fails closed: the
-/// record-load lexical check is re-run (defense in depth for
-/// programmatically built graphs), the path must sit beneath the
-/// payload root, the root itself must not be a symlink, no
-/// component may be a symlink, the final component must be a
-/// regular file, and the canonicalized target must stay beneath the
-/// canonicalized root.
-fn resolve_vendored_path(
-    corpus_root: &Path,
-    document_key: &str,
-    source_uid: &str,
-    wire_path: &str,
-) -> Result<PathBuf, SourcePayloadError> {
-    let escape = |path: PathBuf| SourcePayloadError::PathEscape {
-        source_uid: source_uid.to_string(),
-        document_key: document_key.to_string(),
-        path,
-    };
-    let missing = |path: PathBuf| SourcePayloadError::MissingPayload {
-        source_uid: source_uid.to_string(),
-        document_key: document_key.to_string(),
-        path,
-    };
-    let io_failure = |path: PathBuf, source: std::io::Error| SourcePayloadError::Io {
-        source_uid: source_uid.to_string(),
-        document_key: document_key.to_string(),
-        path,
-        source,
-    };
-
-    // Defense in depth: record loading validated the wire form
-    // lexically (LLR-125); a programmatically built graph bypasses
-    // that gate, so re-check before touching the filesystem.
-    if validate_vendored_wire_path(wire_path).is_err() {
-        return Err(escape(PathBuf::from(wire_path)));
-    }
-    let payload_root = corpus_root.join(PAYLOAD_ROOT_DIR);
-    let candidate = corpus_root.join(wire_path);
-    // The wire path must name a path strictly beneath the payload
-    // root: its leading component is the payload-root directory
-    // name. `strip_prefix` is component-wise, so a sibling like
-    // `sources-extra/x` never prefixes.
-    let relative = candidate
-        .strip_prefix(&payload_root)
-        .map_err(|_| escape(PathBuf::from(wire_path)))?;
-    if relative.as_os_str().is_empty() {
-        // The wire path names the payload root itself — a
-        // directory, never a payload file.
-        return Err(SourcePayloadError::NotAFile {
-            source_uid: source_uid.to_string(),
-            document_key: document_key.to_string(),
-            path: candidate,
-        });
-    }
-
-    let root_metadata = std::fs::symlink_metadata(&payload_root).map_err(|err| {
-        if err.kind() == std::io::ErrorKind::NotFound {
-            missing(candidate.clone())
-        } else {
-            io_failure(payload_root.clone(), err)
-        }
-    })?;
-    if root_metadata.file_type().is_symlink() {
-        return Err(SourcePayloadError::SymlinkRoot { root: payload_root });
-    }
-    if !root_metadata.is_dir() {
-        // A non-directory root cannot contain payloads.
-        return Err(missing(candidate));
-    }
-
-    let mut current = payload_root.clone();
-    let mut components = relative.components().peekable();
-    while let Some(component) = components.next() {
-        current.push(component.as_os_str());
-        let metadata = std::fs::symlink_metadata(&current).map_err(|err| {
-            if matches!(
-                err.kind(),
-                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
-            ) {
-                // Missing, or a mid-path component is not a
-                // directory: the payload does not exist either way.
-                missing(candidate.clone())
-            } else {
-                io_failure(current.clone(), err)
-            }
-        })?;
-        if metadata.file_type().is_symlink() {
-            return Err(SourcePayloadError::SymlinkComponent {
-                source_uid: source_uid.to_string(),
-                document_key: document_key.to_string(),
-                component: current.clone(),
-            });
-        }
-        if components.peek().is_none() && !metadata.is_file() {
-            return Err(SourcePayloadError::NotAFile {
-                source_uid: source_uid.to_string(),
-                document_key: document_key.to_string(),
-                path: candidate,
-            });
-        }
-    }
-
-    // Belt and suspenders: the lexical checks above leave no room
-    // for a symlink or `..` escape, but canonical containment is the
-    // filesystem-level proof that resolution stayed beneath the
-    // payload root.
-    let canonical_root = std::fs::canonicalize(&payload_root)
-        .map_err(|err| io_failure(payload_root.clone(), err))?;
-    let canonical_candidate =
-        std::fs::canonicalize(&candidate).map_err(|err| io_failure(candidate.clone(), err))?;
-    if !canonical_candidate.starts_with(&canonical_root) {
-        return Err(escape(candidate));
-    }
-    Ok(candidate)
 }
 
 // Tests live in sibling files pulled in via `#[path]`: shared
