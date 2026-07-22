@@ -2496,3 +2496,57 @@ test_selectors = [
     "evidence_core::bundle::completeness::tests::legacy_index_deserializes_all_unverifiable",
     "evidence_core::bundle::completeness::tests::record_verification_state_patches_index",
 ]
+
+[[tests]]
+uid = "d356f726-f963-4263-884b-e65c1416831d"
+id = "TEST-167"
+title = "init scaffold contract: schema-valid empty templates, adoption-incomplete signals, idempotency, executable adoption sequence"
+owner = "tool"
+traces_to = [
+    "1f76ff59-e4ef-44c5-8c1e-110a627a25fc",
+    "5bc3eea9-a497-4732-a525-7c057a5de6f2",
+]
+description = """
+Integration tests under
+`crates/cargo-evidence/tests/init_scaffold_contract.rs` that spawn
+the `cargo-evidence` binary against fresh tempdirs and pin the
+advertised adoption flow end to end:
+
+  - init_scaffold_is_schema_valid_and_contains_no_live_requirements:
+    every managed file exists; each trace file parses through
+    `read_all_trace_files` with zero requirements; boundary parses
+    via `BoundaryConfig::load`; floors parses via
+    `FloorsConfig::load_or_missing` as `Loaded`; no uncommented
+    `[[requirements]]` / `[[tests]]` table exists in any trace file.
+  - init_signals_adoption_incomplete_in_jsonl_and_human_output:
+    the jsonl stream carries `INIT_ADOPTION_INCOMPLETE` ahead of
+    the `INIT_OK` terminal; human output prints the full ordered
+    next-step sequence including `--backfill-uuids`, `--validate`,
+    `doctor`, and `generate`.
+  - fresh_scaffold_doctor_validate_generate_contract: on a fresh
+    scaffold, doctor exits 0 (`DOCTOR_OK`) with the trace row at
+    `DOCTOR_TRACE_NO_EVIDENCE` warning severity and zero
+    error-severity rows; `trace --validate --format=jsonl` exits
+    non-zero with `TRACE_EVIDENCE_EMPTY` + `VERIFY_FAIL`; `generate
+    --profile dev` succeeds and records `graph_validity =
+    incomplete` on the bundle's completeness states.
+  - init_rerun_preserves_existing_files_without_force: a second
+    init exits 0, leaves every file byte-identical, and preserves
+    a hand-edited managed file.
+  - init_force_rewrites_managed_templates_only: `--force`
+    rewrites the managed templates (a hand edit is overwritten)
+    while files outside the managed set stay untouched.
+  - documented_adoption_sequence_executes_end_to_end: adding a
+    real requirement with a placeholder uid, then running the
+    printed sequence (`trace --backfill-uuids` then `trace
+    --validate`), terminates `VERIFY_OK` with no undocumented
+    step.
+"""
+test_selectors = [
+    "init_scaffold_contract::init_scaffold_is_schema_valid_and_contains_no_live_requirements",
+    "init_scaffold_contract::init_signals_adoption_incomplete_in_jsonl_and_human_output",
+    "init_scaffold_contract::fresh_scaffold_doctor_validate_generate_contract",
+    "init_scaffold_contract::init_rerun_preserves_existing_files_without_force",
+    "init_scaffold_contract::init_force_rewrites_managed_templates_only",
+    "init_scaffold_contract::documented_adoption_sequence_executes_end_to_end",
+]

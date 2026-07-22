@@ -825,6 +825,46 @@
       "verification_methods": [
         "test"
       ]
+    },
+    {
+      "id": "LLR-150",
+      "uid": "1f76ff59-e4ef-44c5-8c1e-110a627a25fc",
+      "layer": "llr",
+      "title": "cmd_init writes the managed template set: empty-commented trace files, floors.toml, boundary + profile stubs",
+      "description": "`cmd_init` renders and writes one managed template set:\n`cert/boundary.toml` (version string flowed from\n`schema_versions::BOUNDARY`), the three\n`cert/profiles/{dev,cert,record}.toml` stubs,\n`cert/floors.toml`, and the five\n`cert/trace/{sys,hlr,llr,tests,derived}.toml` files (version\nstring flowed from `schema_versions::TRACE`).\n\nEach trace template carries `[schema]` + `[meta]` plus an\nexplicit empty entry array (`requirements = []`, or `tests = []`\nfor the test layer) placed ahead of the first table header so the\nfiles parse through `read_all_trace_files` immediately after\nscaffolding. The worked example entry in each file is present\nonly as comment lines — every line of the example carries a\nleading `#`, so no placeholder entry parses as a live requirement\nand an unmodified scaffold contributes zero entries to any bundle.\nThe commentary names `cargo evidence trace --backfill-uuids` as\nthe UUID-assignment step for real entries.\n\n`cert/floors.toml` carries `schema_version = 1`, every\nworkspace-true floor dimension (`diagnostic_codes`,\n`terminal_codes`, the four per-layer trace counters,\n`known_surfaces`) at zero as an honest pre-adoption baseline, and\n`[per_crate]` / `[per_crate_ceilings]` shown only as commented\nexamples. The file loads through `FloorsConfig::load_or_missing`\nas `Loaded`, so doctor's floors check never reports\n`DOCTOR_FLOORS_MISSING` on a fresh scaffold.\n\nEach written file goes through `emit_template_written`, so the\njsonl stream carries one `INIT_TEMPLATE_WRITTEN` info event per\ncreated file and terminates in exactly one `INIT_OK` terminal.\n",
+      "modules": [
+        "cargo_evidence::cli::init::cmd_init",
+        "cargo_evidence::cli::init::templates"
+      ],
+      "emits": [
+        "INIT_TEMPLATE_WRITTEN",
+        "INIT_OK"
+      ],
+      "traces_to": [
+        "1cba1b0c-4578-4113-9c61-336d5af0eaba"
+      ],
+      "verification_methods": [
+        "test"
+      ]
+    },
+    {
+      "id": "LLR-151",
+      "uid": "5bc3eea9-a497-4732-a525-7c057a5de6f2",
+      "layer": "llr",
+      "title": "init signals the adoption-incomplete state and preserves user evidence on re-run",
+      "description": "`cmd_init` is idempotent and honest about the scaffold it\nproduces.\n\nRe-run semantics are per managed file: without `--force`, a file\nthat already exists on disk is preserved byte-for-byte (reported\nas preserved, not rewritten), missing files are written, and the\nrun exits successfully — the retired `INIT_CERT_DIR_EXISTS` hard\nrefusal no longer fires on a present `cert/` tree. With `--force`,\nexactly the managed template set is rewritten; anything outside\nthat set — real requirements the user added to the trace files'\nentry lists, edited boundary or floors config, unrelated files\nunder `cert/` — is never touched by either mode. The\nagent-context files (`CLAUDE.md`, `.claude/settings.json`) remain\npreserve-always under both modes.\n\nBecause the fresh scaffold holds zero live requirements, init\nnames that state itself rather than leaving the user to discover\nit at `trace --validate`: the jsonl stream emits one\n`INIT_ADOPTION_INCOMPLETE` info diagnostic ahead of the `INIT_OK`\nterminal (a finding, not a second terminal — Schema Rule 1), and\nthe human output prints the same state plus the complete ordered\nnext-step sequence: edit `cert/boundary.toml`, add real\nrequirements to the trace files, `cargo evidence trace\n--backfill-uuids`, `cargo evidence trace --validate`, `cargo\nevidence doctor`, `cargo evidence generate --out-dir evidence`.\n",
+      "modules": [
+        "cargo_evidence::cli::init::cmd_init"
+      ],
+      "emits": [
+        "INIT_ADOPTION_INCOMPLETE"
+      ],
+      "traces_to": [
+        "1cba1b0c-4578-4113-9c61-336d5af0eaba"
+      ],
+      "verification_methods": [
+        "test"
+      ]
     }
   ],
   "parents": [
@@ -1135,6 +1175,15 @@
       ]
     },
     {
+      "id": "HLR-115",
+      "uid": "1cba1b0c-4578-4113-9c61-336d5af0eaba",
+      "layer": "hlr",
+      "title": "cargo evidence init writes a schema-valid, adoption-incomplete, non-fake cert/ scaffold",
+      "traces_to": [
+        "09d6a8fc-2d41-45b3-a733-7355081e3707"
+      ]
+    },
+    {
       "id": "SYS-002",
       "uid": "0e42b90f-88d7-408f-8843-0a3335279360",
       "layer": "sys",
@@ -1321,6 +1370,13 @@
       "uid": "bb638b12-db15-4312-a04a-66187ddf80ec",
       "layer": "sys",
       "title": "Bundle assurance state is inspectable: derived per-area completeness states on every bundle, and bundle comparison over every assurance-relevant category with explicit unverifiable markers",
+      "traces_to": []
+    },
+    {
+      "id": "SYS-050",
+      "uid": "09d6a8fc-2d41-45b3-a733-7355081e3707",
+      "layer": "sys",
+      "title": "Honest fresh-project adoption scaffold",
       "traces_to": []
     }
   ],
@@ -1783,6 +1839,23 @@
       ]
     },
     {
+      "id": "TEST-167",
+      "uid": "d356f726-f963-4263-884b-e65c1416831d",
+      "name": "init scaffold contract: schema-valid empty templates, adoption-incomplete signals, idempotency, executable adoption sequence",
+      "selectors": [
+        "init_scaffold_contract::documented_adoption_sequence_executes_end_to_end",
+        "init_scaffold_contract::fresh_scaffold_doctor_validate_generate_contract",
+        "init_scaffold_contract::init_force_rewrites_managed_templates_only",
+        "init_scaffold_contract::init_rerun_preserves_existing_files_without_force",
+        "init_scaffold_contract::init_scaffold_is_schema_valid_and_contains_no_live_requirements",
+        "init_scaffold_contract::init_signals_adoption_incomplete_in_jsonl_and_human_output"
+      ],
+      "traces_to": [
+        "1f76ff59-e4ef-44c5-8c1e-110a627a25fc",
+        "5bc3eea9-a497-4732-a525-7c057a5de6f2"
+      ]
+    },
+    {
       "id": "TEST-015",
       "uid": "c818cd84-8d25-457e-b18e-a613c691964d",
       "name": "init-scaffolded template does not trip the policy-implementable gate",
@@ -2025,6 +2098,9 @@
     "FLOORS_DIMENSION_OK",
     "FLOORS_FAIL",
     "FLOORS_OK",
+    "INIT_ADOPTION_INCOMPLETE",
+    "INIT_OK",
+    "INIT_TEMPLATE_WRITTEN",
     "KEYGEN_FAIL",
     "KEYGEN_KEY_EXISTS",
     "KEYGEN_OK",

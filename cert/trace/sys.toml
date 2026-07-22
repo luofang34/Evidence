@@ -1490,3 +1490,31 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "09d6a8fc-2d41-45b3-a733-7355081e3707"
+id = "SYS-050"
+title = "Honest fresh-project adoption scaffold"
+owner = "soi"
+scope = "soi"
+description = """
+The tool's project-initialization surface shall produce a scaffold
+that is immediately syntactically valid against the current on-disk
+schemas and that contains no counterfeit evidence. A freshly
+initialized project shall parse cleanly through every loader the
+tool ships (boundary config, floors config, trace files) without
+hand edits, and shall carry zero live requirement entries, so no
+placeholder example content can flow into an evidence bundle as if
+it were a real project requirement. The scaffold shall report its
+adoption-incomplete state through typed diagnostics on the tool's
+own surfaces rather than through validation failures caused by
+malformed example content, and the initialization surface shall be
+safe to re-run: existing user content is preserved by default, and
+no run may overwrite user-authored evidence without an explicit
+overwrite request.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

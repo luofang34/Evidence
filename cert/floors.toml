@@ -42,7 +42,7 @@ schema_version = 1
 
 # evidence_core::RULES length — every diagnostic code the tool can emit,
 # hand-curated. Lives in a single crate, so workspace-wide.
-diagnostic_codes = 179
+diagnostic_codes = 180
 
 # evidence_core::TERMINAL_CODES length — hand-emitted terminals
 # (VERIFY_OK / VERIFY_FAIL / VERIFY_ERROR / CLI_SUBCOMMAND_ERROR /
@@ -51,13 +51,13 @@ diagnostic_codes = 179
 terminal_codes = 18
 
 # cert/trace/sys.toml — System Requirements.
-trace_sys = 49
+trace_sys = 50
 # cert/trace/hlr.toml — High-Level Requirements.
-trace_hlr = 114
+trace_hlr = 115
 # cert/trace/llr.toml — Low-Level Requirements.
-trace_llr = 146
+trace_llr = 148
 # cert/trace/tests.toml — Test Cases.
-trace_test = 162
+trace_test = 163
 
 # evidence_core::trace::surfaces::KNOWN_SURFACES length — hand-curated
 # catalog of CLI verbs + named observable contracts. Matching HLR

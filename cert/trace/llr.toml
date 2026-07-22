@@ -4462,3 +4462,89 @@ deserialize with every state unverifiable. No diagnostic codes:
 the states are data on the index, not findings.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "1f76ff59-e4ef-44c5-8c1e-110a627a25fc"
+id = "LLR-150"
+title = "cmd_init writes the managed template set: empty-commented trace files, floors.toml, boundary + profile stubs"
+owner = "tool"
+traces_to = ["1cba1b0c-4578-4113-9c61-336d5af0eaba"]
+modules = [
+    "cargo_evidence::cli::init::cmd_init",
+    "cargo_evidence::cli::init::templates",
+]
+description = """
+`cmd_init` renders and writes one managed template set:
+`cert/boundary.toml` (version string flowed from
+`schema_versions::BOUNDARY`), the three
+`cert/profiles/{dev,cert,record}.toml` stubs,
+`cert/floors.toml`, and the five
+`cert/trace/{sys,hlr,llr,tests,derived}.toml` files (version
+string flowed from `schema_versions::TRACE`).
+
+Each trace template carries `[schema]` + `[meta]` plus an
+explicit empty entry array (`requirements = []`, or `tests = []`
+for the test layer) placed ahead of the first table header so the
+files parse through `read_all_trace_files` immediately after
+scaffolding. The worked example entry in each file is present
+only as comment lines — every line of the example carries a
+leading `#`, so no placeholder entry parses as a live requirement
+and an unmodified scaffold contributes zero entries to any bundle.
+The commentary names `cargo evidence trace --backfill-uuids` as
+the UUID-assignment step for real entries.
+
+`cert/floors.toml` carries `schema_version = 1`, every
+workspace-true floor dimension (`diagnostic_codes`,
+`terminal_codes`, the four per-layer trace counters,
+`known_surfaces`) at zero as an honest pre-adoption baseline, and
+`[per_crate]` / `[per_crate_ceilings]` shown only as commented
+examples. The file loads through `FloorsConfig::load_or_missing`
+as `Loaded`, so doctor's floors check never reports
+`DOCTOR_FLOORS_MISSING` on a fresh scaffold.
+
+Each written file goes through `emit_template_written`, so the
+jsonl stream carries one `INIT_TEMPLATE_WRITTEN` info event per
+created file and terminates in exactly one `INIT_OK` terminal.
+"""
+verification_methods = ["test"]
+emits = [
+    "INIT_TEMPLATE_WRITTEN",
+    "INIT_OK",
+]
+
+[[requirements]]
+uid = "5bc3eea9-a497-4732-a525-7c057a5de6f2"
+id = "LLR-151"
+title = "init signals the adoption-incomplete state and preserves user evidence on re-run"
+owner = "tool"
+traces_to = ["1cba1b0c-4578-4113-9c61-336d5af0eaba"]
+modules = ["cargo_evidence::cli::init::cmd_init"]
+description = """
+`cmd_init` is idempotent and honest about the scaffold it
+produces.
+
+Re-run semantics are per managed file: without `--force`, a file
+that already exists on disk is preserved byte-for-byte (reported
+as preserved, not rewritten), missing files are written, and the
+run exits successfully — the retired `INIT_CERT_DIR_EXISTS` hard
+refusal no longer fires on a present `cert/` tree. With `--force`,
+exactly the managed template set is rewritten; anything outside
+that set — real requirements the user added to the trace files'
+entry lists, edited boundary or floors config, unrelated files
+under `cert/` — is never touched by either mode. The
+agent-context files (`CLAUDE.md`, `.claude/settings.json`) remain
+preserve-always under both modes.
+
+Because the fresh scaffold holds zero live requirements, init
+names that state itself rather than leaving the user to discover
+it at `trace --validate`: the jsonl stream emits one
+`INIT_ADOPTION_INCOMPLETE` info diagnostic ahead of the `INIT_OK`
+terminal (a finding, not a second terminal — Schema Rule 1), and
+the human output prints the same state plus the complete ordered
+next-step sequence: edit `cert/boundary.toml`, add real
+requirements to the trace files, `cargo evidence trace
+--backfill-uuids`, `cargo evidence trace --validate`, `cargo
+evidence doctor`, `cargo evidence generate --out-dir evidence`.
+"""
+verification_methods = ["test"]
+emits = ["INIT_ADOPTION_INCOMPLETE"]
