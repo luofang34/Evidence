@@ -2830,3 +2830,68 @@ the run, and the only filesystem access shall be read-only.
 """
 verification_methods = ["test"]
 traces_to = ["e895b27c-6fe8-4f35-9e65-cfd8b6e6771f"]
+
+[[requirements]]
+uid = "0c1f3ac4-e0df-4c3c-b24c-15eb11ce2ede"
+id = "HLR-109"
+title = "Generate applies one locked/offline resolution policy to every cargo subprocess; online resolution is a development-only opt-in that cert/record refuses"
+owner = "tool"
+scope = "component"
+description = """
+Every cargo invocation in the generate pipeline — `cargo
+metadata` (boundary policy gates, input-scope resolution, output
+inventory, and the `cargo_metadata.json` projection), `cargo
+build`, `cargo nextest run`, and `cargo llvm-cov` — shall carry
+the same resolution-policy flags: `--locked --offline` under the
+default `locked_offline` policy, and no resolution flags under an
+explicit development `online_opt_in`.
+
+`cargo evidence generate --online` shall select the online
+opt-in. On the development profile the opt-in is honored and
+recorded; on cert/record profiles the run shall fail before any
+bundle work with `POLICY_ONLINE_RESOLUTION_FORBIDDEN`.
+
+When a cargo invocation fails under `locked_offline`, the failure
+shall surface as `BUNDLE_LOCKED_GRAPH_UNAVAILABLE` — naming the
+command, the policy, and the `cargo fetch --locked` remediation —
+never as a silent online fallback. Lockfile mutation, unlocked
+resolution, and online fallback shall each fail the run rather
+than produce a bundle.
+"""
+verification_methods = ["test"]
+traces_to = ["36d6b5ec-6ddb-4d42-9299-5ed9df5e7b21"]
+surfaces = ["generate"]
+
+[[requirements]]
+uid = "11ad8fea-6494-4948-834d-3150fea0c6ac"
+id = "HLR-110"
+title = "The bundle binds the resolved dependency graph and records the resolution policy; verification rejects an online-resolution cert/record bundle"
+owner = "tool"
+scope = "component"
+description = """
+Every cert/record bundle shall carry `cargo_metadata.json`, a
+deterministic projection of `cargo metadata --format-version 1`
+that binds the resolved dependency graph — each resolved package
+(`name version`) mapped to the sorted set of resolved packages it
+depends on — so the bundle attests what graph resolution actually
+produced, not merely the lockfile path. The artifact is written
+before SHA256SUMS so the integrity chain binds it like every
+other content file.
+
+`index.json` shall record the resolution policy the bundle was
+generated under (`locked_offline` or `online_opt_in`); bundles
+written before the field existed shall deserialize as
+`locked_offline`.
+
+Bundle verification shall reject a bundle that records
+`online_opt_in` together with a cert/record profile
+(`VERIFY_ONLINE_RESOLUTION`), so the development online opt-in
+can never back a certification claim even when the generator
+gate is bypassed.
+"""
+verification_methods = ["test"]
+traces_to = ["36d6b5ec-6ddb-4d42-9299-5ed9df5e7b21"]
+surfaces = [
+    "generate",
+    "verify",
+]
