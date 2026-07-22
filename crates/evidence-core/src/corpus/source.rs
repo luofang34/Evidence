@@ -26,11 +26,16 @@
 //!   effective source heads: value projection, canonical rendering,
 //!   strict parsing, and the three-gate committed-lock validation
 //!   (LLR-133, LLR-134, LLR-135)
+//! - `verify` — offline, network-free verification of the material
+//!   behind each effective head: typed per-capture states and
+//!   vendored payload verification beneath the fixed `sources/`
+//!   payload root (LLR-136, LLR-137, LLR-138)
 
 pub(super) mod error;
 pub(super) mod lineage;
 pub(super) mod lock;
 pub(super) mod records;
+pub(super) mod verify;
 
 /// Typed uid prefix for corpus-native source-revision records
 /// (LLR-125).
