@@ -4373,3 +4373,92 @@ an unreadable outputs file yield OutputUnverifiable.
 comparison is a library API, not a diagnostic surface.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "75f19007-a976-42dd-a694-de413da303ce"
+id = "LLR-147"
+title = "compare_bundles classifies two bundles into per-category assurance diffs"
+owner = "tool"
+traces_to = ["eed12a6e-3d8e-4ddc-95f7-86e4794c622c"]
+modules = ["evidence_core::diff::compare_bundles"]
+description = """
+`compare_bundles(a, b)` reads both bundle directories and returns
+one `CategoryDiff` per assurance category in a documented fixed
+order: scope, trace_graph, tests, coverage, commands, recipe,
+inputs, outputs, objective_mappings, reviews_approvals, anomalies,
+tool_identity, integrity, completeness_states, content_hash. Each
+`CategoryDiff` carries a `DiffCategoryStatus` (equal / added /
+removed / changed / unverifiable) and deterministic, sorted,
+human-readable detail lines. The input, recipe, and output planes
+reuse the reproduction comparison's plane helpers rather than
+duplicating plane-diff logic. Per-test outcome rows compare
+pass/fail and presence only — duration_ms and failure_message text
+are excluded from equality by design. Reviews/approvals always
+report unverifiable because they are workspace-corpus state, not
+bundle artifacts; any other category whose artifacts are missing
+or unparseable reports unverifiable with the reason rather than
+silent equality. `DiffError` is an uncoded thiserror family (the
+CorpusError precedent): the comparison is a report, not a
+diagnostic stream, and emits no diagnostic codes.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "62a23480-5d01-4a66-8417-a918039bd5eb"
+id = "LLR-148"
+title = "cmd_diff renders the category-complete comparison and never judges it"
+owner = "tool"
+traces_to = ["eed12a6e-3d8e-4ddc-95f7-86e4794c622c"]
+modules = ["cargo_evidence::cli::diff::cmd_diff"]
+description = """
+`cmd_diff` is a thin renderer over `compare_bundles`. Human output
+prints one section per category naming its status, followed by the
+category's detail lines; the `(no changes)` marker prints only when
+every category compared equal, so a report never implies unexamined
+content is unchanged. `--json` emits `{bundle_a, bundle_b,
+categories}` plus the legacy `inputs_diff` / `outputs_diff` /
+`metadata_diff` / `env_diff` keys, kept populated (deprecated) so
+the MCP wrapper and existing consumers keep their shape. The exit
+code stays 0 whether or not differences exist — diff reports, it
+does not judge; I/O and parse failures return exit 1 through the
+anyhow error envelope. The command emits no diagnostic codes and
+has no JSONL mode.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "a4706592-261a-433e-b20b-fa17fcc303cb"
+id = "LLR-149"
+title = "EvidenceBuilder derives and records per-area completeness states on the index"
+owner = "tool"
+traces_to = ["9ecc3bf0-e572-4583-b00d-5efb21c460c7"]
+modules = [
+    "evidence_core::bundle::CompletenessStates",
+    "evidence_core::bundle::EvidenceBuilder::finalize",
+]
+description = """
+`EvidenceIndex.completeness` records one `CompletenessState`
+(complete / incomplete / not_applicable / unverifiable, snake_case
+on the wire) per assurance area, derived at finalize time from
+facts the builder already holds: capture is incomplete when any
+command failure is recorded or the input manifest is empty,
+not_applicable when the run skipped tests, and incomplete when a
+test-running run produced no summary; graph_validity maps the
+generate-time trace-evidence classification (valid to complete;
+not-adopted, empty, or invalid to incomplete; unconfigured roots
+to not_applicable; an unevaluated classification to unverifiable);
+verification is unverifiable at finalize and is patched to the
+immediate post-generation verification outcome before the
+signature seals the envelope, so a rejected bundle never records
+complete; objective_mapping and tool_qualification require the
+compliance reports for every in-scope crate on disk (missing to
+incomplete; no claimed level to not_applicable); review_approval
+is not_applicable while review records remain workspace-corpus
+state; integrity is complete when a signing key resolved for the
+run and not_applicable otherwise; reproducibility is complete when
+the output manifest is non-empty, not_applicable when the run
+skipped tests, and incomplete otherwise. Legacy bundles
+deserialize with every state unverifiable. No diagnostic codes:
+the states are data on the index, not findings.
+"""
+verification_methods = ["test"]

@@ -334,9 +334,12 @@ pub struct ContextToolResponse {
 /// comparison between two on-disk bundles.
 ///
 /// The CLI's diff output is a single JSON document
-/// (`{bundle_a, bundle_b, inputs_diff, outputs_diff,
-/// metadata_diff, env_diff}`), not a JSONL stream, so the
-/// response shape does not mirror [`JsonlToolResponse`].
+/// (`{bundle_a, bundle_b, categories, inputs_diff, outputs_diff,
+/// metadata_diff, env_diff}`) — `categories` carries the
+/// per-category assurance comparison in fixed order; the four
+/// trailing keys are deprecated legacy shapes kept for
+/// back-compat. It is not a JSONL stream, so the response shape
+/// does not mirror [`JsonlToolResponse`].
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct DiffToolResponse {
     /// Canonical machine signal: `true` exactly when

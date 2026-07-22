@@ -130,6 +130,8 @@
 | HLR-110 | The bundle binds the resolved dependency graph and records the resolution policy; verification rejects an online-resolution cert/record bundle | LLR-141, LLR-142 |
 | HLR-111 | The bundle binds a canonical recipe manifest and records its SHA-256 as index.json.recipe_hash | LLR-143, LLR-144, LLR-145 |
 | HLR-112 | Reproduced-output comparison reports typed findings over input, recipe, and output digest planes | LLR-146 |
+| HLR-113 | Bundle diff compares every assurance-relevant category and reports per-category status without implying unexamined equality | LLR-147, LLR-148 |
+| HLR-114 | Every bundle records separately derived per-area completeness states on its index | LLR-149 |
 
 ## LLR to Test Traceability
 
@@ -278,6 +280,9 @@
 | LLR-144 | EvidenceBuilder::finalize computes the recipe inputs and writes the canonical recipe manifest | TEST-162 |
 | LLR-145 | Verify re-checks recipe_hash and re-projects the recipe manifest from bundle content | TEST-162 |
 | LLR-146 | compare_reproduction classifies two bundles into typed reproduction findings | TEST-163 |
+| LLR-147 | compare_bundles classifies two bundles into per-category assurance diffs | TEST-164 |
+| LLR-148 | cmd_diff renders the category-complete comparison and never judges it | TEST-165 |
+| LLR-149 | EvidenceBuilder derives and records per-area completeness states on the index | TEST-166 |
 
 ## Reverse Trace: Test to LLR to HLR
 
@@ -442,6 +447,9 @@
 | TEST-161 | LLR-143 | HLR-111 |
 | TEST-162 | LLR-144, LLR-145 | HLR-111 |
 | TEST-163 | LLR-146 | HLR-112 |
+| TEST-164 | LLR-147 | HLR-113 |
+| TEST-165 | LLR-148 | HLR-113 |
+| TEST-166 | LLR-149 | HLR-114 |
 
 ## Annotations
 
@@ -557,6 +565,8 @@
 - HLR HLR-110: scope=component
 - HLR HLR-111: scope=component
 - HLR HLR-112: scope=component
+- HLR HLR-113: scope=component
+- HLR HLR-114: scope=component
 - LLR LLR-001: modules=[cargo_evidence::cli::verify::cmd_verify_jsonl]
 - LLR LLR-002: modules=[cargo_evidence::cli::output::emit_jsonl]
 - LLR LLR-003: modules=[evidence_core::diagnostic::DiagnosticCode, evidence_core::verify::errors::VerifyError, evidence_core::hash::HashError]
@@ -700,6 +710,9 @@
 - LLR LLR-144: modules=[evidence_core::bundle::builder::EvidenceBuilder::finalize]
 - LLR LLR-145: modules=[evidence_core::verify::bundle::verify_bundle_with_key]
 - LLR LLR-146: modules=[evidence_core::verify::reproduction::compare_reproduction]
+- LLR LLR-147: modules=[evidence_core::diff::compare_bundles]
+- LLR LLR-148: modules=[cargo_evidence::cli::diff::cmd_diff]
+- LLR LLR-149: modules=[evidence_core::bundle::CompletenessStates, evidence_core::bundle::EvidenceBuilder::finalize]
 - TEST TEST-001: selector=verify_jsonl::verify_ok_terminates_with_verify_ok_and_exit_zero
 - TEST TEST-002: selector=verify_jsonl::verify_jsonl_stdout_is_strict_jsonl_only
 - TEST TEST-003: selector=diagnostic_codes_locked::diagnostic_codes_locked
@@ -873,12 +886,14 @@
 | HLR-110 | The bundle binds the resolved dependency graph and records the resolution policy; verification rejects an online-resolution cert/record bundle | TEST-158, TEST-159 |
 | HLR-111 | The bundle binds a canonical recipe manifest and records its SHA-256 as index.json.recipe_hash | TEST-161, TEST-162 |
 | HLR-112 | Reproduced-output comparison reports typed findings over input, recipe, and output digest planes | TEST-163 |
+| HLR-113 | Bundle diff compares every assurance-relevant category and reports per-category status without implying unexamined equality | TEST-164, TEST-165 |
+| HLR-114 | Every bundle records separately derived per-area completeness states on its index | TEST-166 |
 
 ## Coverage Summary
 
-- **HLR count:** 112
-- **LLR count:** 143
-- **Test count:** 159
+- **HLR count:** 114
+- **LLR count:** 146
+- **Test count:** 162
 - **HLR without LLR:** 0
 - **LLR without Test:** 0
 - **Orphan tests (no LLR link):** 0

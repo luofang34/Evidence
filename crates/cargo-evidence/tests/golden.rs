@@ -140,4 +140,51 @@ fn golden_bundle_diffs_empty_against_itself() {
         "self-diff env_diff must be empty, got {:?}",
         env_diff
     );
+
+    // Category-complete envelope: self-diff must report every
+    // category in the documented fixed order, all `equal` except
+    // `reviews_approvals` — reviews are workspace-corpus state,
+    // not bundle artifacts, so they are permanently unverifiable
+    // and the report never claims total equality.
+    let categories = diff["categories"]
+        .as_array()
+        .expect("categories must be an array");
+    let names: Vec<&str> = categories
+        .iter()
+        .map(|c| c["category"].as_str().expect("category name"))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "scope",
+            "trace_graph",
+            "tests",
+            "coverage",
+            "commands",
+            "recipe",
+            "inputs",
+            "outputs",
+            "objective_mappings",
+            "reviews_approvals",
+            "anomalies",
+            "tool_identity",
+            "integrity",
+            "completeness_states",
+            "content_hash",
+        ],
+        "categories must arrive in the documented fixed order"
+    );
+    for c in categories {
+        if c["category"] == "reviews_approvals" {
+            assert_eq!(
+                c["status"], "unverifiable",
+                "reviews must stay unverifiable even on a self-diff"
+            );
+        } else {
+            assert_eq!(
+                c["status"], "equal",
+                "self-diff category must be equal: {c}"
+            );
+        }
+    }
 }

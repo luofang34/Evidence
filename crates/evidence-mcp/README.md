@@ -133,8 +133,11 @@ emits a single JSON document (not JSONL):
 - `exit_code` — `0` on success (differences are reported, not
   judged), `2` on tool-layer failure.
 - `diff` — the raw delta blob
-  (`{bundle_a, bundle_b, inputs_diff, outputs_diff,
-  metadata_diff, env_diff}`). `None` on failure.
+  (`{bundle_a, bundle_b, categories, inputs_diff, outputs_diff,
+  metadata_diff, env_diff}`). `categories` is the per-category
+  assurance comparison in fixed order; the four trailing keys
+  are deprecated legacy shapes kept for back-compat. `None` on
+  failure.
 - `warnings` — as above.
 - `error` — as above.
 

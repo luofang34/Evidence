@@ -137,7 +137,7 @@ pub enum ReproductionError {
 /// field order; `schema_version` and
 /// the git-identity fields are excluded — git identity is source
 /// metadata (cross-host parity's domain), not recipe content.
-const RECIPE_FIELDS: &[(&str, &str)] = &[
+pub(crate) const RECIPE_FIELDS: &[(&str, &str)] = &[
     ("profile", "profile"),
     ("rustc", "rustc"),
     ("cargo", "cargo"),
@@ -192,7 +192,7 @@ pub fn compare_reproduction(
 /// A digest plane either loaded cleanly or is unavailable (missing
 /// or unparseable) — the two failure shapes map to the same
 /// single-plane finding, so they share one marker.
-enum Plane {
+pub(crate) enum Plane {
     Loaded(BTreeMap<String, String>),
     Unavailable,
 }
@@ -200,7 +200,7 @@ enum Plane {
 /// Read a `path → digest` map from a bundle file. Missing or
 /// unparseable yields [`Plane::Unavailable`]; a genuine read error
 /// is the only `Err` path.
-fn read_digest_map(bundle: &Path, name: &str) -> Result<Plane, ReproductionError> {
+pub(crate) fn read_digest_map(bundle: &Path, name: &str) -> Result<Plane, ReproductionError> {
     let path = bundle.join(name);
     if !path.exists() {
         return Ok(Plane::Unavailable);
@@ -219,7 +219,7 @@ fn read_digest_map(bundle: &Path, name: &str) -> Result<Plane, ReproductionError
 /// agnostic, so manifests from before the recipe fields existed
 /// still compare field-by-field (absent fields compare as `null`).
 /// Missing or unparseable yields `Ok(None)`.
-fn read_recipe(bundle: &Path) -> Result<Option<serde_json::Value>, ReproductionError> {
+pub(crate) fn read_recipe(bundle: &Path) -> Result<Option<serde_json::Value>, ReproductionError> {
     let path = bundle.join("deterministic-manifest.json");
     if !path.exists() {
         return Ok(None);
@@ -240,6 +240,58 @@ fn is_sha256_hex(digest: &str) -> bool {
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
 }
 
+/// Directional key-level diff of two digest planes. Shared by the
+/// reproduction comparison (which maps these buckets onto typed
+/// findings) and the bundle diff engine (which renders them with
+/// direction). Empty on every bucket means plane-equal.
+#[derive(Debug, Default)]
+pub(crate) struct DigestPlaneDiff {
+    /// Keys present on both sides with differing, well-formed
+    /// digests.
+    pub(crate) changed: Vec<String>,
+    /// Keys present only on the baseline side.
+    pub(crate) base_only: Vec<String>,
+    /// Keys present only on the candidate side.
+    pub(crate) cand_only: Vec<String>,
+    /// Keys whose recorded digest is not 64-char lowercase hex —
+    /// the key cannot be verified on the malformed side.
+    pub(crate) unverifiable: Vec<String>,
+}
+
+/// Diff two digest planes key by key. A malformed baseline digest
+/// is unverifiable before any presence/match question; a candidate-
+/// only key is reported without inspecting its digest shape
+/// (matching the reproduction comparison's semantics).
+pub(crate) fn diff_digest_planes(
+    base: &BTreeMap<String, String>,
+    cand: &BTreeMap<String, String>,
+) -> DigestPlaneDiff {
+    let mut diff = DigestPlaneDiff::default();
+    for (key, base_digest) in base {
+        if !is_sha256_hex(base_digest) {
+            diff.unverifiable.push(key.clone());
+            continue;
+        }
+        match cand.get(key) {
+            None => diff.base_only.push(key.clone()),
+            Some(cand_digest) if cand_digest != base_digest => {
+                if is_sha256_hex(cand_digest) {
+                    diff.changed.push(key.clone());
+                } else {
+                    diff.unverifiable.push(key.clone());
+                }
+            }
+            Some(_) => {}
+        }
+    }
+    for key in cand.keys() {
+        if !base.contains_key(key) {
+            diff.cand_only.push(key.clone());
+        }
+    }
+    diff
+}
+
 /// Input plane: canonical source-input digests must be identical.
 fn compare_inputs(
     baseline: &Path,
@@ -254,27 +306,15 @@ fn compare_inputs(
         });
         return Ok(());
     };
-    for (path, base_digest) in base {
-        if !is_sha256_hex(base_digest) {
-            findings.push(ReproductionFinding::InputUnverifiable { path: path.clone() });
-            continue;
-        }
-        match cand.get(path) {
-            None => findings.push(ReproductionFinding::InputMissing { path: path.clone() }),
-            Some(cand_digest) if cand_digest != base_digest => {
-                if is_sha256_hex(cand_digest) {
-                    findings.push(ReproductionFinding::InputChanged { path: path.clone() });
-                } else {
-                    findings.push(ReproductionFinding::InputUnverifiable { path: path.clone() });
-                }
-            }
-            Some(_) => {}
-        }
+    let diff = diff_digest_planes(base, cand);
+    for path in diff.changed {
+        findings.push(ReproductionFinding::InputChanged { path });
     }
-    for path in cand.keys() {
-        if !base.contains_key(path) {
-            findings.push(ReproductionFinding::InputMissing { path: path.clone() });
-        }
+    for path in diff.base_only.into_iter().chain(diff.cand_only) {
+        findings.push(ReproductionFinding::InputMissing { path });
+    }
+    for path in diff.unverifiable {
+        findings.push(ReproductionFinding::InputUnverifiable { path });
     }
     Ok(())
 }
@@ -282,6 +322,23 @@ fn compare_inputs(
 /// Recipe plane: every recipe field must agree. Absent fields
 /// compare as `null`, so a pre-recipe-fields manifest reports
 /// exactly the fields the recipe added or changed.
+pub(crate) fn compare_recipe_fields(
+    base: &serde_json::Value,
+    cand: &serde_json::Value,
+) -> Vec<&'static str> {
+    let mut changed = Vec::new();
+    for (key, reported) in RECIPE_FIELDS {
+        let base_value = base.get(*key).cloned().unwrap_or(serde_json::Value::Null);
+        let cand_value = cand.get(*key).cloned().unwrap_or(serde_json::Value::Null);
+        if base_value != cand_value {
+            changed.push(*reported);
+        }
+    }
+    changed
+}
+
+/// Recipe plane driver for the reproduction comparison: load both
+/// manifests and push a finding per differing field.
 fn compare_recipe(
     baseline: &Path,
     candidate: &Path,
@@ -293,12 +350,8 @@ fn compare_recipe(
         findings.push(ReproductionFinding::RecipeUnavailable);
         return Ok(());
     };
-    for (key, reported) in RECIPE_FIELDS {
-        let base_value = base.get(*key).cloned().unwrap_or(serde_json::Value::Null);
-        let cand_value = cand.get(*key).cloned().unwrap_or(serde_json::Value::Null);
-        if base_value != cand_value {
-            findings.push(ReproductionFinding::RecipeFieldChanged { field: reported });
-        }
+    for field in compare_recipe_fields(base, cand) {
+        findings.push(ReproductionFinding::RecipeFieldChanged { field });
     }
     Ok(())
 }
@@ -317,37 +370,18 @@ fn compare_outputs(
         });
         return Ok(());
     };
-    for (artifact, base_digest) in base {
-        if !is_sha256_hex(base_digest) {
-            findings.push(ReproductionFinding::OutputUnverifiable {
-                artifact: artifact.clone(),
-            });
-            continue;
-        }
-        match cand.get(artifact) {
-            None => findings.push(ReproductionFinding::OutputMissing {
-                artifact: artifact.clone(),
-            }),
-            Some(cand_digest) if cand_digest != base_digest => {
-                if is_sha256_hex(cand_digest) {
-                    findings.push(ReproductionFinding::OutputChanged {
-                        artifact: artifact.clone(),
-                    });
-                } else {
-                    findings.push(ReproductionFinding::OutputUnverifiable {
-                        artifact: artifact.clone(),
-                    });
-                }
-            }
-            Some(_) => {}
-        }
+    let diff = diff_digest_planes(base, cand);
+    for artifact in diff.changed {
+        findings.push(ReproductionFinding::OutputChanged { artifact });
     }
-    for artifact in cand.keys() {
-        if !base.contains_key(artifact) {
-            findings.push(ReproductionFinding::OutputExtra {
-                artifact: artifact.clone(),
-            });
-        }
+    for artifact in diff.base_only {
+        findings.push(ReproductionFinding::OutputMissing { artifact });
+    }
+    for artifact in diff.unverifiable {
+        findings.push(ReproductionFinding::OutputUnverifiable { artifact });
+    }
+    for artifact in diff.cand_only {
+        findings.push(ReproductionFinding::OutputExtra { artifact });
     }
     Ok(())
 }

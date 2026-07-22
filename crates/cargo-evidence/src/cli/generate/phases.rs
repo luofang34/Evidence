@@ -118,6 +118,10 @@ pub(super) fn build_config(
         dal_map: dal_map.clone(),
         boundary_policy: policy.clone(),
         resolution_policy,
+        // Overwritten by `cmd_generate` with the real `--skip-tests`
+        // flag; `false` is the honest default for a config built
+        // outside the generate pipeline.
+        skip_tests: false,
     };
     (
         config,

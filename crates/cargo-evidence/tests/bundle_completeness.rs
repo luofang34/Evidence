@@ -162,6 +162,7 @@ fn build_bundle(
         dal_map: BTreeMap::new(),
         boundary_policy: evidence_core::BoundaryPolicy::default(),
         resolution_policy: evidence_core::policy::ResolutionPolicy::LOCKED_OFFLINE,
+        completeness: evidence_core::CompletenessStates::legacy(),
     };
     fs::write(
         bundle_dir.join("index.json"),

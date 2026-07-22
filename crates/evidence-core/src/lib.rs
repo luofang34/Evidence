@@ -49,6 +49,7 @@ pub mod context;
 pub mod corpus;
 pub mod coverage;
 pub mod diagnostic;
+pub mod diff;
 pub mod env;
 pub mod floors;
 pub mod git;

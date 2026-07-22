@@ -51,6 +51,7 @@ fn idx_with_policy(policy: BoundaryPolicy, in_scope: &[&str]) -> EvidenceIndex {
         dal_map,
         boundary_policy: policy,
         resolution_policy: crate::policy::ResolutionPolicy::LOCKED_OFFLINE,
+        completeness: crate::bundle::CompletenessStates::legacy(),
     }
 }
 

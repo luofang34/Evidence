@@ -334,10 +334,13 @@ impl Server {
     #[tool(
         name = "evidence_diff",
         description = "Compare two evidence bundles on-disk. Wraps `cargo evidence diff \
-                       <a> <b> --json`; returns the structured delta across inputs, outputs, \
-                       metadata, and env as a single JSON blob. Pure inspection — does not \
-                       execute project code. Both bundle_a_path and bundle_b_path are \
-                       required; diff has no workspace default."
+                       <a> <b> --json`; returns the per-category assurance delta (scope, \
+                       trace graph, tests, coverage, commands, recipe, inputs, outputs, \
+                       objective mappings, anomalies, tool identity, integrity, \
+                       completeness states, content hash) as a single JSON blob, each \
+                       category marked equal/added/removed/changed/unverifiable. Pure \
+                       inspection — does not execute project code. Both bundle_a_path \
+                       and bundle_b_path are required; diff has no workspace default."
     )]
     pub async fn evidence_diff(
         &self,

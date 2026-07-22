@@ -485,6 +485,7 @@ fn build_online_cert_bundle() -> (TempDir, PathBuf) {
         dal_map: BTreeMap::new(),
         boundary_policy: evidence_core::BoundaryPolicy::default(),
         resolution_policy: evidence_core::policy::ResolutionPolicy::OnlineOptIn,
+        completeness: evidence_core::CompletenessStates::legacy(),
     };
     fs::write(
         bundle_dir.join("index.json"),

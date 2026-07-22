@@ -32,10 +32,57 @@ use crate::cli::generate::fail;
 
 /// Outcome of Phase 6. `passed` feeds compliance reporting
 /// (A3-6 Met vs Partial). `short_circuit` carries the strict-
-/// profile exit code. See LLR-061.
+/// profile exit code. `state` is the aggregate trace-evidence
+/// classification across roots, recorded onto the builder for the
+/// `graph_validity` completeness derivation (LLR-149). See LLR-061.
 pub(in crate::cli::generate) struct TraceValidationResult {
     pub(in crate::cli::generate) passed: bool,
     pub(in crate::cli::generate) short_circuit: Option<i32>,
+    pub(in crate::cli::generate) state: TraceEvidenceState,
+}
+
+/// Fold the per-root classifications into one aggregate state.
+/// Worst-of precedence: `Invalid` (evidence exists but is broken),
+/// then `Empty` (roots exist, zero requirements), then
+/// `NotAdopted` (roots missing on disk), then `NotConfigured`,
+/// with `Valid` only when every root validated. An empty root
+/// list is `NotConfigured` by definition.
+fn aggregate_states(states: &[TraceEvidenceState]) -> TraceEvidenceState {
+    if states.is_empty() {
+        return TraceEvidenceState::NotConfigured;
+    }
+    if states
+        .iter()
+        .any(|s| matches!(s, TraceEvidenceState::Invalid))
+    {
+        return TraceEvidenceState::Invalid;
+    }
+    if states
+        .iter()
+        .any(|s| matches!(s, TraceEvidenceState::Empty))
+    {
+        return TraceEvidenceState::Empty;
+    }
+    let missing: Vec<String> = states
+        .iter()
+        .filter_map(|s| match s {
+            TraceEvidenceState::NotAdopted { missing_roots } => Some(missing_roots.clone()),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    if !missing.is_empty() {
+        return TraceEvidenceState::NotAdopted {
+            missing_roots: missing,
+        };
+    }
+    if states
+        .iter()
+        .any(|s| matches!(s, TraceEvidenceState::NotConfigured))
+    {
+        return TraceEvidenceState::NotConfigured;
+    }
+    TraceEvidenceState::Valid
 }
 
 /// Phase 6 — validate trace links. Every root goes through the
@@ -54,8 +101,10 @@ pub(in crate::cli::generate) fn validate_trace_links_phase(
     json_output: bool,
 ) -> Result<TraceValidationResult> {
     let mut passed = true;
+    let mut states = Vec::new();
     for root in trace_roots {
         let eval = evaluate_trace_evidence(std::slice::from_ref(root), &policy.trace);
+        states.push(eval.state.clone());
         match &eval.state {
             TraceEvidenceState::Valid => {
                 if !quiet && !json_output {
@@ -73,6 +122,7 @@ pub(in crate::cli::generate) fn validate_trace_links_phase(
                         return Ok(TraceValidationResult {
                             passed: false,
                             short_circuit: Some(code),
+                            state: aggregate_states(&states),
                         });
                     }
                     passed = false;
@@ -117,6 +167,7 @@ pub(in crate::cli::generate) fn validate_trace_links_phase(
                     return Ok(TraceValidationResult {
                         passed: false,
                         short_circuit: Some(code),
+                        state: aggregate_states(&states),
                     });
                 }
                 passed = false;
@@ -127,5 +178,6 @@ pub(in crate::cli::generate) fn validate_trace_links_phase(
     Ok(TraceValidationResult {
         passed,
         short_circuit: None,
+        state: aggregate_states(&states),
     })
 }
