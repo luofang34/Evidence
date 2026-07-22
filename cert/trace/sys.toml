@@ -1518,3 +1518,57 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "f2f526ca-3eb4-4acc-9275-2035e8bff6e3"
+id = "SYS-051"
+title = "Committed structural source graph with parser-independent stable identity"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall define a parser-independent committed structural
+source graph consumed by every source ingester: identity,
+normalization, locators, canonical serialization, and graph
+invariants, with no Markdown, HTML, or PDF parser dependency in
+the core. Structural source-node identity shall be distinct from
+frozen document-revision identity: `snode_<UUIDv4>` is the
+permanent committed identity of a structural node, while
+`src_<UUIDv4>` remains the frozen identity of one document
+revision. Initial ingestion shall mint UUIDv4 identities, and
+re-ingestion shall reconcile candidate nodes against the
+committed graph through a deterministic structural key —
+explicit document numbering or anchor first, then parent path
+plus sibling ordinal, then structural fingerprint — reusing
+committed uids and never deriving UUIDs from content. Page, DOM,
+byte, and line positions are diagnostic locators, never
+permanent identity, and a content change shall move the content
+digest and produce drift rather than silently replacing
+identity.
+
+Every committed node shall carry canonical text normalized by
+kind — prose under Unicode NFC with whitespace-run folding and
+trim, code under Unicode and line-ending normalization with
+significant spaces and line boundaries preserved — a content
+digest over that canonical text, a structural fingerprint over
+stable kind, label, and ancestry inputs excluding diagnostic
+positions, and exactly one closed typed locator for the source
+medium. Parent links shall stay within one source revision as an
+acyclic rooted forest with unique contiguous sibling ordinals
+and a closed parent/child kind table. Canonical record and node
+ordering shall be independent of input file layout, parser event
+order, map iteration, and source record order, so equivalent
+linked layouts load to equal graphs and render byte-identical
+canonical fixtures. Every degenerate input — duplicate uids,
+duplicate human identities within the structural-node kind,
+dangling or cross-document parents, cycles, illegal parent/child
+kind combinations, duplicate ordinals, digest mismatches,
+unsupported schema versions, and malformed, mixed-format, or
+media-mismatched locators — shall fail closed with typed
+diagnostics carrying the source revision, node uid, field, and
+conflicting values.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

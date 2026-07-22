@@ -16,6 +16,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::error::CorpusError;
+use super::source_graph::error::SourceGraphError;
+use super::source_graph::{SourceGraph, SourceNode};
 
 mod nodes;
 mod review_invariants;
@@ -29,10 +31,11 @@ pub use nodes::{
 pub(crate) use nodes::{RequirementMetadata, TestMetadata, TraceMetadata, canonical_strings};
 
 /// The uid-keyed corpus graph.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct CorpusGraph {
     nodes: BTreeMap<String, Node>,
     trace_metadata: BTreeMap<String, TraceMetadata>,
+    source_graphs: BTreeMap<String, SourceGraph>,
 }
 
 impl CorpusGraph {
@@ -68,6 +71,31 @@ impl CorpusGraph {
     /// Iterate nodes in deterministic (uid) order.
     pub fn nodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes.values()
+    }
+
+    /// The committed structural source graphs, keyed by
+    /// source-revision uid (LLR-156). Read-only view; loading goes
+    /// through the corpus index.
+    pub fn source_graphs(&self) -> &BTreeMap<String, SourceGraph> {
+        &self.source_graphs
+    }
+
+    /// The committed structural source graph of one source
+    /// revision, when any of its nodes have loaded.
+    pub fn source_graph(&self, source_revision_uid: &str) -> Option<&SourceGraph> {
+        self.source_graphs.get(source_revision_uid)
+    }
+
+    /// Route one structural source node into its own revision's
+    /// committed graph, creating the graph on first use. Identity
+    /// uniqueness is per revision — the same `snode_` uid recurs
+    /// across revisions of one document by design.
+    pub(crate) fn insert_source_node(&mut self, node: SourceNode) -> Result<(), SourceGraphError> {
+        let revision_uid = node.source_revision_uid.clone();
+        self.source_graphs
+            .entry(revision_uid)
+            .or_default()
+            .insert(node)
     }
 
     /// All review nodes targeting `requirement_uid`, in uid order
@@ -124,15 +152,19 @@ impl CorpusGraph {
     /// (exactly one `Reviews` edge agreeing with `requirement_uid`,
     /// supported content schema), then validate review supersession
     /// chains (LLR-115), then validate source-revision lineage
-    /// chains (LLR-130). Review failures surface as
+    /// chains (LLR-130), then validate the committed structural
+    /// source graphs (LLR-157). Review failures surface as
     /// [`CorpusError::Review`] wrapping the typed review error;
     /// source lineage failures surface as [`CorpusError::Source`]
-    /// wrapping the typed source error.
+    /// wrapping the typed source error; source-graph failures
+    /// surface as [`CorpusError::SourceGraph`] wrapping the typed
+    /// source-graph error.
     pub fn validate(&self) -> Result<(), CorpusError> {
         validation::validate_edges(self)?;
         review_invariants::validate_review_nodes(self)?;
         supersession::validate_review_supersession(self)?;
         super::source::lineage::validate_source_lineage(self)?;
+        super::source_graph::validate::validate_source_graphs(self)?;
         Ok(())
     }
 }

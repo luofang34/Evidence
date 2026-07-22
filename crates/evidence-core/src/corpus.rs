@@ -20,11 +20,15 @@
 //!   inventory of effective source heads (LLR-133)
 //! - `source::verify` — offline verification of the material
 //!   behind each effective source head (LLR-136)
+//! - `source_graph` — the parser-independent committed
+//!   structural source graph: `snode_` identity, canonical text
+//!   and digests, closed locators, forest invariants, and
+//!   structural-key reconciliation (LLR-156)
 //! - `legacy` — four-file `cert/trace` → graph adapter
 //! - `review_content` — versioned canonical projection of the
 //!   normative content a review approves (LLR-111)
 //! - `digest` — typed lowercase SHA-256 digest domains (LLR-112,
-//!   LLR-125)
+//!   LLR-125, LLR-155)
 //! - `lifecycle` — deterministic per-requirement lifecycle
 //!   evaluation over digest-bound review heads (LLR-117)
 //! - `approval_boundary` — strict validation that implementation and
@@ -48,12 +52,13 @@ mod records;
 mod review_content;
 mod review_records;
 mod source;
+mod source_graph;
 
 pub use approval_boundary::{
     ApprovalBoundaryError, ApprovalBoundaryViolation, LifecycleEnforcement, ReferringArtifact,
     validate_approval_boundary,
 };
-pub use digest::{ReviewContentDigest, SourceContentDigest};
+pub use digest::{ReviewContentDigest, SourceContentDigest, StructuralContentDigest};
 pub use error::CorpusError;
 pub(crate) use graph::TraceMetadata;
 pub use graph::{
@@ -90,6 +95,19 @@ pub use source::verify::{
     DigestMismatchDetail, SourcePayloadError, SourceVerification, SourceVerificationState,
     verify_effective_sources,
 };
+pub use source_graph::error::SourceGraphError;
+pub use source_graph::identity::{
+    CandidateNode, ReconciledNode, StructuralKey, mint_node_uid, reconcile, structural_key,
+};
+pub use source_graph::locator::{LocatorRule, SafeRelPath, SourceLocator};
+pub use source_graph::normalization::{
+    content_digest, fingerprint, normalize_code, normalize_prose,
+};
+pub use source_graph::records::{
+    SNODE_UID_PREFIX, SUPPORTED_SOURCE_GRAPH_SCHEMA, SourceGraphFile, SourceNodeRecord,
+};
+pub use source_graph::render::render_source_graph_canonical;
+pub use source_graph::{SourceGraph, SourceNode, SourceNodeKind};
 
 #[cfg(test)]
 mod tests;

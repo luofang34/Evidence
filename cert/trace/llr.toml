@@ -4548,3 +4548,231 @@ evidence doctor`, `cargo evidence generate --out-dir evidence`.
 """
 verification_methods = ["test"]
 emits = ["INIT_ADOPTION_INCOMPLETE"]
+
+[[requirements]]
+uid = "1816917d-36e8-4a85-aa2e-4eab8a79f73d"
+id = "LLR-152"
+title = "corpus::source_graph::records parses strict source-graph files and projects validated records into the committed graph"
+owner = "tool"
+traces_to = ["ca0b9e20-b3fe-4c68-86ec-390deece03aa"]
+modules = ["evidence_core::corpus::source_graph::records"]
+description = """
+`SourceGraphFile` / `SourceNodeRecord` mirror the corpus-native
+record conventions: `deny_unknown_fields`, `schema_version`
+gated by `SUPPORTED_SOURCE_GRAPH_SCHEMA`, and per-record
+validation in `load_source_graphs_into`. The record uid carries
+the `SNODE_UID_PREFIX` (`snode_`) and passes the shared
+corpus-native UUIDv4 validation; `source_revision_uid` and the
+optional `parent_uid` carry the `src_` and `snode_` prefixes
+respectively through the same validator, keeping structural
+node identity and frozen revision identity separate typed
+namespaces. `content_sha256` and `fingerprint` deserialize
+through the validating structural digest contract, `kind`
+deserializes through the closed snake_case kind enum, and
+`locator` through the closed per-format enum. Blank validation
+rejects whitespace-only labels while storing accepted text
+untrimmed. `load_source_graphs_into` groups records by their
+declared source revision and inserts each into the corpus
+graph's per-revision committed source graph; every failure
+returns a typed `SourceGraphError` naming the file path plus
+the record uid, and identity collisions surface through the
+closed insert contract, never a panic.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "f41f5ab2-7ac4-473e-b979-6852f15aa894"
+id = "LLR-153"
+title = "corpus::source_graph::locator carries the closed per-format locator enum with per-variant validation"
+owner = "tool"
+traces_to = ["ca0b9e20-b3fe-4c68-86ec-390deece03aa"]
+modules = ["evidence_core::corpus::source_graph::locator"]
+description = """
+`SourceLocator` is an internally tagged (`format`),
+snake_case, unknown-field-denying enum with exactly three
+variants — `markdown`, `html`, `pdf` — so a mixed-format field
+combination fails deserialization. The Markdown variant carries
+a `SafeRelPath` newtype reusing the vendored wire-path lexical
+rules (rejecting empty, absolute, drive- or UNC-prefixed,
+backslash-bearing, and empty, `.`, or `..` components), an
+optional git blob identifier validated as 40- or 64-character
+lowercase hex, an optional non-blank explicit anchor, a heading
+path whose components are each non-blank, and a byte range
+whose bounds are ordered. The HTML variant carries a
+scheme-shaped canonical URL, an optional final URL, an optional
+non-blank fragment, a heading path, and a DOM child-index path.
+The PDF variant carries a 1-based physical page, an optional
+non-blank printed label, and a four-coordinate bounding box
+whose coordinates are finite, non-negative, and ordered.
+Per-variant failures return typed `SourceGraphError` values
+naming the node and field; `explicit_anchor` projects the
+document-author anchor (Markdown anchor, HTML fragment) that
+feeds the structural key's first precedence tier.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "f2d9a4a5-034a-4c5c-82fe-00616c7b43df"
+id = "LLR-154"
+title = "corpus::source_graph::normalization pins prose and code canonical text, the content digest, and the structural fingerprint"
+owner = "tool"
+traces_to = ["f266baf1-25bf-472b-86ba-42ab50b464a6"]
+modules = ["evidence_core::corpus::source_graph::normalization"]
+description = """
+`normalize_prose` applies Unicode NFC, folds every whitespace
+run to one ASCII space, and trims; `normalize_code` applies
+Unicode NFC and maps CRLF and lone CR line endings to LF while
+preserving significant spaces and line boundaries — the two
+contracts are disjoint and kind-dispatched. `content_digest`
+binds the node kind's wire name and the exact canonical text
+bytes under a domain-tagged, length-prefixed framing, so
+identical text under different kinds digests differently and no
+field-boundary collision is possible. `fingerprint` binds the
+node kind, the optional label, and the ordered root-to-parent
+ancestry of `(kind, label)` pairs under a separate domain tag
+with the same framing; diagnostic positions — page, DOM, byte,
+line, and ordinal — never enter the encoding, so a pure
+re-layout never moves a fingerprint. Both digests return the
+validating structural digest type, and the encoding contract is
+byte-locked by golden vectors covering Unicode edge cases and
+code blocks.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "799ca792-eea5-441c-9926-0efc3285c4d7"
+id = "LLR-155"
+title = "corpus::digest carries the structural source-node content digest domain"
+owner = "tool"
+traces_to = ["f266baf1-25bf-472b-86ba-42ab50b464a6"]
+modules = ["evidence_core::corpus::digest"]
+description = """
+`StructuralContentDigest` is its own validated lowercase
+SHA-256 digest domain — distinct from `ReviewContentDigest`
+and `SourceContentDigest` — binding the canonical text of one
+structural source node or the structural fingerprint computed
+over its stable kind, label, and ancestry inputs. Construction
+boundaries (`from_hex` and serde deserialization) validate the
+shared 64-character lowercase-hex contract through
+`is_valid_digest_hex` and fail closed on empty, short,
+overlong, uppercase, mixed-case, or non-hex input; hasher
+output wraps without revalidation. The two source-node digest
+fields share this one domain so a content digest and a
+fingerprint are interchangeable at the type level only inside
+the source-node schema, never with any other corpus digest
+domain.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "8375047f-97d9-412c-9b78-ef966be7fee8"
+id = "LLR-156"
+title = "corpus::source_graph carries the structural node, closed kind enum, per-revision graph, and kind-legality table"
+owner = "tool"
+traces_to = ["f89519cc-35d8-4ef7-89bb-258bdad54a61"]
+modules = ["evidence_core::corpus::source_graph"]
+description = """
+`SourceNode` is the committed structural record: `uid`,
+`source_revision_uid`, optional `parent_uid`, `kind`,
+`ordinal`, optional `label`, `canonical_text`,
+`content_sha256`, `fingerprint`, and one typed `locator` — page,
+DOM, byte, and line positions live only inside the locator as
+diagnostics. `SourceNodeKind` is a closed eleven-variant enum
+(Section, Paragraph, ListItem, DefinitionTerm, DefinitionBody,
+Table, TableRow, TableCell, CodeBlock, Note, FigureCaption)
+serializing snake_case. `SourceGraph` holds one source
+revision's nodes in a `BTreeMap` keyed by uid, so iteration,
+equality, and canonical rendering are independent of insertion
+order, file layout, parser event order, and map iteration. The
+parent/child legality table is closed and minimal: Section
+parents any kind, Table parents only TableRow, TableRow parents
+only TableCell, and every other kind is a leaf. Insertion
+rejects duplicate uids and duplicate non-blank labels within
+one kind — the structural-node human identity — while sibling
+ordinals validate unique and contiguous `0..n` per parent
+sibling set after canonical sibling ordering.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "75d4411b-cda1-40d7-8c9b-f587f9ceb061"
+id = "LLR-157"
+title = "corpus::source_graph::validate enforces forest, binding, ordinal, kind, and digest invariants with typed errors"
+owner = "tool"
+traces_to = ["f89519cc-35d8-4ef7-89bb-258bdad54a61"]
+modules = ["evidence_core::corpus::source_graph::validate"]
+description = """
+Corpus graph validation runs the source-graph invariants after
+source-revision lineage: every node validates within its own
+revision's forest against a global uid-to-revision index and
+the committed revision media map. A parent uid absent from
+every revision fails as dangling; a parent uid present only in
+another revision fails as cross-revision. Parent chains are
+walked to a root with a visited set so a cycle fails closed
+naming a node on it. Parent/child kind pairs outside the
+closed legality table fail naming both kinds. Sibling ordinal
+sets per parent must be exactly `0..n` — duplicates and gaps
+fail naming the parent. Each node's stored content digest and
+fingerprint recompute from its kind, canonical text, label,
+and ancestry, and any mismatch fails carrying the node uid,
+the field, and the stored and recomputed values. Every source
+graph's revision uid must name a committed source-revision
+node, and each locator variant must agree with that revision's
+media type under the closed Markdown/HTML/PDF mapping. All
+failures are flat typed `SourceGraphError` variants.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "719faafa-e571-42ff-a1e4-59cd702b753b"
+id = "LLR-158"
+title = "corpus::source_graph::identity mints UUIDv4 node uids and reconciles candidates by structural-key precedence"
+owner = "tool"
+traces_to = ["20ab2a14-035d-4c34-b01f-81c4134881fa"]
+modules = ["evidence_core::corpus::source_graph::identity"]
+description = """
+`mint_node_uid` returns `snode_` plus a fresh UUIDv4 — the only
+identity-minting path, so no identity is ever derived from
+content. `structural_key` computes a candidate's or committed
+node's deterministic key as a precedence chain: tier one is the
+explicit document numbering or anchor — a leading dotted-decimal
+label token or the locator's document-author anchor — keyed with
+the kind; tier two is the parent's structural key chained with
+the node's kind and sibling ordinal; tier three is the
+structural fingerprint over kind, label, and ancestry. The first
+computable tier wins, and diagnostic positions never enter any
+tier. `reconcile` matches each candidate against the committed
+graph in deterministic order — keys serialize into a sorted map
+whose entries resolve uid collisions to the lowest uid — reusing
+the committed uid on a key match and minting a fresh UUIDv4 uid
+otherwise, so a content change moves only the content digest
+while identity persists, and an unmatched candidate never
+inherits an identity.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "63370779-8cbe-4991-81b5-421484dd218f"
+id = "LLR-159"
+title = "corpus::index activates the source_graphs kind between sources and requirements and wraps source-graph errors"
+owner = "tool"
+traces_to = ["f89519cc-35d8-4ef7-89bb-258bdad54a61"]
+modules = ["evidence_core::corpus::index"]
+description = """
+`CorpusIndex` gains a resolved `source_graph_files` list fed by
+the index's `source_graphs` entries through the same
+deterministic literal-or-`<dir>/**/*.toml` resolution as the
+other kinds — walked without following symlinks, sorted, and
+failing closed on an entry that resolves to nothing.
+`source_graphs` leaves the unsupported-kind rejection set.
+`load_graph` loads source-revision files first, then
+source-graph files — so revision binding and media agreement
+validate against present revisions — then requirement and
+review files, keeping the existing kind contracts unchanged.
+Source-graph failures surface through
+`CorpusError::SourceGraph`, a transparent wrapper over the
+flat `SourceGraphError` taxonomy, so corpus loading keeps one
+error type while callers match the exact source-graph gate
+that failed.
+"""
+verification_methods = ["test"]

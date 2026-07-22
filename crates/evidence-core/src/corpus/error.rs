@@ -5,7 +5,9 @@
 //! reports through [`ProposalError`], wrapped here by
 //! [`CorpusError::Proposal`] (LLR-122, LLR-123, LLR-124); source
 //! record loading reports through [`SourceError`], wrapped here by
-//! [`CorpusError::Source`] (LLR-125).
+//! [`CorpusError::Source`] (LLR-125); source-graph record loading
+//! and structural validation report through [`SourceGraphError`],
+//! wrapped here by [`CorpusError::SourceGraph`] (LLR-152, LLR-157).
 
 use std::path::PathBuf;
 
@@ -15,6 +17,7 @@ use super::graph::{EdgeKind, NodeKind};
 use super::proposal::ProposalError;
 use super::review_records::error::ReviewError;
 use super::source::error::SourceError;
+use super::source_graph::error::SourceGraphError;
 
 /// Errors from loading, building, or validating the corpus graph.
 ///
@@ -193,6 +196,12 @@ pub enum CorpusError {
     /// forwards to the wrapped source error unchanged.
     #[error(transparent)]
     Source(#[from] SourceError),
+    /// A source-graph record failed to load or a structural
+    /// source-graph invariant failed validation (LLR-152,
+    /// LLR-157). Display forwards to the wrapped source-graph
+    /// error unchanged.
+    #[error(transparent)]
+    SourceGraph(#[from] SourceGraphError),
     /// A legacy trace entry has no uid; every corpus node requires a
     /// permanent identity, so the adapter refuses rather than skips.
     #[error("legacy trace entry {id} has no uid; corpus nodes require one")]
