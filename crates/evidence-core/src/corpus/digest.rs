@@ -132,6 +132,16 @@ impl SourceContentDigest {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Wrap SHA-256 hasher output, which satisfies the digest
+    /// contract by construction.
+    pub(crate) fn from_hasher_output(hex: String) -> Self {
+        debug_assert!(
+            is_valid_digest_hex(&hex),
+            "sha256 hex output must satisfy the digest contract"
+        );
+        Self(hex)
+    }
 }
 
 impl fmt::Display for SourceContentDigest {

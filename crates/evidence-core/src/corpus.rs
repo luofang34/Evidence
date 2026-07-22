@@ -18,6 +18,8 @@
 //!   (LLR-125)
 //! - `source::lock` — the canonical derived `sources.lock`
 //!   inventory of effective source heads (LLR-133)
+//! - `source::verify` — offline verification of the material
+//!   behind each effective source head (LLR-136)
 //! - `legacy` — four-file `cert/trace` → graph adapter
 //! - `review_content` — versioned canonical projection of the
 //!   normative content a review approves (LLR-111)
@@ -83,6 +85,10 @@ pub use source::lock::{
     ExternalControlId, LockAvailability, LockCaptureMode, SUPPORTED_LOCK_SCHEMA, SourceLock,
     SourceLockEntry, SourceLockError, derive_lock, parse_lock, read_lock_blocking,
     render_lock_canonical, validate_committed_lock,
+};
+pub use source::verify::{
+    DigestMismatchDetail, SourcePayloadError, SourceVerification, SourceVerificationState,
+    verify_effective_sources,
 };
 
 #[cfg(test)]

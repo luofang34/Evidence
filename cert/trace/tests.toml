@@ -2279,3 +2279,44 @@ test_selectors = [
     "corpus_sources_lock::equivalent_graphs_render_byte_identical_locks",
     "corpus_sources_lock::golden_lock_validates_against_its_graph",
 ]
+
+[[tests]]
+uid = "c49e2cf5-d440-46b9-b058-7efa5da9bad6"
+id = "TEST-153"
+title = "each capture mode verifies to its typed state and URL-located records complete offline without network access"
+owner = "tool"
+traces_to = ["3d0f4f2d-2a8e-4dc5-8d1b-16c18dcc8522"]
+test_selectors = [
+    "evidence_core::corpus::source::verify::tests::every_capture_mode_reports_its_typed_state",
+    "evidence_core::corpus::source::verify::tests::state_wire_strings_are_stable",
+    "evidence_core::corpus::source::verify::tests::url_locations_complete_offline_without_network",
+]
+
+[[tests]]
+uid = "3a117578-aeff-42f0-95a6-542c37cabed7"
+id = "TEST-154"
+title = "vendored payloads resolve beneath the fixed root and every unsafe or disagreeing input fails closed with typed context"
+owner = "tool"
+traces_to = ["1746aa02-06b0-4bb3-9d7d-52799a3a36ad"]
+test_selectors = [
+    "evidence_core::corpus::source::verify::vendored_tests::matching_vendored_bytes_verify",
+    "evidence_core::corpus::source::verify::vendored_tests::missing_payload_and_directory_targets_fail_closed",
+    "evidence_core::corpus::source::verify::vendored_tests::altered_bytes_report_expected_and_actual_digests",
+    "evidence_core::corpus::source::verify::vendored_tests::unsafe_wire_paths_are_rejected_as_escapes",
+    "evidence_core::corpus::source::verify::vendored_tests::symlink_root_and_components_fail_closed",
+    "evidence_core::corpus::source::verify::vendored_tests::lock_record_disagreement_is_typed",
+]
+
+[[tests]]
+uid = "e803f8e2-087d-4eda-8f2b-556ea13f541c"
+id = "TEST-155"
+title = "the batch gates on global prerequisites, isolates per-head findings in sorted order, and never mutates the corpus"
+owner = "tool"
+traces_to = ["262dcfe8-148e-4d67-a89b-ef116de0b32c"]
+test_selectors = [
+    "evidence_core::corpus::source::verify::batch_tests::prerequisite_failures_stop_before_payload_work",
+    "evidence_core::corpus::source::verify::batch_tests::one_bad_payload_never_hides_later_findings",
+    "evidence_core::corpus::source::verify::batch_tests::batch_results_sort_by_document_key_then_uid",
+    "evidence_core::corpus::source::verify::batch_tests::verification_never_mutates_the_corpus",
+    "corpus_source_verification::corpus_index_loads_and_verifies_end_to_end",
+]
