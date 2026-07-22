@@ -28,6 +28,7 @@ cli/
 ├── doctor/        # per-check helpers (checks.rs, qualification.rs)
 ├── floors.rs      # `cargo evidence floors` — ratchet-gate query
 ├── init.rs        # `cargo evidence init`
+├── init/          # managed template set (templates.rs), agent context
 ├── rules.rs       # `cargo evidence rules` — diagnostic-code manifest
 ├── schema.rs      # `cargo evidence schema {show, validate}`
 └── trace.rs       # `cargo evidence trace --validate ...`

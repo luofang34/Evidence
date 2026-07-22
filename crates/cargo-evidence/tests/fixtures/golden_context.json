@@ -1843,12 +1843,12 @@
       "uid": "d356f726-f963-4263-884b-e65c1416831d",
       "name": "init scaffold contract: schema-valid empty templates, adoption-incomplete signals, idempotency, executable adoption sequence",
       "selectors": [
-        "init_scaffold_contract::documented_adoption_sequence_executes_end_to_end",
         "init_scaffold_contract::fresh_scaffold_doctor_validate_generate_contract",
-        "init_scaffold_contract::init_force_rewrites_managed_templates_only",
-        "init_scaffold_contract::init_rerun_preserves_existing_files_without_force",
         "init_scaffold_contract::init_scaffold_is_schema_valid_and_contains_no_live_requirements",
-        "init_scaffold_contract::init_signals_adoption_incomplete_in_jsonl_and_human_output"
+        "init_scaffold_contract::init_signals_adoption_incomplete_in_jsonl_and_human_output",
+        "init_scaffold_idempotency::documented_adoption_sequence_executes_end_to_end",
+        "init_scaffold_idempotency::init_force_rewrites_managed_templates_only",
+        "init_scaffold_idempotency::init_rerun_preserves_existing_files_without_force"
       ],
       "traces_to": [
         "1f76ff59-e4ef-44c5-8c1e-110a627a25fc",
@@ -2137,8 +2137,8 @@
     {
       "dimension": "test_count",
       "kind": "per_crate_floor",
-      "current": 199,
-      "floor": 199
+      "current": 203,
+      "floor": 203
     }
   ],
   "boundary": {

@@ -129,8 +129,10 @@ cargo evidence verify /tmp/evidence/dev-20260207-*/
 ```
 
 That is it. The `init` command scaffolds a `cert/` directory with boundary
-configuration, profile templates, and example trace files. The `generate`
-command produces a complete evidence bundle. The `verify` command checks every
+configuration, floors configuration, profile templates, and schema-valid
+trace files whose worked examples are commented out (zero live entries —
+nothing placeholder can enter a bundle). The `generate` command produces a
+complete evidence bundle. The `verify` command checks every
 SHA-256 hash in the bundle and confirms structural integrity.
 
 ### Choosing `--out-dir`
@@ -572,13 +574,28 @@ Initialize evidence tracking for a new project.
 
 ```bash
 cargo evidence init
-cargo evidence init --force   # overwrite existing cert/ directory
+cargo evidence init --force   # rewrite the managed template files (discards edits to them)
 ```
 
-Creates:
-- `cert/boundary.toml` -- certification boundary configuration
-- `cert/profiles/dev.toml`, `cert.toml`, `record.toml` -- profile configs
-- `cert/trace/hlr.toml`, `llr.toml` -- example trace files
+Creates the managed template set:
+- `cert/boundary.toml` — certification boundary configuration
+- `cert/floors.toml` — rigor-ratchet floors (zero baseline; ratchets up as you adopt)
+- `cert/profiles/dev.toml`, `cert.toml`, `record.toml` — profile configs
+- `cert/trace/sys.toml`, `hlr.toml`, `llr.toml`, `tests.toml`, `derived.toml` —
+  schema-valid trace files with zero live entries; worked examples are
+  commented out in each file so placeholder content can never enter a bundle
+
+A fresh scaffold is **adoption-incomplete** by design: it parses
+against every schema immediately, `cargo evidence doctor` exits 0
+(reporting `DOCTOR_TRACE_NO_EVIDENCE` as a warning), and
+`cargo evidence trace --validate` reports `TRACE_EVIDENCE_EMPTY`
+until you add real requirements — the intended pre-adoption
+signal, not a scaffold error. Re-running `init` preserves existing
+files (user edits included) and exits 0; `--force` rewrites
+exactly the managed set and nothing outside it. The printed next
+steps — edit the boundary, add real requirements, `trace
+--backfill-uuids`, `trace --validate`, `doctor`, `generate` — are
+executable as printed.
 
 ### `cargo evidence schema show`
 

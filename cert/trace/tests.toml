@@ -2508,8 +2508,11 @@ traces_to = [
 ]
 description = """
 Integration tests under
-`crates/cargo-evidence/tests/init_scaffold_contract.rs` that spawn
-the `cargo-evidence` binary against fresh tempdirs and pin the
+`crates/cargo-evidence/tests/init_scaffold_contract.rs` (flow
+contract) and
+`crates/cargo-evidence/tests/init_scaffold_idempotency.rs`
+(re-run / `--force` / adoption sequence) that spawn the
+`cargo-evidence` binary against fresh tempdirs and pin the
 advertised adoption flow end to end:
 
   - init_scaffold_is_schema_valid_and_contains_no_live_requirements:
@@ -2546,7 +2549,7 @@ test_selectors = [
     "init_scaffold_contract::init_scaffold_is_schema_valid_and_contains_no_live_requirements",
     "init_scaffold_contract::init_signals_adoption_incomplete_in_jsonl_and_human_output",
     "init_scaffold_contract::fresh_scaffold_doctor_validate_generate_contract",
-    "init_scaffold_contract::init_rerun_preserves_existing_files_without_force",
-    "init_scaffold_contract::init_force_rewrites_managed_templates_only",
-    "init_scaffold_contract::documented_adoption_sequence_executes_end_to_end",
+    "init_scaffold_idempotency::init_rerun_preserves_existing_files_without_force",
+    "init_scaffold_idempotency::init_force_rewrites_managed_templates_only",
+    "init_scaffold_idempotency::documented_adoption_sequence_executes_end_to_end",
 ]
