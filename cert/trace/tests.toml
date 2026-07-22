@@ -2139,12 +2139,11 @@ test_selectors = [
 [[tests]]
 uid = "2f9ef457-aaf5-4f8b-a67e-7727eb27eed0"
 id = "TEST-143"
-title = "the index activates sources, loads them before requirements and reviews, keeps source_graphs rejected, and fails closed on empty resolution"
+title = "the index activates sources, loads them before requirements and reviews, and fails closed on empty resolution"
 owner = "tool"
 traces_to = ["c23eb6b5-2f1f-4d70-9264-acd44456fb9b"]
 test_selectors = [
     "evidence_core::corpus::index::tests::index_resolves_sources_and_loads_them_before_requirements",
-    "evidence_core::corpus::index::tests::index_source_graphs_kind_stays_unsupported",
     "evidence_core::corpus::index::tests::index_sources_entry_resolving_to_nothing_fails_closed",
 ]
 
@@ -2633,10 +2632,10 @@ traces_to = ["75d4411b-cda1-40d7-8c9b-f587f9ceb061"]
 test_selectors = [
     "evidence_core::corpus::source_graph::tests_graph::cycles_dangling_and_cross_revision_parents_fail_closed",
     "evidence_core::corpus::source_graph::tests_graph::duplicate_ordinals_and_gaps_fail_closed",
-    "evidence_core::corpus::source_graph::tests_graph::illegal_parent_child_kinds_fail_closed",
-    "evidence_core::corpus::source_graph::tests_graph::digest_and_fingerprint_mismatches_fail_closed",
-    "evidence_core::corpus::source_graph::tests_graph::duplicate_uids_and_human_identities_fail_closed",
-    "evidence_core::corpus::source_graph::tests_graph::unbound_source_revision_fails_closed",
+    "evidence_core::corpus::source_graph::tests_validation::illegal_parent_child_kinds_fail_closed",
+    "evidence_core::corpus::source_graph::tests_validation::digest_and_fingerprint_mismatches_fail_closed",
+    "evidence_core::corpus::source_graph::tests_validation::duplicate_uids_and_human_identities_fail_closed",
+    "evidence_core::corpus::source_graph::tests_validation::unbound_source_revision_fails_closed",
 ]
 
 [[tests]]

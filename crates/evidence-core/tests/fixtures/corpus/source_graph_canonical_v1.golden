@@ -1,0 +1,130 @@
+schema_version = 1
+
+[[nodes]]
+uid = "snode_00000000-0000-4000-8000-0000000000b1"
+source_revision_uid = "src_00000000-0000-4000-8000-0000000000a1"
+kind = "section"
+ordinal = 0
+label = "1 Introduction"
+canonical_text = ""
+content_sha256 = "093a071a8c846573f4748c1a7acfbdcaf2efa45d61720af1a2ddd07003358565"
+fingerprint = "2dad590b304ea86ef3536d002d02876b015cf6ce0b37fc8713b3b3cb08889d22"
+
+[nodes.locator]
+format = "markdown"
+path = "docs/spec.md"
+anchor = "sec-1"
+heading_path = []
+byte_range = [0, 120]
+
+[[nodes]]
+uid = "snode_00000000-0000-4000-8000-0000000000b2"
+source_revision_uid = "src_00000000-0000-4000-8000-0000000000a1"
+parent_uid = "snode_00000000-0000-4000-8000-0000000000b1"
+kind = "paragraph"
+ordinal = 0
+canonical_text = "First prose."
+content_sha256 = "0ff335b83846a8e9a29d0bfa0c95c9428a56a69ec374c51378fb437995d104a0"
+fingerprint = "ec90025055113610579131f17f8acdae5a77542eaaf5203dd771cb171dfd2836"
+
+[nodes.locator]
+format = "markdown"
+path = "docs/spec.md"
+heading_path = []
+byte_range = [121, 133]
+
+[[nodes]]
+uid = "snode_00000000-0000-4000-8000-0000000000b3"
+source_revision_uid = "src_00000000-0000-4000-8000-0000000000a1"
+parent_uid = "snode_00000000-0000-4000-8000-0000000000b1"
+kind = "code_block"
+ordinal = 1
+canonical_text = "fn main() {\n    x();\n}\n"
+content_sha256 = "93c5ac354114b29b1908f4dca06e7ccd0e30522183cd5cc4e745fc58fe5952fc"
+fingerprint = "2fd7357f67a30671a3c8ff1af5c943a3dc770fa87ff3a9703057ba540331a00a"
+
+[nodes.locator]
+format = "markdown"
+path = "docs/spec.md"
+heading_path = []
+byte_range = [134, 160]
+
+[[nodes]]
+uid = "snode_00000000-0000-4000-8000-0000000000b4"
+source_revision_uid = "src_00000000-0000-4000-8000-0000000000a1"
+parent_uid = "snode_00000000-0000-4000-8000-0000000000b1"
+kind = "section"
+ordinal = 2
+label = "1.1 Details"
+canonical_text = ""
+content_sha256 = "093a071a8c846573f4748c1a7acfbdcaf2efa45d61720af1a2ddd07003358565"
+fingerprint = "6dd1f5ea091b6043aa6151167be4c229ed13b5f604ec1d079b85118da197410b"
+
+[nodes.locator]
+format = "markdown"
+path = "docs/spec.md"
+heading_path = []
+byte_range = [161, 175]
+
+[[nodes]]
+uid = "snode_00000000-0000-4000-8000-0000000000b5"
+source_revision_uid = "src_00000000-0000-4000-8000-0000000000a1"
+parent_uid = "snode_00000000-0000-4000-8000-0000000000b4"
+kind = "note"
+ordinal = 0
+canonical_text = "A note."
+content_sha256 = "697990df597fbebfe4a7667502944efbb0dcf18b6d48186e9b07ca9c2fe03a18"
+fingerprint = "85f03ff346c5bab669cb75647b210db323e97f394671d70466a5e5daabb14704"
+
+[nodes.locator]
+format = "markdown"
+path = "docs/spec.md"
+heading_path = []
+byte_range = [176, 183]
+
+[[nodes]]
+uid = "snode_00000000-0000-4000-8000-0000000000b6"
+source_revision_uid = "src_00000000-0000-4000-8000-0000000000a1"
+kind = "table"
+ordinal = 1
+canonical_text = ""
+content_sha256 = "a644291e7b52d637c0ed599496d489cb7e720e02238e3986cce216f7339f7532"
+fingerprint = "40e306d2d738b2b194e06a68aa293ccba776c05ba28130e6940635dbc6345cad"
+
+[nodes.locator]
+format = "markdown"
+path = "docs/spec.md"
+heading_path = []
+byte_range = [184, 220]
+
+[[nodes]]
+uid = "snode_00000000-0000-4000-8000-0000000000b7"
+source_revision_uid = "src_00000000-0000-4000-8000-0000000000a1"
+parent_uid = "snode_00000000-0000-4000-8000-0000000000b6"
+kind = "table_row"
+ordinal = 0
+canonical_text = ""
+content_sha256 = "71ec7a7c1d358c8da6159777c3b980ebe34d48ce0fe972ea5fd154d5014c5ab4"
+fingerprint = "efb46baba32c5d8d5294264ca756fce8350988ed36e87429a28e82532709300c"
+
+[nodes.locator]
+format = "markdown"
+path = "docs/spec.md"
+heading_path = []
+byte_range = [185, 210]
+
+[[nodes]]
+uid = "snode_00000000-0000-4000-8000-0000000000b8"
+source_revision_uid = "src_00000000-0000-4000-8000-0000000000a1"
+parent_uid = "snode_00000000-0000-4000-8000-0000000000b7"
+kind = "table_cell"
+ordinal = 0
+canonical_text = "cell text"
+content_sha256 = "2b9e667ba2513399f7386db998b9d09349bcbe46f9b75a99bd1f8221df97928b"
+fingerprint = "25aa251ddfee284805eef3feca7cc8c063c9cdf220fc77cb31bb87bf1918b9ba"
+
+[nodes.locator]
+format = "markdown"
+path = "docs/spec.md"
+heading_path = []
+byte_range = [186, 195]

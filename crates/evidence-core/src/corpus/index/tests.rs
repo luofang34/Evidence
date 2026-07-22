@@ -1,7 +1,8 @@
 //! Tests for deterministic review-file resolution and load order in
-//! the corpus index (TEST-134), and for source-kind activation,
-//! source-first load order, and the still-unsupported source_graphs
-//! kind (TEST-143).
+//! the corpus index (TEST-134), for source-kind activation,
+//! source-first load order, and fail-closed empty resolution
+//! (TEST-143), and for source-graph-kind activation, load order,
+//! and error wrapping (TEST-175).
 
 use std::path::Path;
 
@@ -139,6 +140,38 @@ sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 mode = "hash_only"
 "#;
 
+const REV_1: &str = "src_00000000-0000-4000-8000-0000000000a1";
+const NODE_1: &str = "snode_00000000-0000-4000-8000-0000000000c1";
+const NODE_2: &str = "snode_00000000-0000-4000-8000-0000000000c2";
+
+/// A one-node source-graph file whose digests match the canonical
+/// text, so full graph validation passes. The locator agrees with
+/// `SOURCE_1`'s `application/pdf` media type.
+fn source_graph_file(revision_uid: &str, node_uid: &str, ordinal: u32, marker: &str) -> String {
+    let text = format!("prose {marker}");
+    let content = crate::corpus::content_digest(crate::corpus::SourceNodeKind::Paragraph, &text);
+    let fingerprint =
+        crate::corpus::fingerprint(crate::corpus::SourceNodeKind::Paragraph, None, &[]);
+    format!(
+        r#"schema_version = 1
+
+[[nodes]]
+uid = "{node_uid}"
+source_revision_uid = "{revision_uid}"
+kind = "paragraph"
+ordinal = {ordinal}
+canonical_text = "{text}"
+content_sha256 = "{content}"
+fingerprint = "{fingerprint}"
+
+[nodes.locator]
+format = "pdf"
+physical_page = 1
+bbox = [0.0, 0.0, 10.0, 10.0]
+"#
+    )
+}
+
 const SOURCES_CORPUS_TOML: &str = "schema_version = 1\nsources = [\"sources/**/*.toml\"]\nrequirements = [\"reqs/**/*.toml\"]\nreviews = [\"reviews/**/*.toml\"]\n";
 
 /// Source files resolve in sorted order and load before
@@ -202,24 +235,178 @@ fn index_resolves_sources_and_loads_them_before_requirements() {
     );
 }
 
-/// `source_graphs` stays an unsupported kind after `sources` is
-/// activated (TEST-143).
+/// `source_graphs` resolves like every other kind and loads after
+/// `sources` and before requirements and reviews (TEST-175).
 #[test]
-fn index_source_graphs_kind_stays_unsupported() {
+fn index_resolves_source_graphs_and_loads_them_after_sources() {
     let dir = tempfile::tempdir().unwrap();
+    write(&dir.path().join("sources/b.toml"), SOURCE_1);
+    write(
+        &dir.path().join("sources/a.toml"),
+        &SOURCE_1
+            .replace(
+                "src_00000000-0000-4000-8000-0000000000a1",
+                "src_00000000-0000-4000-8000-0000000000a2",
+            )
+            .replace("SRC-1", "SRC-2")
+            .replace("DOC-1", "DOC-2"),
+    );
+    write(
+        &dir.path().join("graphs/b.toml"),
+        &source_graph_file(REV_1, NODE_1, 0, "b"),
+    );
+    write(
+        &dir.path().join("graphs/a.toml"),
+        &source_graph_file(REV_1, NODE_2, 1, "a"),
+    );
+    write(&dir.path().join("reqs/records.toml"), REQ_RECORDS);
+    write(&dir.path().join("reviews/a.toml"), REVIEW_1);
     write(
         &dir.path().join("corpus.toml"),
-        "schema_version = 1\nsource_graphs = [\"graphs/x.toml\"]\n",
+        "schema_version = 1\nsources = [\"sources/**/*.toml\"]\nsource_graphs = [\"graphs/**/*.toml\"]\nrequirements = [\"reqs/**/*.toml\"]\nreviews = [\"reviews/**/*.toml\"]\n",
     );
-    let err = CorpusIndex::load(&dir.path().join("corpus.toml")).unwrap_err();
+    let index = CorpusIndex::load(&dir.path().join("corpus.toml")).unwrap();
+    let names: Vec<&str> = index
+        .source_graph_files
+        .iter()
+        .map(|path| path.file_name().unwrap().to_str().unwrap())
+        .collect();
+    assert_eq!(names, ["a.toml", "b.toml"], "resolution order is sorted");
+    let graph = CorpusIndex::load_graph(&dir.path().join("corpus.toml")).unwrap();
+    assert_eq!(graph.len(), 4, "2 sources + 1 requirement + 1 review");
+    assert_eq!(
+        graph
+            .source_graph(REV_1)
+            .expect("revision graph materialized")
+            .len(),
+        2,
+        "both source-graph files loaded"
+    );
+
+    // Load order proof: a source error surfaces ahead of a
+    // source-graph error, which surfaces ahead of requirement and
+    // review errors.
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        &dir.path().join("sources/bad.toml"),
+        "schema_version = 999\n",
+    );
+    write(
+        &dir.path().join("graphs/bad.toml"),
+        "schema_version = 999\n",
+    );
+    write(&dir.path().join("reqs/bad.toml"), "schema_version = 999\n");
+    write(
+        &dir.path().join("reviews/bad.toml"),
+        "schema_version = 999\n",
+    );
+    write(
+        &dir.path().join("corpus.toml"),
+        "schema_version = 1\nsources = [\"sources/**/*.toml\"]\nsource_graphs = [\"graphs/**/*.toml\"]\nrequirements = [\"reqs/**/*.toml\"]\nreviews = [\"reviews/**/*.toml\"]\n",
+    );
+    let err = CorpusIndex::load_graph(&dir.path().join("corpus.toml")).unwrap_err();
     assert!(
         matches!(
             err,
-            CorpusError::UnsupportedKind {
-                kind: "source_graphs"
-            }
+            CorpusError::Source(crate::corpus::SourceError::RecordSchemaTooNew { .. })
         ),
-        "source_graphs must stay unsupported, got: {err:?}"
+        "source errors must surface first, got: {err:?}"
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    write(&dir.path().join("sources/ok.toml"), SOURCE_1);
+    write(
+        &dir.path().join("graphs/bad.toml"),
+        "schema_version = 999\n",
+    );
+    write(&dir.path().join("reqs/bad.toml"), "schema_version = 999\n");
+    write(
+        &dir.path().join("reviews/bad.toml"),
+        "schema_version = 999\n",
+    );
+    write(
+        &dir.path().join("corpus.toml"),
+        "schema_version = 1\nsources = [\"sources/**/*.toml\"]\nsource_graphs = [\"graphs/**/*.toml\"]\nrequirements = [\"reqs/**/*.toml\"]\nreviews = [\"reviews/**/*.toml\"]\n",
+    );
+    let err = CorpusIndex::load_graph(&dir.path().join("corpus.toml")).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CorpusError::SourceGraph(crate::corpus::SourceGraphError::RecordSchemaTooNew {
+                ref path,
+                found: 999,
+                ..
+            }) if path.starts_with(dir.path().join("graphs"))
+        ),
+        "source-graph errors must surface after sources and before requirements, got: {err:?}"
+    );
+}
+
+/// A `source_graphs` entry resolving to no files fails closed,
+/// like every other kind (TEST-175).
+#[test]
+fn index_source_graph_entry_resolving_to_nothing_fails_closed() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("empty")).unwrap();
+    write(
+        &dir.path().join("corpus.toml"),
+        "schema_version = 1\nsource_graphs = [\"empty/**/*.toml\"]\n",
+    );
+    let err = CorpusIndex::load(&dir.path().join("corpus.toml")).unwrap_err();
+    assert!(
+        matches!(err, CorpusError::EmptyIndexEntry { .. }),
+        "a source_graphs entry resolving to nothing must fail closed, got: {err:?}"
+    );
+}
+
+/// Source-graph loading and validation failures surface through
+/// the transparent `CorpusError::SourceGraph` wrapper (TEST-175).
+#[test]
+fn source_graph_errors_surface_through_the_corpus_wrapper() {
+    // A record-loading failure wraps.
+    let dir = tempfile::tempdir().unwrap();
+    write(&dir.path().join("sources/ok.toml"), SOURCE_1);
+    write(
+        &dir.path().join("graphs/bad.toml"),
+        "schema_version = 999\n",
+    );
+    write(
+        &dir.path().join("corpus.toml"),
+        "schema_version = 1\nsources = [\"sources/**/*.toml\"]\nsource_graphs = [\"graphs/**/*.toml\"]\n",
+    );
+    let err = CorpusIndex::load_graph(&dir.path().join("corpus.toml")).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CorpusError::SourceGraph(crate::corpus::SourceGraphError::RecordSchemaTooNew { .. })
+        ),
+        "record failures must wrap in CorpusError::SourceGraph, got: {err:?}"
+    );
+
+    // A graph-validation failure wraps: the node's revision is
+    // absent from the corpus.
+    let dir = tempfile::tempdir().unwrap();
+    write(&dir.path().join("sources/ok.toml"), SOURCE_1);
+    write(
+        &dir.path().join("graphs/orphan.toml"),
+        &source_graph_file(
+            "src_00000000-0000-4000-8000-0000000000ff",
+            NODE_1,
+            0,
+            "orphan",
+        ),
+    );
+    write(
+        &dir.path().join("corpus.toml"),
+        "schema_version = 1\nsources = [\"sources/**/*.toml\"]\nsource_graphs = [\"graphs/**/*.toml\"]\n",
+    );
+    let err = CorpusIndex::load_graph(&dir.path().join("corpus.toml")).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CorpusError::SourceGraph(crate::corpus::SourceGraphError::UnknownSourceRevision { .. })
+        ),
+        "validation failures must wrap in CorpusError::SourceGraph, got: {err:?}"
     );
 }
 
