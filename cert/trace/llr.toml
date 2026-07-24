@@ -4892,3 +4892,142 @@ the standalone source-graph validation before ingestion
 returns.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "65f4a68a-5548-4bf0-b111-1a0e80da500e"
+id = "LLR-163"
+title = "corpus::ingest::html::recipe carries the HTML ingestion recipe identity with canonical byte encoding and structural digest"
+owner = "tool"
+traces_to = ["ffd56fda-e8d1-45bd-aa03-5ab0ea4f1695"]
+modules = ["evidence_core::corpus::ingest::html::recipe"]
+description = """
+`HtmlIngestionRecipe` records the identity fields of one HTML
+ingestion configuration: the parser crate name, the parser
+version, the adapter version, the normalization contract
+version, the explicitly declared encoding, the optional
+inclusion root selector, the exclusion selector set, the note
+classification selector set, the figure-caption
+classification selector set, and the enabled compatibility
+mode set. `canonical_bytes` encodes the recipe under a
+domain-tagged (`evidence/html-ingester-recipe/v1`)
+length-prefixed framing — every string as `u64_be` byte
+length plus exact UTF-8 bytes, every set iterated in sorted
+`BTreeSet` order, the optional inclusion root presence-tagged
+— so no field-boundary collision is possible, set order is
+non-semantic, and the encoding is disjoint from every other
+corpus encoding, including the Markdown recipe encoding,
+which it leaves untouched. `digest` returns the validated
+structural digest over those canonical bytes: the recipe
+identity plane, so any recipe-selector change moves the
+recipe identity and every comparison output bound to it. The
+struct carries no behavior beyond encoding and digest; the
+recipe is caller-supplied identity metadata bound into every
+ingestion result.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "75694e91-9393-4858-9be9-128f49fcd8c6"
+id = "LLR-164"
+title = "corpus::ingest::html carries the HTML input contract, typed error and structural-loss diagnostic taxonomy, and output identity projection"
+owner = "tool"
+traces_to = [
+    "ffd56fda-e8d1-45bd-aa03-5ab0ea4f1695",
+    "004cfaa4-13a7-4699-b03a-3d5ed7b1eb2e",
+]
+modules = ["evidence_core::corpus::ingest::html"]
+description = """
+`IngestHtmlInput` binds the frozen bytes with their explicit
+metadata: media type assertion, source-revision uid,
+canonical URL, optional final captured URL, verified input
+digest, and the HTML ingestion recipe. `ingest_html`
+validates the contract before parsing, in a documented
+fail-fast order: the media type must be `text/html` (ASCII
+case-insensitive); the bytes must re-digest to the declared
+input digest; the source-revision uid must satisfy the
+corpus-native `src_` UUIDv4 contract; the canonical URL and
+the final URL when present must satisfy the absolute
+`<scheme>://` lexical rule and are never fetched or resolved;
+the recipe encoding must be declared and must be UTF-8 —
+missing or unsupported encodings fail closed — and the bytes
+must decode strictly as UTF-8 with the first invalid
+sequence's byte offset reported, a leading byte-order mark
+stripped by one documented deterministic rule, never lossy
+decoding; the raw bytes must not declare an external entity
+or any construct requiring network or file resolution; and
+the input must fit the size bound. Every failure is a flat
+typed `HtmlIngestError` variant carrying the conflicting
+values; the family is deliberately uncoded, following the
+`IngestError` precedent. `HtmlIngestion` returns the
+candidate nodes with minted identities, the sorted typed
+`HtmlIngestDiagnostic` list — excluded by recipe selector,
+closed-rule drop, unsupported element, duplicate anchor,
+dangling internal link, each carrying a DOM-path locator and
+a typed reason — and the `output_digest`: a structural digest
+over the canonical node projection under the
+`evidence/html-ingest-output/v1` domain tag in the shared
+projection module, uid-free and keyed by parent position, so
+the output identity plane is deterministic across runs,
+independent of the recipe and input planes, and covers
+canonical nodes rather than parser-internal objects. The
+adapter performs no I/O, no environment reads, and no
+network, browser, or workspace access.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "adaebdd9-8da0-4b9b-81c3-d42f18bb5631"
+id = "LLR-165"
+title = "corpus::ingest::html::adapter maps the parsed DOM into candidate source nodes with fragments, locators, and diagnostics"
+owner = "tool"
+traces_to = [
+    "f150bf04-439e-44d7-a0fc-714ad3ac6295",
+    "004cfaa4-13a7-4699-b03a-3d5ed7b1eb2e",
+]
+modules = ["evidence_core::corpus::ingest::html::adapter"]
+description = """
+The adapter parses with the declared parser — no network, no
+script execution, no stylesheet load, no browser rendering —
+restricts the walk to the inclusion root when the recipe
+declares one, prunes subtrees matching a recipe exclusion
+selector with one typed diagnostic per exclusion naming the
+first matching selector in sorted order, drops script, style,
+template, and head metadata by closed rule with typed
+diagnostics, and walks the remaining DOM in document order
+into the canonical candidate builder: an h1-h6 heading opens
+a section under the nearest lower-level section, its fragment
+the explicit `id` attribute when present (a repeated id
+claims produces a typed duplicate-anchor diagnostic) else the
+shared deterministic slugger; a paragraph outside an
+absorbing container is a paragraph node; list items are
+list-item nodes attached to the enclosing section in document
+order; definition-list terms and bodies are definition-term
+and definition-body nodes, the term text the term's label; a
+table maps to table, row, and cell nodes under the closed
+parent table, header rows labeled by position, row and column
+spans projected as one cell per covered grid slot with
+continuation slots empty; pre content is a code-block node
+under the code normalization contract; elements matched by
+the note classification selectors are note nodes; native
+figure captions and elements matched by the figure-caption
+selectors are figure-caption nodes; pure-fragment internal
+links resolve against the document id set and dangling ones
+diagnose. Unsupported elements produce typed
+structural-loss diagnostics with DOM-path locators while
+their children are retained and walked; nothing is silently
+dropped, and diagnostics sort deterministically by DOM path,
+kind, and detail. Every node records an HTML locator — the
+canonical URL, the final URL when distinct, the section
+fragment, the heading path, and the element-child-index DOM
+path from the document root — diagnostic only, never
+identity. DOM nesting depth, candidate node count,
+per-element attribute count, and per-node text size are
+bounded, and a bound violation fails closed with a typed
+error carrying the value and the limit. Candidates reconcile
+through the identity service (an empty committed graph mints
+every identity fresh), receive content digests and
+fingerprints from the canonical normalization module, and
+pass the standalone source-graph validation before ingestion
+returns.
+"""
+verification_methods = ["test"]

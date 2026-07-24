@@ -2720,3 +2720,60 @@ test_selectors = [
     "evidence_core::corpus::ingest::markdown::tests::unsupported_html_and_lossy_constructs_produce_sorted_diagnostics",
     "evidence_core::corpus::ingest::tests::non_utf8_media_type_and_digest_mismatch_fail_closed",
 ]
+
+[[tests]]
+uid = "4c564b79-9d79-47a2-b08c-b5d92f94820f"
+id = "TEST-180"
+title = "the HTML recipe canonical encoding binds every field and selector changes move the recipe identity"
+owner = "tool"
+traces_to = [
+    "65f4a68a-5548-4bf0-b111-1a0e80da500e",
+    "75694e91-9393-4858-9be9-128f49fcd8c6",
+]
+test_selectors = [
+    "evidence_core::corpus::ingest::html::tests::recipe_canonical_bytes_bind_every_field_deterministically",
+    "evidence_core::corpus::ingest::html::tests::recipe_set_order_is_non_semantic",
+    "evidence_core::corpus::ingest::html::tests::recipe_selector_changes_move_recipe_identity",
+]
+
+[[tests]]
+uid = "6a50b0fb-fb4d-432d-9af4-5fba981db0f0"
+id = "TEST-181"
+title = "the HTML acceptance fixture byte-locks its golden projection and equivalent serializations produce equal output"
+owner = "tool"
+traces_to = [
+    "75694e91-9393-4858-9be9-128f49fcd8c6",
+    "adaebdd9-8da0-4b9b-81c3-d42f18bb5631",
+]
+test_selectors = [
+    "corpus_ingest_html::golden_candidate_projection_byte_locks_canonical_bytes",
+    "corpus_ingest_html::attribute_order_and_whitespace_variants_produce_equal_output",
+    "corpus_ingest_html::reingestion_reuses_committed_uids_through_reconciliation",
+]
+
+[[tests]]
+uid = "b73a47eb-db65-4ac5-8d93-d3ec989d3a8f"
+id = "TEST-182"
+title = "every preserved HTML construct projects the correct parent, kind, ordinal, text, and locator"
+owner = "tool"
+traces_to = ["adaebdd9-8da0-4b9b-81c3-d42f18bb5631"]
+test_selectors = [
+    "evidence_core::corpus::ingest::html::tests::headings_lists_definitions_and_code_project_structure",
+    "evidence_core::corpus::ingest::html::tests::tables_project_header_rows_and_span_slots",
+    "evidence_core::corpus::ingest::html::tests::notes_figures_fragments_and_dom_paths_project",
+]
+
+[[tests]]
+uid = "94b13259-4888-4df0-9182-f9eafef0cb70"
+id = "TEST-183"
+title = "exclusions diagnose deterministically, unconfigured regions are retained, and every contract bound fails closed"
+owner = "tool"
+traces_to = [
+    "75694e91-9393-4858-9be9-128f49fcd8c6",
+    "adaebdd9-8da0-4b9b-81c3-d42f18bb5631",
+]
+test_selectors = [
+    "evidence_core::corpus::ingest::html::tests::exclusions_and_closed_rule_drops_produce_sorted_diagnostics",
+    "evidence_core::corpus::ingest::html::tests::entity_and_resolution_constructs_fail_closed",
+    "evidence_core::corpus::ingest::html::tests::encoding_size_depth_and_media_type_failures_carry_typed_context",
+]
