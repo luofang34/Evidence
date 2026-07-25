@@ -18,6 +18,7 @@ use super::proposal::ProposalError;
 use super::review_records::error::ReviewError;
 use super::source::error::SourceError;
 use super::source_graph::error::SourceGraphError;
+use super::source_patch::error::SourcePatchError;
 
 /// Errors from loading, building, or validating the corpus graph.
 ///
@@ -202,6 +203,14 @@ pub enum CorpusError {
     /// error unchanged.
     #[error(transparent)]
     SourceGraph(#[from] SourceGraphError),
+    /// A curated-patch record failed to load or a curated-patch
+    /// invariant failed validation (LLR-166, LLR-169). Display
+    /// forwards to the wrapped source-patch error unchanged.
+    /// Boxed because the variant is large enough to trip
+    /// `result_large_err` on some platforms; the error object is
+    /// carried whole either way.
+    #[error(transparent)]
+    SourcePatch(#[from] Box<SourcePatchError>),
     /// A legacy trace entry has no uid; every corpus node requires a
     /// permanent identity, so the adapter refuses rather than skips.
     #[error("legacy trace entry {id} has no uid; corpus nodes require one")]

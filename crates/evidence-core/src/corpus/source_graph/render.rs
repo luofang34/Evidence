@@ -43,11 +43,19 @@ use super::locator::SourceLocator;
 /// Render every committed source node in `graph` in the canonical
 /// byte form pinned by the module docs. Pure and host-independent.
 pub fn render_source_graph_canonical(graph: &CorpusGraph) -> Vec<u8> {
-    let mut nodes: Vec<&SourceNode> = graph
+    let nodes: Vec<&SourceNode> = graph
         .source_graphs()
         .values()
         .flat_map(|source_graph| source_graph.nodes())
         .collect();
+    render_sorted_nodes(nodes)
+}
+
+/// Render `nodes` in the canonical byte form pinned by the module
+/// docs, sorted into global uid order first. Shared by the corpus
+/// rendering and the curated-patch canonical source-graph digest
+/// (LLR-164), so both pin the same bytes for the same nodes.
+pub(crate) fn render_sorted_nodes(mut nodes: Vec<&SourceNode>) -> Vec<u8> {
     nodes.sort_by(|a, b| a.uid.cmp(&b.uid));
     let mut out = String::from("schema_version = 1\n");
     for node in nodes {
@@ -69,6 +77,16 @@ pub fn render_source_graph_canonical(graph: &CorpusGraph) -> Vec<u8> {
         push_locator(&mut out, &node.locator);
     }
     out.into_bytes()
+}
+
+/// Render one locator's fields in schema order, standalone. The
+/// curated-patch reviewed-content encoding embeds this exact byte
+/// form for inserted-node locators (LLR-164), so one contract pins
+/// both surfaces.
+pub(crate) fn render_locator_fields(locator: &SourceLocator) -> String {
+    let mut out = String::new();
+    push_locator(&mut out, locator);
+    out
 }
 
 /// Render one locator's fields in schema order.

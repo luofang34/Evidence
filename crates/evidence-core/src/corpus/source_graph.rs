@@ -227,6 +227,18 @@ impl SourceGraph {
         self.nodes.get(uid)
     }
 
+    /// Look up a node mutably by uid. Crate-internal: curated-patch
+    /// application mutates a working copy through this (LLR-168).
+    pub(crate) fn node_mut(&mut self, uid: &str) -> Option<&mut SourceNode> {
+        self.nodes.get_mut(uid)
+    }
+
+    /// Remove and return a node by uid. Crate-internal: curated-patch
+    /// application mutates a working copy through this (LLR-168).
+    pub(crate) fn remove_node(&mut self, uid: &str) -> Option<SourceNode> {
+        self.nodes.remove(uid)
+    }
+
     /// Number of nodes in the graph.
     pub fn len(&self) -> usize {
         self.nodes.len()

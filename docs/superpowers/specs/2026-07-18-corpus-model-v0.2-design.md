@@ -104,11 +104,28 @@ not deterministic-forever; extractor identity and version are recorded on
 the source record. The committed source graph is the reviewed artifact;
 re-ingestion is a drift lint, not the source of truth. Where a parser
 fails structurally (PDF tables, notably PICS), a reviewed `curated` patch
-layer overrides parser output; patches are first-class records with the
-same review lifecycle. PDF extraction delegates to a pinned external
-extractor (pure-Rust PDF text extraction is not adequate for CCSDS
-layouts); this is an ingest-time-only dependency — downstream consumers
-read the committed graph. Ingester delivery order: Markdown → HTML → PDF.
+layer corrects parser output; patches are first-class records with the
+same review lifecycle. A patch is data in the committed corpus with a
+permanent `patch_<UUIDv4>` identity and a per-kind-unique human id; it
+binds exactly one source-revision uid, the exact ingester recipe digest,
+the exact verified input digest, and the exact pre-patch canonical graph
+digest, and carries a reviewed-content digest over its canonical intent —
+the ordered operations and all preconditions — with author, rationale,
+and creation metadata outside semantic identity. The operation language
+is a closed enum (replace canonical text or label, reclassify, reparent
+or reorder, insert a fully specified node, remove with an explicit child
+disposition), never generic JSON Patch; every operation carries explicit
+preconditions that fail closed when stale, and application is atomic and
+re-validates the whole graph. Parser output, patch records, and candidate
+application results stay separately inspectable planes; a patch never
+mutates the frozen source record or `sources.lock`. The review lifecycle
+hands off here: only approved patches may contribute to an effective
+committed graph (the approval-gated effective graph is the M4.4 review
+generalization, not the patch milestone). PDF extraction delegates to a
+pinned external extractor (pure-Rust PDF text extraction is not adequate
+for CCSDS layouts); this is an ingest-time-only dependency — downstream
+consumers read the committed graph. Ingester delivery order: Markdown →
+HTML → PDF.
 
 ## DD-8 — Source graph schema
 

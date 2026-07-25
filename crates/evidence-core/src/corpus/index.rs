@@ -9,8 +9,9 @@
 //! unsupported node kinds. Requirement and review files load through
 //! the same resolution mechanism (LLR-116), the reserved
 //! `sources` list activates the same mechanism for source-revision
-//! files (LLR-127), and `source_graphs` activates it for
-//! structural source-graph files (LLR-159).
+//! files (LLR-127), `source_graphs` activates it for
+//! structural source-graph files (LLR-159), and `source_patches`
+//! activates it for curated-patch files (LLR-169).
 
 use std::path::{Path, PathBuf};
 
@@ -23,6 +24,7 @@ use super::records;
 use super::review_records;
 use super::source;
 use super::source_graph;
+use super::source_patch;
 
 /// Highest `corpus.toml` schema version this tool loads.
 pub const SUPPORTED_INDEX_SCHEMA: u32 = 1;
@@ -37,6 +39,8 @@ struct IndexFile {
     sources: Vec<String>,
     #[serde(default)]
     source_graphs: Vec<String>,
+    #[serde(default)]
+    source_patches: Vec<String>,
     #[serde(default)]
     requirements: Vec<String>,
     #[serde(default)]
@@ -60,6 +64,9 @@ pub struct CorpusIndex {
     /// Resolved structural source-graph record files, in
     /// deterministic order (LLR-159).
     pub source_graph_files: Vec<PathBuf>,
+    /// Resolved curated-patch record files, in deterministic
+    /// order (LLR-169).
+    pub source_patch_files: Vec<PathBuf>,
     /// Resolved requirement record files, in deterministic order.
     pub requirement_files: Vec<PathBuf>,
     /// Resolved review record files, in deterministic order
@@ -103,6 +110,10 @@ impl CorpusIndex {
         for entry in &file.source_graphs {
             source_graph_files.extend(resolve_entry(root, entry)?);
         }
+        let mut source_patch_files = Vec::new();
+        for entry in &file.source_patches {
+            source_patch_files.extend(resolve_entry(root, entry)?);
+        }
         let mut requirement_files = Vec::new();
         for entry in &file.requirements {
             requirement_files.extend(resolve_entry(root, entry)?);
@@ -114,6 +125,7 @@ impl CorpusIndex {
         Ok(Self {
             source_files,
             source_graph_files,
+            source_patch_files,
             requirement_files,
             review_files,
         })
@@ -124,6 +136,8 @@ impl CorpusIndex {
     /// edge resolution. Source files load first (LLR-127), then
     /// source-graph files — so revision binding and media agreement
     /// validate against present revisions (LLR-159) — then
+    /// curated-patch files, so patch bindings and targets validate
+    /// against present revisions and parser graphs (LLR-169) — then
     /// requirement files, then review files (LLR-116), so review
     /// records validate against present requirement nodes and source
     /// and requirement errors surface first.
@@ -135,6 +149,9 @@ impl CorpusIndex {
         }
         for file in &index.source_graph_files {
             source_graph::records::load_source_graphs_into(file, &mut graph)?;
+        }
+        for file in &index.source_patch_files {
+            source_patch::records::load_source_patches_into(file, &mut graph).map_err(Box::new)?;
         }
         for file in &index.requirement_files {
             records::load_requirements_into(file, &mut graph)?;
