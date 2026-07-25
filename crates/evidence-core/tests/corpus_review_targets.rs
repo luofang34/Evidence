@@ -18,10 +18,10 @@ use std::path::{Path, PathBuf};
 
 use evidence_core::corpus::{
     CorpusError, CorpusGraph, CorpusIndex, EdgeKind, InsertedNodeSpec, LifecycleEnforcement, Node,
-    PatchBindings, PatchOperation, RequirementLifecycle, ReviewDecision, ReviewError, ReviewTarget,
-    SafeRelPath, SourceGraph, SourceLocator, SourceNodeKind, SourcePatchRecord,
-    StructuralContentDigest, effective_source_graph, evaluate_lifecycle, reviewed_content_digest,
-    source_graph_digest, validate_approval_boundary,
+    PatchBindings, PatchOperation, RequirementLifecycle, ReviewError, ReviewTarget, SafeRelPath,
+    SourceGraph, SourceLocator, SourceNodeKind, SourcePatchRecord, StructuralContentDigest,
+    effective_source_graph, evaluate_lifecycle, reviewed_content_digest, source_graph_digest,
+    validate_approval_boundary,
 };
 
 const REQ_A: &str = "req_00000000-0000-4000-8000-00000000000a";
@@ -116,7 +116,7 @@ fn schema_migration_fixture_proves_identical_requirement_review_semantics() {
 
 /// Write a temp corpus with one requirement and the given review
 /// files, returning the load result.
-fn load_review_corpus(review_files: &[(&str, &str)]) -> Result<CorpusGraph, CorpusError> {
+fn load_review_corpus(review_files: &[(&str, &str)]) -> Result<CorpusGraph, Box<CorpusError>> {
     let dir = tempfile::tempdir().expect("tempdir");
     write(
         &dir.path().join("reqs/records.toml"),
@@ -129,7 +129,7 @@ fn load_review_corpus(review_files: &[(&str, &str)]) -> Result<CorpusGraph, Corp
         &dir.path().join("corpus.toml"),
         "schema_version = 1\nrequirements = [\"reqs/**/*.toml\"]\nreviews = [\"reviews/**/*.toml\"]\n",
     );
-    CorpusIndex::load_graph(&dir.path().join("corpus.toml"))
+    CorpusIndex::load_graph(&dir.path().join("corpus.toml")).map_err(Box::new)
 }
 
 const TYPED_APPROVAL: &str = r#"
@@ -208,7 +208,7 @@ fn generic_targets_and_cross_kind_edges_fail_closed() {
         .expect_err("a patch review with no committed patch must fail closed");
     assert!(
         matches!(
-            err,
+            *err,
             CorpusError::DanglingEdge {
                 kind: evidence_core::corpus::EdgeKind::Reviews,
                 ..
