@@ -68,19 +68,22 @@ pub fn locator(byte_range: (u64, u64)) -> SourceLocator {
     }
 }
 
+/// One fixture-node specification, in build order (parents before
+/// children).
+pub struct NodeSpec<'a> {
+    pub uid: &'a str,
+    pub parent: Option<&'a str>,
+    pub kind: SourceNodeKind,
+    pub ordinal: u32,
+    pub label: Option<&'a str>,
+    pub text: &'a str,
+    pub byte_range: (u64, u64),
+}
+
 /// One fixture node; parents come earlier in `built`.
-pub fn node(
-    built: &[SourceNode],
-    uid: &str,
-    parent: Option<&str>,
-    kind: SourceNodeKind,
-    ordinal: u32,
-    label: Option<&str>,
-    text: &str,
-    byte_range: (u64, u64),
-) -> SourceNode {
+pub fn node(built: &[SourceNode], spec: &NodeSpec) -> SourceNode {
     let mut ancestry = Vec::new();
-    let mut current = parent;
+    let mut current = spec.parent;
     while let Some(parent_uid) = current {
         let ancestor = built
             .iter()
@@ -95,16 +98,16 @@ pub fn node(
         .map(|(kind, label)| (*kind, label.as_deref()))
         .collect();
     SourceNode {
-        uid: uid.to_string(),
+        uid: spec.uid.to_string(),
         source_revision_uid: REVISION.to_string(),
-        parent_uid: parent.map(str::to_string),
-        kind,
-        ordinal,
-        label: label.map(str::to_string),
-        canonical_text: text.to_string(),
-        content_sha256: content_digest(kind, text),
-        fingerprint: fingerprint(kind, label, &ancestry_refs),
-        locator: locator(byte_range),
+        parent_uid: spec.parent.map(str::to_string),
+        kind: spec.kind,
+        ordinal: spec.ordinal,
+        label: spec.label.map(str::to_string),
+        canonical_text: spec.text.to_string(),
+        content_sha256: content_digest(spec.kind, spec.text),
+        fingerprint: fingerprint(spec.kind, spec.label, &ancestry_refs),
+        locator: locator(spec.byte_range),
     }
 }
 
@@ -112,33 +115,39 @@ pub fn node(
 pub fn base_nodes() -> Vec<SourceNode> {
     let section = node(
         &[],
-        SEC,
-        None,
-        SourceNodeKind::Section,
-        0,
-        Some("1 Intro"),
-        "",
-        (0, 50),
+        &NodeSpec {
+            uid: SEC,
+            parent: None,
+            kind: SourceNodeKind::Section,
+            ordinal: 0,
+            label: Some("1 Intro"),
+            text: "",
+            byte_range: (0, 50),
+        },
     );
     let paragraph = node(
-        &[section.clone()],
-        PARA,
-        Some(SEC),
-        SourceNodeKind::Paragraph,
-        0,
-        None,
-        "hello",
-        (51, 60),
+        std::slice::from_ref(&section),
+        &NodeSpec {
+            uid: PARA,
+            parent: Some(SEC),
+            kind: SourceNodeKind::Paragraph,
+            ordinal: 0,
+            label: None,
+            text: "hello",
+            byte_range: (51, 60),
+        },
     );
     let note = node(
         &[section.clone(), paragraph.clone()],
-        NOTE,
-        Some(SEC),
-        SourceNodeKind::Note,
-        1,
-        None,
-        "a note",
-        (61, 70),
+        &NodeSpec {
+            uid: NOTE,
+            parent: Some(SEC),
+            kind: SourceNodeKind::Note,
+            ordinal: 1,
+            label: None,
+            text: "a note",
+            byte_range: (61, 70),
+        },
     );
     vec![section, paragraph, note]
 }

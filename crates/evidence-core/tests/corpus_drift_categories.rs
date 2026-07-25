@@ -23,8 +23,9 @@ use evidence_core::corpus::{
 mod testkit;
 
 use testkit::{
-    EXTRA, NOTE, PARA, SEC, base_nodes, baseline, candidate, categories, committed_patches,
-    fixture_recipe, graph_from, graphs_toml, load_corpus, locator, node, source_toml, write,
+    EXTRA, NOTE, NodeSpec, PARA, SEC, base_nodes, baseline, candidate, categories,
+    committed_patches, fixture_recipe, graph_from, graphs_toml, load_corpus, locator, node,
+    source_toml, write,
 };
 
 const PATCH_B: &str = "patch_00000000-0000-4000-8000-0000000000b2";
@@ -83,23 +84,27 @@ fn every_category_fires_independently() {
     write(&dir.path().join("sources.toml"), &source_toml());
     let first = node(
         &[],
-        SEC,
-        None,
-        SourceNodeKind::Paragraph,
-        0,
-        None,
-        "a",
-        (0, 5),
+        &NodeSpec {
+            uid: SEC,
+            parent: None,
+            kind: SourceNodeKind::Paragraph,
+            ordinal: 0,
+            label: None,
+            text: "a",
+            byte_range: (0, 5),
+        },
     );
     let second = node(
         &[first.clone()],
-        PARA,
-        None,
-        SourceNodeKind::Paragraph,
-        1,
-        None,
-        "b",
-        (6, 10),
+        &NodeSpec {
+            uid: PARA,
+            parent: None,
+            kind: SourceNodeKind::Paragraph,
+            ordinal: 1,
+            label: None,
+            text: "b",
+            byte_range: (6, 10),
+        },
     );
     write(
         &dir.path().join("graphs.toml"),
@@ -115,13 +120,15 @@ fn every_category_fires_independently() {
     let no_evals = BTreeMap::new();
     let one = graph_from(vec![node(
         &[],
-        EXTRA,
-        None,
-        SourceNodeKind::Paragraph,
-        0,
-        None,
-        "a",
-        (0, 5),
+        &NodeSpec {
+            uid: EXTRA,
+            parent: None,
+            kind: SourceNodeKind::Paragraph,
+            ordinal: 0,
+            label: None,
+            text: "a",
+            byte_range: (0, 5),
+        },
     )]);
     let report = compare_reingestion(
         &baseline(&ambiguous_corpus, &no_evals),
@@ -147,33 +154,39 @@ fn every_category_fires_independently() {
     // parent, semantic locator, addition — one mutated forest.
     let section = node(
         &[],
-        SEC,
-        None,
-        SourceNodeKind::Section,
-        0,
-        Some("1 Overview"),
-        "",
-        (0, 50),
+        &NodeSpec {
+            uid: SEC,
+            parent: None,
+            kind: SourceNodeKind::Section,
+            ordinal: 0,
+            label: Some("1 Overview"),
+            text: "",
+            byte_range: (0, 50),
+        },
     );
     let paragraph = node(
         &[section.clone()],
-        PARA,
-        Some(SEC),
-        SourceNodeKind::Paragraph,
-        0,
-        None,
-        "goodbye",
-        (51, 60),
+        &NodeSpec {
+            uid: PARA,
+            parent: Some(SEC),
+            kind: SourceNodeKind::Paragraph,
+            ordinal: 0,
+            label: None,
+            text: "goodbye",
+            byte_range: (51, 60),
+        },
     );
     let mut moved_note = node(
         &[section.clone(), paragraph.clone()],
-        NOTE,
-        None,
-        SourceNodeKind::Note,
-        1,
-        None,
-        "a note",
-        (61, 70),
+        &NodeSpec {
+            uid: NOTE,
+            parent: None,
+            kind: SourceNodeKind::Note,
+            ordinal: 1,
+            label: None,
+            text: "a note",
+            byte_range: (61, 70),
+        },
     );
     moved_note.locator = evidence_core::corpus::SourceLocator::Markdown {
         path: evidence_core::corpus::SafeRelPath::new("docs/doc.md").expect("safe path"),
@@ -184,13 +197,15 @@ fn every_category_fires_independently() {
     };
     let extra = node(
         &[section.clone(), paragraph.clone()],
-        EXTRA,
-        Some(SEC),
-        SourceNodeKind::Paragraph,
-        1,
-        None,
-        "extra",
-        (71, 80),
+        &NodeSpec {
+            uid: EXTRA,
+            parent: Some(SEC),
+            kind: SourceNodeKind::Paragraph,
+            ordinal: 1,
+            label: None,
+            text: "extra",
+            byte_range: (71, 80),
+        },
     );
     let mutated = graph_from(vec![section, paragraph, moved_note, extra]);
     run(candidate(
@@ -203,36 +218,42 @@ fn every_category_fires_independently() {
     // Ordinal plane: the two children swap.
     let swapped = graph_from(vec![node(
         &[],
-        SEC,
-        None,
-        SourceNodeKind::Section,
-        0,
-        Some("1 Intro"),
-        "",
-        (0, 50),
+        &NodeSpec {
+            uid: SEC,
+            parent: None,
+            kind: SourceNodeKind::Section,
+            ordinal: 0,
+            label: Some("1 Intro"),
+            text: "",
+            byte_range: (0, 50),
+        },
     )]);
     let section = swapped.get(SEC).expect("section").clone();
     let swapped = graph_from(vec![
         section.clone(),
         node(
             &[section.clone()],
-            PARA,
-            Some(SEC),
-            SourceNodeKind::Paragraph,
-            1,
-            None,
-            "hello",
-            (51, 60),
+            &NodeSpec {
+                uid: PARA,
+                parent: Some(SEC),
+                kind: SourceNodeKind::Paragraph,
+                ordinal: 1,
+                label: None,
+                text: "hello",
+                byte_range: (51, 60),
+            },
         ),
         node(
             &[section.clone()],
-            NOTE,
-            Some(SEC),
-            SourceNodeKind::Note,
-            0,
-            None,
-            "a note",
-            (61, 70),
+            &NodeSpec {
+                uid: NOTE,
+                parent: Some(SEC),
+                kind: SourceNodeKind::Note,
+                ordinal: 0,
+                label: None,
+                text: "a note",
+                byte_range: (61, 70),
+            },
         ),
     ]);
     run(candidate(
@@ -245,35 +266,41 @@ fn every_category_fires_independently() {
     // Kind plane: the paragraph reclassifies as a note.
     let section = node(
         &[],
-        SEC,
-        None,
-        SourceNodeKind::Section,
-        0,
-        Some("1 Intro"),
-        "",
-        (0, 50),
+        &NodeSpec {
+            uid: SEC,
+            parent: None,
+            kind: SourceNodeKind::Section,
+            ordinal: 0,
+            label: Some("1 Intro"),
+            text: "",
+            byte_range: (0, 50),
+        },
     );
     let reclassified = graph_from(vec![
         section.clone(),
         node(
             &[section.clone()],
-            PARA,
-            Some(SEC),
-            SourceNodeKind::Note,
-            0,
-            None,
-            "hello",
-            (51, 60),
+            &NodeSpec {
+                uid: PARA,
+                parent: Some(SEC),
+                kind: SourceNodeKind::Note,
+                ordinal: 0,
+                label: None,
+                text: "hello",
+                byte_range: (51, 60),
+            },
         ),
         node(
             &[section.clone()],
-            NOTE,
-            Some(SEC),
-            SourceNodeKind::Note,
-            1,
-            None,
-            "a note",
-            (61, 70),
+            &NodeSpec {
+                uid: NOTE,
+                parent: Some(SEC),
+                kind: SourceNodeKind::Note,
+                ordinal: 1,
+                label: None,
+                text: "a note",
+                byte_range: (61, 70),
+            },
         ),
     ]);
     run(candidate(
@@ -427,35 +454,41 @@ fn added_removed_reordered_nodes_reconcile_deterministically() {
     // note vanishes.
     let section = node(
         &[],
-        SEC,
-        None,
-        SourceNodeKind::Section,
-        0,
-        Some("1 Intro"),
-        "",
-        (0, 50),
+        &NodeSpec {
+            uid: SEC,
+            parent: None,
+            kind: SourceNodeKind::Section,
+            ordinal: 0,
+            label: Some("1 Intro"),
+            text: "",
+            byte_range: (0, 50),
+        },
     );
     let candidate_nodes = vec![
         section.clone(),
         node(
             &[section.clone()],
-            EXTRA,
-            Some(SEC),
-            SourceNodeKind::Note,
-            0,
-            None,
-            "extra",
-            (51, 56),
+            &NodeSpec {
+                uid: EXTRA,
+                parent: Some(SEC),
+                kind: SourceNodeKind::Note,
+                ordinal: 0,
+                label: None,
+                text: "extra",
+                byte_range: (51, 56),
+            },
         ),
         node(
             &[section.clone()],
-            PARA,
-            Some(SEC),
-            SourceNodeKind::Paragraph,
-            1,
-            None,
-            "hello",
-            (57, 66),
+            &NodeSpec {
+                uid: PARA,
+                parent: Some(SEC),
+                kind: SourceNodeKind::Paragraph,
+                ordinal: 1,
+                label: None,
+                text: "hello",
+                byte_range: (57, 66),
+            },
         ),
     ];
     let drifted = graph_from(candidate_nodes);
