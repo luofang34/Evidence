@@ -141,7 +141,7 @@ fn every_semantic_mutation_stales_approval() {
             vec![approve(
                 kit::REV_1,
                 "REV-001",
-                &patch.reviewed_content_digest.as_str().to_string(),
+                patch.reviewed_content_digest.as_str(),
             )],
         )
     };
