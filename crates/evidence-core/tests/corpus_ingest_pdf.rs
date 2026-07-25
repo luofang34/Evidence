@@ -30,6 +30,7 @@ mod support;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+#[cfg(unix)]
 use std::path::Path;
 
 use evidence_core::corpus::{
