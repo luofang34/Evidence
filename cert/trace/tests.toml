@@ -2878,6 +2878,6 @@ traces_to = [
 ]
 test_selectors = [
     "evidence_core::corpus::effective_graph::tests::only_approved_patches_contribute_and_fail_closed",
-    "evidence_core::corpus::approval_boundary::tests::effective_curated_content_proven_approved",
+    "evidence_core::corpus::approval_boundary::patch_plane_tests::effective_curated_content_proven_approved",
     "corpus_review_targets::approved_patch_affects_effective_graph_candidate_rejected_stale_never_do",
 ]

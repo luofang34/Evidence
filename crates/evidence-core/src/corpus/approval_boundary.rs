@@ -470,5 +470,14 @@ mod fixtures;
     clippy::panic,
     reason = "test setup failures should panic immediately"
 )]
+#[path = "approval_boundary/patch_plane_tests.rs"]
+mod patch_plane_tests;
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
 #[path = "approval_boundary/tests.rs"]
 mod tests;
