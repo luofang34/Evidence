@@ -1,5 +1,5 @@
 //! The canonical node projection of one ingestion result and its
-//! output digest (LLR-161).
+//! output digest (LLR-161, LLR-164).
 //!
 //! [`render_candidate_projection`] renders the candidate node set
 //! into one deterministic byte form. The projection is uid-free —
@@ -8,11 +8,21 @@
 //! the parent link renders as the parent's index in the same
 //! document-order node list (or `root`), which is deterministic for
 //! fixed input bytes and recipe. Every other field renders exactly:
-//! kind, ordinal, optional label, optional anchor, heading path,
-//! byte range, canonical text, and the node's content digest.
+//! kind, ordinal, optional label, the locator, canonical text, and
+//! the node's content digest.
 //!
 //! The form is line-based and TOML-shaped with the minimal escaping
-//! of the canonical source-graph rendering:
+//! of the canonical source-graph rendering. Two domain-tagged
+//! headers keep the format families disjoint:
+//!
+//! - `evidence/markdown-ingest-output/v1`
+//!   ([`render_candidate_projection`]) renders Markdown locators:
+//!   path, optional git blob, optional anchor, heading path, byte
+//!   range.
+//! - `evidence/html-ingest-output/v1`
+//!   ([`render_html_projection`], LLR-164) renders HTML locators:
+//!   canonical URL, optional final URL, optional fragment, heading
+//!   path, DOM path.
 //!
 //! ```text
 //! evidence/markdown-ingest-output/v1
@@ -39,19 +49,46 @@
 use super::super::digest::StructuralContentDigest;
 use super::super::{SourceLocator, SourceNode};
 
-/// Domain/version tag opening the projection.
+/// Domain/version tag opening the Markdown projection.
 const PROJECTION_HEADER: &str = "evidence/markdown-ingest-output/v1";
 
-/// Render `nodes` (in document order) into the canonical projection
-/// pinned by the module docs. Pure and host-independent.
-///
-/// Every locator renders its Markdown fields; a non-Markdown
-/// locator — which `ingest_markdown` never produces — renders only
-/// its `format` line, keeping the function total over fabricated
-/// node sets.
+/// Domain/version tag opening the HTML projection (LLR-164).
+const HTML_PROJECTION_HEADER: &str = "evidence/html-ingest-output/v1";
+
+/// Render `nodes` (in document order) into the canonical Markdown
+/// projection pinned by the module docs. Pure and host-independent.
 pub fn render_candidate_projection(nodes: &[SourceNode]) -> Vec<u8> {
+    render_projection(PROJECTION_HEADER, nodes)
+}
+
+/// Render `nodes` (in document order) into the canonical HTML
+/// projection (LLR-164). Pure and host-independent.
+pub fn render_html_projection(nodes: &[SourceNode]) -> Vec<u8> {
+    render_projection(HTML_PROJECTION_HEADER, nodes)
+}
+
+/// The output identity plane: SHA-256 over the canonical Markdown
+/// projection of `nodes`, as the validated structural digest domain.
+pub fn output_digest(nodes: &[SourceNode]) -> StructuralContentDigest {
+    StructuralContentDigest::from_hasher_output(crate::hash::sha256(&render_candidate_projection(
+        nodes,
+    )))
+}
+
+/// The HTML output identity plane (LLR-164): SHA-256 over the
+/// canonical HTML projection of `nodes`.
+pub fn html_output_digest(nodes: &[SourceNode]) -> StructuralContentDigest {
+    StructuralContentDigest::from_hasher_output(crate::hash::sha256(&render_html_projection(nodes)))
+}
+
+/// Render `nodes` under `header`. Every locator renders its own
+/// variant's fields; a locator of a different format than the
+/// header's family — which the ingesters never produce — renders
+/// only its `format` line, keeping the function total over
+/// fabricated node sets.
+fn render_projection(header: &str, nodes: &[SourceNode]) -> Vec<u8> {
     let mut out = String::new();
-    out.push_str(PROJECTION_HEADER);
+    out.push_str(header);
     out.push('\n');
     out.push_str(&format!("nodes = {}\n", nodes.len()));
     for node in nodes {
@@ -78,16 +115,9 @@ pub fn render_candidate_projection(nodes: &[SourceNode]) -> Vec<u8> {
     out.into_bytes()
 }
 
-/// The output identity plane: SHA-256 over the canonical projection
-/// of `nodes`, as the validated structural digest domain.
-pub fn output_digest(nodes: &[SourceNode]) -> StructuralContentDigest {
-    StructuralContentDigest::from_hasher_output(crate::hash::sha256(&render_candidate_projection(
-        nodes,
-    )))
-}
-
-/// Render one locator. Markdown locators render every field in
-/// schema order; other formats render only the discriminator.
+/// Render one locator. Markdown and HTML locators render every
+/// field in schema order; other formats render only the
+/// discriminator.
 fn push_locator(out: &mut String, locator: &SourceLocator) {
     match locator {
         SourceLocator::Markdown {
@@ -104,21 +134,50 @@ fn push_locator(out: &mut String, locator: &SourceLocator) {
             if let Some(anchor) = anchor {
                 push_field(out, "anchor", anchor);
             }
-            out.push_str("heading_path = [");
-            for (index, component) in heading_path.iter().enumerate() {
-                if index > 0 {
-                    out.push_str(", ");
-                }
-                push_basic_string(out, component);
-            }
-            out.push_str("]\n");
+            push_heading_path(out, heading_path);
             out.push_str(&format!(
                 "byte_range = [{}, {}]\n",
                 byte_range.0, byte_range.1
             ));
         }
+        SourceLocator::Html {
+            canonical_url,
+            final_url,
+            fragment,
+            heading_path,
+            dom_path,
+        } => {
+            push_field(out, "canonical_url", canonical_url);
+            if let Some(final_url) = final_url {
+                push_field(out, "final_url", final_url);
+            }
+            if let Some(fragment) = fragment {
+                push_field(out, "fragment", fragment);
+            }
+            push_heading_path(out, heading_path);
+            out.push_str("dom_path = [");
+            for (index, component) in dom_path.iter().enumerate() {
+                if index > 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(&format!("{component}"));
+            }
+            out.push_str("]\n");
+        }
         other => push_field(out, "format", other.format_str()),
     }
+}
+
+/// One `heading_path = [...]` line in canonical escaping.
+fn push_heading_path(out: &mut String, heading_path: &[String]) {
+    out.push_str("heading_path = [");
+    for (index, component) in heading_path.iter().enumerate() {
+        if index > 0 {
+            out.push_str(", ");
+        }
+        push_basic_string(out, component);
+    }
+    out.push_str("]\n");
 }
 
 /// One `key = "<value>"` line in canonical escaping.

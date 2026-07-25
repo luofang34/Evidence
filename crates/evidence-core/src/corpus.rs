@@ -71,8 +71,10 @@ pub use graph::{
 };
 pub use index::{CorpusIndex, SUPPORTED_INDEX_SCHEMA};
 pub use ingest::{
-    IngestDiagnostic, IngestDiagnosticKind, IngestError, IngestMarkdownInput, IngesterRecipe,
-    MARKDOWN_MEDIA_TYPE, MarkdownIngestion, ingest_markdown,
+    HTML_MEDIA_TYPE, HtmlIngestDiagnostic, HtmlIngestDiagnosticKind, HtmlIngestError,
+    HtmlIngestion, HtmlIngestionRecipe, IngestDiagnostic, IngestDiagnosticKind, IngestError,
+    IngestHtmlInput, IngestMarkdownInput, IngesterRecipe, MARKDOWN_MEDIA_TYPE, MarkdownIngestion,
+    ingest_html, ingest_markdown,
 };
 pub use legacy::graph_from_trace_files;
 pub(crate) use legacy::graph_from_trace_parts;

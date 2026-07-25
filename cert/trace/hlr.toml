@@ -3266,3 +3266,107 @@ invariants before ingestion returns.
 """
 verification_methods = ["test"]
 traces_to = ["252c8b10-3369-4cd9-919b-b8f02a2503b8"]
+
+[[requirements]]
+uid = "ffd56fda-e8d1-45bd-aa03-5ab0ea4f1695"
+id = "HLR-123"
+title = "HTML ingestion requires verified bytes, explicit URL and encoding metadata, and a canonical HTML ingestion recipe"
+owner = "tool"
+scope = "component"
+description = """
+The HTML ingestion entry point shall accept frozen source
+bytes only together with: the HTML media type assertion
+(`text/html`), the `src_<UUIDv4>` source-revision uid, the
+canonical URL and the final captured URL when distinct, the
+verified input digest over the frozen bytes, and an explicit
+HTML ingestion recipe. The recipe shall record the parser
+crate name, parser version, adapter version, normalization
+contract version, the explicitly declared encoding, the
+optional inclusion root selector, the exclusion selector set,
+the note and figure-caption classification selector sets, and
+the enabled compatibility mode set, under a canonical byte
+encoding whose digest is the recipe identity plane; any
+recipe-selector change shall move that digest. The declared
+encoding shall be required and only UTF-8 shall be accepted;
+missing, ambiguous, or unsupported encodings shall fail
+closed, decoding shall be strict and never lossy, and a
+leading UTF-8 byte-order mark shall be handled by one
+documented deterministic rule. Media-type mismatch and
+input-digest mismatch shall fail closed before any parsing.
+Ingestion shall perform no fetch, no filesystem access, no
+environment reads, no browser rendering, and no workspace
+mutation or baseline replacement.
+"""
+verification_methods = ["test"]
+traces_to = ["35722c16-8745-4f84-a130-3c6fdfb50d99"]
+
+[[requirements]]
+uid = "f150bf04-439e-44d7-a0fc-714ad3ac6295"
+id = "HLR-124"
+title = "HTML DOM structure maps through the canonical node builder without normative inference"
+owner = "tool"
+scope = "component"
+description = """
+The adapter shall parse the frozen bytes with a deterministic
+HTML parser and shall map the DOM through the canonical
+structural node builder and identity planes shared with
+Markdown ingestion rather than constructing graph records
+independently. It shall preserve: h1-h6 headings with their
+hierarchy and explicit id anchors; paragraphs; nested ordered
+and unordered lists; definition lists as definition-term and
+definition-body nodes; tables with header-row semantics and
+row and column spans preserved as an explicit deterministic
+grid projection; pre and block code literals under the code
+normalization contract; notes, examples, and figure captions
+classified only by committed recipe rules and native caption
+elements; and internal fragment links validated against the
+document id set. Scripts, styles, templates, and non-content
+metadata shall drop by closed rule; navigation, repeated
+tables of contents, headers, and footers shall be removed
+only through committed recipe exclusion selectors, never
+through undocumented heuristics. The adapter shall never
+infer requirement modality or normative status. Sibling
+ordinals shall be contiguous per parent set, and every
+preserved construct shall project the correct parent, kind,
+ordinal, canonical text, and locator.
+"""
+verification_methods = ["test"]
+traces_to = ["35722c16-8745-4f84-a130-3c6fdfb50d99"]
+
+[[requirements]]
+uid = "004cfaa4-13a7-4699-b03a-3d5ed7b1eb2e"
+id = "HLR-125"
+title = "HTML ingestion emits deterministic structural-loss diagnostics and canonical identities under typed resource bounds"
+owner = "tool"
+scope = "component"
+description = """
+Every configured exclusion, every closed-rule drop, every
+unsupported element, every duplicate explicit id, and every
+dangling internal fragment link shall produce a typed
+structural-loss diagnostic carrying a DOM-path locator and a
+typed reason, sorted deterministically; silent dropping is
+forbidden, and unconfigured potentially normative regions
+shall be retained and projected. External entity expansion
+shall be disabled and constructs requiring network or file
+resolution shall fail closed. Input size, DOM nesting depth,
+candidate node count, per-element attribute count, and
+per-node text size shall be bounded, and every bound
+violation shall fail closed with a typed error carrying the
+offending value and the limit. Canonical output shall be
+independent of attribute order, non-semantic whitespace, map
+order, and linked-file layout, so equivalent HTML
+serializations preserving the same DOM and text produce equal
+canonical graphs under the declared recipe. Every candidate
+node shall carry an HTML locator recording the canonical URL,
+the final captured URL when distinct, the explicit or
+generated fragment, the heading path, and a stable DOM path —
+diagnostic only, never identity — while explicit ids and
+canonical ancestry feed the deterministic structural-key
+precedence. Initial node identities shall be minted through
+the structural identity service, re-ingestion shall reuse
+committed uids through reconciliation, and the candidate set
+shall satisfy the source-graph forest invariants before
+ingestion returns.
+"""
+verification_methods = ["test"]
+traces_to = ["35722c16-8745-4f84-a130-3c6fdfb50d99"]

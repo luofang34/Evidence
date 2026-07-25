@@ -50,11 +50,18 @@
 //! identity planes: each covers only its own projection, so a
 //! targeted mutation of one plane moves exactly one digest.
 //!
-//! Diagnostics are typed — duplicate anchor, malformed explicit id,
+//! diagnostics are typed — duplicate anchor, malformed explicit id,
 //! unsupported raw HTML, lossy construct — each carrying a byte
 //! range into the frozen source, sorted deterministically by range,
 //! kind, and detail. Silent dropping is forbidden: every construct
 //! the projection cannot represent produces a diagnostic.
+//!
+//! The `html` submodule applies the same contract, identity planes,
+//! and canonical node builder to verified frozen HTML bytes: same
+//! reconciliation, normalization, and assembly, a parallel typed
+//! error and diagnostic taxonomy with DOM-path locators, and its own
+//! recipe and projection domain tags so the two format families
+//! stay disjoint (LLR-163..LLR-165).
 //!
 //! Module map:
 //!
@@ -62,6 +69,8 @@
 //!   encoding and digest (LLR-160)
 //! - `markdown` — the parser adapter mapping events into candidate
 //!   nodes (LLR-162)
+//! - `html` — offline structure-preserving HTML ingestion
+//!   (LLR-163..LLR-165)
 //! - `projection` — the canonical uid-free node projection and the
 //!   output digest (LLR-161)
 
@@ -72,10 +81,15 @@ use super::records::validate_native_uid;
 use super::source::SOURCE_UID_PREFIX;
 use super::{SafeRelPath, SourceGraphError, SourceNode, VendoredPathRule};
 
+pub(super) mod html;
 pub(super) mod markdown;
 pub(super) mod projection;
 pub(super) mod recipe;
 
+pub use html::{
+    HTML_MEDIA_TYPE, HtmlIngestDiagnostic, HtmlIngestDiagnosticKind, HtmlIngestError,
+    HtmlIngestion, HtmlIngestionRecipe, IngestHtmlInput, ingest_html,
+};
 pub use markdown::ingest_markdown;
 pub use recipe::IngesterRecipe;
 

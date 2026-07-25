@@ -1619,3 +1619,61 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "35722c16-8745-4f84-a130-3c6fdfb50d99"
+id = "SYS-053"
+title = "Structure-preserving offline HTML ingestion into candidate structural source nodes"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall convert verified frozen HTML bytes into
+candidate structural source nodes without network access,
+browser execution, stylesheet load, script execution, or DNS
+lookup, and without silent loss of normative structure, using
+the same canonical node builder and identity planes as
+Markdown ingestion so format-specific parsing cannot create a
+second graph model. Ingestion shall accept bytes only with an
+explicit HTML media type assertion, the source-revision uid,
+the canonical and final captured URL metadata, the verified
+input digest, an explicitly declared encoding, and an
+explicit HTML ingestion recipe recording parser crate and
+version, adapter version, normalization contract version,
+encoding, inclusion root, exclusion selectors, note and
+figure classification rules, and all enabled compatibility
+modes; parsing shall reject missing, ambiguous, or
+unsupported encodings and shall never lossy-decode. The
+adapter shall preserve the h1-h6 hierarchy, paragraphs,
+nested lists, definition lists, tables with rows, cells,
+header rows, and spans, code and pre literals, ids and
+anchors, internal links, notes and examples, and figure
+captions; it shall drop scripts, styles, templates, and
+non-content metadata by closed rule, and shall remove
+navigation, repeated tables of contents, headers, and footers
+only through committed recipe selectors, never through
+undocumented heuristics. Every configured exclusion and every
+unsupported element shall produce a deterministic
+structural-loss diagnostic with a DOM locator and a typed
+reason; the adapter shall never infer requirement modality or
+normative status. External entity expansion shall be disabled
+and constructs requiring network or file resolution shall
+fail closed; input size, nesting depth, node count, attribute
+count, and text size shall be bounded with typed contextual
+failures. Canonical output shall be independent of attribute
+order, non-semantic whitespace, map order, and linked-file
+layout, so equivalent HTML serializations preserving the same
+DOM and text produce equal canonical graphs under the
+declared recipe; recipe-selector changes shall move the
+recipe identity plane. Every candidate node shall carry an
+HTML locator with the canonical URL, the final captured URL
+when distinct, the fragment, the heading path, and a stable
+DOM path as diagnostics, never identity; explicit ids and
+canonical ancestry shall participate in reconciliation.
+Ingestion shall perform no fetch, no workspace mutation, and
+no baseline replacement.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

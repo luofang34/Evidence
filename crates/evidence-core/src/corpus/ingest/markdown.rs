@@ -112,7 +112,7 @@ use crate::corpus::{
 };
 
 mod adapter;
-mod anchors;
+pub(super) mod anchors;
 mod close;
 
 use adapter::Adapter;
