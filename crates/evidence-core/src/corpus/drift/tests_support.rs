@@ -207,6 +207,7 @@ pub(crate) fn make_baseline<'a>(
         source_revision_uid: REVISION,
         recipe_digest,
         input_digest,
+        extractor_output_digest: None,
         patch_evaluations: evaluations,
     }
 }
@@ -222,6 +223,7 @@ pub(crate) fn make_candidate<'a>(
         source_document: "docs/doc.md",
         recipe: Some(recipe),
         verified_input_digest: Some(input_digest),
+        extractor_output_digest: None,
         parser_graph: graph,
         patches,
         patch_evaluations: evaluations,

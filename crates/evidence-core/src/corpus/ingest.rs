@@ -83,6 +83,7 @@ use super::{SafeRelPath, SourceGraphError, SourceNode, VendoredPathRule};
 
 pub(super) mod html;
 pub(super) mod markdown;
+pub mod pdf;
 pub(super) mod projection;
 pub(super) mod recipe;
 
@@ -91,6 +92,10 @@ pub use html::{
     HtmlIngestion, HtmlIngestionRecipe, IngestHtmlInput, ingest_html,
 };
 pub use markdown::ingest_markdown;
+pub use pdf::{
+    IngestPdfInput, PDF_MEDIA_TYPE, PdfExcludedBand, PdfIngestDiagnostic, PdfIngestDiagnosticKind,
+    PdfIngestError, PdfIngestion, PdfIngestionRecipe, PdfLayoutRules, ingest_pdf,
+};
 pub use recipe::IngesterRecipe;
 
 #[cfg(test)]

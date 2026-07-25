@@ -872,6 +872,16 @@ jobs:
           # cache-shape independent.
           nix develop -c cargo fetch --locked
 
+      - name: Verify the pinned Poppler extractor lane (#222)
+        shell: bash
+        run: |
+          # The devShell carries the flake.lock-pinned poppler-utils.
+          # The lane verifies the executable digest and `-v` output
+          # against the committed tool lock and re-runs the pinned
+          # argv over the committed SDLS PDF, byte-comparing the
+          # extractor output against the committed golden.
+          nix develop -c bash scripts/check-pdf-extractor.sh
+
       - name: Generate bundle (run A) under Nix
         shell: bash
         run: |

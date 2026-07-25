@@ -342,6 +342,7 @@ pub fn baseline<'a>(
         source_revision_uid: REVISION,
         recipe_digest: fixture_recipe().digest(),
         input_digest: structural(INPUT_HEX),
+        extractor_output_digest: None,
         patch_evaluations: evaluations,
     }
 }
@@ -356,6 +357,7 @@ pub fn candidate<'a>(
         source_document: "docs/doc.md",
         recipe: Some(recipe),
         verified_input_digest: Some(structural(INPUT_HEX)),
+        extractor_output_digest: None,
         parser_graph: graph,
         patches,
         patch_evaluations: evaluations,

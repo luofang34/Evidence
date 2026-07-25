@@ -23,6 +23,9 @@
 //!   ([`render_html_projection`], LLR-164) renders HTML locators:
 //!   canonical URL, optional final URL, optional fragment, heading
 //!   path, DOM path.
+//! - `evidence/pdf-ingest-output/v1`
+//!   ([`render_pdf_projection`], LLR-182) renders PDF locators:
+//!   physical page, optional printed label, bounding box.
 //!
 //! ```text
 //! evidence/markdown-ingest-output/v1
@@ -55,6 +58,9 @@ const PROJECTION_HEADER: &str = "evidence/markdown-ingest-output/v1";
 /// Domain/version tag opening the HTML projection (LLR-164).
 const HTML_PROJECTION_HEADER: &str = "evidence/html-ingest-output/v1";
 
+/// Domain/version tag opening the PDF projection (LLR-182).
+const PDF_PROJECTION_HEADER: &str = "evidence/pdf-ingest-output/v1";
+
 /// Render `nodes` (in document order) into the canonical Markdown
 /// projection pinned by the module docs. Pure and host-independent.
 pub fn render_candidate_projection(nodes: &[SourceNode]) -> Vec<u8> {
@@ -65,6 +71,12 @@ pub fn render_candidate_projection(nodes: &[SourceNode]) -> Vec<u8> {
 /// projection (LLR-164). Pure and host-independent.
 pub fn render_html_projection(nodes: &[SourceNode]) -> Vec<u8> {
     render_projection(HTML_PROJECTION_HEADER, nodes)
+}
+
+/// Render `nodes` (in reading order) into the canonical PDF
+/// projection (LLR-182). Pure and host-independent.
+pub fn render_pdf_projection(nodes: &[SourceNode]) -> Vec<u8> {
+    render_projection(PDF_PROJECTION_HEADER, nodes)
 }
 
 /// The output identity plane: SHA-256 over the canonical Markdown
@@ -81,11 +93,14 @@ pub fn html_output_digest(nodes: &[SourceNode]) -> StructuralContentDigest {
     StructuralContentDigest::from_hasher_output(crate::hash::sha256(&render_html_projection(nodes)))
 }
 
+/// The PDF output identity plane (LLR-182): SHA-256 over the
+/// canonical PDF projection of `nodes`.
+pub fn pdf_output_digest(nodes: &[SourceNode]) -> StructuralContentDigest {
+    StructuralContentDigest::from_hasher_output(crate::hash::sha256(&render_pdf_projection(nodes)))
+}
+
 /// Render `nodes` under `header`. Every locator renders its own
-/// variant's fields; a locator of a different format than the
-/// header's family — which the ingesters never produce — renders
-/// only its `format` line, keeping the function total over
-/// fabricated node sets.
+/// variant's fields.
 fn render_projection(header: &str, nodes: &[SourceNode]) -> Vec<u8> {
     let mut out = String::new();
     out.push_str(header);
@@ -115,9 +130,8 @@ fn render_projection(header: &str, nodes: &[SourceNode]) -> Vec<u8> {
     out.into_bytes()
 }
 
-/// Render one locator. Markdown and HTML locators render every
-/// field in schema order; other formats render only the
-/// discriminator.
+/// Render one locator. Every variant renders its own fields in
+/// schema order.
 fn push_locator(out: &mut String, locator: &SourceLocator) {
     match locator {
         SourceLocator::Markdown {
@@ -164,7 +178,20 @@ fn push_locator(out: &mut String, locator: &SourceLocator) {
             }
             out.push_str("]\n");
         }
-        other => push_field(out, "format", other.format_str()),
+        SourceLocator::Pdf {
+            physical_page,
+            printed_label,
+            bbox,
+        } => {
+            out.push_str(&format!("physical_page = {physical_page}\n"));
+            if let Some(printed_label) = printed_label {
+                push_field(out, "printed_label", printed_label);
+            }
+            out.push_str(&format!(
+                "bbox = [{}, {}, {}, {}]\n",
+                bbox[0], bbox[1], bbox[2], bbox[3]
+            ));
+        }
     }
 }
 

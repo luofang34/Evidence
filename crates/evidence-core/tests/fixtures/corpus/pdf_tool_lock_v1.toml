@@ -1,0 +1,19 @@
+# The pinned Poppler tool identity the M4.6 PDF acceptance fixtures
+# were generated with (#222, LLR-179). The extractor is the
+# flake.lock-pinned nixpkgs Poppler (`pkgs.poppler-utils`); the
+# macOS Apple-silicon artifact digest below is the Nix store
+# binary's SHA-256. The exact extractor output over each committed
+# PDF fixture is committed beside it (`pdf_sdls_bbox_v1.xhtml`,
+# `pdf_pics_bbox_v1.xhtml`), and the CI poppler lane re-runs the
+# pinned tool over the committed SDLS PDF and compares the
+# extractor-output digest.
+
+tool_name = "pdftotext"
+version_output = "pdftotext version 25.10.0"
+argv = ["-bbox-layout", "-enc", "UTF-8", "-eol", "unix", "-cropbox", "-q"]
+adapter_version = "1"
+config_digest = "594728c3525725e9c47634ca561b25c7071124b7a6c659bf592fdeab35692182"
+
+[executable_sha256]
+linux_x86_64 = "5306835f5f3f2e3f8e769e10c22fd03787ad03e748d45d92023aa0a285ad7a7f"
+macos_aarch64 = "52a4d7aa2afc1d642a159039f8e24a1ef2bf0854e1dda8ce67ef9b4492f3638e"

@@ -26,6 +26,11 @@
             # The input-scope tests spawn `git` to distinguish a git
             # working tree from a packaged (walk-fallback) source.
             pkgs.gitMinimal
+            # The flake.lock-pinned Poppler for the #222 PDF bbox
+            # extractor lane (`scripts/check-pdf-extractor.sh`):
+            # pins the real `pdftotext -bbox-layout` interface the
+            # committed PDF goldens were generated with.
+            pkgs.poppler-utils
           ];
           shellHook = ''
             export IN_NIX_SHELL=1

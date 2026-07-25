@@ -1,0 +1,95 @@
+evidence/pdf-ingest-output/v1
+nodes = 9
+
+[[node]]
+parent = root
+kind = "section"
+ordinal = 0
+label = "1"
+physical_page = 1
+printed_label = "1"
+bbox = [72, 81.948, 123.366, 94.898]
+text = "1 Scope"
+digest = "93f55ffee61d0ff5258ffc55cdd29303d67d1605a09b5935d99e1679a4892db1"
+
+[[node]]
+parent = 0
+kind = "paragraph"
+ordinal = 0
+physical_page = 1
+printed_label = "1"
+bbox = [72, 112.82, 244.87, 146.07]
+text = "1.1 This document defines the\ninter-\nnational profile of the exchange format."
+digest = "2a4b15801570889ea706ead2d85861a5a1ea90cc5f8586658a104e781f0bce46"
+
+[[node]]
+parent = 0
+kind = "section"
+ordinal = 1
+label = "1.1"
+physical_page = 1
+printed_label = "1"
+bbox = [72, 175.948, 160.704, 188.898]
+text = "1.1 Definitions"
+digest = "ba9f2ecd46affb40be15742848bfa0bd00b3cab185e361fc4efe30d99e2829ce"
+
+[[node]]
+parent = 2
+kind = "paragraph"
+ordinal = 0
+physical_page = 1
+printed_label = "1"
+bbox = [72, 206.82, 209.3, 216.07]
+text = "1.1.1 A datum is a typed value."
+digest = "cff72d5b76ef4084688a28f6be52b3a9ea0984239ee69221f4aa6323015e1f8a"
+
+[[node]]
+parent = 2
+kind = "note"
+ordinal = 1
+physical_page = 1
+printed_label = "1"
+bbox = [72, 224.82, 225.95, 234.07]
+text = "NOTE This note records a caution."
+digest = "7bf5a03c1049724fbd412066f69e2b34a57a4693f4e0d3f0b6b42e3afe49cb97"
+
+[[node]]
+parent = root
+kind = "section"
+ordinal = 1
+label = "2"
+physical_page = 2
+printed_label = "2"
+bbox = [72, 81.948, 170.812, 94.898]
+text = "2 Requirements"
+digest = "243138123c66730ca1c216cdf40c429d1bf70b389becf347202632a54f0d453c"
+
+[[node]]
+parent = 5
+kind = "paragraph"
+ordinal = 0
+physical_page = 2
+printed_label = "2"
+bbox = [72, 144.82, 203.17, 166.07]
+text = "2.1 Left column text reads\nbefore the right column block."
+digest = "2b2197d6e691bda9bf498cb86be5d36dd079907976fbf6750fe70046a51f6660"
+
+[[node]]
+parent = 5
+kind = "figure_caption"
+ordinal = 1
+physical_page = 2
+printed_label = "2"
+bbox = [72, 200.82, 236.5, 210.07]
+text = "Figure 1 Example two-column layout."
+digest = "d67e7d5a3ce8482736cdc1f480d3ee8b4a3b7cce5fd4e76a3cbba27fe29f7f3f"
+
+[[node]]
+parent = 5
+kind = "paragraph"
+ordinal = 2
+physical_page = 2
+printed_label = "2"
+bbox = [320, 144.82, 441.72, 166.07]
+text = "2.2 Right column text reads\nafter the left column block."
+digest = "4ce74bc85618cb96f8079cfd44aa335415ea545e42c130a12a5fb49d4effa144"

@@ -3595,3 +3595,89 @@ with zero findings.
 """
 verification_methods = ["test"]
 traces_to = ["e9c2f3d1-e7f3-4716-a15c-1e493a95b3c0"]
+
+[[requirements]]
+uid = "1676c4f8-4f25-4ed4-b36e-107c8a34ea30"
+id = "HLR-134"
+title = "The PDF extractor tool lock pins the tool identity and the blocking runner executes it offline, bounded, and fail-closed"
+owner = "soi"
+scope = "component"
+description = """
+A strict tool-lock record shall pin the extractor identity:
+tool name, exact version output, per-platform executable
+SHA-256, exact argv, adapter version, and configuration
+digest, under a schema that rejects unknown fields,
+unpinned executables, unsupported platforms, and any
+version, digest, or argv mismatch. The blocking runner
+shall receive an explicit executable path and a verified
+PDF path, shall never search PATH implicitly, shall verify
+the executable digest and `-v` output against the lock
+before parsing the document, and shall invoke exactly
+`-bbox-layout -enc UTF-8 -eol unix -cropbox -q` plus
+explicit input and output paths — any change is a recipe
+change. Execution shall be offline in an isolated
+temporary directory with bounded wall time, stdout and
+stderr capture, output bytes, and produced file count, and
+shall respect PDF permission failures without DRM bypass,
+passwords, or network-capable helpers. Every failure shall
+be typed: spawn, timeout, signal, exit-code,
+missing-output, oversized-output, and cleanup context. The
+library entry point shall carry a `_blocking` suffix, return
+typed errors, and never terminate the process.
+"""
+verification_methods = ["test"]
+traces_to = ["e9c99f03-7be1-4d01-b944-545fa0115cf8"]
+
+[[requirements]]
+uid = "cb239c47-776b-496c-8d6d-06870be49ebf"
+id = "HLR-135"
+title = "The bbox-layout XHTML parser is bounded, disables DTD and external entities, and rejects malformed geometry fail-closed"
+owner = "soi"
+scope = "component"
+description = """
+The parser shall consume the extractor's XHTML with DTD and
+external entity resolution disabled and shall bound XML
+depth, element count, attribute count, coordinate
+magnitude, text bytes, pages, blocks, lines, and words. It
+shall reject malformed XML, entity and encoding attacks,
+non-finite, negative, or out-of-page coordinates, invalid
+page order, missing page dimensions, and unknown structural
+elements, failing closed with page and element context.
+Only the documented Poppler `-bbox-layout` structure —
+document root, page, block, line, word — shall be
+accepted.
+"""
+verification_methods = ["test"]
+traces_to = ["e9c99f03-7be1-4d01-b944-545fa0115cf8"]
+
+[[requirements]]
+uid = "11636dc4-da16-40bc-9b74-05a77a983791"
+id = "HLR-136"
+title = "The PDF structural projection preserves layout geometry in diagnostic locators, reports structural loss explicitly, and recovers only through approved curated patches"
+owner = "soi"
+scope = "component"
+description = """
+The projection shall map the bounded bbox model into the
+canonical candidate-node builder and reconciliation
+contract under an explicit PDF ingestion recipe carrying
+the tool-lock identity and the committed layout rules —
+headers, footers, multi-column reading order, numbered
+headings, paragraphs, notes, and figure captions — so any
+tool, argv, or rule change moves the recipe digest. Page,
+block, line, and word geometry shall land in PDF locators
+as the physical page index, an optional printed page label,
+and a bounding box; PDF positions are diagnostic, never
+permanent identity. The projection shall never dehyphenate
+automatically and shall never claim table rows or cells the
+configured rules cannot prove: unprovable structure shall
+produce deterministic structural-loss diagnostics, and
+recovery shall rely on approved curated patches through the
+typed review contract. The raw extractor-output digest
+shall be an output-identity component beside the recipe,
+input, and output digests, repeated execution under the
+same tool lock shall reproduce identical extractor-output
+and graph digests, and each identity plane shall surface in
+the drift comparison in its own category.
+"""
+verification_methods = ["test"]
+traces_to = ["e9c99f03-7be1-4d01-b944-545fa0115cf8"]

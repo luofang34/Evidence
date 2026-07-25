@@ -32,12 +32,16 @@
 //!
 //! # Planes
 //!
-//! Recipe, verified input, parser output, patch, review, and
-//! effective output compare as separate identities: a targeted
-//! mutation of one plane moves exactly that plane's findings.
-//! Findings sort by category, structural path, and uid under the
-//! report's source document and revision; identical planes return
-//! explicit equality with zero findings.
+//! Recipe, verified input, extractor output, parser output, patch,
+//! review, and effective output compare as separate identities: a
+//! targeted mutation of one plane moves exactly that plane's
+//! findings. The extractor-output plane (PDF only) compares only
+//! when the baseline carries an extractor-output digest; a baseline
+//! without one (a non-PDF revision) skips the plane entirely, so
+//! `None` on the candidate side is drift only against a present
+//! baseline identity. Findings sort by category, structural path,
+//! and uid under the report's source document and revision;
+//! identical planes return explicit equality with zero findings.
 
 use std::collections::BTreeMap;
 
@@ -71,6 +75,10 @@ pub struct DriftBaseline<'a> {
     pub recipe_digest: StructuralContentDigest,
     /// The baseline verified-input identity plane.
     pub input_digest: StructuralContentDigest,
+    /// The baseline extractor-output identity plane (PDF only;
+    /// LLR-183); `None` for non-PDF revisions, which skips the
+    /// plane.
+    pub extractor_output_digest: Option<StructuralContentDigest>,
     /// The committed plane's patch lifecycle evaluations (from
     /// [`evaluate_all_patch_lifecycles`]).
     ///
@@ -93,6 +101,10 @@ pub struct ReingestionCandidate<'a> {
     /// The verified digest of the re-ingested bytes; `None` when
     /// the input was missing or unverifiable upstream.
     pub verified_input_digest: Option<StructuralContentDigest>,
+    /// The candidate extractor-output identity plane (LLR-183);
+    /// `None` when the re-ingestion produced no extractor-output
+    /// identity.
+    pub extractor_output_digest: Option<StructuralContentDigest>,
     /// The candidate parser graph; validated standalone inside.
     pub parser_graph: &'a SourceGraph,
     /// The candidate plane's applicable curated patches.
@@ -178,6 +190,15 @@ pub fn compare_reingestion(
             DriftCategory::VerifiedInputChanged,
             &baseline.input_digest,
             candidate.verified_input_digest.as_ref(),
+        ));
+    }
+    if let Some(baseline_extractor) = &baseline.extractor_output_digest
+        && candidate.extractor_output_digest.as_ref() != Some(baseline_extractor)
+    {
+        findings.push(plane_finding(
+            DriftCategory::ExtractorOutputChanged,
+            baseline_extractor,
+            candidate.extractor_output_digest.as_ref(),
         ));
     }
 

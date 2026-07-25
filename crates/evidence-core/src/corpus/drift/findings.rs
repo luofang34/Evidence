@@ -34,6 +34,10 @@ pub enum DriftCategory {
     /// The candidate verified-input digest moved, or none was
     /// presented (missing or unverifiable upstream).
     VerifiedInputChanged,
+    /// The candidate extractor-output digest moved, or none was
+    /// presented, against a baseline that carries one (PDF only;
+    /// LLR-183).
+    ExtractorOutputChanged,
     /// A candidate node matched no committed identity.
     NodeAdded,
     /// A committed node matched no candidate.
@@ -94,6 +98,7 @@ impl DriftCategory {
         match self {
             DriftCategory::RecipeChangedOrUnavailable => "recipe_changed_or_unavailable",
             DriftCategory::VerifiedInputChanged => "verified_input_changed",
+            DriftCategory::ExtractorOutputChanged => "extractor_output_changed",
             DriftCategory::NodeAdded => "node_added",
             DriftCategory::NodeRemoved => "node_removed",
             DriftCategory::NodeUnreconciled => "node_unreconciled",

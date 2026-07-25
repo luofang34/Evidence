@@ -5409,3 +5409,152 @@ revision, category, structural path, and uid, so
 reordered inputs digest to identical reports.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "fedf8772-4676-4f87-a919-9e18aeb5d155"
+id = "LLR-179"
+title = "the PDF tool-lock record pins tool name, version output, per-platform executable digests, argv, adapter version, and configuration digest under a strict schema"
+owner = "tool"
+traces_to = ["1676c4f8-4f25-4ed4-b36e-107c8a34ea30"]
+modules = ["evidence_core::corpus::ingest::pdf::lock"]
+description = """
+`PdfToolLock` is a serde-strict record
+(`deny_unknown_fields`) carrying the tool name (exactly
+`pdftotext`), the exact `-v` version output, a per-platform
+map of executable SHA-256 digests keyed by a closed
+platform enum, the exact argv prefix
+(`-bbox-layout -enc UTF-8 -eol unix -cropbox -q`), the
+adapter version, and the configuration digest. Parsing
+rejects unknown fields, an empty platform map, malformed
+digests, and any argv entry outside the pinned set; the
+lock's canonical bytes digest under
+`evidence/pdf-tool-lock/v1` so any field change moves the
+recipe identity. `verify_executable` compares the
+candidate executable's SHA-256 against the current
+platform's locked digest and the observed `-v` output
+against the locked version string, failing closed with
+typed mismatch context naming the expected and found
+values.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "d87e583a-7253-4ef5-b941-be8cbf5ca970"
+id = "LLR-180"
+title = "the blocking PDF runner executes the locked extractor offline in an isolated temporary directory with typed bounds and never searches PATH"
+owner = "tool"
+traces_to = ["1676c4f8-4f25-4ed4-b36e-107c8a34ea30"]
+modules = ["evidence_core::corpus::ingest::pdf::runner"]
+description = """
+`run_pdftotext_blocking` receives an explicit executable
+path, an explicit verified PDF input path, and the run
+bounds; it never consults PATH, never passes a shell, never
+passes `-nodrm`, passwords, or network-capable helpers, and
+performs no workspace mutation. The child runs with its
+current directory set to a freshly created isolated
+temporary directory and the pinned argv plus explicit
+input/output paths. Wall time is bounded by a polling wait
+loop; exceeding it kills the child and reports `Timeout`.
+A nonzero exit reports `ExitCode` with the code and bounded
+captured stderr; termination by signal reports `Signal`; a
+spawn failure reports `Spawn`; a missing output file after
+a zero exit reports `MissingOutput`; output bytes beyond
+the bound or more produced files than the single output
+report `OversizedOutput`; temporary-directory cleanup
+failure reports `Cleanup`. The function returns typed
+errors and never calls `process::exit`.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "37e1566b-40b2-4300-9f13-8f414696806a"
+id = "LLR-181"
+title = "the bbox-layout parser bounds the XHTML model, disables entities and DTDs, and rejects malformed geometry with page and element context"
+owner = "tool"
+traces_to = ["cb239c47-776b-496c-8d6d-06870be49ebf"]
+modules = ["evidence_core::corpus::ingest::pdf::bbox"]
+description = """
+`parse_bbox_layout` parses the extractor XHTML through an
+XML parser that never expands DTDs or external entities, and
+strips the exact pinned Poppler XHTML 1.0 Transitional DOCTYPE
+before parsing; any `<!ENTITY` declaration and any other
+`<!DOCTYPE` fails closed. Depth, element count, attribute count, text bytes,
+page count, blocks per page, lines per block, and words per
+line are bounded by explicit constants; each violation
+fails closed naming the bound and the page or element
+context. Only the documented structure is accepted:
+`<html><body><doc>` root, `<page>` with positive finite
+width and height, `<block>`, `<line>`, and `<word>` with
+`xMin`/`yMin`/`xMax`/`yMax` coordinates; unknown structural
+elements, missing dimensions, non-finite or negative
+coordinates, coordinates outside the page extent, word
+counts beyond the bound, and pages out of document order
+each produce a typed error carrying the page index and
+element path. Word text must be valid UTF-8 with no
+replacement-character decoding.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "5efab044-5118-4f3c-93c0-f356a6383a4f"
+id = "LLR-182"
+title = "the PDF projection maps the bounded bbox model into canonical candidate nodes under an explicit recipe and reports structural loss deterministically"
+owner = "tool"
+traces_to = ["11636dc4-da16-40bc-9b74-05a77a983791"]
+modules = ["evidence_core::corpus::ingest::pdf"]
+description = """
+`ingest_pdf` validates the input contract in a documented
+fail-fast order — media type `application/pdf`, verified
+input digest, source-revision uid, canonical path — then
+projects the parsed bbox model into candidate nodes through
+the shared canonical builder, reconciliation, and
+standalone graph validation. The `PdfIngestionRecipe`
+carries the tool-lock digest, the adapter version, and the
+committed layout rules (header and footer y-extents,
+column-split x-coordinate, heading numbering pattern, note
+and caption prefixes) and digests under
+`evidence/pdf-ingestion-recipe/v1`. Reading order sorts
+blocks by column band then y then x; a line whose words
+match the configured heading numbering opens a `section`
+carrying the numbering as label; configured note and
+caption prefixes project as `note` and `figure_caption`;
+header and footer bands drop with a typed diagnostic.
+Word text joins verbatim — never dehyphenated. A block the
+rules cannot classify and any table-shaped block the rules
+cannot prove produce deterministic `PdfIngestDiagnostic`
+entries carrying page, block index, and bounding box, and
+no table row or cell node is ever claimed without a proving
+rule. Every locator is `SourceLocator::Pdf` with the
+1-based physical page, the optional printed page label from
+the configured footer pattern, and the element bounding
+box; positions are diagnostic only. The result carries the
+nodes in reading order, the sorted diagnostics, the raw
+extractor-output digest, and the output digest under the
+`evidence/pdf-ingest-output/v1` projection header.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "229e7a13-e72e-4687-98df-6c237ba4b567"
+id = "LLR-183"
+title = "PDF identity planes — tool lock, recipe, input, extractor output, parser graph, patch, effective graph — each surface in their own drift category"
+owner = "tool"
+traces_to = ["11636dc4-da16-40bc-9b74-05a77a983791"]
+modules = ["evidence_core::corpus::drift"]
+description = """
+The drift comparator gains an extractor-output plane: the
+baseline and candidate each carry an optional
+extractor-output digest, compared exactly like the recipe
+and verified-input planes, and any difference reports
+`ExtractorOutputChanged` with the plane digests while an
+absent candidate digest reports the same category with no
+candidate value. Tool-lock and recipe changes surface
+through the existing recipe plane, input changes through
+the verified-input plane, projection changes through the
+node categories, and patch and effective changes through
+the patch and effective planes; repeated execution under an
+unchanged tool lock yields zero findings. The new category
+sorts into the deterministic finding order immediately
+after `VerifiedInputChanged`.
+"""
+verification_methods = ["test"]

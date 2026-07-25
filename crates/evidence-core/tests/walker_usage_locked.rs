@@ -90,6 +90,11 @@ const ALLOWED_READ_DIR_FILES: &[&str] = &[
     // Single-dir listing of `.github/workflows/*.yml` for the
     // action-version lock gate. Not a recursive walk.
     "tests/workflow_action_versions_locked.rs",
+    // Single-dir listing of the PDF runner's isolated temporary
+    // directory to enforce the exactly-one-output-file bound
+    // (LLR-180). The directory is created empty by the runner
+    // itself, so recursion is impossible.
+    "src/corpus/ingest/pdf/runner.rs",
 ];
 
 /// Substring needles that flag a hand-rolled `fs::read_dir` call.
