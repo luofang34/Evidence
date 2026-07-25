@@ -61,6 +61,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Fetch locked dependency graph
+        shell: bash
+        run: |
+          # Post-#143 every cargo metadata/build/test invocation under
+          # `generate` runs `--locked --offline`. Build/test steps only
+          # populate the registry for their own target closure — the
+          # full metadata resolve also needs the remaining lockfile
+          # entries (other platforms, dev-deps), which a restored
+          # fallback cache may not carry. Warm PR-lane caches made this
+          # latent; a cold push-lane cache makes it fatal after any
+          # lockfile change. `cargo fetch --locked` downloads every
+          # lockfile entry so the offline gates are cache-shape
+          # independent (same remedy as the evidence-self Nix lane).
+          cargo fetch --locked
+
       - name: Format check
         run: cargo fmt --all -- --check
 
@@ -251,6 +266,21 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Fetch locked dependency graph
+        shell: bash
+        run: |
+          # Post-#143 every cargo metadata/build/test invocation under
+          # `generate` runs `--locked --offline`. Build/test steps only
+          # populate the registry for their own target closure — the
+          # full metadata resolve also needs the remaining lockfile
+          # entries (other platforms, dev-deps), which a restored
+          # fallback cache may not carry. Warm PR-lane caches made this
+          # latent; a cold push-lane cache makes it fatal after any
+          # lockfile change. `cargo fetch --locked` downloads every
+          # lockfile entry so the offline gates are cache-shape
+          # independent (same remedy as the evidence-self Nix lane).
+          cargo fetch --locked
 
       - name: Build release binary
         run: cargo build --release -p cargo-evidence
@@ -452,6 +482,21 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Fetch locked dependency graph
+        shell: bash
+        run: |
+          # Post-#143 every cargo metadata/build/test invocation under
+          # `generate` runs `--locked --offline`. Build/test steps only
+          # populate the registry for their own target closure — the
+          # full metadata resolve also needs the remaining lockfile
+          # entries (other platforms, dev-deps), which a restored
+          # fallback cache may not carry. Warm PR-lane caches made this
+          # latent; a cold push-lane cache makes it fatal after any
+          # lockfile change. `cargo fetch --locked` downloads every
+          # lockfile entry so the offline gates are cache-shape
+          # independent (same remedy as the evidence-self Nix lane).
+          cargo fetch --locked
 
       - name: Build release binary
         run: cargo build --release -p cargo-evidence
@@ -676,6 +721,21 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Fetch locked dependency graph
+        shell: bash
+        run: |
+          # Post-#143 every cargo metadata/build/test invocation under
+          # `generate` runs `--locked --offline`. Build/test steps only
+          # populate the registry for their own target closure — the
+          # full metadata resolve also needs the remaining lockfile
+          # entries (other platforms, dev-deps), which a restored
+          # fallback cache may not carry. Warm PR-lane caches made this
+          # latent; a cold push-lane cache makes it fatal after any
+          # lockfile change. `cargo fetch --locked` downloads every
+          # lockfile entry so the offline gates are cache-shape
+          # independent (same remedy as the evidence-self Nix lane).
+          cargo fetch --locked
 
       - name: Build release binary
         run: cargo build --release -p cargo-evidence
@@ -967,6 +1027,21 @@ jobs:
           key: ${{ runner.os }}-cert-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cert-cargo-
+
+      - name: Fetch locked dependency graph
+        shell: bash
+        run: |
+          # Post-#143 every cargo metadata/build/test invocation under
+          # `generate` runs `--locked --offline`. Build/test steps only
+          # populate the registry for their own target closure — the
+          # full metadata resolve also needs the remaining lockfile
+          # entries (other platforms, dev-deps), which a restored
+          # fallback cache may not carry. Warm PR-lane caches made this
+          # latent; a cold push-lane cache makes it fatal after any
+          # lockfile change. `cargo fetch --locked` downloads every
+          # lockfile entry so the offline gates are cache-shape
+          # independent (same remedy as the evidence-self Nix lane).
+          cargo fetch --locked
 
       - name: Build release binary
         run: cargo build --release -p cargo-evidence
@@ -1337,6 +1412,21 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Fetch locked dependency graph
+        shell: bash
+        run: |
+          # Post-#143 every cargo metadata/build/test invocation under
+          # `generate` runs `--locked --offline`. Build/test steps only
+          # populate the registry for their own target closure — the
+          # full metadata resolve also needs the remaining lockfile
+          # entries (other platforms, dev-deps), which a restored
+          # fallback cache may not carry. Warm PR-lane caches made this
+          # latent; a cold push-lane cache makes it fatal after any
+          # lockfile change. `cargo fetch --locked` downloads every
+          # lockfile entry so the offline gates are cache-shape
+          # independent (same remedy as the evidence-self Nix lane).
+          cargo fetch --locked
 
       - name: Build release binary
         run: cargo build --release -p cargo-evidence
