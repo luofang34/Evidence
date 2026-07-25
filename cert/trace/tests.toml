@@ -2777,3 +2777,53 @@ test_selectors = [
     "evidence_core::corpus::ingest::html::tests::entity_and_resolution_constructs_fail_closed",
     "evidence_core::corpus::ingest::html::tests::encoding_size_depth_and_media_type_failures_carry_typed_context",
 ]
+
+[[tests]]
+uid = "4b3aac7a-3daf-42f2-91a8-538bc4c9401b"
+id = "TEST-184"
+title = "curated patch records round-trip strictly and reject unknown fields, newer schemas, malformed uids, duplicate human ids, and invalid bindings"
+owner = "tool"
+traces_to = ["a427f61e-bf12-4583-97f8-98340e2c33ee"]
+test_selectors = [
+    "evidence_core::corpus::source_patch::tests::patch_record_round_trips_and_rejects_unknown_fields_and_newer_schema",
+    "evidence_core::corpus::source_patch::tests::patch_uid_and_human_id_contract_enforced",
+    "evidence_core::corpus::source_patch::tests::patch_bindings_metadata_and_operation_fields_validated",
+]
+
+[[tests]]
+uid = "ba98b7dd-342e-4eea-8515-24ad68c39ca4"
+id = "TEST-185"
+title = "golden canonical patch bytes and reviewed-content digest byte-lock the patch intent and reordered record files digest identically"
+owner = "tool"
+traces_to = ["f7cc4989-b16f-4a56-a518-706683eda601"]
+test_selectors = [
+    "corpus_source_patch::golden_canonical_patch_bytes_and_reviewed_content_digest",
+    "evidence_core::corpus::source_patch::tests::reordered_operations_and_metadata_stay_outside_semantic_identity",
+    "evidence_core::corpus::source_patch::tests_apply::reordered_record_files_produce_identical_patch_sets_and_results",
+]
+
+[[tests]]
+uid = "2cfb8ee7-eb17-430c-8a56-96e80c02555d"
+id = "TEST-186"
+title = "every operation succeeds under exact preconditions and stale, conflicting, cross-document, dangling, cascade, and invalid-post-graph cases fail closed atomically"
+owner = "tool"
+traces_to = ["dee14942-5ba7-4d15-9e9e-30698c3560ab"]
+test_selectors = [
+    "evidence_core::corpus::source_patch::tests::each_operation_applies_under_exact_preconditions_and_fails_closed_when_stale",
+    "evidence_core::corpus::source_patch::tests::conflicts_duplicates_cross_document_dangling_cascade_and_invalid_post_graph_are_typed_errors",
+    "evidence_core::corpus::source_patch::tests::application_is_atomic_and_leaves_the_original_graph_untouched",
+]
+
+[[tests]]
+uid = "37b76586-6891-405a-84d9-6bec2d4f489e"
+id = "TEST-187"
+title = "the PICS-shaped correction restores the intended table ancestry and canonical digests with parser, patch, and candidate planes separately inspectable"
+owner = "tool"
+traces_to = [
+    "dee14942-5ba7-4d15-9e9e-30698c3560ab",
+    "4d6c989d-032b-4c5a-8c03-963440ea987e",
+]
+test_selectors = [
+    "corpus_source_patch::pics_shaped_correction_restores_table_ancestry_and_canonical_digest",
+    "corpus_source_patch::parser_patch_and_candidate_planes_are_separately_inspectable",
+]

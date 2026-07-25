@@ -1677,3 +1677,49 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "c12a4840-18c5-4619-9251-d63cf772be92"
+id = "SYS-054"
+title = "Digest-bound curated source-graph patch records correct parser output without mutating frozen sources"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall define a strict, deterministic curated-patch
+artifact that corrects parser output in the committed source
+graph without editing frozen source bytes and without hiding
+parser loss. Every patch shall carry a permanent
+`patch_<UUIDv4>` identity and a human id unique within the
+curated-patch kind, and shall bind exactly one source-revision
+uid, the exact ingester recipe digest, the exact verified
+input digest, and the exact pre-patch canonical graph digest.
+A reviewed-content digest shall cover the canonical patch
+intent — the ordered operations and all preconditions — while
+author, rationale, and creation metadata stay outside semantic
+identity. The operation language shall be a closed enum, never
+generic JSON Patch: replacing canonical text or label against
+an expected prior content digest; reclassifying a node kind
+against an explicit expected prior kind; reparenting or
+reordering a node against an expected prior parent and
+ordinal; inserting a fully specified curated node under an
+expected parent; and removing a node only against an expected
+digest with an explicit child disposition. Duplicate or
+conflicting operations, implicit cascades, dangling targets,
+cross-document edits, and ambiguous application order shall be
+rejected. Application shall validate the parser graph first,
+check every precondition before changing any node, apply
+operations in canonical ordinal order atomically, and re-run
+the complete source-graph validator, recording the pre-patch,
+patch, and post-patch digests. Parser output and patch records
+shall remain separately inspectable planes so curated content
+can never be mistaken for raw extraction; this issue exposes
+validation, canonical digesting, and candidate application
+only — no review-lifecycle change and no approval-gated
+effective graph. A patch is data in the committed corpus and
+shall never mutate the frozen source record or `sources.lock`.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []

@@ -3370,3 +3370,84 @@ ingestion returns.
 """
 verification_methods = ["test"]
 traces_to = ["35722c16-8745-4f84-a130-3c6fdfb50d99"]
+
+[[requirements]]
+uid = "489a55d6-33bb-4762-a546-a375de93ffe7"
+id = "HLR-126"
+title = "Curated patch identity binds one source revision, the recipe, input, and pre-patch graph digests under a reviewed-content digest"
+owner = "tool"
+scope = "component"
+description = """
+A curated patch record shall carry a permanent
+`patch_<UUIDv4>` uid and a human id unique within the
+curated-patch kind, and shall bind exactly one
+`src_<UUIDv4>` source-revision uid, the exact ingester
+recipe digest, the exact verified input digest, and the
+exact pre-patch canonical graph digest; stale bindings
+shall fail closed at candidate application. A
+reviewed-content digest shall cover the canonical patch
+intent — the ordered operations and every precondition —
+under a domain-tagged, length-prefixed encoding disjoint
+from every other corpus encoding; author, rationale, and
+creation metadata shall stay outside semantic identity.
+The record schema shall be strict and schema-version
+gated: unknown fields and newer schemas fail closed, and
+a patch is data in the committed corpus that never
+mutates the frozen source record or `sources.lock`.
+"""
+verification_methods = ["test"]
+traces_to = ["c12a4840-18c5-4619-9251-d63cf772be92"]
+
+[[requirements]]
+uid = "8fbe8ec4-172a-41ce-9754-5331b86e16ff"
+id = "HLR-127"
+title = "The patch operation language is a closed enum with explicit preconditions and deterministic results"
+owner = "tool"
+scope = "component"
+description = """
+Patch operations shall be a closed serde-tagged enum —
+excluded capabilities are unrepresentable, never merely
+rejected — covering exactly: replacing canonical text or
+label against an expected prior content digest;
+reclassifying a node kind against an explicit expected
+prior kind; reparenting or reordering a node against an
+expected prior parent and ordinal; inserting a fully
+specified curated node under an expected parent; and
+removing a node only against an expected digest with an
+explicit child disposition. Every operation shall carry
+an ordinal, its target and precondition context, and a
+deterministic result. Duplicate or conflicting
+operations, implicit cascades, dangling targets,
+cross-document edits, and ambiguous application order
+shall each fail closed with a typed error naming the
+offending operation.
+"""
+verification_methods = ["test"]
+traces_to = ["c12a4840-18c5-4619-9251-d63cf772be92"]
+
+[[requirements]]
+uid = "c663d7a6-29af-4675-b7f3-2dd6b8dedd3b"
+id = "HLR-128"
+title = "Candidate patch application is atomic, precondition-checked, and records pre-patch, patch, and post-patch digests on separate planes"
+owner = "tool"
+scope = "component"
+description = """
+Applying a curated patch shall validate the parser graph
+before any change, check every operation precondition
+against the exact prior state, apply operations in
+canonical ordinal order, and re-run the complete
+source-graph validator over the result; any failure
+shall leave the original graph byte-identical. The
+application record shall carry the pre-patch canonical
+graph digest, the patch reviewed-content digest, and the
+post-patch canonical graph digest. Parser output, patch
+records, and candidate application results shall remain
+separately inspectable planes so curated content can
+never be mistaken for raw extraction. This milestone
+shall expose validation, canonical digesting, and
+candidate application only: no review-lifecycle change,
+no approval authority, no approval-gated effective
+committed graph, and no workspace overwrite.
+"""
+verification_methods = ["test"]
+traces_to = ["c12a4840-18c5-4619-9251-d63cf772be92"]
