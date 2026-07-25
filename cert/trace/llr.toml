@@ -5476,8 +5476,9 @@ modules = ["evidence_core::corpus::ingest::pdf::bbox"]
 description = """
 `parse_bbox_layout` parses the extractor XHTML through an
 XML parser that never expands DTDs or external entities, and
-rejects any `<!DOCTYPE` or `<!ENTITY` declaration before
-parsing. Depth, element count, attribute count, text bytes,
+strips the exact pinned Poppler XHTML 1.0 Transitional DOCTYPE
+before parsing; any `<!ENTITY` declaration and any other
+`<!DOCTYPE` fails closed. Depth, element count, attribute count, text bytes,
 page count, blocks per page, lines per block, and words per
 line are bounded by explicit constants; each violation
 fails closed naming the bound and the page or element

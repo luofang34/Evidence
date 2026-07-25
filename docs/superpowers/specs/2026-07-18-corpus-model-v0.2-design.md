@@ -160,6 +160,19 @@ OIDC Core: an RFC 2119 notation section, monospace-means-literal, and
 Terminology definitions that are normative without any capitalized
 keyword — unreachable from a text dump or a modal-verb regex.
 
+PDF ingestion (M4.6) is layout-aware but honest about loss: a
+pinned, offline Poppler `pdftotext -bbox-layout` adapter (strict
+tool lock, explicit executable path, bounded isolated execution)
+projects page/block/line/word geometry into candidate nodes under
+committed recipe rules (headers, footers, columns, numbered
+headings, notes, captions), preserves physical page, optional
+printed label, and bounding box as diagnostic locators, and never
+dehyphenates. Table rows/cells are never inferred: unprovable
+structure reports deterministic structural-loss diagnostics and
+recovers only through approved curated patches. The raw
+extractor-output digest is an output-identity component with its
+own drift category.
+
 ## DD-10 — Requirement records
 
 `layer = source | sys | hlr | llr`. A requirement may cite multiple
