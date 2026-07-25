@@ -96,11 +96,18 @@ pub use graph::{
     TestNode,
 };
 pub use index::{CorpusIndex, SUPPORTED_INDEX_SCHEMA};
+pub use ingest::pdf::bbox::{BboxDocument, BboxParseError, parse_bbox_layout};
+pub use ingest::pdf::lock::{
+    PDF_TOOL_NAME, PINNED_ARGV, PdfPlatform, PdfToolLock, PdfToolLockError,
+};
+pub use ingest::pdf::runner::{PdfExtraction, PdfRunBounds, PdfRunError, run_pdftotext_blocking};
 pub use ingest::{
     HTML_MEDIA_TYPE, HtmlIngestDiagnostic, HtmlIngestDiagnosticKind, HtmlIngestError,
     HtmlIngestion, HtmlIngestionRecipe, IngestDiagnostic, IngestDiagnosticKind, IngestError,
-    IngestHtmlInput, IngestMarkdownInput, IngesterRecipe, MARKDOWN_MEDIA_TYPE, MarkdownIngestion,
-    ingest_html, ingest_markdown,
+    IngestHtmlInput, IngestMarkdownInput, IngestPdfInput, IngesterRecipe, MARKDOWN_MEDIA_TYPE,
+    MarkdownIngestion, PDF_MEDIA_TYPE, PdfExcludedBand, PdfIngestDiagnostic,
+    PdfIngestDiagnosticKind, PdfIngestError, PdfIngestion, PdfIngestionRecipe, PdfLayoutRules,
+    ingest_html, ingest_markdown, ingest_pdf,
 };
 pub use legacy::graph_from_trace_files;
 pub(crate) use legacy::graph_from_trace_parts;
