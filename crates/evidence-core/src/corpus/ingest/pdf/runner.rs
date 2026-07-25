@@ -291,11 +291,15 @@ fn run_in_dir(
     let stdout = drain_bounded(child.stdout.take(), bounds.max_stdout_bytes);
     let stderr = drain_bounded(child.stderr.take(), bounds.max_stderr_bytes);
     let wait = wait_with_timeout_io(&mut child, bounds.timeout);
-    let captured_stdout = stdout.join().unwrap_or_default();
-    let captured_stderr = stderr.join().unwrap_or_default();
     let status = match wait {
         Ok(status) => status,
-        Err(PdfRunError::Timeout { timeout }) => return Err(PdfRunError::Timeout { timeout }),
+        Err(PdfRunError::Timeout { timeout }) => {
+            // Do not join the drain threads here: a killed child's
+            // orphaned grandchildren can hold the pipes open, and
+            // joining would block on them, defeating the bound.
+            // The threads detach and finish when the pipes close.
+            return Err(PdfRunError::Timeout { timeout });
+        }
         Err(PdfRunError::Spawn { source, .. }) => {
             // A plain wait failure is spawn-adjacent.
             drop(child.kill());
@@ -307,6 +311,8 @@ fn run_in_dir(
         }
         Err(other) => return Err(other),
     };
+    let captured_stdout = stdout.join().unwrap_or_default();
+    let captured_stderr = stderr.join().unwrap_or_default();
     if captured_stdout.len() > bounds.max_stdout_bytes {
         return Err(PdfRunError::OversizedOutput {
             what: "stdout-bytes",

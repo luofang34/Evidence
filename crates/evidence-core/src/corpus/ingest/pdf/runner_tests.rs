@@ -8,10 +8,12 @@ use std::time::Duration;
 
 use super::*;
 
-/// Tight bounds keeping the failure cases fast.
+/// Bounds keeping the failure cases fast: a generous wall clock
+/// for the happy paths (parallel test load can delay spawn), so
+/// only the dedicated timeout case uses a tight bound.
 fn test_bounds() -> PdfRunBounds {
     PdfRunBounds {
-        timeout: Duration::from_millis(500),
+        timeout: Duration::from_secs(20),
         max_stdout_bytes: 64 * 1024,
         max_stderr_bytes: 64 * 1024,
         max_output_bytes: 64 * 1024,
@@ -101,9 +103,13 @@ mod unix {
     #[test]
     fn runner_bounds_timeout_and_output_limits() {
         // Timeout: the child is killed and reaped.
-        let (_dir, exe, input) = fake("#!/bin/sh\nsleep 10\n");
+        let (_dir, exe, input) = fake("#!/bin/sh\nsleep 60\n");
+        let bounds = PdfRunBounds {
+            timeout: Duration::from_millis(500),
+            ..test_bounds()
+        };
         let error =
-            run_pdftotext_blocking(&exe, &input, &test_bounds()).expect_err("slow child times out");
+            run_pdftotext_blocking(&exe, &input, &bounds).expect_err("slow child times out");
         assert!(matches!(error, PdfRunError::Timeout { .. }));
 
         // Output bytes beyond the bound fail closed.

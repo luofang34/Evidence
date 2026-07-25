@@ -167,7 +167,7 @@ fn sdls_projection_classifies_sections_notes_captions_and_bands() {
 fn page2_bbox(node: &SourceNode) -> [f64; 4] {
     match &node.locator {
         crate::corpus::SourceLocator::Pdf { bbox, .. } => *bbox,
-        _ => panic!("pdf locator"),
+        other => unreachable!("pdf nodes carry pdf locators, got {other:?}"),
     }
 }
 
