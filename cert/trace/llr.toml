@@ -5305,3 +5305,99 @@ typed error carrying the full source chain. Agent-facing
 surfaces gain no approval or rejection capability.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "fa33f7b4-cf2f-4cce-880b-720e5515d83f"
+id = "LLR-176"
+title = "compare_reingestion is a pure read-only API that refuses invalid prerequisites with typed context"
+owner = "tool"
+traces_to = ["15844f5e-54c7-49e3-abda-ce438d758902"]
+modules = ["evidence_core::corpus::drift"]
+description = """
+`corpus::drift::compare_reingestion` takes the committed
+corpus graph with the baseline recipe and verified-input
+digests, the candidate recipe identity, verified-input
+digest, parser graph, patch set, and both planes' patch
+review evaluations, and returns a typed `DriftReport`.
+The function is pure: no I/O, no environment reads, no
+mutable state, no writes of any kind. Prerequisite
+validation runs first in a documented order: the
+committed corpus graph must pass `CorpusGraph::validate`,
+the named source revision must exist, the candidate
+parser graph must pass the standalone source-graph
+validator under the revision's media type, and every
+committed and candidate patch must carry a review
+evaluation; the first failure refuses the comparison
+through a flat typed `DriftError` naming the broken
+prerequisite, before any finding is computed. The
+function never mints committed identities, never applies
+unapproved patches, never mutates any input, and leaves
+every input byte-identical.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "431fa97f-5663-41b4-8d06-f9b11840f30b"
+id = "LLR-177"
+title = "node-plane drift reconciles candidates through structural keys and reports per-field and locator categories"
+owner = "tool"
+traces_to = ["f3b490ad-a4dc-409f-bc81-799b024bbdca"]
+modules = ["evidence_core::corpus::drift"]
+description = """
+Candidate nodes reconcile against the committed graph
+through the `identity` module's structural-key
+reconciliation; minted throwaway uids for unmatched
+candidates never escape into findings. A matched pair
+compares kind, parent, ordinal, label, canonical text,
+content digest, structural fingerprint, and the semantic
+locator fields (path or canonical URL, anchor or
+fragment, heading path, locator variant), each change
+its own closed `DriftCategory`; diagnostic-only position
+fields (byte range, DOM path, page, bounding box,
+printed label, final URL, git blob) report only the
+distinct `DiagnosticLocatorMoved` category and never a
+semantic one. A committed node no candidate matched is
+`NodeRemoved`; an unmatched candidate is `NodeAdded`,
+keyed by its candidate identity and structural path; a
+structural key claimed by more than one committed node
+is formally ambiguous, so every candidate consuming such
+a pool reports `NodeUnreconciled` instead of a
+field-level comparison. Findings carry the node uid, a
+deterministic structural path, and the old and new
+values of the changed field.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "057c5161-3850-4390-b6cc-0eb707d7e029"
+id = "LLR-178"
+title = "patch, review, and effective planes report closed categories with aggregate safety and explicit equality"
+owner = "tool"
+traces_to = ["f3b490ad-a4dc-409f-bc81-799b024bbdca"]
+modules = ["evidence_core::corpus::drift"]
+description = """
+Patch drift compares the two planes by patch uid:
+committed-only is `PatchRemoved`, candidate-only is
+`PatchAdded`, a moved reviewed-content digest is
+`PatchChanged`, a candidate evaluation of `Stale` is
+`PatchStale`, of `Rejected` is `PatchRejected`, and a
+patch whose reviewed-content digest does not recompute
+or whose approved application against the candidate
+graph fails is `PatchUnappliable` — each a per-item
+finding that never suppresses later findings. A
+differing evaluated lifecycle state between the planes
+is `ReviewStateChanged`. The effective plane applies
+each side's approved patches in uid order over its
+parser graph — candidate, rejected, and stale patches
+never contribute, and a failed approved candidate patch
+is excluded after its `PatchUnappliable` finding — and
+compares the canonical graph digests, reporting
+`EffectiveGraphChanged` on any difference. Recipe and
+verified-input planes compare their digests, with an
+absent candidate identity reported as changed or
+unavailable. Zero findings yields explicit equality;
+otherwise findings sort by source document, source
+revision, category, structural path, and uid, so
+reordered inputs digest to identical reports.
+"""
+verification_methods = ["test"]

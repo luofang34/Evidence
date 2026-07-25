@@ -2881,3 +2881,43 @@ test_selectors = [
     "evidence_core::corpus::approval_boundary::patch_plane_tests::effective_curated_content_proven_approved",
     "corpus_review_targets::approved_patch_affects_effective_graph_candidate_rejected_stale_never_do",
 ]
+
+[[tests]]
+uid = "c08a9a8f-5262-4686-8dbb-c1ea3d3a754f"
+id = "TEST-192"
+title = "identical planes return explicit equality, reordered layouts and maps yield zero findings, and the golden findings byte-lock the sorted report"
+owner = "tool"
+traces_to = ["057c5161-3850-4390-b6cc-0eb707d7e029"]
+test_selectors = [
+    "corpus_drift::identical_planes_return_explicit_equality",
+    "corpus_drift::reordered_layouts_and_maps_produce_zero_findings",
+    "corpus_drift::golden_findings_stable_across_runs_and_equivalent_layouts",
+]
+
+[[tests]]
+uid = "5abe1198-5b67-4496-8c38-d2260ab5e85b"
+id = "TEST-193"
+title = "targeted mutations exercise every drift category independently, locator changes split semantic from diagnostic, and node reconciliation stays deterministic"
+owner = "tool"
+traces_to = ["431fa97f-5663-41b4-8d06-f9b11840f30b"]
+test_selectors = [
+    "corpus_drift::every_category_fires_independently",
+    "corpus_drift::semantic_and_diagnostic_locator_changes_are_distinct",
+    "corpus_drift::added_removed_reordered_nodes_reconcile_deterministically",
+]
+
+[[tests]]
+uid = "e5265bff-9ed0-4e4d-85aa-31c481786ef8"
+id = "TEST-194"
+title = "invalid prerequisites fail before comparison, one malformed patch never suppresses later findings, and comparison leaves every input byte-identical"
+owner = "tool"
+traces_to = [
+    "fa33f7b4-cf2f-4cce-880b-720e5515d83f",
+    "057c5161-3850-4390-b6cc-0eb707d7e029",
+]
+test_selectors = [
+    "corpus_drift::invalid_prerequisites_fail_before_comparison",
+    "corpus_drift::malformed_patch_never_suppresses_later_findings",
+    "corpus_drift::stale_unapproved_patches_never_alter_effective_output",
+    "corpus_drift::comparison_leaves_inputs_byte_identical",
+]

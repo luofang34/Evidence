@@ -1767,3 +1767,47 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "e9c2f3d1-e7f3-4716-a15c-1e493a95b3c0"
+id = "SYS-056"
+title = "Re-ingestion drift comparison is deterministic, read-only, and categorized, and never overwrites the reviewed baseline"
+owner = "soi"
+scope = "soi"
+description = """
+Re-ingesting verified frozen inputs under an explicitly
+identified recipe shall produce a candidate parser, patch,
+and effective-graph plane that the tool compares against
+the committed baseline as a read-only drift lint — never
+as a source of truth and never as a baseline rewrite. The
+comparison shall refuse to run when any prerequisite is
+invalid — the committed baseline graph, the source
+lineage, the candidate parser graph, the patch set, or the
+review graph — failing closed with typed context before
+any finding is emitted. Drift shall be reported in closed,
+typed categories covering recipe, verified input, node
+addition, removal, and reconciliation failure, per-field
+node changes, diagnostic locator movement, curated-patch
+addition, removal, change, staleness, rejection, and
+inapplicability, review-state change, effective-graph
+change, and explicit output equality; semantic locator
+changes and diagnostic-position changes shall be distinct
+categories. Findings shall be deterministically sorted,
+and equivalent inputs and recipes shall produce zero
+findings regardless of linked-file layout, parser event
+order, map order, or review-record order; timestamps,
+absolute paths, and file layout shall never count as
+semantic drift. One malformed node or patch shall not hide
+later independent findings where aggregate reporting is
+safe. The comparison shall be a core read-only API: it
+shall never mint committed identities, apply unapproved
+patches, mutate any graph, rewrite source files, or update
+sources.lock, and it shall leave every input
+byte-identical; any human-authorized baseline write and
+all CLI/MCP presentation belong to the surface milestone.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []
