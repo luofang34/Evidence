@@ -20,7 +20,12 @@
 //! candidate-approved patches in uid order over the candidate
 //! parser graph through the atomic application contract —
 //! candidate, rejected, and stale patches never contribute, and a
-//! failed approved patch is excluded after its finding. The
+//! failed approved patch is excluded after its finding. Only
+//! patches present in both planes participate: a candidate-only
+//! patch reports `PatchAdded` and never applies, while a
+//! committed-only patch reports `PatchRemoved` and still
+//! contributes to the committed effective graph when approved, so
+//! removing an approved patch reports effective-graph drift. The
 //! committed graph is never touched; application works on a clone.
 
 use std::collections::{BTreeMap, BTreeSet};

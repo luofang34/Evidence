@@ -22,7 +22,8 @@ use super::super::source_graph::error::SourceGraphError;
 /// [`compare_reingestion`](super::compare_reingestion) (LLR-176).
 #[derive(Debug, Error)]
 pub enum DriftError {
-    /// The committed corpus graph failed [`CorpusGraph::validate`]
+    /// The committed corpus graph failed
+    /// [`CorpusGraph::validate`](super::super::graph::CorpusGraph::validate)
     /// before comparison; the [`CorpusError`] is carried whole as
     /// the typed source.
     #[error("committed baseline corpus graph failed validation: {0}")]
