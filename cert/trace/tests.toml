@@ -2932,3 +2932,72 @@ test_selectors = [
     "corpus_drift_planes::stale_unapproved_patches_never_alter_effective_output",
     "corpus_drift_planes::comparison_leaves_inputs_byte_identical",
 ]
+
+[[tests]]
+uid = "3f99c6bb-bde9-4347-a1e3-83d88a09b247"
+id = "TEST-195"
+title = "the PDF tool-lock schema rejects unknown fields, unpinned executables, unsupported platforms, and version, digest, or argv mismatches"
+owner = "tool"
+traces_to = ["fedf8772-4676-4f87-a919-9e18aeb5d155"]
+test_selectors = [
+    "evidence_core::corpus::ingest::pdf::lock::tests::tool_lock_schema_rejects_unknown_fields_and_unpinned",
+    "evidence_core::corpus::ingest::pdf::lock::tests::verify_executable_rejects_digest_and_version_mismatch",
+    "corpus_ingest_pdf::tool_lock_golden_digest_is_stable",
+]
+
+[[tests]]
+uid = "c3b86bf5-31dd-4215-b742-923167b0b5c7"
+id = "TEST-196"
+title = "the blocking runner reports spawn, exit-code, timeout, signal, missing-output, oversized-output, and cleanup context, and never searches PATH or mutates the workspace"
+owner = "tool"
+traces_to = ["d87e583a-7253-4ef5-b941-be8cbf5ca970"]
+test_selectors = [
+    "evidence_core::corpus::ingest::pdf::runner::tests::runner_success_and_typed_failures",
+    "evidence_core::corpus::ingest::pdf::runner::tests::runner_bounds_timeout_and_output_limits",
+    "corpus_ingest_pdf::runner_uses_no_path_lookup_and_leaves_workspace_untouched",
+]
+
+[[tests]]
+uid = "1cda869d-9066-4bed-a663-ae3fb7504d81"
+id = "TEST-197"
+title = "XML entity, depth, count, encoding, coordinate, and page-order attacks fail closed with page and element context"
+owner = "tool"
+traces_to = ["37e1566b-40b2-4300-9f13-8f414696806a"]
+test_selectors = [
+    "evidence_core::corpus::ingest::pdf::bbox::tests::entity_and_doctype_attacks_fail_closed",
+    "evidence_core::corpus::ingest::pdf::bbox::tests::depth_count_and_encoding_bounds_fail_closed",
+    "evidence_core::corpus::ingest::pdf::bbox::tests::coordinate_and_page_order_attacks_fail_closed",
+]
+
+[[tests]]
+uid = "6605d30a-32b0-4959-836e-bcf31ec7550d"
+id = "TEST-198"
+title = "the SDLS fixture projects to golden canonical nodes with correct printed and physical page locators and repeated execution reproduces identical digests"
+owner = "tool"
+traces_to = ["5efab044-5118-4f3c-93c0-f356a6383a4f"]
+test_selectors = [
+    "corpus_ingest_pdf::sdls_fixture_produces_golden_canonical_nodes",
+    "corpus_ingest_pdf::repeated_execution_reproduces_extractor_and_graph_digests",
+]
+
+[[tests]]
+uid = "85064ce7-11fa-49f8-82e2-fbb4457ead8d"
+id = "TEST-199"
+title = "raw PICS extraction reports structural loss and only the approved curated patch restores effective table rows and cells"
+owner = "tool"
+traces_to = ["5efab044-5118-4f3c-93c0-f356a6383a4f"]
+test_selectors = [
+    "corpus_ingest_pdf::pics_raw_extraction_reports_structural_loss",
+    "corpus_ingest_pdf::approved_patch_restores_effective_table_rows_and_cells",
+]
+
+[[tests]]
+uid = "5bc37c1a-8877-4c16-aec2-f94382eb01ce"
+id = "TEST-200"
+title = "tool, recipe, input, extractor-output, parser-graph, patch, and effective changes surface in their correct drift planes"
+owner = "tool"
+traces_to = ["229e7a13-e72e-4687-98df-6c237ba4b567"]
+test_selectors = [
+    "corpus_ingest_pdf::extractor_output_change_reports_its_own_drift_category",
+    "corpus_drift_categories::every_category_fires_independently",
+]

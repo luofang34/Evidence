@@ -1811,3 +1811,60 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "e9c99f03-7be1-4d01-b944-545fa0115cf8"
+id = "SYS-057"
+title = "Pinned offline Poppler bbox-layout ingestion converts verified frozen PDF bytes into layout-aware candidate nodes with explicit structural loss and reviewed recovery"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall ingest verified frozen PDF bytes into
+layout-aware candidate structural source nodes through a
+pinned, offline Poppler `pdftotext -bbox-layout` adapter.
+The extractor shall be locked by a strict tool-lock record
+— tool name, exact version output, per-platform executable
+SHA-256, exact argv, adapter version, and configuration
+digest — and the runner shall receive an explicit
+executable path and verified PDF path, never search PATH,
+verify the executable digest and version output before
+parsing, invoke exactly the pinned argv, and run offline in
+an isolated temporary directory with bounded time, output
+bytes, and file count, failing closed with typed spawn,
+timeout, signal, exit-code, missing-output,
+oversized-output, and cleanup context. PDF permission
+failures shall be respected: no DRM bypass, no passwords,
+no network-capable helpers. The extractor's XHTML output
+shall be parsed with DTD and external entity resolution
+disabled and bounded in depth, element count, attribute
+count, coordinate magnitude, text bytes, pages, blocks,
+lines, and words, rejecting malformed, non-finite,
+negative, or out-of-page coordinates, invalid page order,
+missing dimensions, unknown structural elements, and
+encoding violations with page and element context. The
+projection shall preserve page, block, line, and word
+geometry in diagnostic PDF locators — physical page index,
+optional printed page label, bounding box — under committed
+recipe rules for headers, footers, multi-column reading
+order, numbered headings, paragraphs, notes, and figure
+captions, shall never dehyphenate automatically, and shall
+never claim inferred table rows or cells the configured
+rules cannot prove, emitting deterministic structural-loss
+diagnostics instead; recovery of parser-hostile structure
+shall rely on approved curated patches through the review
+contract. The raw extractor-output digest shall be an
+output-identity component, repeated execution under the
+same tool lock shall produce identical extractor-output and
+graph digests, and tool, configuration, input,
+extractor-output, parser-graph, patch, and effective-graph
+changes shall surface in their correct drift planes. The
+adapter shall be a pure core library API with typed errors:
+no OCR, no live fetching, no automatic table understanding,
+no arbitrary shell command templates, no process
+termination, and no baseline replacement.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []
