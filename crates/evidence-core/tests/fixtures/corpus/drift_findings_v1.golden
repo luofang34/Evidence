@@ -1,0 +1,44 @@
+evidence/reingestion-drift/v1
+source_document = "docs/doc.md"
+source_revision_uid = "src_00000000-0000-4000-8000-0000000000a1"
+outcome = drifted
+findings = 6
+
+[[finding]]
+category = "recipe_changed_or_unavailable"
+baseline_digest = "031c3e66520eccbaf7337e1604f9d9db0401b3054542934ca23cdeaac21a02f0"
+candidate_digest = "3cc718ef4ab45808aad00a29a30b97496c0f5e33a477ebe1006cd96d69d53dab"
+
+[[finding]]
+category = "node_canonical_text_changed"
+structural_path = "1 Intro/paragraph[0]"
+node_uid = "snode_00000000-0000-4000-8000-0000000000d2"
+field = "canonical_text"
+committed = "hello"
+candidate = "goodbye"
+
+[[finding]]
+category = "node_content_digest_changed"
+structural_path = "1 Intro/paragraph[0]"
+node_uid = "snode_00000000-0000-4000-8000-0000000000d2"
+field = "content_sha256"
+committed = "b1ef48bffd56eb0fe937975ef328d135ee5a63a65f8a94d22507a107511d0e62"
+candidate = "48922c89eb11be2419e27027f60a7e71c776144ea83712b2d983376b1cafb3fb"
+
+[[finding]]
+category = "diagnostic_locator_moved"
+structural_path = "1 Intro/note[1]"
+node_uid = "snode_00000000-0000-4000-8000-0000000000d3"
+field = "diagnostic_fields"
+committed = "byte_range = [61, 70]"
+candidate = "byte_range = [61, 75]"
+
+[[finding]]
+category = "patch_unappliable"
+patch_uid = "patch_00000000-0000-4000-8000-0000000000b1"
+failure = "curated patch patch_00000000-0000-4000-8000-0000000000b1 is stale: recipe_digest is 3cc718ef4ab45808aad00a29a30b97496c0f5e33a477ebe1006cd96d69d53dab, but the patch was curated against 031c3e66520eccbaf7337e1604f9d9db0401b3054542934ca23cdeaac21a02f0"
+
+[[finding]]
+category = "effective_graph_changed"
+committed_effective = "8d30d7b41bc9fc0636b52dfd9524d86905676f0b6168bafe493ba3332287814b"
+candidate_effective = "9ce14f2e8962ae9b1968cc9e683052ffe66021cdc69cb94a7d8456dc0ca4f3b5"
