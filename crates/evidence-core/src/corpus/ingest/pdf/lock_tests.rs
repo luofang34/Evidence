@@ -36,7 +36,10 @@ fn tool_lock_schema_rejects_unknown_fields_and_unpinned() {
     ));
 
     // Unsupported platform keys fail closed.
-    let bad_platform = to_toml(&valid).replace("macos_aarch64", "plan9_pdp11");
+    let current_key = PdfPlatform::current()
+        .expect("supported test platform")
+        .as_str();
+    let bad_platform = to_toml(&valid).replace(current_key, "plan9_pdp11");
     assert!(matches!(
         PdfToolLock::from_toml(&bad_platform),
         Err(PdfToolLockError::RecordParse { .. })
