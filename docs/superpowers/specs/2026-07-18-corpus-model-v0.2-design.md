@@ -102,7 +102,12 @@ registry entries with an availability status — trackable and lintable.
 Ingesters are reproducible given (frozen bytes, pinned tool + version) —
 not deterministic-forever; extractor identity and version are recorded on
 the source record. The committed source graph is the reviewed artifact;
-re-ingestion is a drift lint, not the source of truth. Where a parser
+re-ingestion is a drift lint, not the source of truth: a deterministic
+read-only comparison (M4.5) reconciles the candidate parser graph to
+committed identities and reports recipe, input, node, patch, review,
+and effective-plane drift in closed sorted categories without ever
+overwriting the baseline; surface presentation and any
+human-authorized baseline write belong to M7. Where a parser
 fails structurally (PDF tables, notably PICS), a reviewed `curated` patch
 layer corrects parser output; patches are first-class records with the
 same review lifecycle. A patch is data in the committed corpus with a

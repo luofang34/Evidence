@@ -3528,3 +3528,70 @@ approve, reject, or mutate baseline review records.
 """
 verification_methods = ["test"]
 traces_to = ["dcf27ecb-7196-4564-adf6-f6f97c42f192"]
+
+[[requirements]]
+uid = "15844f5e-54c7-49e3-abda-ce438d758902"
+id = "HLR-132"
+title = "A pure read-only comparison API validates every prerequisite before comparing and can never mutate committed state"
+owner = "tool"
+scope = "component"
+description = """
+The drift comparison shall be one pure core API over
+explicitly presented, validated inputs: the committed
+corpus graph and source-revision identity, the baseline
+recipe and verified-input digests, the candidate recipe
+identity and verified-input digest, the candidate parser
+graph, the applicable curated-patch set, and the patch
+review evaluations of both planes. The API shall perform
+no I/O, no fetch, no filesystem or environment reads, and
+no workspace mutation; it shall return findings or an
+explicit equality, never write. Before any comparison the
+committed corpus graph shall pass full validation, the
+named source revision shall exist, the candidate parser
+graph shall pass the standalone source-graph validator,
+and every patch of each plane shall carry a review
+evaluation; any failure shall refuse the comparison with a
+typed error naming the broken prerequisite. The comparison
+shall never mint committed identities, never apply
+unapproved patches, never mutate a graph, never rewrite
+source files, and never update sources.lock, and every
+input shall be byte-identical afterwards.
+"""
+verification_methods = ["test"]
+traces_to = ["e9c2f3d1-e7f3-4716-a15c-1e493a95b3c0"]
+
+[[requirements]]
+uid = "f3b490ad-a4dc-409f-bc81-799b024bbdca"
+id = "HLR-133"
+title = "Candidate planes reconcile to committed identities through structural keys and drift reports in closed, deterministically sorted categories"
+owner = "tool"
+scope = "component"
+description = """
+Candidate nodes shall reconcile against the committed
+graph through the deterministic structural-key contract,
+reusing committed uids on key matches; matched nodes shall
+be compared field by field — kind, parent, ordinal, label,
+canonical text, content digest, structural fingerprint,
+and semantic locator — and unmatched sides shall report
+node addition or removal, with ambiguous structural-key
+pools reported as unreconciled rather than silently
+paired. Semantic locator changes (path, URL, anchor or
+fragment, heading path) and diagnostic-position movement
+(page, DOM, byte range, bounding box, git blob) shall be
+distinct categories, and diagnostic movement shall never
+count as semantic drift. Patch drift shall distinguish
+added, removed, changed, stale, rejected, and unappliable
+patches; review-state changes shall compare the two
+planes' evaluated lifecycles; the effective-graph plane
+shall compare the approval-gated effective graphs of both
+sides, where stale and unapproved patches never
+contribute. One malformed patch shall degrade to its own
+finding without suppressing later independent findings.
+Findings shall carry typed context — uids, structural
+paths, category-specific detail — sorted by source
+document, source revision, category, structural path, and
+uid, and identical planes shall return explicit equality
+with zero findings.
+"""
+verification_methods = ["test"]
+traces_to = ["e9c2f3d1-e7f3-4716-a15c-1e493a95b3c0"]
