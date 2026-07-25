@@ -18,6 +18,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::error::CorpusError;
 use super::source_graph::error::SourceGraphError;
 use super::source_graph::{SourceGraph, SourceNode};
+use super::source_patch::error::SourcePatchError;
+use super::source_patch::records::SourcePatchRecord;
 
 mod nodes;
 mod review_invariants;
@@ -36,6 +38,7 @@ pub struct CorpusGraph {
     nodes: BTreeMap<String, Node>,
     trace_metadata: BTreeMap<String, TraceMetadata>,
     source_graphs: BTreeMap<String, SourceGraph>,
+    source_patches: BTreeMap<String, SourcePatchRecord>,
 }
 
 impl CorpusGraph {
@@ -98,6 +101,46 @@ impl CorpusGraph {
             .insert(node)
     }
 
+    /// The committed curated patches, keyed by `patch_` uid
+    /// (LLR-169). Read-only view: the patch plane sits beside the
+    /// parser-output source graphs, separately inspectable, so
+    /// curated content can never be mistaken for raw extraction.
+    pub fn source_patches(&self) -> &BTreeMap<String, SourcePatchRecord> {
+        &self.source_patches
+    }
+
+    /// The committed curated patch with `uid`, when loaded.
+    pub fn source_patch(&self, uid: &str) -> Option<&SourcePatchRecord> {
+        self.source_patches.get(uid)
+    }
+
+    /// Insert one curated patch after enforcing identity
+    /// uniqueness within the curated-patch kind: no duplicate uid,
+    /// no duplicate human id.
+    pub(crate) fn insert_source_patch(
+        &mut self,
+        patch: SourcePatchRecord,
+    ) -> Result<(), SourcePatchError> {
+        if self.source_patches.contains_key(&patch.uid) {
+            return Err(SourcePatchError::DuplicateUid {
+                uid: patch.uid.clone(),
+            });
+        }
+        if let Some(existing) = self
+            .source_patches
+            .values()
+            .find(|existing| existing.human_id == patch.human_id)
+        {
+            return Err(SourcePatchError::DuplicateHumanId {
+                human_id: patch.human_id.clone(),
+                first_uid: existing.uid.clone(),
+                duplicate_uid: patch.uid.clone(),
+            });
+        }
+        self.source_patches.insert(patch.uid.clone(), patch);
+        Ok(())
+    }
+
     /// All review nodes targeting `requirement_uid`, in uid order
     /// (LLR-118). Read-only derived view: supersession and decision
     /// semantics are the lifecycle evaluator's concern, not this
@@ -153,7 +196,8 @@ impl CorpusGraph {
     /// supported content schema), then validate review supersession
     /// chains (LLR-115), then validate source-revision lineage
     /// chains (LLR-130), then validate the committed structural
-    /// source graphs (LLR-157). Review failures surface as
+    /// source graphs (LLR-157), then validate the committed
+    /// curated patches against those graphs (LLR-169). Review failures surface as
     /// [`CorpusError::Review`] wrapping the typed review error;
     /// source lineage failures surface as [`CorpusError::Source`]
     /// wrapping the typed source error; source-graph failures
@@ -165,6 +209,7 @@ impl CorpusGraph {
         supersession::validate_review_supersession(self)?;
         super::source::lineage::validate_source_lineage(self)?;
         super::source_graph::validate::validate_source_graphs(self)?;
+        super::source_patch::validate::validate_source_patches(self).map_err(Box::new)?;
         Ok(())
     }
 }

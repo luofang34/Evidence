@@ -5031,3 +5031,129 @@ pass the standalone source-graph validation before ingestion
 returns.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "a427f61e-bf12-4583-97f8-98340e2c33ee"
+id = "LLR-166"
+title = "corpus::source_patch::records carries the strict curated-patch wire schema, record validation, and corpus loading"
+owner = "tool"
+traces_to = ["489a55d6-33bb-4762-a546-a375de93ffe7"]
+modules = ["evidence_core::corpus::source_patch::records"]
+description = """
+`SourcePatchFile` is the strict, `schema_version`-gated
+TOML schema of one curated patch record: unknown fields
+are a parse error and a newer schema refuses to load.
+`PatchRecord` carries the permanent `patch_<UUIDv4>` uid,
+the human id, the four binding fields (source-revision
+uid, recipe digest, verified input digest, pre-patch
+canonical graph digest), the reviewed-content digest, and
+the author, rationale, and RFC 3339 creation metadata
+that stay outside semantic identity. `PatchOperation` is
+the closed serde-tagged operation enum; excluded
+capabilities fail deserialization. Record validation runs
+in declaration order with the first failure winning: uid
+prefix and UUIDv4 shape, non-blank human id, author, and
+rationale, a valid creation timestamp, unique operation
+ordinals, no duplicate or conflicting operations on one
+target, per-operation uid and digest field validity, a
+non-empty operation list, and a recomputed
+reviewed-content digest that must match the stored value.
+Loading enforces per-kind human-id uniqueness across the
+committed corpus and never mutates any source record.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "f7cc4989-b16f-4a56-a518-706683eda601"
+id = "LLR-167"
+title = "corpus::source_patch::digest carries the reviewed-content and canonical source-graph digest encodings"
+owner = "tool"
+traces_to = ["489a55d6-33bb-4762-a546-a375de93ffe7"]
+modules = ["evidence_core::corpus::source_patch::digest"]
+description = """
+The reviewed-content encoding covers the canonical patch
+intent: the domain/version tag
+`evidence/curated-patch/v1`, the source-revision uid, the
+recipe, input, and pre-patch graph digests, then every
+operation in canonical ordinal order with all of its
+preconditions and payload fields under length-prefixed
+framing, so no field-boundary collision is possible and
+the encoding is disjoint from every other corpus
+encoding. Author, rationale, creation metadata, the patch
+uid, and the human id never enter the encoding. The
+canonical source-graph digest renders one revision's
+committed nodes in uid order through the canonical
+rendering contract under the domain/version tag
+`evidence/source-graph-digest/v1` and hashes those bytes;
+equivalent layouts digest identically and any structural
+difference moves the digest. Both digests are validated
+structural digests, golden byte-locked.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "dee14942-5ba7-4d15-9e9e-30698c3560ab"
+id = "LLR-168"
+title = "corpus::source_patch::apply carries the atomic precondition-checked candidate application contract"
+owner = "tool"
+traces_to = [
+    "8fbe8ec4-172a-41ce-9754-5331b86e16ff",
+    "c663d7a6-29af-4675-b7f3-2dd6b8dedd3b",
+]
+modules = ["evidence_core::corpus::source_patch::apply"]
+description = """
+`apply_patch` validates the parser graph through the
+standalone source-graph validator before any change,
+verifies the recipe, input, and pre-patch graph digest
+bindings, then applies operations in canonical ordinal
+order against a working copy: each operation checks its
+exact preconditions — expected content digest, expected
+kind, expected parent and ordinal, expected parent for
+insert, expected digest and explicit child disposition
+for remove — and fails closed with a typed stale-
+precondition error naming the operation ordinal, target,
+field, and both values when the state has moved.
+Cross-document edits, dangling targets, inserted-uid
+collisions, and implicit cascades fail with their own
+typed errors. After the last operation the complete
+source-graph validator runs over the result; an invalid
+post-graph fails closed. Application is atomic: any
+failure discards the working copy and the original graph
+is byte-identical. The returned `PatchApplication`
+records the pre-patch digest, the patch reviewed-content
+digest, the post-patch digest, and the candidate graph as
+a separately inspectable plane — never merged into the
+committed parser graph and carrying no review-lifecycle
+or approval semantics.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "4d6c989d-032b-4c5a-8c03-963440ea987e"
+id = "LLR-169"
+title = "corpus graph and index wire curated patches as a separately inspectable committed plane"
+owner = "tool"
+traces_to = ["c663d7a6-29af-4675-b7f3-2dd6b8dedd3b"]
+modules = ["evidence_core::corpus::source_patch"]
+description = """
+The corpus index gains a `source_patches` kind loading
+curated-patch files after source graphs, so patch binding
+validates against present revisions and graphs, and
+before requirements. `CorpusGraph` carries the committed
+patch plane in a uid-keyed `BTreeMap` with per-kind
+human-id uniqueness enforced at insertion, exposed
+read-only alongside the parser-output source graphs so
+the two planes stay separately inspectable. Corpus
+validation re-checks every committed patch against the
+committed graph: the bound source revision must exist,
+the pre-patch graph digest must match the canonical
+digest of that revision's committed parser graph, every
+non-insert operation target must resolve inside the bound
+revision — present in another revision is a
+cross-document edit, absent everywhere is dangling — and
+no operation may target another patch's inserted node
+implicitly. `CorpusError::SourcePatch` wraps the flat
+typed `SourcePatchError` so loading and validation keep
+one error type.
+"""
+verification_methods = ["test"]

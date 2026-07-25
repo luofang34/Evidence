@@ -1,0 +1,22 @@
+schema_version = 1
+
+[patch]
+uid = "patch_00000000-0000-4000-8000-0000000000a1"
+human_id = "pics-table-row-restore"
+source_revision_uid = "src_00000000-0000-4000-8000-0000000000a1"
+recipe_digest = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+input_digest = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+pre_patch_graph_digest = "0ae00394f286b8c722db69039172b5d89e9e419765efe96463a87b3f5359860f"
+reviewed_content_digest = "f4e4e6232e7a670b9a62aff175e081dc6bf40b09fc541f408ffa4709e284e343"
+author = "curator@example.com"
+rationale = "the parser lost the row/cell relationship of the PICS table"
+created_at = "2026-07-25T00:00:00Z"
+
+[[patch.operations]]
+op = "reparent"
+ordinal = 0
+target_uid = "snode_00000000-0000-4000-8000-0000000000a7"
+expected_parent_uid = "snode_00000000-0000-4000-8000-0000000000a1"
+expected_ordinal = 1
+new_parent_uid = "snode_00000000-0000-4000-8000-0000000000a6"
+new_ordinal = 0

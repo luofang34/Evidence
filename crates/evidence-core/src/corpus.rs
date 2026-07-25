@@ -27,6 +27,11 @@
 //! - `ingest` — structure-preserving ingestion of verified frozen
 //!   Markdown bytes into candidate structural source nodes, with
 //!   the ingester recipe identity and typed diagnostics (LLR-161)
+//! - `source_patch` — digest-bound curated patch records correcting
+//!   parser output without source mutation: `patch_` identity, the
+//!   closed operation enum, the reviewed-content digest, and atomic
+//!   candidate application on a separately inspectable plane
+//!   (LLR-166)
 //! - `legacy` — four-file `cert/trace` → graph adapter
 //! - `review_content` — versioned canonical projection of the
 //!   normative content a review approves (LLR-111)
@@ -57,6 +62,7 @@ mod review_content;
 mod review_records;
 mod source;
 mod source_graph;
+mod source_patch;
 
 pub use approval_boundary::{
     ApprovalBoundaryError, ApprovalBoundaryViolation, LifecycleEnforcement, ReferringArtifact,
@@ -118,6 +124,16 @@ pub use source_graph::records::{
 };
 pub use source_graph::render::render_source_graph_canonical;
 pub use source_graph::{SourceGraph, SourceNode, SourceNodeKind};
+pub use source_patch::apply::{PatchApplication, PatchBindings, apply_patch};
+pub use source_patch::digest::{
+    reviewed_content_bytes, reviewed_content_digest, source_graph_digest,
+};
+pub use source_patch::error::SourcePatchError;
+pub use source_patch::records::{
+    PATCH_UID_PREFIX, SUPPORTED_SOURCE_PATCH_SCHEMA, SourcePatchFile, SourcePatchRecord,
+    parse_source_patch,
+};
+pub use source_patch::{ChildDisposition, InsertedNodeSpec, PatchOperation};
 
 #[cfg(test)]
 mod tests;
