@@ -38,6 +38,9 @@
 //! - `effective_graph` — the approval-gated effective structural
 //!   graph of one source revision: only currently approved patches
 //!   contribute (LLR-174)
+//! - `drift` — deterministic read-only re-ingestion drift
+//!   comparison over the recipe, input, parser, patch, review, and
+//!   effective planes (LLR-176)
 //! - `legacy` — four-file `cert/trace` → graph adapter
 //! - `review_content` — versioned canonical projection of the
 //!   normative content a review approves (LLR-111)
@@ -56,6 +59,7 @@
 
 mod approval_boundary;
 mod digest;
+mod drift;
 mod effective_graph;
 mod error;
 mod graph;
@@ -79,6 +83,10 @@ pub use approval_boundary::{
     validate_approval_boundary,
 };
 pub use digest::{ReviewContentDigest, SourceContentDigest, StructuralContentDigest};
+pub use drift::{
+    DriftBaseline, DriftCategory, DriftDetail, DriftError, DriftFinding, DriftOutcome, DriftReport,
+    ReingestionCandidate, compare_reingestion, render_report_canonical,
+};
 pub use effective_graph::{EffectiveGraphError, EffectiveSourceGraph, effective_source_graph};
 pub use error::CorpusError;
 pub(crate) use graph::TraceMetadata;

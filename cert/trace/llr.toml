@@ -5356,15 +5356,23 @@ its own closed `DriftCategory`; diagnostic-only position
 fields (byte range, DOM path, page, bounding box,
 printed label, final URL, git blob) report only the
 distinct `DiagnosticLocatorMoved` category and never a
-semantic one. A committed node no candidate matched is
-`NodeRemoved`; an unmatched candidate is `NodeAdded`,
-keyed by its candidate identity and structural path; a
-structural key claimed by more than one committed node
-is formally ambiguous, so every candidate consuming such
-a pool reports `NodeUnreconciled` instead of a
-field-level comparison. Findings carry the node uid, a
-deterministic structural path, and the old and new
-values of the changed field.
+semantic one. Because the key embeds kind, ordinal, parent,
+and explicit identity, a node whose kind, ordinal, parent,
+or explicit identity moved never primary-matches; unmatched
+nodes re-pair deterministically — identical content digests
+pair first across the whole unmatched set, then the
+remainder pairs within a kind-erased structural skeleton in
+uid order — and a re-paired couple compares field by field
+like a primary match, so such moves report the per-field
+categories rather than a removal plus an addition. A
+committed node left unpaired is `NodeRemoved`; an unpaired
+candidate is `NodeAdded`, keyed by its candidate identity
+and structural path; a structural key claimed by more than
+one committed node is formally ambiguous, so every
+candidate consuming such a pool reports `NodeUnreconciled`
+instead of a field-level comparison. Findings carry the
+node uid, a deterministic structural path, and the old and
+new values of the changed field.
 """
 verification_methods = ["test"]
 
