@@ -103,6 +103,46 @@ pub enum ReviewError {
         /// Edge kind.
         kind: EdgeKind,
     },
+    /// A review record's target shape disagrees with the file's
+    /// declared schema: schema 1 requires the legacy
+    /// `requirement_uid` field and forbids the typed `target`
+    /// table; schema 2 requires the typed `target` table and
+    /// forbids `requirement_uid` — a mixed, missing, or misplaced
+    /// target fails closed (LLR-170).
+    #[error(
+        "review record {id:?} ({uid}) in {path} declares schema_version {schema_version}, \
+         which requires {expected}; found {found}"
+    )]
+    ReviewTargetShape {
+        /// Review file path.
+        path: PathBuf,
+        /// The record's uid.
+        uid: String,
+        /// The record's human identifier.
+        id: String,
+        /// The file's declared `schema_version`.
+        schema_version: u32,
+        /// The target shape that schema requires.
+        expected: &'static str,
+        /// The target shape the record carried.
+        found: &'static str,
+    },
+    /// A review's declared target kind disagrees with the plane its
+    /// `Reviews` edge resolves to — a requirement target whose edge
+    /// names a committed patch, or a curated-patch target whose edge
+    /// names a requirement node (LLR-171).
+    #[error(
+        "review {review_uid} declares target kind {declared} but its \
+         Reviews edge resolves to {resolved}"
+    )]
+    ReviewTargetKindMismatch {
+        /// The malformed review's uid.
+        review_uid: String,
+        /// The declared target kind's wire string.
+        declared: &'static str,
+        /// What the `Reviews` edge actually resolved to.
+        resolved: &'static str,
+    },
     /// A review record's human identifier is empty; every record
     /// needs one for audit cross-reference (LLR-114).
     #[error("review record with uid {uid} in {path} has an empty human id")]
@@ -190,20 +230,20 @@ pub enum ReviewError {
         /// Number of `Reviews` edges the node declares.
         count: usize,
     },
-    /// A review's `requirement_uid` field disagrees with the target
-    /// of its `Reviews` edge; both name the reviewed requirement and
-    /// must match (LLR-115).
+    /// A review's typed target uid disagrees with the target of its
+    /// `Reviews` edge; both name the reviewed artifact and must
+    /// match (LLR-115, LLR-171).
     #[error(
-        "review {review_uid} names requirement {field_requirement_uid} but its \
-         Reviews edge targets {edge_requirement_uid}"
+        "review {review_uid} names target {field_target_uid} but its \
+         Reviews edge targets {edge_target_uid}"
     )]
-    ReviewRequirementEdgeMismatch {
+    ReviewTargetEdgeMismatch {
         /// The malformed review's uid.
         review_uid: String,
-        /// The node's `requirement_uid` field.
-        field_requirement_uid: String,
+        /// The node's typed target uid.
+        field_target_uid: String,
         /// The node's `Reviews` edge target.
-        edge_requirement_uid: String,
+        edge_target_uid: String,
     },
     /// A review supersedes itself (LLR-115).
     #[error("review {uid} supersedes itself")]
@@ -223,12 +263,13 @@ pub enum ReviewError {
         /// The superseded review's uid.
         predecessor_uid: String,
     },
-    /// A superseding review covers a different requirement than its
-    /// predecessor (LLR-115).
+    /// A superseding review covers a different typed target — kind
+    /// or uid — than its predecessor; supersession corrects one
+    /// reviewer's earlier decision on the same target (LLR-172).
     #[error(
-        "superseding review {uid} covers a different requirement than its predecessor {predecessor_uid}"
+        "superseding review {uid} covers a different target than its predecessor {predecessor_uid}"
     )]
-    ReviewSupersessionRequirement {
+    ReviewSupersessionTarget {
         /// The superseding review's uid.
         uid: String,
         /// The superseded review's uid.

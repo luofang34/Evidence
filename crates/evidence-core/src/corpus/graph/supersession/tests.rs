@@ -3,7 +3,7 @@
 
 use crate::corpus::{
     CorpusError, CorpusGraph, EdgeKind, Node, NodeKind, RequirementLayer, RequirementNode,
-    ReviewContentDigest, ReviewDecision, ReviewError, ReviewNode, TestNode,
+    ReviewContentDigest, ReviewDecision, ReviewError, ReviewNode, ReviewTarget, TestNode,
 };
 
 const REQ_A: &str = "req_00000000-0000-4000-8000-00000000000a";
@@ -41,7 +41,7 @@ fn review_node_with(
     Node::Review(ReviewNode {
         uid: uid.to_string(),
         id: id.to_string(),
-        requirement_uid: requirement_uid.to_string(),
+        target: ReviewTarget::Requirement(requirement_uid.to_string()),
         content_schema: 1,
         reviewed_content_sha256: ReviewContentDigest::from_hex(digest).unwrap(),
         decision: ReviewDecision::Approve,
@@ -71,12 +71,14 @@ fn graph_node(kind: NodeKind, uid: &str, edges: Vec<(EdgeKind, String)>) -> Node
         NodeKind::Review => Node::Review(ReviewNode {
             uid: uid.to_string(),
             id: format!("id of {uid}"),
-            // Field/edge agreement: the requirement field names the
+            // Field/edge agreement: the typed target names the
             // `Reviews` edge target when the fixture carries one.
-            requirement_uid: edges
-                .iter()
-                .find(|(kind, _)| *kind == EdgeKind::Reviews)
-                .map_or_else(|| REQ_A.to_string(), |(_, target)| target.clone()),
+            target: ReviewTarget::Requirement(
+                edges
+                    .iter()
+                    .find(|(kind, _)| *kind == EdgeKind::Reviews)
+                    .map_or_else(|| REQ_A.to_string(), |(_, target)| target.clone()),
+            ),
             content_schema: 1,
             reviewed_content_sha256: ReviewContentDigest::from_hex(&"a".repeat(64)).unwrap(),
             decision: ReviewDecision::Approve,
@@ -307,7 +309,7 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewSupersessionRequirement {
+            CorpusError::Review(ReviewError::ReviewSupersessionTarget {
                 ref uid,
                 ref predecessor_uid,
             }) if uid == REV_2 && predecessor_uid == REV_1

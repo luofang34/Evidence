@@ -5,7 +5,7 @@
 
 use crate::corpus::{
     CorpusError, CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementNode,
-    ReviewContentDigest, ReviewDecision, ReviewError, ReviewNode,
+    ReviewContentDigest, ReviewDecision, ReviewError, ReviewNode, ReviewTarget,
 };
 
 const REQ_A: &str = "req_00000000-0000-4000-8000-00000000000a";
@@ -32,7 +32,7 @@ fn review_node(uid: &str, id: &str) -> ReviewNode {
     ReviewNode {
         uid: uid.to_string(),
         id: id.to_string(),
-        requirement_uid: REQ_A.to_string(),
+        target: ReviewTarget::Requirement(REQ_A.to_string()),
         content_schema: 1,
         reviewed_content_sha256: ReviewContentDigest::from_hex(&"a".repeat(64)).unwrap(),
         decision: ReviewDecision::Approve,
@@ -66,13 +66,13 @@ fn review_node_with_mismatched_requirement_field_and_edge_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewRequirementEdgeMismatch {
+            CorpusError::Review(ReviewError::ReviewTargetEdgeMismatch {
                 ref review_uid,
-                ref field_requirement_uid,
-                ref edge_requirement_uid,
+                ref field_target_uid,
+                ref edge_target_uid,
             }) if review_uid == REV_1
-                && field_requirement_uid == REQ_A
-                && edge_requirement_uid == REQ_B
+                && field_target_uid == REQ_A
+                && edge_target_uid == REQ_B
         ),
         "the error must name the review and both requirement uids, got: {err:?}"
     );

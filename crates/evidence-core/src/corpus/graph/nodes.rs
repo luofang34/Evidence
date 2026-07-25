@@ -208,23 +208,79 @@ pub struct TestNode {
     pub edges: Vec<(EdgeKind, String)>,
 }
 
-/// A human review decision node (LLR-115).
+/// The closed set of reviewable artifact kinds (LLR-171).
 ///
-/// One record of a reviewer approving or rejecting one requirement's
-/// exact reviewed content. The `reviewer` and `reviewed_at` fields
-/// are audit metadata: the reviewer identity is recorded, never
-/// accepted as proof that a caller is human, and the timestamp
-/// never chooses an effective decision. Edges carry
-/// [`EdgeKind::Reviews`] → `requirement_uid` and, for a correcting
-/// review, [`EdgeKind::Supersedes`] → the predecessor review uid.
+/// Serde snake_case for the schema-2 review record's
+/// `target.kind`; any other kind string fails deserialization,
+/// so a generic target kind is unrepresentable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewTargetKind {
+    /// A requirement's v1 review content (LLR-111).
+    Requirement,
+    /// A curated patch's `evidence/curated-patch/v1`
+    /// reviewed content (LLR-167).
+    CuratedPatch,
+}
+
+impl ReviewTargetKind {
+    /// The serde snake_case wire string for this kind.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ReviewTargetKind::Requirement => "requirement",
+            ReviewTargetKind::CuratedPatch => "curated_patch",
+        }
+    }
+}
+
+/// The typed target a review decides on (LLR-171): one
+/// requirement's or one curated patch's exact reviewed content.
+/// The kind pins both the expected uid prefix and the
+/// reviewed-content projection the digest covers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReviewTarget {
+    /// A requirement, by `req_<UUIDv4>` uid.
+    Requirement(String),
+    /// A curated patch, by `patch_<UUIDv4>` uid.
+    CuratedPatch(String),
+}
+
+impl ReviewTarget {
+    /// The target artifact's uid.
+    pub fn uid(&self) -> &str {
+        match self {
+            ReviewTarget::Requirement(uid) | ReviewTarget::CuratedPatch(uid) => uid,
+        }
+    }
+
+    /// The target's closed kind.
+    pub fn kind(&self) -> ReviewTargetKind {
+        match self {
+            ReviewTarget::Requirement(_) => ReviewTargetKind::Requirement,
+            ReviewTarget::CuratedPatch(_) => ReviewTargetKind::CuratedPatch,
+        }
+    }
+}
+
+/// A human review decision node (LLR-115, LLR-171).
+///
+/// One record of a reviewer approving or rejecting one typed
+/// target's exact reviewed content. The `reviewer` and
+/// `reviewed_at` fields are audit metadata: the reviewer identity
+/// is recorded, never accepted as proof that a caller is human,
+/// and the timestamp never chooses an effective decision. Edges
+/// carry exactly one [`EdgeKind::Reviews`] → the typed target uid
+/// (a requirement node or the committed patch plane) and, for a
+/// correcting review, [`EdgeKind::Supersedes`] → the predecessor
+/// review uid.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewNode {
     /// Permanent identity, unique across all node kinds.
     pub uid: String,
     /// Human-readable identifier (e.g. `REV-001`).
     pub id: String,
-    /// Uid of the requirement whose content was reviewed.
-    pub requirement_uid: String,
+    /// The typed artifact whose reviewed content was decided on.
+    pub target: ReviewTarget,
     /// Review-content projection version the digest covers.
     pub content_schema: u32,
     /// Exact digest of the reviewed canonical content.

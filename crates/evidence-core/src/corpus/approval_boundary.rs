@@ -55,6 +55,20 @@
 //! graph (today: populated by the legacy trace adapter). Native
 //! records expressing those claims are a documented non-goal here.
 //!
+//! # Curated patch plane (LLR-175)
+//!
+//! Under the same explicit enforcement, the validator also proves
+//! the curated-patch plane: every committed patch's lifecycle is
+//! evaluated, and every *approved* patch must apply cleanly against
+//! its bound revision's committed parser graph under its recorded
+//! bindings and the revision's media type — effective curated
+//! content is always approval-backed and producible. Candidate,
+//! rejected, and stale patches contribute nothing to the effective
+//! graph and produce no violation; an approved patch that cannot
+//! apply fails closed as
+//! [`ApprovalBoundaryError::EffectiveCuratedContent`]. Requirement
+//! claim behavior is identical with or without patches present.
+//!
 //! # Diagnostics and determinism
 //!
 //! Every non-approved target produces one
@@ -83,6 +97,10 @@ use thiserror::Error;
 
 use super::graph::{CorpusGraph, EdgeKind, Node, TraceMetadata};
 use super::lifecycle::{LifecycleError, RequirementLifecycle, evaluate_all_lifecycles};
+use super::patch_lifecycle::{PatchLifecycle, PatchLifecycleError, evaluate_all_patch_lifecycles};
+use super::source_graph::SourceGraph;
+use super::source_patch::apply::{PatchBindings, apply_patch};
+use super::source_patch::error::SourcePatchError;
 
 /// Explicit lifecycle-enforcement input (LLR-119).
 ///
@@ -210,6 +228,42 @@ pub enum ApprovalBoundaryError {
         /// The requirement uid missing from the evaluation map.
         requirement_uid: String,
     },
+    /// Patch lifecycle evaluation failed because the graph is
+    /// malformed. The typed source chain —
+    /// [`PatchLifecycleError::InvalidGraph`] wrapping the
+    /// [`CorpusError`](super::CorpusError) — is preserved whole,
+    /// never flattened into violations (LLR-175).
+    #[error("patch lifecycle evaluation failed under explicit enforcement: {0}")]
+    PatchLifecycle(#[from] PatchLifecycleError),
+    /// An approved curated patch cannot become effective: it fails
+    /// to apply against its bound revision's committed parser graph
+    /// under its recorded bindings and the revision's media type.
+    /// The corpus never claims approved curated content that cannot
+    /// be produced; this fails closed with the full
+    /// [`SourcePatchError`] source chain (LLR-175). Boxed to keep
+    /// the enum under clippy's `result_large_err` threshold.
+    #[error("approved curated patch {patch_uid} cannot contribute to the effective graph: {source}")]
+    EffectiveCuratedContent {
+        /// The approved patch's uid.
+        patch_uid: String,
+        /// The application failure.
+        #[source]
+        source: Box<SourcePatchError>,
+    },
+    /// A committed patch has no entry in the patch lifecycle
+    /// evaluation map, or its bound revision node is missing after
+    /// validation. Both are impossible invariants — the evaluator
+    /// covers every committed patch and validation rejects a patch
+    /// bound to a missing revision — returned as a typed error
+    /// instead of silently skipping (LLR-175).
+    #[error(
+        "curated patch {patch_uid} has no lifecycle evaluation or bound revision; \
+         the evaluator covers every committed patch"
+    )]
+    InvariantMissingPatchEvaluation {
+        /// The patch uid missing from the evaluation map.
+        patch_uid: String,
+    },
 }
 
 /// Validate that no implementation or verification evidence claims
@@ -329,11 +383,61 @@ fn validate_required(graph: &CorpusGraph) -> Result<(), ApprovalBoundaryError> {
     violations.sort_by(|left, right| {
         (&left.requirement_uid, &left.referring).cmp(&(&right.requirement_uid, &right.referring))
     });
-    if violations.is_empty() {
-        Ok(())
-    } else {
-        Err(ApprovalBoundaryError::Violations { violations })
+    if !violations.is_empty() {
+        return Err(ApprovalBoundaryError::Violations { violations });
     }
+    validate_effective_curated_content(graph)
+}
+
+/// The patch plane under explicit enforcement (LLR-175): every
+/// committed patch's lifecycle is evaluated, and every *approved*
+/// patch must apply cleanly against its bound revision's committed
+/// parser graph under its recorded bindings and the revision's
+/// media type — so any effective curated content is proven
+/// approved and producible. A candidate, rejected, or stale patch
+/// contributes nothing to the effective graph and is no violation.
+/// Requirement claim behavior is unaffected.
+fn validate_effective_curated_content(graph: &CorpusGraph) -> Result<(), ApprovalBoundaryError> {
+    let patch_evaluations = evaluate_all_patch_lifecycles(graph)?;
+    for patch in graph.source_patches().values() {
+        let Some(evaluation) = patch_evaluations.get(&patch.uid) else {
+            // `evaluate_all_patch_lifecycles` covers every committed
+            // patch; a missing entry is an impossible invariant.
+            return Err(ApprovalBoundaryError::InvariantMissingPatchEvaluation {
+                patch_uid: patch.uid.clone(),
+            });
+        };
+        if evaluation.state != PatchLifecycle::Approved {
+            continue;
+        }
+        let Some(Node::SourceRevision(revision)) = graph.get(&patch.source_revision_uid) else {
+            // Corpus validation (run by the lifecycle evaluation
+            // above) rejects a patch bound to a missing revision;
+            // fail closed anyway rather than skipping.
+            return Err(ApprovalBoundaryError::InvariantMissingPatchEvaluation {
+                patch_uid: patch.uid.clone(),
+            });
+        };
+        let empty;
+        let parser_graph = match graph.source_graph(&patch.source_revision_uid) {
+            Some(committed) => committed,
+            None => {
+                empty = SourceGraph::new();
+                &empty
+            }
+        };
+        let bindings = PatchBindings {
+            recipe_digest: patch.recipe_digest.clone(),
+            input_digest: patch.input_digest.clone(),
+        };
+        apply_patch(parser_graph, patch, &bindings, &revision.media_type).map_err(|source| {
+            ApprovalBoundaryError::EffectiveCuratedContent {
+                patch_uid: patch.uid.clone(),
+                source: Box::new(source),
+            }
+        })?;
+    }
+    Ok(())
 }
 
 /// The `Violations` `Display` body: one line per violation, already

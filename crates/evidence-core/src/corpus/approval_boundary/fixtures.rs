@@ -6,7 +6,8 @@
 use crate::corpus::graph::{RequirementMetadata, TraceMetadata};
 use crate::corpus::{
     CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementNode, RequirementReviewContentV1,
-    ReviewContentDigest, ReviewDecision, ReviewNode, TestNode, review_content_digest_v1,
+    ReviewContentDigest, ReviewDecision, ReviewNode, ReviewTarget, TestNode,
+    review_content_digest_v1,
 };
 
 pub(super) const REQ: &str = "req_a";
@@ -74,7 +75,7 @@ fn review(
     ReviewNode {
         uid: uid.to_string(),
         id: uid.to_string(),
-        requirement_uid: requirement_uid.to_string(),
+        target: ReviewTarget::Requirement(requirement_uid.to_string()),
         content_schema: 1,
         reviewed_content_sha256: digest.clone(),
         decision,

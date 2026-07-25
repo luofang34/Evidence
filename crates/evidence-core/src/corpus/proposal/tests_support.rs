@@ -11,7 +11,7 @@ use super::{
 };
 use crate::corpus::{
     EdgeKind, Node, RequirementLayer, RequirementNode, RequirementReviewContentV1, ReviewDecision,
-    ReviewNode, review_content_digest_v1,
+    ReviewNode, ReviewTarget, review_content_digest_v1,
 };
 
 pub(super) const REQ_A: &str = "req_00000000-0000-4000-8000-00000000000a";
@@ -56,7 +56,7 @@ pub(super) fn review(
     ReviewNode {
         uid: uid.to_string(),
         id: uid.to_string(),
-        requirement_uid: requirement_uid.to_string(),
+        target: ReviewTarget::Requirement(requirement_uid.to_string()),
         content_schema: 1,
         reviewed_content_sha256: digest.clone(),
         decision,

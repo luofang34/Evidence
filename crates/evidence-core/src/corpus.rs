@@ -32,6 +32,12 @@
 //!   closed operation enum, the reviewed-content digest, and atomic
 //!   candidate application on a separately inspectable plane
 //!   (LLR-166)
+//! - `patch_lifecycle` — deterministic per-patch lifecycle
+//!   evaluation over digest-bound review heads, under the
+//!   requirement truth table (LLR-173)
+//! - `effective_graph` — the approval-gated effective structural
+//!   graph of one source revision: only currently approved patches
+//!   contribute (LLR-174)
 //! - `legacy` — four-file `cert/trace` → graph adapter
 //! - `review_content` — versioned canonical projection of the
 //!   normative content a review approves (LLR-111)
@@ -50,12 +56,14 @@
 
 mod approval_boundary;
 mod digest;
+mod effective_graph;
 mod error;
 mod graph;
 mod index;
 mod ingest;
 mod legacy;
 mod lifecycle;
+mod patch_lifecycle;
 mod proposal;
 mod records;
 mod review_content;
@@ -69,11 +77,13 @@ pub use approval_boundary::{
     validate_approval_boundary,
 };
 pub use digest::{ReviewContentDigest, SourceContentDigest, StructuralContentDigest};
+pub use effective_graph::{EffectiveGraphError, EffectiveSourceGraph, effective_source_graph};
 pub use error::CorpusError;
 pub(crate) use graph::TraceMetadata;
 pub use graph::{
     CorpusGraph, EdgeKind, Node, NodeKind, RequirementLayer, RequirementNode, ReviewDecision,
-    ReviewNode, SourceCapture, SourceMaterial, SourceRevisionNode, TestNode,
+    ReviewNode, ReviewTarget, ReviewTargetKind, SourceCapture, SourceMaterial, SourceRevisionNode,
+    TestNode,
 };
 pub use index::{CorpusIndex, SUPPORTED_INDEX_SCHEMA};
 pub use ingest::{
@@ -87,6 +97,10 @@ pub(crate) use legacy::graph_from_trace_parts;
 pub use lifecycle::{
     LifecycleError, LifecycleEvaluation, RequirementLifecycle, evaluate_all_lifecycles,
     evaluate_lifecycle,
+};
+pub use patch_lifecycle::{
+    PatchLifecycle, PatchLifecycleError, PatchLifecycleEvaluation, evaluate_all_patch_lifecycles,
+    evaluate_patch_lifecycle,
 };
 pub use proposal::{
     AppendOutcome, PROPOSAL_UID_PREFIX, ProposalAction, ProposalError, ProposalFile,

@@ -1,4 +1,4 @@
-//! Review supersession chain validation (LLR-115).
+//! Review supersession chain validation (LLR-115, LLR-172).
 //!
 //! Runs inside [`CorpusGraph::validate`] after every edge has
 //! resolved and endpoint kinds have been checked, so a `Supersedes`
@@ -12,9 +12,10 @@
 //!    single optional `supersedes_review_uid`), so this invariant
 //!    guards programmatically built graphs.
 //! 2. Per edge: a review may not supersede itself, and a
-//!    superseding review must name the same reviewer, requirement
-//!    uid, and reviewed content digest as its predecessor — each
-//!    mismatch is a distinct error naming both uids.
+//!    superseding review must name the same reviewer, the same
+//!    typed target (kind and uid), and the same reviewed content
+//!    digest as its predecessor — each mismatch is a distinct error
+//!    naming both uids, so cross-target supersession fails closed.
 //! 3. Forks: a review may be superseded by at most one other
 //!    review — at most one incoming `Supersedes` edge, the dual
 //!    direction of check 1.
@@ -64,8 +65,8 @@ pub(super) fn validate_review_supersession(graph: &CorpusGraph) -> Result<(), Re
                     predecessor_uid: predecessor.uid.clone(),
                 });
             }
-            if review.requirement_uid != predecessor.requirement_uid {
-                return Err(ReviewError::ReviewSupersessionRequirement {
+            if review.target != predecessor.target {
+                return Err(ReviewError::ReviewSupersessionTarget {
                     uid: review.uid.clone(),
                     predecessor_uid: predecessor.uid.clone(),
                 });

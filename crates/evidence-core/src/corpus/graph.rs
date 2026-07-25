@@ -28,7 +28,7 @@ mod validation;
 
 pub use nodes::{
     EdgeKind, Node, NodeKind, RequirementLayer, RequirementNode, ReviewDecision, ReviewNode,
-    SourceCapture, SourceMaterial, SourceRevisionNode, TestNode,
+    ReviewTarget, ReviewTargetKind, SourceCapture, SourceMaterial, SourceRevisionNode, TestNode,
 };
 pub(crate) use nodes::{RequirementMetadata, TestMetadata, TraceMetadata, canonical_strings};
 
@@ -141,15 +141,36 @@ impl CorpusGraph {
         Ok(())
     }
 
-    /// All review nodes targeting `requirement_uid`, in uid order
-    /// (LLR-118). Read-only derived view: supersession and decision
-    /// semantics are the lifecycle evaluator's concern, not this
-    /// accessor's.
+    /// All review nodes targeting the requirement
+    /// `requirement_uid`, in uid order (LLR-118). Read-only derived
+    /// view: supersession and decision semantics are the lifecycle
+    /// evaluator's concern, not this accessor's.
     pub fn reviews_for_requirement(&self, requirement_uid: &str) -> Vec<&ReviewNode> {
         self.nodes
             .values()
             .filter_map(|node| match node {
-                Node::Review(review) if review.requirement_uid == requirement_uid => Some(review),
+                Node::Review(review)
+                    if matches!(&review.target, ReviewTarget::Requirement(uid) if uid == requirement_uid) =>
+                {
+                    Some(review)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// All review nodes targeting the curated patch `patch_uid`,
+    /// in uid order (LLR-173). Read-only derived view, mirroring
+    /// [`CorpusGraph::reviews_for_requirement`].
+    pub fn reviews_for_patch(&self, patch_uid: &str) -> Vec<&ReviewNode> {
+        self.nodes
+            .values()
+            .filter_map(|node| match node {
+                Node::Review(review)
+                    if matches!(&review.target, ReviewTarget::CuratedPatch(uid) if uid == patch_uid) =>
+                {
+                    Some(review)
+                }
                 _ => None,
             })
             .collect()

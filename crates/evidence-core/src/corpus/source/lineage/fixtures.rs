@@ -4,7 +4,7 @@
 
 use crate::corpus::{
     CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementNode, ReviewContentDigest,
-    ReviewDecision, ReviewNode, SourceCapture, SourceContentDigest, SourceMaterial,
+    ReviewDecision, ReviewNode, ReviewTarget, SourceCapture, SourceContentDigest, SourceMaterial,
     SourceRevisionNode, TestNode,
 };
 
@@ -131,7 +131,7 @@ pub(super) fn review(uid: &str, supersedes: Option<&str>) -> Node {
     Node::Review(ReviewNode {
         uid: uid.to_string(),
         id: format!("id of {uid}"),
-        requirement_uid: REQ_A.to_string(),
+        target: ReviewTarget::Requirement(REQ_A.to_string()),
         content_schema: 1,
         reviewed_content_sha256: ReviewContentDigest::from_hex(DIGEST_A).unwrap(),
         decision: ReviewDecision::Approve,
