@@ -27,9 +27,9 @@ use thiserror::Error;
 /// before parsing and no other DOCTYPE is accepted (LLR-181).
 pub const PINNED_DOCTYPE: &str = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">";
 
-/// Maximum element nesting depth (html→body→doc→page→flow→
-/// block→line→word is 8).
-pub const MAX_DEPTH: usize = 8;
+/// Maximum element nesting depth, counting the document root:
+/// root→html→body→doc→page→flow→block→line→word is 9.
+pub const MAX_DEPTH: usize = 10;
 /// Maximum total element count.
 pub const MAX_ELEMENTS: usize = 65_536;
 /// Maximum attributes on one element.
@@ -208,28 +208,20 @@ pub fn parse_bbox_layout(bytes: &[u8]) -> Result<BboxDocument, BboxParseError> {
 /// Strip the exact pinned Poppler DOCTYPE; reject any other
 /// DOCTYPE and any ENTITY declaration.
 fn strip_pinned_doctype(text: &str) -> Result<&str, BboxParseError> {
-    let scan = |needle: &str| {
-        text.as_bytes()
+    fn declares(haystack: &str, needle: &str) -> bool {
+        haystack
+            .as_bytes()
             .windows(needle.len())
             .any(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
-    };
-    if scan("<!entity") {
+    }
+    if declares(text, "<!entity") {
         return Err(BboxParseError::EntityDeclaration);
     }
-    match text.strip_prefix(PINNED_DOCTYPE) {
-        Some(rest) => {
-            if scan("<!doctype") {
-                return Err(BboxParseError::DoctypeRejected);
-            }
-            Ok(rest)
-        }
-        None => {
-            if scan("<!doctype") {
-                return Err(BboxParseError::DoctypeRejected);
-            }
-            Ok(text)
-        }
+    let rest = text.strip_prefix(PINNED_DOCTYPE).unwrap_or(text);
+    if declares(rest, "<!doctype") {
+        return Err(BboxParseError::DoctypeRejected);
     }
+    Ok(rest)
 }
 
 /// Running totals enforcing the global bounds.
@@ -422,6 +414,11 @@ fn build_blocks(
                 state.enter(&word_node, &word_path, page)?;
                 if word_node.tag_name().name() != "word" {
                     return Err(unknown(&word_node, &word_path, page));
+                }
+                if let Some(child) = word_node.children().find(|node| node.is_element()) {
+                    let child_path = format!("{word_path}/{}", child.tag_name().name());
+                    state.enter(&child, &child_path, page)?;
+                    return Err(unknown(&child, &child_path, page));
                 }
                 if words.len() >= MAX_WORDS_PER_LINE {
                     return Err(BboxParseError::BoundExceeded {

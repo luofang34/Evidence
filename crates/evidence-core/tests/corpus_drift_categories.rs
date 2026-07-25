@@ -358,11 +358,29 @@ fn every_category_fires_independently() {
     let report = run(candidate(&recipe, &equal_graph, &equal_patches, &rejected));
     assert!(categories(&report.findings).contains(&DriftCategory::PatchRejected));
 
+    // Extractor-output plane: the baseline carries a digest the
+    // candidate does not present (kept out of `run` because it
+    // mutates the baseline).
+    let mut extractor_baseline = baseline(&corpus, &committed_evals);
+    extractor_baseline.extractor_output_digest = Some(testkit::structural(&"e".repeat(64)));
+    let report = compare_reingestion(
+        &extractor_baseline,
+        &candidate(&recipe, &equal_graph, &equal_patches, &committed_evals),
+    )
+    .expect("extractor-output scenario compares");
+    assert!(
+        categories(&report.findings).contains(&DriftCategory::ExtractorOutputChanged),
+        "{:?}",
+        categories(&report.findings)
+    );
+    covered.extend(categories(&report.findings));
+
     // Every finding-carrying category fired; `OutputEqual` is the
     // equality marker and never a finding.
     let all: BTreeSet<DriftCategory> = [
         DriftCategory::RecipeChangedOrUnavailable,
         DriftCategory::VerifiedInputChanged,
+        DriftCategory::ExtractorOutputChanged,
         DriftCategory::NodeAdded,
         DriftCategory::NodeRemoved,
         DriftCategory::NodeUnreconciled,

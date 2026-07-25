@@ -1,0 +1,40 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 448 >>
+stream
+BT /F1 8 Tf 72 756 Td (CCSDS-LIKE PICS) Tj ET
+BT /F1 14 Tf 72 700 Td (3 PICS Proforma) Tj ET
+BT /F1 10 Tf 72 672 Td (3.1 The implementation conformance statement) Tj ET
+BT /F1 10 Tf 72 660 Td (follows the proforma below.) Tj ET
+BT /F1 10 Tf 72 612 Td (Item M Status) Tj ET
+BT /F1 10 Tf 72 600 Td (R1 M Mandatory) Tj ET
+BT /F1 10 Tf 72 588 Td (R2 O Optional) Tj ET
+BT /F1 10 Tf 72 576 Td (R3 C1 Conditional) Tj ET
+BT /F1 9 Tf 72 24 Td (Page 1) Tj ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000185 00000 n 
+0000000311 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+810
+%%EOF

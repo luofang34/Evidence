@@ -290,21 +290,22 @@ fn run_in_dir(
     })?;
     let stdout = drain_bounded(child.stdout.take(), bounds.max_stdout_bytes);
     let stderr = drain_bounded(child.stderr.take(), bounds.max_stderr_bytes);
-    let wait = wait_with_timeout(&mut child, bounds.timeout);
+    let wait = wait_with_timeout_io(&mut child, bounds.timeout);
     let captured_stdout = stdout.join().unwrap_or_default();
     let captured_stderr = stderr.join().unwrap_or_default();
     let status = match wait {
         Ok(status) => status,
-        Err(error) => {
-            // The wait loop already killed and reaped the child on
-            // timeout; a plain wait failure is spawn-adjacent.
+        Err(PdfRunError::Timeout { timeout }) => return Err(PdfRunError::Timeout { timeout }),
+        Err(PdfRunError::Spawn { source, .. }) => {
+            // A plain wait failure is spawn-adjacent.
             drop(child.kill());
             drop(child.wait());
             return Err(PdfRunError::Spawn {
                 path: executable.display().to_string(),
-                source: error,
+                source,
             });
         }
+        Err(other) => return Err(other),
     };
     if captured_stdout.len() > bounds.max_stdout_bytes {
         return Err(PdfRunError::OversizedOutput {
