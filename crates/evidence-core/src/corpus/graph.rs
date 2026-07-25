@@ -226,8 +226,8 @@ impl CorpusGraph {
     /// source-graph error.
     pub fn validate(&self) -> Result<(), CorpusError> {
         validation::validate_edges(self)?;
-        review_invariants::validate_review_nodes(self)?;
-        supersession::validate_review_supersession(self)?;
+        review_invariants::validate_review_nodes(self).map_err(Box::new)?;
+        supersession::validate_review_supersession(self).map_err(Box::new)?;
         super::source::lineage::validate_source_lineage(self)?;
         super::source_graph::validate::validate_source_graphs(self)?;
         super::source_patch::validate::validate_source_patches(self).map_err(Box::new)?;

@@ -37,11 +37,15 @@ fn mismatched_requirement_field_and_edge_fails_closed() {
             LifecycleError::InvalidGraph(ref inner)
                 if matches!(
                     inner.as_ref(),
-                    CorpusError::Review(ReviewError::ReviewTargetEdgeMismatch {
-                        field_target_uid,
-                        edge_target_uid,
-                        ..
-                    }) if field_target_uid == REQ && edge_target_uid == REQ_B
+                    CorpusError::Review(review)
+                        if matches!(
+                            review.as_ref(),
+                            ReviewError::ReviewTargetEdgeMismatch {
+                                field_target_uid,
+                                edge_target_uid,
+                                ..
+                            } if field_target_uid == REQ && edge_target_uid == REQ_B
+                        )
                 )
         ),
         "the source preserves the review-invariant error: {err}"
@@ -52,7 +56,8 @@ fn mismatched_requirement_field_and_edge_fails_closed() {
             err,
             LifecycleError::InvalidGraph(ref inner) if matches!(
                 inner.as_ref(),
-                CorpusError::Review(ReviewError::ReviewTargetEdgeMismatch { .. })
+                CorpusError::Review(review)
+                    if matches!(review.as_ref(), ReviewError::ReviewTargetEdgeMismatch { .. })
             )
         ),
         "bulk evaluation fails the same way: {err}"
@@ -77,7 +82,8 @@ fn unsupported_content_schema_fails_closed() {
             err,
             LifecycleError::InvalidGraph(ref inner) if matches!(
                 inner.as_ref(),
-                CorpusError::Review(ReviewError::ReviewContentSchema { found: 99, .. })
+                CorpusError::Review(review)
+                    if matches!(review.as_ref(), ReviewError::ReviewContentSchema { found: 99, .. })
             )
         ),
         "the source preserves the schema error: {err}"
@@ -88,7 +94,8 @@ fn unsupported_content_schema_fails_closed() {
             err,
             LifecycleError::InvalidGraph(ref inner) if matches!(
                 inner.as_ref(),
-                CorpusError::Review(ReviewError::ReviewContentSchema { found: 99, .. })
+                CorpusError::Review(review)
+                    if matches!(review.as_ref(), ReviewError::ReviewContentSchema { found: 99, .. })
             )
         ),
         "bulk evaluation fails the same way: {err}"
@@ -119,7 +126,8 @@ fn supersession_cycle_fails_closed() {
             err,
             LifecycleError::InvalidGraph(ref inner) if matches!(
                 inner.as_ref(),
-                CorpusError::Review(ReviewError::ReviewSupersessionCycle { .. })
+                CorpusError::Review(review)
+                    if matches!(review.as_ref(), ReviewError::ReviewSupersessionCycle { .. })
             )
         ),
         "the source preserves the cycle error: {err}"
@@ -130,7 +138,8 @@ fn supersession_cycle_fails_closed() {
             err,
             LifecycleError::InvalidGraph(ref inner) if matches!(
                 inner.as_ref(),
-                CorpusError::Review(ReviewError::ReviewSupersessionCycle { .. })
+                CorpusError::Review(review)
+                    if matches!(review.as_ref(), ReviewError::ReviewSupersessionCycle { .. })
             )
         ),
         "bulk evaluation fails the same way: {err}"

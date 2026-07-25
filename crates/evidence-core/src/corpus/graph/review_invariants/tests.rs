@@ -66,13 +66,17 @@ fn review_node_with_mismatched_requirement_field_and_edge_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewTargetEdgeMismatch {
-                ref review_uid,
-                ref field_target_uid,
-                ref edge_target_uid,
-            }) if review_uid == REV_1
-                && field_target_uid == REQ_A
-                && edge_target_uid == REQ_B
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewTargetEdgeMismatch {
+                        ref review_uid,
+                        ref field_target_uid,
+                        ref edge_target_uid,
+                    } if review_uid == REV_1
+                        && field_target_uid == REQ_A
+                        && edge_target_uid == REQ_B
+                )
         ),
         "the error must name the review and both requirement uids, got: {err:?}"
     );
@@ -90,12 +94,16 @@ fn programmatic_review_with_unsupported_content_schema_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewContentSchema {
-                found: 99,
-                supported: 1,
-                ref uid,
-                ..
-            }) if uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewContentSchema {
+                        found: 99,
+                        supported: 1,
+                        ref uid,
+                        ..
+                    } if uid == REV_1
+                )
         ),
         "the error must name the schema found and supported, got: {err:?}"
     );
@@ -117,8 +125,12 @@ fn review_node_without_reviews_edge_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewMissingReviewsEdge { ref review_uid })
-                if review_uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewMissingReviewsEdge { ref review_uid }
+                        if review_uid == REV_1
+                )
         ),
         "a bare review node, got: {err:?}"
     );
@@ -130,8 +142,12 @@ fn review_node_without_reviews_edge_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewMissingReviewsEdge { ref review_uid })
-                if review_uid == REV_2
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewMissingReviewsEdge { ref review_uid }
+                        if review_uid == REV_2
+                )
         ),
         "a review with only a Supersedes edge, got: {err:?}"
     );
@@ -151,10 +167,14 @@ fn review_node_with_two_reviews_edges_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewDuplicateReviewsEdge {
-                ref review_uid,
-                count: 2,
-            }) if review_uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewDuplicateReviewsEdge {
+                        ref review_uid,
+                        count: 2,
+                    } if review_uid == REV_1
+                )
         ),
         "the error must name the review and the edge count, got: {err:?}"
     );
@@ -173,7 +193,8 @@ fn supersession_cycle_remains_rejected_after_invariants() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewSupersessionCycle { ref uid }) if uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(**inner, ReviewError::ReviewSupersessionCycle { ref uid } if uid == REV_1)
         ),
         "two-node cycle, got: {err:?}"
     );
@@ -194,12 +215,16 @@ fn malformed_review_node_fails_before_chain_validation() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewContentSchema {
-                found: 99,
-                supported: 1,
-                ref uid,
-                ..
-            }) if uid == REV_2
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewContentSchema {
+                        found: 99,
+                        supported: 1,
+                        ref uid,
+                        ..
+                    } if uid == REV_2
+                )
         ),
         "node invariants run before chain validation, got: {err:?}"
     );
@@ -281,11 +306,15 @@ fn typed_target_endpoint_coherence_enforced() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewTargetKindMismatch {
-                ref review_uid,
-                declared: "requirement",
-                resolved: "a curated patch",
-            }) if review_uid == kit::REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewTargetKindMismatch {
+                        ref review_uid,
+                        declared: "requirement",
+                        resolved: "a curated patch",
+                    } if review_uid == kit::REV_1
+                )
         ),
         "requirement target edging a patch, got: {err:?}"
     );
@@ -310,11 +339,15 @@ fn typed_target_endpoint_coherence_enforced() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewTargetKindMismatch {
-                ref review_uid,
-                declared: "curated_patch",
-                resolved: "a requirement node",
-            }) if review_uid == kit::REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewTargetKindMismatch {
+                        ref review_uid,
+                        declared: "curated_patch",
+                        resolved: "a requirement node",
+                    } if review_uid == kit::REV_1
+                )
         ),
         "patch target edging a requirement, got: {err:?}"
     );

@@ -157,7 +157,7 @@ impl CorpusIndex {
             records::load_requirements_into(file, &mut graph)?;
         }
         for file in &index.review_files {
-            review_records::load_reviews_into(file, &mut graph)?;
+            review_records::load_reviews_into(file, &mut graph).map_err(Box::new)?;
         }
         graph.validate()?;
         Ok(graph)

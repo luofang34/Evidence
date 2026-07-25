@@ -235,7 +235,8 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewSupersessionSelf { ref uid }) if uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(**inner, ReviewError::ReviewSupersessionSelf { ref uid } if uid == REV_1)
         ),
         "self-supersession, got: {err:?}"
     );
@@ -248,7 +249,8 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewSupersessionCycle { ref uid }) if uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(**inner, ReviewError::ReviewSupersessionCycle { ref uid } if uid == REV_1)
         ),
         "two-node cycle, got: {err:?}"
     );
@@ -262,11 +264,15 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewSupersessionFork {
-                ref uid,
-                ref first_uid,
-                ref second_uid,
-            }) if uid == REV_1 && first_uid == REV_2 && second_uid == REV_3
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewSupersessionFork {
+                        ref uid,
+                        ref first_uid,
+                        ref second_uid,
+                    } if uid == REV_1 && first_uid == REV_2 && second_uid == REV_3
+                )
         ),
         "fork names the superseded review and both successors, got: {err:?}"
     );
@@ -286,10 +292,14 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewSupersessionReviewer {
-                ref uid,
-                ref predecessor_uid,
-            }) if uid == REV_2 && predecessor_uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewSupersessionReviewer {
+                        ref uid,
+                        ref predecessor_uid,
+                    } if uid == REV_2 && predecessor_uid == REV_1
+                )
         ),
         "cross-reviewer supersession, got: {err:?}"
     );
@@ -309,10 +319,14 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewSupersessionTarget {
-                ref uid,
-                ref predecessor_uid,
-            }) if uid == REV_2 && predecessor_uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewSupersessionTarget {
+                        ref uid,
+                        ref predecessor_uid,
+                    } if uid == REV_2 && predecessor_uid == REV_1
+                )
         ),
         "cross-requirement supersession, got: {err:?}"
     );
@@ -332,10 +346,14 @@ fn supersession_validation_rejects_invalid_chains() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewSupersessionDigest {
-                ref uid,
-                ref predecessor_uid,
-            }) if uid == REV_2 && predecessor_uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewSupersessionDigest {
+                        ref uid,
+                        ref predecessor_uid,
+                    } if uid == REV_2 && predecessor_uid == REV_1
+                )
         ),
         "cross-digest supersession, got: {err:?}"
     );
@@ -372,10 +390,14 @@ fn review_with_two_outgoing_supersedes_edges_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewDuplicateSupersedesEdge {
-                ref review_uid,
-                count: 2,
-            }) if review_uid == REV_3
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewDuplicateSupersedesEdge {
+                        ref review_uid,
+                        count: 2,
+                    } if review_uid == REV_3
+                )
         ),
         "two outgoing supersession edges name the review and the count, got: {err:?}"
     );
@@ -433,10 +455,14 @@ fn cross_target_supersession_fails_closed() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewSupersessionTarget {
-                ref uid,
-                ref predecessor_uid,
-            }) if uid == kit::REV_2 && predecessor_uid == kit::REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewSupersessionTarget {
+                        ref uid,
+                        ref predecessor_uid,
+                    } if uid == kit::REV_2 && predecessor_uid == kit::REV_1
+                )
         ),
         "patch review superseding a requirement review, got: {err:?}"
     );
