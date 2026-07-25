@@ -87,7 +87,9 @@ fn is_valid_id(raw: &str) -> bool {
 }
 
 /// Map heading text to its slug under the rules in the module docs.
-pub(super) fn slugify(text: &str) -> String {
+/// Shared with the HTML adapter, which slugs id-less headings
+/// identically.
+pub(crate) fn slugify(text: &str) -> String {
     let nfc: String = text.nfc().collect();
     let mut out = String::new();
     let mut pending_hyphen = false;
@@ -109,8 +111,9 @@ pub(super) fn slugify(text: &str) -> String {
 }
 
 /// Claim `slug` against the document's used anchor set, appending
-/// `-2`, `-3`, and so on until the claim is unique.
-pub(super) fn dedup(used: &mut BTreeSet<String>, slug: String) -> String {
+/// `-2`, `-3`, and so on until the claim is unique. Shared with the
+/// HTML adapter.
+pub(crate) fn dedup(used: &mut BTreeSet<String>, slug: String) -> String {
     if used.insert(slug.clone()) {
         return slug;
     }

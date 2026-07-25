@@ -1,0 +1,363 @@
+evidence/html-ingest-output/v1
+nodes = 32
+
+[[node]]
+parent = root
+kind = "section"
+ordinal = 0
+label = "1. Requirements Notation"
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+fragment = "notation"
+heading_path = ["1. Requirements Notation"]
+dom_path = [0, 1, 2, 0]
+text = "1. Requirements Notation"
+digest = "33365d6884cfed78af6f2c235db9480c1c6a98adc76601ff47c06dab4a9e3005"
+
+[[node]]
+parent = 0
+kind = "paragraph"
+ordinal = 0
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["1. Requirements Notation"]
+dom_path = [0, 1, 2, 1]
+text = "The key words \"MUST\", \"MUST NOT\", \"REQUIRED\", \"SHALL\", \"SHOULD\", and \"MAY\" in this document are to be interpreted as described in RFC 2119."
+digest = "39ab022358f10684a1180c06d84bcfd06c6a7a174bdc74f3ab435a34968dbf15"
+
+[[node]]
+parent = 0
+kind = "paragraph"
+ordinal = 1
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["1. Requirements Notation"]
+dom_path = [0, 1, 2, 2]
+text = "See the Terminology section for definitions and the missing appendix for nothing."
+digest = "a68a5eaabf1da24565f58ad56372643980d0255307fcf2a0efb33c14e5bef0bd"
+
+[[node]]
+parent = root
+kind = "section"
+ordinal = 1
+label = "2. Terminology"
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+fragment = "terminology"
+heading_path = ["2. Terminology"]
+dom_path = [0, 1, 2, 3]
+text = "2. Terminology"
+digest = "95ec585906484996182d6d63c579a8635018635011475a42106dd909f44560be"
+
+[[node]]
+parent = 3
+kind = "paragraph"
+ordinal = 0
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology"]
+dom_path = [0, 1, 2, 4]
+text = "This specification defines the following terms."
+digest = "670d1cd9695ec613e32082c251cd7a636fadbe57926da50b252e89bb1441a0cb"
+
+[[node]]
+parent = 3
+kind = "definition_term"
+ordinal = 1
+label = "Credential"
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology"]
+dom_path = [0, 1, 2, 5, 0]
+text = "Credential"
+digest = "2e20891e8904122c770eb70bae7bba0da7ecbc29b7f91e9040d8adcbaded1867"
+
+[[node]]
+parent = 3
+kind = "definition_body"
+ordinal = 2
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology"]
+dom_path = [0, 1, 2, 5, 1]
+text = "Data presented to establish the right to an action."
+digest = "937abfe47932c33d44cccbfa9409e7155b9ade4d726fbd5de3d344edb8e3aca4"
+
+[[node]]
+parent = 3
+kind = "definition_term"
+ordinal = 3
+label = "Verifier"
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology"]
+dom_path = [0, 1, 2, 5, 2]
+text = "Verifier"
+digest = "bf5eed66b35d7f01db2f24ebbbdede2da3cac6af165a0af1fea2ba9e00a136d2"
+
+[[node]]
+parent = 3
+kind = "definition_body"
+ordinal = 4
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology"]
+dom_path = [0, 1, 2, 5, 3]
+text = "An entity that checks a credential. Monospace text denotes a literal_value."
+digest = "00c8bc252dde72f9d63a4efd746b9ffaa32e6be417c536ccba1c7b044e23411e"
+
+[[node]]
+parent = 3
+kind = "section"
+ordinal = 5
+label = "2.1. Conventions"
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+fragment = "conventions"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 6]
+text = "2.1. Conventions"
+digest = "e105a6e1cf88c8c528bfa053bc945df9f424aeec1503d0364a8d2a7009154a7a"
+
+[[node]]
+parent = 9
+kind = "list_item"
+ordinal = 0
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 7, 0]
+text = "First level item"
+digest = "53fc6792167cb091beacbb148eb2d6bf35411a66d3c6a91f22bd2993e501f0fd"
+
+[[node]]
+parent = 9
+kind = "list_item"
+ordinal = 1
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 7, 0, 0, 0]
+text = "Nested item one"
+digest = "a248371457b82a968173c2f29fc778edc63a799b292e50991b052594dd3a7a70"
+
+[[node]]
+parent = 9
+kind = "list_item"
+ordinal = 2
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 7, 0, 0, 1]
+text = "Nested item two"
+digest = "78fa698501a0dd0f7dda327ee6b8c6b32d590a3b22b8cbc8ed5405368b9673cd"
+
+[[node]]
+parent = 9
+kind = "list_item"
+ordinal = 3
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 7, 1]
+text = "Second level item"
+digest = "df03bd1ae71805575186a682e0b11e8168f51d03df27ddba5913ed617cb75d03"
+
+[[node]]
+parent = 9
+kind = "table"
+ordinal = 4
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8]
+text = ""
+digest = "a644291e7b52d637c0ed599496d489cb7e720e02238e3986cce216f7339f7532"
+
+[[node]]
+parent = 14
+kind = "table_row"
+ordinal = 0
+label = "header 1"
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 0, 0]
+text = ""
+digest = "71ec7a7c1d358c8da6159777c3b980ebe34d48ce0fe972ea5fd154d5014c5ab4"
+
+[[node]]
+parent = 15
+kind = "table_cell"
+ordinal = 0
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 0, 0, 0]
+text = "Claim"
+digest = "4e0ed593487e710b9d7063aac9a95fc9db7c629a6e4af2666a412cbd55aad2ce"
+
+[[node]]
+parent = 15
+kind = "table_cell"
+ordinal = 1
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 0, 0, 1]
+text = "Presence"
+digest = "ffb66b3654aadf4e2581d286a1e8a11fd9d54c616fa2d04be1c48dbe21d1c03c"
+
+[[node]]
+parent = 15
+kind = "table_cell"
+ordinal = 2
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 0, 0, 1]
+text = ""
+digest = "831700f2583d3c4f96901d192af3be3a5f16e43b79b268a5afd9a1c62acc7242"
+
+[[node]]
+parent = 14
+kind = "table_row"
+ordinal = 1
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 1, 0]
+text = ""
+digest = "71ec7a7c1d358c8da6159777c3b980ebe34d48ce0fe972ea5fd154d5014c5ab4"
+
+[[node]]
+parent = 19
+kind = "table_cell"
+ordinal = 0
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 1, 0, 0]
+text = "sub"
+digest = "acca4cfa9c671c6ad439389f1c24849669d297906c8263cc1f8a5b68fe897730"
+
+[[node]]
+parent = 19
+kind = "table_cell"
+ordinal = 1
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 1, 0, 1]
+text = "required"
+digest = "951d6962f8e579e5f0588e5f4566c4d29961f1bfde0bffeeb9456ed3652fabac"
+
+[[node]]
+parent = 19
+kind = "table_cell"
+ordinal = 2
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 1, 0, 2]
+text = "always"
+digest = "3cc9024e84a9975cc0cbbdac9ea790f7de98a8f790a88964b3956539706525a9"
+
+[[node]]
+parent = 14
+kind = "table_row"
+ordinal = 2
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 1, 1]
+text = ""
+digest = "71ec7a7c1d358c8da6159777c3b980ebe34d48ce0fe972ea5fd154d5014c5ab4"
+
+[[node]]
+parent = 23
+kind = "table_cell"
+ordinal = 0
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 1, 1]
+text = ""
+digest = "831700f2583d3c4f96901d192af3be3a5f16e43b79b268a5afd9a1c62acc7242"
+
+[[node]]
+parent = 23
+kind = "table_cell"
+ordinal = 1
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 1, 1, 0]
+text = "type"
+digest = "44559d5f5ed1f7a5edb2200bcc77fbc7c04cecc6b002415a5133240c1f03e48e"
+
+[[node]]
+parent = 23
+kind = "table_cell"
+ordinal = 2
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 8, 1, 1, 1]
+text = "string"
+digest = "b1a61103926ae92ff867bcc766c331ddee9f14b8bdc6a5f93a65c8cabd929f52"
+
+[[node]]
+parent = 9
+kind = "code_block"
+ordinal = 5
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 9]
+text = "GET /authorize?response_type=code\n  &client_id=s6BhdRkqt3"
+digest = "9f1350fef7f17169a99ea71fcc421045a440aedf042bb7ed1a9fcf0082eabe0d"
+
+[[node]]
+parent = 9
+kind = "note"
+ordinal = 6
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 10]
+text = "Note that monospaced text denotes literal values."
+digest = "b875d27f145f9672c5c9c1f9ccb2d24f2ecdcf0bfb1a290e350000b72206b01f"
+
+[[node]]
+parent = 9
+kind = "note"
+ordinal = 7
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 11]
+text = "An example exchange follows the note."
+digest = "75bb82b35b60668d1c18ca1cea3c08e326b34c50d0f10479e5b4f81c2d879a0e"
+
+[[node]]
+parent = 9
+kind = "figure_caption"
+ordinal = 8
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 12, 1]
+text = "Figure 1: Authorization flow"
+digest = "bfef2af12c07062bd8ea127da5c17011a62ce4f78fd688e17d4f2e19b42d1e3b"
+
+[[node]]
+parent = 9
+kind = "paragraph"
+ordinal = 9
+canonical_url = "https://example.org/spec/oidc-like.html"
+final_url = "https://example.org/spec/oidc-like-final.html"
+heading_path = ["2. Terminology", "2.1. Conventions"]
+dom_path = [0, 1, 2, 13]
+text = "Unconfigured custom content stays."
+digest = "133e5accf8ab6576472c724b6edbf1b2752304b497e023cb43f77aa313e762b9"

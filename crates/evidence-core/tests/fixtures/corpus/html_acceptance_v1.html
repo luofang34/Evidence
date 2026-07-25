@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Example OpenID-Like Specification</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="style.css">
+  <style>body { color: black; }</style>
+  <script>var tracker = 1;</script>
+</head>
+<body>
+  <nav class="site-nav">
+    <ul>
+      <li><a href="#notation">Requirements Notation</a></li>
+      <li><a href="#terminology">Terminology</a></li>
+    </ul>
+  </nav>
+  <div class="toc">
+    <h2>Table of Contents</h2>
+    <ul>
+      <li><a href="#notation">1. Requirements Notation</a></li>
+      <li><a href="#terminology">2. Terminology</a></li>
+    </ul>
+  </div>
+  <main id="spec-body">
+    <h1 id="notation">1. Requirements Notation</h1>
+    <p>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHOULD", and "MAY" in this
+       document are to be interpreted as described in
+       <a href="https://www.rfc-editor.org/rfc/rfc2119" rel="external">RFC 2119</a>.</p>
+    <p>See the <a href="#terminology">Terminology</a> section for definitions and the
+       <a href="#missing-target">missing appendix</a> for nothing.</p>
+    <h1 id="terminology">2. Terminology</h1>
+    <p>This specification defines the following terms.</p>
+    <dl>
+      <dt>Credential</dt>
+      <dd>Data presented to establish the right to an action.</dd>
+      <dt>Verifier</dt>
+      <dd>An entity that checks a credential. Monospace text denotes a
+          <code>literal_value</code>.</dd>
+    </dl>
+    <h2 id="conventions">2.1. Conventions</h2>
+    <ul>
+      <li>First level item
+        <ul>
+          <li>Nested item one</li>
+          <li>Nested item two</li>
+        </ul>
+      </li>
+      <li>Second level item</li>
+    </ul>
+    <table>
+      <thead>
+        <tr><th>Claim</th><th colspan="2">Presence</th></tr>
+      </thead>
+      <tbody>
+        <tr><td rowspan="2">sub</td><td>required</td><td>always</td></tr>
+        <tr><td>type</td><td>string</td></tr>
+      </tbody>
+    </table>
+    <pre><code>GET /authorize?response_type=code
+  &amp;client_id=s6BhdRkqt3</code></pre>
+    <div class="note">
+      <p>Note that monospaced text denotes literal values.</p>
+    </div>
+    <div class="example">
+      <p>An example exchange follows the note.</p>
+    </div>
+    <figure id="fig-flow">
+      <img src="flow.png" alt="Flow diagram">
+      <figcaption>Figure 1: Authorization flow</figcaption>
+    </figure>
+    <p>Unconfigured <custom-widget>custom content</custom-widget> stays.</p>
+  </main>
+  <footer class="site-footer">
+    <p>Copyright Example Consortium.</p>
+  </footer>
+</body>
+</html>

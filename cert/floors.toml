@@ -79,7 +79,7 @@ known_surfaces = 27
 
 [per_crate.evidence-core]
 # `#[test]` attribute count inside crates/evidence-core/**/*.rs.
-test_count = 776
+test_count = 788
 
 [per_crate.cargo-evidence]
 test_count = 203

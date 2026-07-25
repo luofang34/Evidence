@@ -544,6 +544,7 @@ version = "0.1.5"
 dependencies = [
  "chrono",
  "ed25519-dalek",
+ "ego-tree",
  "hex",
  "jsonschema",
  "pulldown-cmark",
