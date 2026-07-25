@@ -388,3 +388,81 @@ fn review_with_two_outgoing_supersedes_edges_is_rejected() {
         .validate()
         .expect("a single supersession still validates");
 }
+
+/// Cross-target supersession fails closed: a patch-targeted review
+/// may not supersede a requirement-targeted review, even with the
+/// same reviewer and digest (TEST-189).
+#[test]
+fn cross_target_supersession_fails_closed() {
+    use crate::corpus::patch_testkit as kit;
+
+    let patch = kit::patch_record(kit::PATCH_A, "PATCH-001");
+    let mut requirement_review = kit::patch_review(
+        kit::REV_1,
+        "REV-001",
+        kit::PATCH_A,
+        &"a".repeat(64),
+        ReviewDecision::Approve,
+        "alice@example.com",
+        None,
+    );
+    requirement_review.target = ReviewTarget::Requirement(REQ_A.to_string());
+    requirement_review.edges = vec![(EdgeKind::Reviews, REQ_A.to_string())];
+    let patch_correction = kit::patch_review(
+        kit::REV_2,
+        "REV-002",
+        kit::PATCH_A,
+        &"a".repeat(64),
+        ReviewDecision::Approve,
+        "alice@example.com",
+        Some(kit::REV_1),
+    );
+    let mut graph = kit::graph_with(patch, vec![requirement_review, patch_correction]);
+    graph
+        .insert(Node::Requirement(RequirementNode::new(
+            REQ_A.to_string(),
+            "R-A".to_string(),
+            "title".to_string(),
+            RequirementLayer::Hlr,
+            Vec::new(),
+        )))
+        .unwrap();
+    let err = graph
+        .validate()
+        .expect_err("cross-target supersession must fail closed");
+    assert!(
+        matches!(
+            err,
+            CorpusError::Review(ReviewError::ReviewSupersessionTarget {
+                ref uid,
+                ref predecessor_uid,
+            }) if uid == kit::REV_2 && predecessor_uid == kit::REV_1
+        ),
+        "patch review superseding a requirement review, got: {err:?}"
+    );
+
+    // Same-kind patch supersession chains still validate.
+    let patch = kit::patch_record(kit::PATCH_A, "PATCH-001");
+    let digest = patch.reviewed_content_digest.as_str().to_string();
+    let first = kit::patch_review(
+        kit::REV_1,
+        "REV-001",
+        kit::PATCH_A,
+        &digest,
+        ReviewDecision::Approve,
+        "alice@example.com",
+        None,
+    );
+    let correction = kit::patch_review(
+        kit::REV_2,
+        "REV-002",
+        kit::PATCH_A,
+        &digest,
+        ReviewDecision::Approve,
+        "alice@example.com",
+        Some(kit::REV_1),
+    );
+    kit::graph_with(patch, vec![first, correction])
+        .validate()
+        .expect("a patch supersession chain validates like a requirement chain");
+}

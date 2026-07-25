@@ -64,6 +64,8 @@ mod ingest;
 mod legacy;
 mod lifecycle;
 mod patch_lifecycle;
+#[cfg(test)]
+pub(crate) mod patch_testkit;
 mod proposal;
 mod records;
 mod review_content;

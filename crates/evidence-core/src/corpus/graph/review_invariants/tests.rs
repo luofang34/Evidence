@@ -228,3 +228,123 @@ fn programmatically_built_valid_graph_validates() {
     .validate()
     .expect("a programmatically built valid review graph validates");
 }
+
+/// Typed-target endpoint coherence: a patch-targeted review
+/// validates against the committed patch plane, a requirement
+/// target whose edge names a patch and a patch target whose edge
+/// names a requirement both fail closed with the kind-mismatch
+/// variant, and a patch review edge with no committed patch
+/// dangles (TEST-189).
+#[test]
+fn typed_target_endpoint_coherence_enforced() {
+    use crate::corpus::patch_testkit as kit;
+    use crate::corpus::{ReviewTargetKind, SourcePatchRecord};
+
+    let patch: SourcePatchRecord = kit::patch_record(kit::PATCH_A, "PATCH-001");
+    let valid = kit::graph_with(
+        patch.clone(),
+        vec![kit::patch_review(
+            kit::REV_1,
+            "REV-001",
+            kit::PATCH_A,
+            patch.reviewed_content_digest.as_str(),
+            ReviewDecision::Approve,
+            "alice@example.com",
+            None,
+        )],
+    );
+    valid
+        .validate()
+        .expect("a patch-targeted review validates against the patch plane");
+    assert_eq!(
+        match valid.get(kit::REV_1) {
+            Some(Node::Review(review)) => review.target.kind(),
+            other => panic!("review missing: {other:?}"),
+        },
+        ReviewTargetKind::CuratedPatch
+    );
+
+    // Declared requirement target, edge naming a committed patch.
+    let mut req_targeted = kit::patch_review(
+        kit::REV_1,
+        "REV-001",
+        kit::PATCH_A,
+        &"a".repeat(64),
+        ReviewDecision::Approve,
+        "alice@example.com",
+        None,
+    );
+    req_targeted.target = ReviewTarget::Requirement(kit::PATCH_A.to_string());
+    let err = kit::graph_with(patch.clone(), vec![req_targeted])
+        .validate()
+        .expect_err("a requirement target edging a patch must fail closed");
+    assert!(
+        matches!(
+            err,
+            CorpusError::Review(ReviewError::ReviewTargetKindMismatch {
+                ref review_uid,
+                declared: "requirement",
+                resolved: "a curated patch",
+            }) if review_uid == kit::REV_1
+        ),
+        "requirement target edging a patch, got: {err:?}"
+    );
+
+    // Declared curated-patch target, edge naming a requirement node.
+    let mut patch_targeted = kit::patch_review(
+        kit::REV_1,
+        "REV-001",
+        kit::PATCH_A,
+        &"a".repeat(64),
+        ReviewDecision::Approve,
+        "alice@example.com",
+        None,
+    );
+    patch_targeted.edges = vec![(EdgeKind::Reviews, REQ_A.to_string())];
+    patch_targeted.target = ReviewTarget::CuratedPatch(REQ_A.to_string());
+    let mut graph = kit::graph_with(patch, vec![patch_targeted]);
+    graph.insert(requirement(REQ_A)).unwrap();
+    let err = graph
+        .validate()
+        .expect_err("a patch target edging a requirement must fail closed");
+    assert!(
+        matches!(
+            err,
+            CorpusError::Review(ReviewError::ReviewTargetKindMismatch {
+                ref review_uid,
+                declared: "curated_patch",
+                resolved: "a requirement node",
+            }) if review_uid == kit::REV_1
+        ),
+        "patch target edging a requirement, got: {err:?}"
+    );
+
+    // A patch review edge with no committed patch dangles.
+    let mut graph = CorpusGraph::new();
+    graph.insert(kit::revision_node()).unwrap();
+    graph
+        .insert(Node::Review(kit::patch_review(
+            kit::REV_1,
+            "REV-001",
+            kit::PATCH_A,
+            &"a".repeat(64),
+            ReviewDecision::Approve,
+            "alice@example.com",
+            None,
+        )))
+        .unwrap();
+    let err = graph
+        .validate()
+        .expect_err("a review edging an uncommitted patch must fail closed");
+    assert!(
+        matches!(
+            err,
+            CorpusError::DanglingEdge {
+                ref from,
+                ref to,
+                kind: EdgeKind::Reviews,
+            } if from == kit::REV_1 && to == kit::PATCH_A
+        ),
+        "uncommitted patch target, got: {err:?}"
+    );
+}
