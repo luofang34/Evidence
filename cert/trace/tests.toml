@@ -2809,9 +2809,9 @@ title = "every operation succeeds under exact preconditions and stale, conflicti
 owner = "tool"
 traces_to = ["dee14942-5ba7-4d15-9e9e-30698c3560ab"]
 test_selectors = [
-    "evidence_core::corpus::source_patch::tests::each_operation_applies_under_exact_preconditions_and_fails_closed_when_stale",
-    "evidence_core::corpus::source_patch::tests::conflicts_duplicates_cross_document_dangling_cascade_and_invalid_post_graph_are_typed_errors",
-    "evidence_core::corpus::source_patch::tests::application_is_atomic_and_leaves_the_original_graph_untouched",
+    "evidence_core::corpus::source_patch::tests_apply::each_operation_applies_under_exact_preconditions_and_fails_closed_when_stale",
+    "evidence_core::corpus::source_patch::tests_apply::tests_errors::conflicts_duplicates_cross_document_dangling_cascade_and_invalid_post_graph_are_typed_errors",
+    "evidence_core::corpus::source_patch::tests_apply::application_is_atomic_and_leaves_the_original_graph_untouched",
 ]
 
 [[tests]]
