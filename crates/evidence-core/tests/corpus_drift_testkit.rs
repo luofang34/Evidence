@@ -7,8 +7,8 @@
 //!
 //! Included into each drift test binary via
 //! `#[path = "corpus_drift_testkit.rs"] mod testkit;`, mirroring
-//! `helpers.rs`; every item is `pub` + `#[allow(dead_code)]` so
-//! each file imports only what it needs.
+//! `helpers.rs`; every item is `pub` with a crate-level dead-code
+//! allowance so each file imports only what it needs.
 
 #![allow(
     dead_code,
