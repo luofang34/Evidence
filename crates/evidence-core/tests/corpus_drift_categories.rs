@@ -95,7 +95,7 @@ fn every_category_fires_independently() {
         },
     );
     let second = node(
-        &[first.clone()],
+        std::slice::from_ref(&first),
         &NodeSpec {
             uid: PARA,
             parent: None,
@@ -165,7 +165,7 @@ fn every_category_fires_independently() {
         },
     );
     let paragraph = node(
-        &[section.clone()],
+        std::slice::from_ref(&section),
         &NodeSpec {
             uid: PARA,
             parent: Some(SEC),
@@ -232,7 +232,7 @@ fn every_category_fires_independently() {
     let swapped = graph_from(vec![
         section.clone(),
         node(
-            &[section.clone()],
+            std::slice::from_ref(&section),
             &NodeSpec {
                 uid: PARA,
                 parent: Some(SEC),
@@ -244,7 +244,7 @@ fn every_category_fires_independently() {
             },
         ),
         node(
-            &[section.clone()],
+            std::slice::from_ref(&section),
             &NodeSpec {
                 uid: NOTE,
                 parent: Some(SEC),
@@ -279,7 +279,7 @@ fn every_category_fires_independently() {
     let reclassified = graph_from(vec![
         section.clone(),
         node(
-            &[section.clone()],
+            std::slice::from_ref(&section),
             &NodeSpec {
                 uid: PARA,
                 parent: Some(SEC),
@@ -291,7 +291,7 @@ fn every_category_fires_independently() {
             },
         ),
         node(
-            &[section.clone()],
+            std::slice::from_ref(&section),
             &NodeSpec {
                 uid: NOTE,
                 parent: Some(SEC),

@@ -156,7 +156,7 @@ fn added_removed_reordered_nodes_reconcile_deterministically() {
     let candidate_nodes = vec![
         section.clone(),
         node(
-            &[section.clone()],
+            std::slice::from_ref(&section),
             &NodeSpec {
                 uid: EXTRA,
                 parent: Some(SEC),
@@ -168,7 +168,7 @@ fn added_removed_reordered_nodes_reconcile_deterministically() {
             },
         ),
         node(
-            &[section.clone()],
+            std::slice::from_ref(&section),
             &NodeSpec {
                 uid: PARA,
                 parent: Some(SEC),
