@@ -232,10 +232,7 @@ pub fn evaluate_all_lifecycles(
     for node in graph.nodes() {
         if let Node::Review(review) = node
             && let ReviewTarget::Requirement(requirement_uid) = &review.target
-            && !matches!(
-                graph.get(requirement_uid),
-                Some(Node::Requirement(_))
-            )
+            && !matches!(graph.get(requirement_uid), Some(Node::Requirement(_)))
         {
             return Err(LifecycleError::ApprovalTargetsMissingRequirement {
                 requirement_uid: requirement_uid.clone(),
@@ -284,10 +281,7 @@ fn evaluate_lifecycle_validated(
 /// Shared with patch lifecycle evaluation (LLR-173): the digest is
 /// compared as text so each target kind's own projection type can
 /// drive the same table.
-pub(crate) fn derive_state(
-    heads: &[&ReviewNode],
-    current_digest: &str,
-) -> RequirementLifecycle {
+pub(crate) fn derive_state(heads: &[&ReviewNode], current_digest: &str) -> RequirementLifecycle {
     let mut current_rejection = false;
     let mut current_approval = false;
     let mut older_approval = false;

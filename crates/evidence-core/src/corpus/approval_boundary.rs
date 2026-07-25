@@ -242,7 +242,9 @@ pub enum ApprovalBoundaryError {
     /// be produced; this fails closed with the full
     /// [`SourcePatchError`] source chain (LLR-175). Boxed to keep
     /// the enum under clippy's `result_large_err` threshold.
-    #[error("approved curated patch {patch_uid} cannot contribute to the effective graph: {source}")]
+    #[error(
+        "approved curated patch {patch_uid} cannot contribute to the effective graph: {source}"
+    )]
     EffectiveCuratedContent {
         /// The approved patch's uid.
         patch_uid: String,

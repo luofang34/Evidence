@@ -330,3 +330,13 @@ mod insert_error_tests;
 )]
 #[path = "review_records/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test setup failures should panic immediately"
+)]
+#[path = "review_records/typed_target_tests.rs"]
+mod typed_target_tests;

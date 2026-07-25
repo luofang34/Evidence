@@ -36,9 +36,7 @@
 use thiserror::Error;
 
 use super::graph::CorpusGraph;
-use super::patch_lifecycle::{
-    PatchLifecycle, PatchLifecycleError, evaluate_all_patch_lifecycles,
-};
+use super::patch_lifecycle::{PatchLifecycle, PatchLifecycleError, evaluate_all_patch_lifecycles};
 use super::source_graph::SourceGraph;
 use super::source_patch::apply::{PatchBindings, apply_patch};
 use super::source_patch::error::SourcePatchError;
@@ -82,7 +80,9 @@ pub enum EffectiveGraphError {
     /// than being silently dropped. Boxed to keep the enum under
     /// clippy's `result_large_err` threshold; the source object is
     /// carried whole either way.
-    #[error("approved curated patch {patch_uid} cannot contribute to the effective graph: {source}")]
+    #[error(
+        "approved curated patch {patch_uid} cannot contribute to the effective graph: {source}"
+    )]
     ApprovedPatchApplication {
         /// The approved patch's uid.
         patch_uid: String,

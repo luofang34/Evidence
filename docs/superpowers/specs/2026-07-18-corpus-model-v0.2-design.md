@@ -171,13 +171,17 @@ on machine-proposed candidates.
 ## DD-11 — Lifecycle and review
 
 States: `candidate → approved | rejected`, plus derived `stale`. Approval
-is a separate review record binding `(requirement uid,
+is a separate review record binding `(typed target,
 reviewed_content_sha256, decision, reviewer, reviewed_at)`; any content
-change makes the requirement stale because the digest no longer matches.
-Agents may create and update candidates only, through an append-only
-proposal path; approval, source-snapshot mutation, and baseline overwrite
-are human-only. Enforcement: in strict profiles, implementation artifacts
-(LLR modules, code, tests) may only trace into approved requirements.
+change makes the target stale because the digest no longer matches. The
+target is a closed set — `requirement` or `curated_patch`; the kind owns
+the reviewed-content projection the digest covers, and a patch
+contributes to its revision's effective structural graph only while
+currently approved. Agents may create and update candidates only, through
+an append-only proposal path; approval, source-snapshot mutation, and
+baseline overwrite are human-only. Enforcement: in strict profiles,
+implementation artifacts (LLR modules, code, tests) may only trace into
+approved requirements.
 
 ## DD-12 — Conventions baseline precedes extraction
 

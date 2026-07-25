@@ -43,7 +43,8 @@ fn only_approved_patches_contribute_and_fail_closed() {
     assert!(effective.applied_patch_uids.is_empty());
     assert!(effective.graph.get(kit::INSERTED).is_none());
     assert_eq!(
-        effective.source_revision_uid, kit::REVISION,
+        effective.source_revision_uid,
+        kit::REVISION,
         "the result names its revision"
     );
 
@@ -85,10 +86,7 @@ fn only_approved_patches_contribute_and_fail_closed() {
     let graph = kit::graph_with(patch.clone(), vec![approve_current(&patch)]);
     let effective = effective_source_graph(&graph, kit::REVISION, &bindings(), kit::MEDIA)
         .expect("approved corpus computes");
-    assert_eq!(
-        effective.applied_patch_uids,
-        vec![kit::PATCH_A.to_string()]
-    );
+    assert_eq!(effective.applied_patch_uids, vec![kit::PATCH_A.to_string()]);
     assert!(
         effective.graph.get(kit::INSERTED).is_some(),
         "the approved patch's inserted node is effective"
@@ -153,8 +151,7 @@ fn only_approved_patches_contribute_and_fail_closed() {
 
     // The committed patch plane is unchanged by evaluation: the
     // approval is still derived, never stored.
-    let evaluation =
-        evaluate_patch_lifecycle(&graph, kit::PATCH_A).expect("lifecycle evaluates");
+    let evaluation = evaluate_patch_lifecycle(&graph, kit::PATCH_A).expect("lifecycle evaluates");
     assert_eq!(evaluation.state, PatchLifecycle::Approved);
     assert!(
         graph.get(kit::PATCH_A).is_none(),

@@ -49,8 +49,9 @@ fn truth_table_and_supersession_match_requirements() {
     let older = "a".repeat(64);
 
     // Candidate: no reviews at all.
-    let evaluation = evaluate_patch_lifecycle(&kit::graph_with(patch.clone(), vec![]), kit::PATCH_A)
-        .expect("no-review graph evaluates");
+    let evaluation =
+        evaluate_patch_lifecycle(&kit::graph_with(patch.clone(), vec![]), kit::PATCH_A)
+            .expect("no-review graph evaluates");
     assert_eq!(evaluation.state, PatchLifecycle::Candidate);
     assert!(evaluation.effective_review_uids.is_empty());
     assert_eq!(evaluation.current_digest.as_str(), digest);
@@ -59,7 +60,10 @@ fn truth_table_and_supersession_match_requirements() {
     let graph = kit::graph_with(patch.clone(), vec![approve(kit::REV_1, "REV-001", &digest)]);
     let evaluation = evaluate_patch_lifecycle(&graph, kit::PATCH_A).expect("approved evaluates");
     assert_eq!(evaluation.state, PatchLifecycle::Approved);
-    assert_eq!(evaluation.effective_review_uids, vec![kit::REV_1.to_string()]);
+    assert_eq!(
+        evaluation.effective_review_uids,
+        vec![kit::REV_1.to_string()]
+    );
 
     // Rejected: a current-digest rejection, with precedence over a
     // current-digest approval by another reviewer — conflicting
@@ -109,8 +113,7 @@ fn truth_table_and_supersession_match_requirements() {
     );
 
     // evaluate_all covers every committed patch, keyed in uid order.
-    let evaluations =
-        evaluate_all_patch_lifecycles(&graph).expect("evaluate_all evaluates");
+    let evaluations = evaluate_all_patch_lifecycles(&graph).expect("evaluate_all evaluates");
     assert_eq!(evaluations.len(), 1);
     assert_eq!(
         evaluations.get(kit::PATCH_A).map(|e| e.state),
@@ -135,7 +138,11 @@ fn every_semantic_mutation_stales_approval() {
     let approved_graph = |patch: &SourcePatchRecord| {
         kit::graph_with(
             patch.clone(),
-            vec![approve(kit::REV_1, "REV-001", &patch.reviewed_content_digest.as_str().to_string())],
+            vec![approve(
+                kit::REV_1,
+                "REV-001",
+                &patch.reviewed_content_digest.as_str().to_string(),
+            )],
         )
     };
     let base = approved_graph(&patch);
@@ -158,18 +165,20 @@ fn every_semantic_mutation_stales_approval() {
 
     type Mutation = (&'static str, fn(&mut SourcePatchRecord));
     let semantic: [Mutation; 6] = [
-        ("recipe binding", |p| p.recipe_digest = kit::structural(&"1".repeat(64))),
-        ("input binding", |p| p.input_digest = kit::structural(&"2".repeat(64))),
+        ("recipe binding", |p| {
+            p.recipe_digest = kit::structural(&"1".repeat(64))
+        }),
+        ("input binding", |p| {
+            p.input_digest = kit::structural(&"2".repeat(64))
+        }),
         ("operation content", |p| {
-            let crate::corpus::PatchOperation::Insert { node, .. } = &mut p.operations[0]
-            else {
+            let crate::corpus::PatchOperation::Insert { node, .. } = &mut p.operations[0] else {
                 panic!("fixture patch inserts");
             };
             node.canonical_text.push_str(" edited");
         }),
         ("inserted node kind", |p| {
-            let crate::corpus::PatchOperation::Insert { node, .. } = &mut p.operations[0]
-            else {
+            let crate::corpus::PatchOperation::Insert { node, .. } = &mut p.operations[0] else {
                 panic!("fixture patch inserts");
             };
             node.kind = crate::corpus::SourceNodeKind::Paragraph;
@@ -185,8 +194,7 @@ fn every_semantic_mutation_stales_approval() {
             *expected_parent_uid = Some("snode_00000000-0000-4000-8000-0000000000ff".to_string());
         }),
         ("operation ordinal", |p| {
-            let crate::corpus::PatchOperation::Insert { ordinal, .. } = &mut p.operations[0]
-            else {
+            let crate::corpus::PatchOperation::Insert { ordinal, .. } = &mut p.operations[0] else {
                 panic!("fixture patch inserts");
             };
             *ordinal = 7;
@@ -219,8 +227,12 @@ fn every_semantic_mutation_stales_approval() {
 
     let audit: [Mutation; 4] = [
         ("author", |p| p.author = "other@example.com".to_string()),
-        ("rationale", |p| p.rationale = "different rationale".to_string()),
-        ("created_at", |p| p.created_at = "2026-07-02T00:00:00Z".to_string()),
+        ("rationale", |p| {
+            p.rationale = "different rationale".to_string()
+        }),
+        ("created_at", |p| {
+            p.created_at = "2026-07-02T00:00:00Z".to_string()
+        }),
         ("human_id", |p| p.human_id = "PATCH-RENAMED".to_string()),
     ];
     for (name, mutate) in audit {

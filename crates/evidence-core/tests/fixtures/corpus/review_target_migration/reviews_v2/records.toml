@@ -1,0 +1,11 @@
+schema_version = 2
+
+[[reviews]]
+uid = "rev_00000000-0000-4000-8000-0000000000a2"
+id = "REV-002"
+target = { kind = "requirement", uid = "req_00000000-0000-4000-8000-00000000000a" }
+content_schema = 1
+reviewed_content_sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+decision = "approve"
+reviewer = "alice@example.com"
+reviewed_at = "2026-07-01T10:00:00Z"
