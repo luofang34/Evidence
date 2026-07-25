@@ -18,7 +18,7 @@
 use std::fs;
 
 use evidence_core::corpus::{
-    DriftOutcome, SourceNodeKind, compare_reingestion, content_digest,
+    DriftCategory, DriftOutcome, SourceNodeKind, compare_reingestion, content_digest,
     evaluate_all_patch_lifecycles, render_report_canonical,
 };
 
@@ -26,8 +26,8 @@ use evidence_core::corpus::{
 mod testkit;
 
 use testkit::{
-    NOTE, PARA, base_nodes, baseline, candidate, committed_patches, fixture_dir, fixture_recipe,
-    graph_from, load_corpus, locator,
+    EXTRA, NOTE, NodeSpec, PARA, SEC, base_nodes, baseline, candidate, categories,
+    committed_patches, fixture_dir, fixture_recipe, graph_from, load_corpus, locator, node,
 };
 
 /// Identical committed and candidate planes return explicit
@@ -130,4 +130,88 @@ fn golden_findings_stable_across_runs_and_equivalent_layouts() {
         committed, renders[0],
         "the canonical drift report drifted — the sorting and rendering contract is byte-locked"
     );
+}
+/// Added, removed, and reordered nodes reconcile deterministically
+/// and findings stay sorted (TEST-193).
+#[test]
+fn added_removed_reordered_nodes_reconcile_deterministically() {
+    let corpus = load_corpus(false);
+    let evaluations = evaluate_all_patch_lifecycles(&corpus).expect("evaluations");
+    let patches = committed_patches(&corpus);
+    let recipe = fixture_recipe();
+    // The paragraph moves after a newly added note; the committed
+    // note vanishes.
+    let section = node(
+        &[],
+        &NodeSpec {
+            uid: SEC,
+            parent: None,
+            kind: SourceNodeKind::Section,
+            ordinal: 0,
+            label: Some("1 Intro"),
+            text: "",
+            byte_range: (0, 50),
+        },
+    );
+    let candidate_nodes = vec![
+        section.clone(),
+        node(
+            &[section.clone()],
+            &NodeSpec {
+                uid: EXTRA,
+                parent: Some(SEC),
+                kind: SourceNodeKind::Note,
+                ordinal: 0,
+                label: None,
+                text: "extra",
+                byte_range: (51, 56),
+            },
+        ),
+        node(
+            &[section.clone()],
+            &NodeSpec {
+                uid: PARA,
+                parent: Some(SEC),
+                kind: SourceNodeKind::Paragraph,
+                ordinal: 1,
+                label: None,
+                text: "hello",
+                byte_range: (57, 66),
+            },
+        ),
+    ];
+    let drifted = graph_from(candidate_nodes);
+    let mut reports = Vec::new();
+    for _ in 0..2 {
+        reports.push(
+            compare_reingestion(
+                &baseline(&corpus, &evaluations),
+                &candidate(&recipe, &drifted, &patches, &evaluations),
+            )
+            .expect("reordered nodes compare"),
+        );
+    }
+    assert_eq!(reports[0], reports[1], "repeated runs report identically");
+    let found = categories(&reports[0].findings);
+    assert!(found.contains(&DriftCategory::NodeAdded), "{found:?}");
+    assert!(found.contains(&DriftCategory::NodeRemoved), "{found:?}");
+    assert!(
+        found.contains(&DriftCategory::NodeOrdinalChanged),
+        "{found:?}"
+    );
+    let keys: Vec<_> = reports[0]
+        .findings
+        .iter()
+        .map(|finding| {
+            (
+                finding.category,
+                finding.structural_path.clone(),
+                finding.node_uid.clone(),
+                finding.patch_uid.clone(),
+            )
+        })
+        .collect();
+    let mut sorted = keys.clone();
+    sorted.sort();
+    assert_eq!(keys, sorted, "findings stay in sort order");
 }

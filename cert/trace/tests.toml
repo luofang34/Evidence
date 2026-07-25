@@ -2909,7 +2909,7 @@ test_selectors = [
     "evidence_core::corpus::drift::tests_planes::patch_plane_categories_report_independently",
     "corpus_drift_categories::every_category_fires_independently",
     "corpus_drift_categories::semantic_and_diagnostic_locator_changes_are_distinct",
-    "corpus_drift_categories::added_removed_reordered_nodes_reconcile_deterministically",
+    "corpus_drift::added_removed_reordered_nodes_reconcile_deterministically",
 ]
 
 [[tests]]
