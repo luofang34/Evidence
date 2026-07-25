@@ -54,7 +54,8 @@
 //! box, sorted deterministically. Silent dropping is forbidden;
 //! no table row or cell node is ever claimed without a proving
 //! rule: parser-hostile tables recover through approved curated
-//! patches (#219/#220), never through inference.
+//! patches (`crate::corpus::source_patch` and
+//! `crate::corpus::effective_graph`), never through inference.
 //!
 //! Module map:
 //!

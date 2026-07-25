@@ -26,7 +26,11 @@
 //!   structural-key reconciliation (LLR-156)
 //! - `ingest` — structure-preserving ingestion of verified frozen
 //!   Markdown bytes into candidate structural source nodes, with
-//!   the ingester recipe identity and typed diagnostics (LLR-161)
+//!   the ingester recipe identity and typed diagnostics (LLR-161);
+//!   the `pdf` submodule adds the pinned offline Poppler
+//!   `pdftotext -bbox-layout` adapter: strict tool lock, bounded
+//!   blocking runner, fail-closed bbox parser, layout projection,
+//!   and structural-loss diagnostics (LLR-179..LLR-182)
 //! - `source_patch` — digest-bound curated patch records correcting
 //!   parser output without source mutation: `patch_` identity, the
 //!   closed operation enum, the reviewed-content digest, and atomic
@@ -39,8 +43,8 @@
 //!   graph of one source revision: only currently approved patches
 //!   contribute (LLR-174)
 //! - `drift` — deterministic read-only re-ingestion drift
-//!   comparison over the recipe, input, parser, patch, review, and
-//!   effective planes (LLR-176)
+//!   comparison over the recipe, input, extractor-output, parser,
+//!   patch, review, and effective planes (LLR-176, LLR-183)
 //! - `legacy` — four-file `cert/trace` → graph adapter
 //! - `review_content` — versioned canonical projection of the
 //!   normative content a review approves (LLR-111)
