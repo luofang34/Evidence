@@ -5157,3 +5157,151 @@ typed `SourcePatchError` so loading and validation keep
 one error type.
 """
 verification_methods = ["test"]
+
+[[requirements]]
+uid = "65987707-2e2a-428f-aae9-a80c57ca6eb3"
+id = "LLR-170"
+title = "review record loader resolves the closed typed target under the schema-1 to schema-2 transition"
+owner = "tool"
+traces_to = ["7dedefb9-7c1a-4df3-b5ef-280bf53a831c"]
+modules = ["evidence_core::corpus::review_records"]
+description = """
+`SUPPORTED_REVIEW_SCHEMA` rises to 2. A schema-2 record
+carries `target = { kind, uid }` with a closed
+snake_case kind enum (`requirement`, `curated_patch`) and
+unknown fields denied, so a generic kind string fails
+deserialization; the uid is validated against the kind's
+typed prefix (`req_<UUIDv4>` or `patch_<UUIDv4>`). A
+schema-1 record keeps the legacy `requirement_uid` field
+and loads as a requirement target with identical
+semantics, digests, and error precedence. The two shapes
+never mix: a typed target in a schema-1 record, a legacy
+field in a schema-2 record, both fields, or neither fails
+closed with a typed shape error naming the file path and
+record identity. Files declaring a schema newer than 2
+fail closed through the existing schema gate, so older
+tools reject schema-2 files rather than ignoring
+target-kind fields. Record validation order and all other
+field checks are unchanged.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "8be8a53b-155c-4c23-a223-a39dac01b1e7"
+id = "LLR-171"
+title = "graph validation enforces exactly one reviews edge matching the typed target and its endpoint plane"
+owner = "tool"
+traces_to = ["7dedefb9-7c1a-4df3-b5ef-280bf53a831c"]
+modules = ["evidence_core::corpus::graph"]
+description = """
+The corpus graph resolves a review's `Reviews` edge against
+exactly the endpoint its typed target declares: a
+requirement target resolves to a requirement node, a
+curated-patch target resolves to the committed patch
+plane, and nothing else — an arbitrary node target is
+rejected. The per-node review invariants generalize: each
+review node carries exactly one `Reviews` edge whose target
+equals the typed target uid, and the declared target kind
+must match the plane the edge resolves to, so a cross-kind
+uid/edge mismatch fails closed with a typed error naming
+the review. `ReviewNode` carries the typed
+`ReviewTarget` (`Requirement` or `CuratedPatch`) in place
+of the bare requirement uid; review uid identity and the
+`content_schema` gate are unchanged.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "ca1f0bf8-e7fc-4152-aaec-8bdfc795e2fa"
+id = "LLR-172"
+title = "review supersession is enforced within one target kind and target uid"
+owner = "tool"
+traces_to = ["cec2bc64-a14f-426f-ac76-a2dff9a5c756"]
+modules = ["evidence_core::corpus::graph"]
+description = """
+Supersession chain validation generalizes the
+same-requirement rule to the typed target: a superseding
+review must name the same reviewer, the same typed target
+— kind and uid — and the same reviewed-content digest as
+its predecessor, so cross-target supersession fails
+closed. Self-supersession, dangling predecessors, forks,
+cycles, and multiple outgoing `Supersedes` edges remain
+hard errors, checked in uid-sorted order so the reported
+violation is deterministic. Requirement-only chains
+validate exactly as before.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "b21c9c2a-cb06-4fe1-933c-d45764ff8208"
+id = "LLR-173"
+title = "patch lifecycle evaluation derives one effective state per patch from digest-bound review heads"
+owner = "tool"
+traces_to = ["cec2bc64-a14f-426f-ac76-a2dff9a5c756"]
+modules = ["evidence_core::corpus::patch_lifecycle"]
+description = """
+`evaluate_patch_lifecycle` and
+`evaluate_all_patch_lifecycles` validate the whole graph
+once per call, then derive each committed patch's
+effective state as a pure view: the current digest is the
+patch record's `evidence/curated-patch/v1`
+reviewed-content digest, the effective heads are the
+non-superseded reviews targeting the patch, and the truth
+table is the requirement one — current-digest rejection,
+then current-digest approval, then older-digest approval
+yields stale, else candidate. Reviewer composition and
+rejection precedence are explicit and identical to
+requirements; `reviewed_at`, layout, and record order
+never enter the decision. A review targeting a missing
+patch fails closed; requirement lifecycle behavior is
+unchanged.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "5f209399-7d3d-4b53-bf22-7415fbcacd75"
+id = "LLR-174"
+title = "the effective source graph applies only currently approved patches in uid order and fails closed"
+owner = "tool"
+traces_to = ["b38bb4e4-c479-4973-830a-802111cc1cad"]
+modules = ["evidence_core::corpus::effective_graph"]
+description = """
+`effective_source_graph` validates the corpus graph,
+derives every committed patch's lifecycle, and produces
+the bound revision's effective structural graph: the
+committed parser graph with exactly the approved patches
+of that revision applied in patch uid order through the
+atomic precondition-checked application contract.
+Candidate, rejected, and stale patches never contribute;
+an approved patch whose bindings or preconditions no
+longer hold fails closed with a typed error rather than
+being silently skipped. The result records the applied
+patch uids, so effective curated content always carries
+its approval proof. The function is pure — no I/O, no
+mutation of the committed graph — and independent of
+record layout and load order.
+"""
+verification_methods = ["test"]
+
+[[requirements]]
+uid = "0bf01c65-a559-4e81-8739-21a45a575fe7"
+id = "LLR-175"
+title = "approval-boundary validation proves effective curated content is approved and producible"
+owner = "tool"
+traces_to = ["b38bb4e4-c479-4973-830a-802111cc1cad"]
+modules = ["evidence_core::corpus::approval_boundary"]
+description = """
+Under explicit enforcement, approval-boundary validation
+keeps requirement claim behavior identical and adds the
+patch plane: every committed patch's lifecycle is
+evaluated, and an approved patch must apply cleanly
+against its bound revision's committed parser graph under
+its recorded bindings and the revision's media type, so
+the corpus never claims approved curated content that
+cannot become effective. A non-approved patch contributes
+nothing and is no violation; a malformed graph or an
+approved patch that fails application fails closed with a
+typed error carrying the full source chain. Agent-facing
+surfaces gain no approval or rejection capability.
+"""
+verification_methods = ["test"]

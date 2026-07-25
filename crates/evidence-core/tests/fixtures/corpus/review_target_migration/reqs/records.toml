@@ -1,0 +1,7 @@
+schema_version = 1
+
+[[requirements]]
+uid = "req_00000000-0000-4000-8000-00000000000a"
+id = "R-A"
+layer = "hlr"
+title = "migration fixture requirement"

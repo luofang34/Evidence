@@ -78,7 +78,7 @@ use thiserror::Error;
 
 use super::digest::ReviewContentDigest;
 use super::error::CorpusError;
-use super::graph::{CorpusGraph, Node, ReviewDecision, ReviewNode};
+use super::graph::{CorpusGraph, Node, ReviewDecision, ReviewNode, ReviewTarget};
 use super::review_content::review_content_digest_v1;
 
 /// The one effective lifecycle state of a requirement (LLR-117).
@@ -231,13 +231,11 @@ pub fn evaluate_all_lifecycles(
         .map_err(|e| LifecycleError::InvalidGraph(Box::new(e)))?;
     for node in graph.nodes() {
         if let Node::Review(review) = node
-            && !matches!(
-                graph.get(&review.requirement_uid),
-                Some(Node::Requirement(_))
-            )
+            && let ReviewTarget::Requirement(requirement_uid) = &review.target
+            && !matches!(graph.get(requirement_uid), Some(Node::Requirement(_)))
         {
             return Err(LifecycleError::ApprovalTargetsMissingRequirement {
-                requirement_uid: review.requirement_uid.clone(),
+                requirement_uid: requirement_uid.clone(),
                 review_uid: review.uid.clone(),
             });
         }
@@ -271,7 +269,7 @@ fn evaluate_lifecycle_validated(
         .collect();
     Ok(LifecycleEvaluation {
         requirement_uid: requirement_uid.to_string(),
-        state: derive_state(&heads, &current_digest),
+        state: derive_state(&heads, current_digest.as_str()),
         current_digest,
         effective_review_uids: heads.iter().map(|review| review.uid.clone()).collect(),
     })
@@ -280,15 +278,15 @@ fn evaluate_lifecycle_validated(
 /// The truth table over effective heads: current-digest rejection
 /// beats current-digest approval beats older-digest approval beats
 /// nothing (LLR-117). Older-digest rejections decide nothing.
-fn derive_state(
-    heads: &[&ReviewNode],
-    current_digest: &ReviewContentDigest,
-) -> RequirementLifecycle {
+/// Shared with patch lifecycle evaluation (LLR-173): the digest is
+/// compared as text so each target kind's own projection type can
+/// drive the same table.
+pub(crate) fn derive_state(heads: &[&ReviewNode], current_digest: &str) -> RequirementLifecycle {
     let mut current_rejection = false;
     let mut current_approval = false;
     let mut older_approval = false;
     for head in heads {
-        let binds_current = head.reviewed_content_sha256 == *current_digest;
+        let binds_current = head.reviewed_content_sha256.as_str() == current_digest;
         match head.decision {
             ReviewDecision::Reject if binds_current => current_rejection = true,
             ReviewDecision::Approve if binds_current => current_approval = true,

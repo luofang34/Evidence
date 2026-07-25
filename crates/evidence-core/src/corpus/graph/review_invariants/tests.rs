@@ -5,7 +5,7 @@
 
 use crate::corpus::{
     CorpusError, CorpusGraph, EdgeKind, Node, RequirementLayer, RequirementNode,
-    ReviewContentDigest, ReviewDecision, ReviewError, ReviewNode,
+    ReviewContentDigest, ReviewDecision, ReviewError, ReviewNode, ReviewTarget,
 };
 
 const REQ_A: &str = "req_00000000-0000-4000-8000-00000000000a";
@@ -32,7 +32,7 @@ fn review_node(uid: &str, id: &str) -> ReviewNode {
     ReviewNode {
         uid: uid.to_string(),
         id: id.to_string(),
-        requirement_uid: REQ_A.to_string(),
+        target: ReviewTarget::Requirement(REQ_A.to_string()),
         content_schema: 1,
         reviewed_content_sha256: ReviewContentDigest::from_hex(&"a".repeat(64)).unwrap(),
         decision: ReviewDecision::Approve,
@@ -66,13 +66,17 @@ fn review_node_with_mismatched_requirement_field_and_edge_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewRequirementEdgeMismatch {
-                ref review_uid,
-                ref field_requirement_uid,
-                ref edge_requirement_uid,
-            }) if review_uid == REV_1
-                && field_requirement_uid == REQ_A
-                && edge_requirement_uid == REQ_B
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewTargetEdgeMismatch {
+                        ref review_uid,
+                        ref field_target_uid,
+                        ref edge_target_uid,
+                    } if review_uid == REV_1
+                        && field_target_uid == REQ_A
+                        && edge_target_uid == REQ_B
+                )
         ),
         "the error must name the review and both requirement uids, got: {err:?}"
     );
@@ -90,12 +94,16 @@ fn programmatic_review_with_unsupported_content_schema_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewContentSchema {
-                found: 99,
-                supported: 1,
-                ref uid,
-                ..
-            }) if uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewContentSchema {
+                        found: 99,
+                        supported: 1,
+                        ref uid,
+                        ..
+                    } if uid == REV_1
+                )
         ),
         "the error must name the schema found and supported, got: {err:?}"
     );
@@ -117,8 +125,12 @@ fn review_node_without_reviews_edge_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewMissingReviewsEdge { ref review_uid })
-                if review_uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewMissingReviewsEdge { ref review_uid }
+                        if review_uid == REV_1
+                )
         ),
         "a bare review node, got: {err:?}"
     );
@@ -130,8 +142,12 @@ fn review_node_without_reviews_edge_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewMissingReviewsEdge { ref review_uid })
-                if review_uid == REV_2
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewMissingReviewsEdge { ref review_uid }
+                        if review_uid == REV_2
+                )
         ),
         "a review with only a Supersedes edge, got: {err:?}"
     );
@@ -151,10 +167,14 @@ fn review_node_with_two_reviews_edges_is_rejected() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewDuplicateReviewsEdge {
-                ref review_uid,
-                count: 2,
-            }) if review_uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewDuplicateReviewsEdge {
+                        ref review_uid,
+                        count: 2,
+                    } if review_uid == REV_1
+                )
         ),
         "the error must name the review and the edge count, got: {err:?}"
     );
@@ -173,7 +193,8 @@ fn supersession_cycle_remains_rejected_after_invariants() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewSupersessionCycle { ref uid }) if uid == REV_1
+            CorpusError::Review(ref inner)
+                if matches!(**inner, ReviewError::ReviewSupersessionCycle { ref uid } if uid == REV_1)
         ),
         "two-node cycle, got: {err:?}"
     );
@@ -194,12 +215,16 @@ fn malformed_review_node_fails_before_chain_validation() {
     assert!(
         matches!(
             err,
-            CorpusError::Review(ReviewError::ReviewContentSchema {
-                found: 99,
-                supported: 1,
-                ref uid,
-                ..
-            }) if uid == REV_2
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewContentSchema {
+                        found: 99,
+                        supported: 1,
+                        ref uid,
+                        ..
+                    } if uid == REV_2
+                )
         ),
         "node invariants run before chain validation, got: {err:?}"
     );
@@ -227,4 +252,132 @@ fn programmatically_built_valid_graph_validates() {
     ])
     .validate()
     .expect("a programmatically built valid review graph validates");
+}
+
+/// Typed-target endpoint coherence: a patch-targeted review
+/// validates against the committed patch plane, a requirement
+/// target whose edge names a patch and a patch target whose edge
+/// names a requirement both fail closed with the kind-mismatch
+/// variant, and a patch review edge with no committed patch
+/// dangles (TEST-189).
+#[test]
+fn typed_target_endpoint_coherence_enforced() {
+    use crate::corpus::patch_testkit as kit;
+    use crate::corpus::{ReviewTargetKind, SourcePatchRecord};
+
+    let patch: SourcePatchRecord = kit::patch_record(kit::PATCH_A, "PATCH-001");
+    let valid = kit::graph_with(
+        patch.clone(),
+        vec![kit::patch_review(
+            kit::REV_1,
+            "REV-001",
+            kit::PATCH_A,
+            patch.reviewed_content_digest.as_str(),
+            ReviewDecision::Approve,
+            "alice@example.com",
+            None,
+        )],
+    );
+    valid
+        .validate()
+        .expect("a patch-targeted review validates against the patch plane");
+    assert_eq!(
+        match valid.get(kit::REV_1) {
+            Some(Node::Review(review)) => review.target.kind(),
+            other => panic!("review missing: {other:?}"),
+        },
+        ReviewTargetKind::CuratedPatch
+    );
+
+    // Declared requirement target, edge naming a committed patch.
+    let mut req_targeted = kit::patch_review(
+        kit::REV_1,
+        "REV-001",
+        kit::PATCH_A,
+        &"a".repeat(64),
+        ReviewDecision::Approve,
+        "alice@example.com",
+        None,
+    );
+    req_targeted.target = ReviewTarget::Requirement(kit::PATCH_A.to_string());
+    let err = kit::graph_with(patch.clone(), vec![req_targeted])
+        .validate()
+        .expect_err("a requirement target edging a patch must fail closed");
+    assert!(
+        matches!(
+            err,
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewTargetKindMismatch {
+                        ref review_uid,
+                        declared: "requirement",
+                        resolved: "a curated patch",
+                    } if review_uid == kit::REV_1
+                )
+        ),
+        "requirement target edging a patch, got: {err:?}"
+    );
+
+    // Declared curated-patch target, edge naming a requirement node.
+    let mut patch_targeted = kit::patch_review(
+        kit::REV_1,
+        "REV-001",
+        kit::PATCH_A,
+        &"a".repeat(64),
+        ReviewDecision::Approve,
+        "alice@example.com",
+        None,
+    );
+    patch_targeted.edges = vec![(EdgeKind::Reviews, REQ_A.to_string())];
+    patch_targeted.target = ReviewTarget::CuratedPatch(REQ_A.to_string());
+    let mut graph = kit::graph_with(patch, vec![patch_targeted]);
+    graph.insert(requirement(REQ_A)).unwrap();
+    let err = graph
+        .validate()
+        .expect_err("a patch target edging a requirement must fail closed");
+    assert!(
+        matches!(
+            err,
+            CorpusError::Review(ref inner)
+                if matches!(
+                    **inner,
+                    ReviewError::ReviewTargetKindMismatch {
+                        ref review_uid,
+                        declared: "curated_patch",
+                        resolved: "a requirement node",
+                    } if review_uid == kit::REV_1
+                )
+        ),
+        "patch target edging a requirement, got: {err:?}"
+    );
+
+    // A patch review edge with no committed patch dangles.
+    let mut graph = CorpusGraph::new();
+    graph.insert(kit::revision_node()).unwrap();
+    graph
+        .insert(Node::Review(kit::patch_review(
+            kit::REV_1,
+            "REV-001",
+            kit::PATCH_A,
+            &"a".repeat(64),
+            ReviewDecision::Approve,
+            "alice@example.com",
+            None,
+        )))
+        .unwrap();
+    let err = graph
+        .validate()
+        .expect_err("a review edging an uncommitted patch must fail closed");
+    assert!(
+        matches!(
+            err,
+            CorpusError::DanglingEdge {
+                ref from,
+                ref to,
+                kind: EdgeKind::Reviews,
+            } if from == kit::REV_1 && to == kit::PATCH_A
+        ),
+        "uncommitted patch target, got: {err:?}"
+    );
 }

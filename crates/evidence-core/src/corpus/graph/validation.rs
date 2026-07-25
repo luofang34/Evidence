@@ -59,19 +59,27 @@ pub(super) fn canonicalize_edges(node: &mut Node) -> Result<(), CorpusError> {
     Ok(())
 }
 
-/// Check every edge in `graph` resolves to a present node and obeys
-/// its source/target endpoint-kind contract.
+/// Check every edge in `graph` resolves and obeys its
+/// source/target endpoint-kind contract. A review's `Reviews`
+/// edge may also resolve against the committed patch plane —
+/// `rev -> patch` is the curated-patch target endpoint
+/// (LLR-171); every other edge kind resolves against nodes only.
 pub(super) fn validate_edges(graph: &CorpusGraph) -> Result<(), CorpusError> {
     for node in graph.nodes.values() {
         for (kind, target) in node.edges() {
-            let target_node = graph
-                .nodes
-                .get(target)
-                .ok_or_else(|| CorpusError::DanglingEdge {
+            let Some(target_node) = graph.nodes.get(target) else {
+                if node.kind() == NodeKind::Review
+                    && *kind == EdgeKind::Reviews
+                    && graph.source_patches.contains_key(target)
+                {
+                    continue;
+                }
+                return Err(CorpusError::DanglingEdge {
                     from: node.uid().to_string(),
                     to: target.clone(),
                     kind: *kind,
-                })?;
+                });
+            };
             if !edge_kinds_match(node.kind(), *kind, target_node.kind()) {
                 return Err(CorpusError::InvalidEdgeKinds {
                     from: node.uid().to_string(),
@@ -88,8 +96,10 @@ pub(super) fn validate_edges(graph: &CorpusGraph) -> Result<(), CorpusError> {
 
 /// The endpoint-kind contract per edge kind: a requirement derives
 /// from a requirement, a test verifies a requirement, a review
-/// decides on a requirement and supersedes a review (LLR-115), and
-/// a source revision supersedes a source revision (LLR-129).
+/// decides on a requirement (a curated-patch target resolves
+/// against the patch plane, checked by the caller) and supersedes
+/// a review (LLR-115, LLR-171), and a source revision supersedes a
+/// source revision (LLR-129).
 fn edge_kinds_match(source: NodeKind, edge: EdgeKind, target: NodeKind) -> bool {
     matches!(
         (source, edge, target),

@@ -185,9 +185,11 @@ pub enum CorpusError {
     },
     /// A review record failed to load or a review graph invariant
     /// failed validation (LLR-114, LLR-115). Display forwards to the
-    /// wrapped review error unchanged.
+    /// wrapped review error unchanged. Boxed because the variant is
+    /// large enough to trip `result_large_err` on some platforms;
+    /// the error object is carried whole either way.
     #[error(transparent)]
-    Review(#[from] ReviewError),
+    Review(#[from] Box<ReviewError>),
     /// A proposal store operation failed (LLR-122, LLR-123,
     /// LLR-124). Display forwards to the wrapped proposal error
     /// unchanged.

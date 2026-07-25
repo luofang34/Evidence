@@ -2827,3 +2827,57 @@ test_selectors = [
     "corpus_source_patch::pics_shaped_correction_restores_table_ancestry_and_canonical_digest",
     "corpus_source_patch::parser_patch_and_candidate_planes_are_separately_inspectable",
 ]
+
+[[tests]]
+uid = "f190a464-ab69-4360-8a4e-30286cd123ed"
+id = "TEST-188"
+title = "typed review targets round-trip under strict schemas and the schema-1 to schema-2 migration fixture proves the exact wire change"
+owner = "tool"
+traces_to = ["65987707-2e2a-428f-aae9-a80c57ca6eb3"]
+test_selectors = [
+    "evidence_core::corpus::review_records::typed_target_tests::typed_target_records_round_trip_and_mixed_layouts_load",
+    "evidence_core::corpus::review_records::typed_target_tests::target_shape_and_kind_violations_fail_closed",
+    "corpus_review_targets::schema_migration_fixture_proves_identical_requirement_review_semantics",
+]
+
+[[tests]]
+uid = "05741b9a-1396-4fec-b9e9-b0ede52f7b5d"
+id = "TEST-189"
+title = "cross-kind uid and edge mismatches, incoherent target endpoints, and cross-target supersession fail closed"
+owner = "tool"
+traces_to = [
+    "8be8a53b-155c-4c23-a223-a39dac01b1e7",
+    "ca1f0bf8-e7fc-4152-aaec-8bdfc795e2fa",
+]
+test_selectors = [
+    "evidence_core::corpus::graph::review_invariants::tests::typed_target_endpoint_coherence_enforced",
+    "evidence_core::corpus::graph::supersession::tests::cross_target_supersession_fails_closed",
+    "corpus_review_targets::generic_targets_and_cross_kind_edges_fail_closed",
+]
+
+[[tests]]
+uid = "f864e988-e0e0-41ab-8ce6-b5934145c2d5"
+id = "TEST-190"
+title = "patch lifecycle follows the requirement truth table and every semantic patch mutation makes an approval stale"
+owner = "tool"
+traces_to = ["b21c9c2a-cb06-4fe1-933c-d45764ff8208"]
+test_selectors = [
+    "evidence_core::corpus::patch_lifecycle::tests::truth_table_and_supersession_match_requirements",
+    "evidence_core::corpus::patch_lifecycle::tests::every_semantic_mutation_stales_approval",
+    "evidence_core::corpus::patch_lifecycle::tests::layout_and_record_order_never_affect_evaluation",
+]
+
+[[tests]]
+uid = "9e134913-6b7f-4dd9-95d3-7f625dae4c30"
+id = "TEST-191"
+title = "only approved patches alter the effective graph, approval boundary proves curated content, and agent surfaces cannot approve"
+owner = "tool"
+traces_to = [
+    "5f209399-7d3d-4b53-bf22-7415fbcacd75",
+    "0bf01c65-a559-4e81-8739-21a45a575fe7",
+]
+test_selectors = [
+    "evidence_core::corpus::effective_graph::tests::only_approved_patches_contribute_and_fail_closed",
+    "evidence_core::corpus::approval_boundary::patch_plane_tests::effective_curated_content_proven_approved",
+    "corpus_review_targets::approved_patch_affects_effective_graph_candidate_rejected_stale_never_do",
+]

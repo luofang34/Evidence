@@ -6,14 +6,14 @@ use std::path::Path;
 
 use crate::corpus::{
     CorpusError, CorpusGraph, CorpusIndex, EdgeKind, Node, NodeKind, ReviewDecision, ReviewError,
-    ReviewNode,
+    ReviewNode, ReviewTarget,
 };
 
-const REQ_A: &str = "req_00000000-0000-4000-8000-00000000000a";
-const REV_1: &str = "rev_00000000-0000-4000-8000-0000000000a1";
-const REV_2: &str = "rev_00000000-0000-4000-8000-0000000000a2";
-const REV_3: &str = "rev_00000000-0000-4000-8000-0000000000a3";
-const REV_4: &str = "rev_00000000-0000-4000-8000-0000000000a4";
+pub(super) const REQ_A: &str = "req_00000000-0000-4000-8000-00000000000a";
+pub(super) const REV_1: &str = "rev_00000000-0000-4000-8000-0000000000a1";
+pub(super) const REV_2: &str = "rev_00000000-0000-4000-8000-0000000000a2";
+pub(super) const REV_3: &str = "rev_00000000-0000-4000-8000-0000000000a3";
+pub(super) const REV_4: &str = "rev_00000000-0000-4000-8000-0000000000a4";
 
 const REQ_RECORDS: &str = r#"
 [[requirements]]
@@ -32,7 +32,7 @@ derives_from = ["req_00000000-0000-4000-8000-00000000000a"]
 
 /// One review record's field values, rendered by [`record_toml`].
 #[derive(Clone)]
-struct RecordSpec {
+pub(super) struct RecordSpec {
     uid: String,
     id: String,
     requirement_uid: String,
@@ -45,7 +45,7 @@ struct RecordSpec {
     supersedes: Option<String>,
 }
 
-fn approve(uid: &str, id: &str) -> RecordSpec {
+pub(super) fn approve(uid: &str, id: &str) -> RecordSpec {
     RecordSpec {
         uid: uid.to_string(),
         id: id.to_string(),
@@ -60,7 +60,7 @@ fn approve(uid: &str, id: &str) -> RecordSpec {
     }
 }
 
-fn record_toml(spec: &RecordSpec) -> String {
+pub(super) fn record_toml(spec: &RecordSpec) -> String {
     let mut out = format!(
         "\n[[reviews]]\nuid = \"{}\"\nid = \"{}\"\nrequirement_uid = \"{}\"\ncontent_schema = {}\n\
          reviewed_content_sha256 = \"{}\"\ndecision = \"{}\"\nreviewer = \"{}\"\nreviewed_at = \"{}\"\n",
@@ -82,7 +82,7 @@ fn record_toml(spec: &RecordSpec) -> String {
     out
 }
 
-fn review_file(specs: &[RecordSpec]) -> String {
+pub(super) fn review_file(specs: &[RecordSpec]) -> String {
     let mut out = "schema_version = 1\n".to_string();
     for spec in specs {
         out.push_str(&record_toml(spec));
@@ -90,7 +90,7 @@ fn review_file(specs: &[RecordSpec]) -> String {
     out
 }
 
-fn write(path: &Path, content: &str) {
+pub(super) fn write(path: &Path, content: &str) {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).unwrap();
     }
@@ -99,7 +99,7 @@ fn write(path: &Path, content: &str) {
 
 /// Load a corpus with the standard requirements plus review files
 /// given as `(path under reviews/, content)` pairs.
-fn load_corpus(review_files: &[(&str, &str)]) -> Result<CorpusGraph, CorpusError> {
+pub(super) fn load_corpus(review_files: &[(&str, &str)]) -> Result<CorpusGraph, CorpusError> {
     let dir = tempfile::tempdir().unwrap();
     write(
         &dir.path().join("reqs/records.toml"),
@@ -115,19 +115,19 @@ fn load_corpus(review_files: &[(&str, &str)]) -> Result<CorpusGraph, CorpusError
     CorpusIndex::load_graph(&dir.path().join("corpus.toml"))
 }
 
-fn load_with_reviews(specs: &[RecordSpec]) -> Result<CorpusGraph, CorpusError> {
+pub(super) fn load_with_reviews(specs: &[RecordSpec]) -> Result<CorpusGraph, CorpusError> {
     let file = review_file(specs);
     load_corpus(&[("records", file.as_str())])
 }
 
-fn expect_load_err(result: Result<CorpusGraph, CorpusError>, case: &str) -> CorpusError {
+pub(super) fn expect_load_err(result: Result<CorpusGraph, CorpusError>, case: &str) -> CorpusError {
     match result {
         Ok(_) => panic!("{case} must fail closed"),
         Err(err) => err,
     }
 }
 
-fn expect_review<'g>(graph: &'g CorpusGraph, uid: &str) -> &'g ReviewNode {
+pub(super) fn expect_review<'g>(graph: &'g CorpusGraph, uid: &str) -> &'g ReviewNode {
     match graph.get(uid) {
         Some(Node::Review(node)) => node,
         other => panic!("review node {uid} missing or wrong kind: {other:?}"),
@@ -135,7 +135,7 @@ fn expect_review<'g>(graph: &'g CorpusGraph, uid: &str) -> &'g ReviewNode {
 }
 
 /// Unwrap the review error a failed review load must surface.
-fn review_err(err: &CorpusError) -> &ReviewError {
+pub(super) fn review_err(err: &CorpusError) -> &ReviewError {
     match err {
         CorpusError::Review(review_err) => review_err,
         other => panic!("expected a review error, got: {other:?}"),
@@ -161,7 +161,10 @@ fn approve_and_reject_records_round_trip() {
 
     let approval = expect_review(&graph, REV_1);
     assert_eq!(approval.id, "REV-001");
-    assert_eq!(approval.requirement_uid, REQ_A);
+    assert_eq!(
+        approval.target,
+        ReviewTarget::Requirement(REQ_A.to_string())
+    );
     assert_eq!(approval.content_schema, 1);
     assert_eq!(approval.reviewed_content_sha256.as_str(), "a".repeat(64));
     assert_eq!(approval.decision, ReviewDecision::Approve);
@@ -214,7 +217,7 @@ fn strict_schema_violations_fail_closed() {
     let unknown_field = review_file(&[approve(REV_1, "REV-001")])
         .replace("reviewed_at", "surprise_field = true\nreviewed_at");
     let unknown_top_level = "schema_version = 1\nsurprise = true\n".to_string();
-    let newer_file_schema = "schema_version = 2\n".to_string();
+    let newer_file_schema = "schema_version = 3\n".to_string();
     let mut newer_content = approve(REV_1, "REV-001");
     newer_content.content_schema = 2;
     let mut zero_content = approve(REV_1, "REV-001");
@@ -232,8 +235,8 @@ fn strict_schema_violations_fail_closed() {
             matches!(
                 err,
                 ReviewError::RecordSchemaTooNew {
-                    found: 2,
-                    supported: 1,
+                    found: 3,
+                    supported: 2,
                     ..
                 }
             )
@@ -470,7 +473,7 @@ fn independent_reviews_of_one_digest_are_preserved() {
     assert_eq!(graph.len(), 4, "2 requirements + 2 reviews");
     for uid in [REV_1, REV_2] {
         let review = expect_review(&graph, uid);
-        assert_eq!(review.requirement_uid, REQ_A);
+        assert_eq!(review.target, ReviewTarget::Requirement(REQ_A.to_string()));
         assert_eq!(review.reviewed_content_sha256.as_str(), "a".repeat(64));
         assert_eq!(review.edges, vec![(EdgeKind::Reviews, REQ_A.to_string())]);
     }

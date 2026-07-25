@@ -3451,3 +3451,80 @@ committed graph, and no workspace overwrite.
 """
 verification_methods = ["test"]
 traces_to = ["c12a4840-18c5-4619-9251-d63cf772be92"]
+
+[[requirements]]
+uid = "7dedefb9-7c1a-4df3-b5ef-280bf53a831c"
+id = "HLR-129"
+title = "Review records carry a closed typed target — requirement or curated patch — under an explicit schema transition older tools fail closed on"
+owner = "tool"
+scope = "component"
+description = """
+The implicit requirement-only review target shall be replaced
+by a closed typed target: `requirement` or `curated_patch`.
+New schema-2 review records shall carry the typed target as a
+strict `{ kind, uid }` table with a closed kind enum — a
+generic string kind fails deserialization — and the uid shall
+satisfy the kind's typed prefix contract. Schema-1 records
+with `requirement_uid` shall continue to load as requirement
+targets with identical semantics and digests; the two record
+shapes shall not mix within one record, and mixed legacy/new
+files shall load deterministically. Review uid identity,
+reviewer composition, and supersession semantics shall be
+unchanged. Older tools shall fail closed on schema-2 files
+through the existing schema-version gate, never silently
+ignoring target-kind fields.
+"""
+verification_methods = ["test"]
+traces_to = ["dcf27ecb-7196-4564-adf6-f6f97c42f192"]
+
+[[requirements]]
+uid = "cec2bc64-a14f-426f-ac76-a2dff9a5c756"
+id = "HLR-130"
+title = "Curated patches derive candidate, approved, rejected, or stale lifecycle from digest-bound review heads under the requirement truth table"
+owner = "tool"
+scope = "component"
+description = """
+A curated patch shall have exactly one effective lifecycle
+state, derived as a pure evaluated view — never stored —
+from the non-superseded reviews targeting it. The current
+patch content shall be the `evidence/curated-patch/v1`
+reviewed-content digest of the committed patch record, so
+any change to content, preconditions, operation order, or
+the source, recipe, input, or pre-graph bindings shall move
+the digest and make an approval stale. The truth table shall
+match requirements exactly: a current-digest rejection wins,
+then a current-digest approval, then an older-digest
+approval yields stale, else candidate. Supersession shall be
+enforced within one target kind and target uid: self,
+dangling, cycle, fork, cross-reviewer, cross-target, and
+cross-digest supersession shall fail closed, and a patch
+with multiple conflicting current decisions shall never
+count as approved.
+"""
+verification_methods = ["test"]
+traces_to = ["dcf27ecb-7196-4564-adf6-f6f97c42f192"]
+
+[[requirements]]
+uid = "b38bb4e4-c479-4973-830a-802111cc1cad"
+id = "HLR-131"
+title = "The effective structural graph applies only currently approved patches in deterministic order, and approval-boundary validation proves curated content is approved"
+owner = "tool"
+scope = "component"
+description = """
+The effective structural graph of one source revision shall
+be the committed parser graph plus exactly the currently
+approved curated patches of that revision, applied in
+deterministic uid order with the full precondition-checked,
+atomic application contract; candidate, rejected, stale, and
+malformed patches shall never contribute, and an approved
+patch that cannot apply cleanly shall fail closed rather
+than being silently dropped. Approval-boundary validation
+shall be extended so every committed patch's lifecycle is
+evaluated and any approved curated content is proven
+producible, while requirement claim behavior — gated
+`Verifies` edges and module/emits claims — remains
+byte-identical. Agent-facing surfaces shall remain unable to
+approve, reject, or mutate baseline review records.
+"""
+verification_methods = ["test"]
+traces_to = ["dcf27ecb-7196-4564-adf6-f6f97c42f192"]

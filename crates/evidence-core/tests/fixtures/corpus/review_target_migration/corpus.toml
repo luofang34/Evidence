@@ -1,0 +1,3 @@
+schema_version = 1
+requirements = ["reqs/**/*.toml"]
+reviews = ["reviews_v1/**/*.toml", "reviews_v2/**/*.toml"]

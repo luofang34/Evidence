@@ -1723,3 +1723,47 @@ verification_methods = [
     "review",
 ]
 traces_to = []
+
+[[requirements]]
+uid = "dcf27ecb-7196-4564-adf6-f6f97c42f192"
+id = "SYS-055"
+title = "Digest-bound reviews generalize to a closed typed target set, adding curated patches under an approval-gated effective graph"
+owner = "soi"
+scope = "soi"
+description = """
+The tool shall generalize digest-bound human reviews from
+requirement-only targets to a closed typed target set —
+requirement or curated patch — without weakening,
+reinterpreting, or silently broadening existing requirement
+approvals. The typed target shall carry the expected target
+uid kind and the reviewed-content digest; a generic string
+kind, an arbitrary node target, or a caller-supplied digest
+projection shall be unrepresentable or fail closed.
+Requirement review-content v1 shall remain byte-for-byte and
+semantically compatible: a v1 requirement review shall never
+approve a curated patch or any field absent from its
+projection. The review-record schema transition shall be
+explicit: existing requirement review fixtures and canonical
+digests shall remain stable, older tools shall fail closed on
+the newer schema, and mixed legacy/new layouts shall load
+deterministically where the declared schema permits them. A
+curated patch shall derive candidate, approved, rejected, or
+stale state from its review heads under the same digest and
+supersession principles as requirements, and shall contribute
+to the effective structural graph of its bound source
+revision only while currently approved; rejected, candidate,
+stale, malformed, or multiply-currently-decided patches
+shall never alter the effective graph. Any change to patch
+content, preconditions, operation order, or to the source,
+recipe, input, or pre-graph bindings shall make an approval
+stale. Approval-boundary validation shall prove that any
+effective curated content is approved while requirement
+claim behavior remains identical. Agent proposal authority
+shall remain append-only candidate creation; approval and
+rejection shall stay unavailable to agent surfaces.
+"""
+verification_methods = [
+    "test",
+    "review",
+]
+traces_to = []
